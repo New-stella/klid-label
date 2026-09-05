@@ -31,9 +31,6 @@ SKIP_SYSPKGS=1 ./scripts/package.sh
 # ffmpeg 예비물과 GPL 대응 소스만 빼고 나머지 시스템 RPM 은 수집(권장하지 않음 — 아래 ★)
 SKIP_FFMPEG=1 ./scripts/package.sh
 
-# 번들 PG16 RPM 수집 생략(타깃에 이미 PostgreSQL 이 있을 때)
-SKIP_POSTGRES=1 ./scripts/package.sh
-
 # HF 모델(SAM2)도 사전 다운로드(SAM2 사용 시 — 탐지 YOLOX 는 동봉 ONNX 라 불필요)
 PREFETCH_HF=1 ./scripts/package.sh
 
@@ -66,7 +63,7 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
   로 새 프로세스에서 부른다) 넘겨받을 값 자체가 없다.
 - **모든 단계는 재실행이 안전하다(멱등).** 이미 받은 파일은 건너뛰고, 빌드 단계는 다시 빌드한다.
   ⚠ 단 30 단계에는 **플랫폼 조건**이 붙는다(아래 표의 주석).
-- **환경변수 토글은 그대로 먹는다.** `SKIP_POSTGRES=1 ./scripts/package-step.sh from 40` 처럼 쓴다.
+- **환경변수 토글은 그대로 먹는다.** `SKIP_FFMPEG=1 ./scripts/package-step.sh from 40` 처럼 쓴다.
 
 ```bash
 cd deploy/onprem
@@ -115,7 +112,6 @@ package.sh 가 N 단계에서 실패
 | — | `35-collect-python-licenses.sh` | 파이썬 반입물 고지 스테이징 | 불필요 | 3 | 3초 | 안전. **일괄 목록 밖**(30 이 부른다) |
 | 4 | `40-collect-runtimes.sh` | CPython 3.11 + 파이썬 제3자 고지 | 필요 | 없음 | 5초 | 안전. tarball 은 재사용, 고지용 71MB 는 매번 받는다 |
 | 5 | `50-collect-syspkgs.sh` | ffmpeg·el8 RPM·GPG 키·GPL 대응 SRPM | 필요 | `dnf` 또는 `docker` | 82초 | 안전. 받은 RPM 은 건너뛴다 |
-| 5.5 | `55-collect-postgresql.sh` | PGDG PostgreSQL 16 RPM | 필요 | `dnf` 또는 `docker` | 44~50초 | 안전. 받은 RPM 은 건너뛴다 |
 | 6 | `60-collect-buildtools.sh` | 오프라인 빌드 키트 | 필요 | `WITH_BUILDTOOLS=1` | 미측정(GB 급) | 안전. **기본 제외**라 일괄 목록 밖 |
 | 7 | `65-collect-copyleft-sources.sh` | 카피레프트 대응 소스 | 필요 | 3·5 | 4~5초 | 안전. 받은 소스는 건너뛴다 |
 | 8 | `70-generate-notices.sh` | NOTICE·INVENTORY·UNRESOLVED 집계 | 불필요 | 1·2·3·4 | 1초 | 안전. 집계만 다시 한다 |
@@ -163,7 +159,6 @@ package.sh 가 N 단계에서 실패
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | CPython 3.11 standalone (tar.gz) — ai-server 용. **자바 런타임은 수집하지 않는다**(WAS 가 제공). 웹 서버는 `50-collect-syspkgs.sh` 가 httpd RPM 으로 수집 |
 | 5 | `package/50-collect-syspkgs.sh` | **ffmpeg RPM**(`syspkgs/ffmpeg/` — **예비물**, 아래 ★) + **el8 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2`/`httpd`/`policycoreutils-python-utils` → `syspkgs/rpm/`) + **GPG 공개키**(`syspkgs/gpg/`) + **GPL 대응 소스 SRPM**(`syspkgs/ffmpeg-src/`). 각 디렉토리에 `repodata/`(로컬 yum 저장소) 생성 — 단 `ffmpeg-src/` 는 설치 대상이 아니라 색인하지 않는다 |
-| 5.5 | `package/55-collect-postgresql.sh` | **(옵션·기본 ON)** PGDG **PostgreSQL 16 RPM**(postgresql16-server 등 +전이 의존 → `syspkgs/postgresql/`). `SKIP_POSTGRES=1` 로 생략. dnf 없으면 graceful SKIP |
 | 6 | `package/60-collect-buildtools.sh` | **(옵션·기본 OFF)** 오프라인 빌드 키트: JDK17 full + Node20 + Gradle 8.8 + **populated gradle-home** + **frontend node_modules** + `src/` 소스 (소스 재빌드용). `WITH_BUILDTOOLS=1` 일 때만 실행 |
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
@@ -343,10 +338,11 @@ docker run --rm --platform linux/amd64 -v "$PWD/../..:/work" -w /work/deploy/onp
 '
 ```
 
-> **PGDG repo 핀 한계**: PGDG repo RPM 은 `...repo-latest.noarch.rpm`(가변 latest)이라 버전 고정
-> 체크섬 핀이 불가하다. `55-collect-postgresql.sh` 는 repo RPM 으로 PGDG repo 메타만 추가하고
-> 받은 PG16 *.rpm 의 전송 무결성은 `syspkgs/postgresql/SHA256SUMS` 로 검증한다.
-> 타깃에 이미 PG 가 있으면 `SKIP_POSTGRES=1`(수집)·`USE_BUNDLED_POSTGRES=0`(설치)로 번들 PG 를 끈다.
+> ⚠ **구 항목 폐기(2026-09-05)** — *"PGDG repo 핀 한계 … `55-collect-postgresql.sh` 는 repo RPM 으로
+> PGDG repo 메타만 추가하고 … `SKIP_POSTGRES=1`(수집)·`USE_BUNDLED_POSTGRES=0`(설치)로 번들 PG 를 끈다"*.
+> **데이터베이스는 반입물이 아니다**(2026-09-05 확정) — 수집 스크립트도 설치 토글도 제거됐다.
+> 그 결과 PGDG repo 를 빌드머신에서 쓸 일이 없어졌고, 매체에서 `syspkgs/postgresql/` 이 빠진다.
+> **되살리지 말 것** — 번들 RPM 이 의존을 풀면서 대상 장비의 기존 시스템 라이브러리까지 끌어올린다.
 
 ### 어디서 무엇을 채우나 (산출물별 빌드머신)
 
@@ -361,7 +357,6 @@ docker run --rm --platform linux/amd64 -v "$PWD/../..:/work" -w /work/deploy/onp
 | **pip wheel(torch CPU 등)** | `vendor/wheels/` | **el8 정합(glibc 2.28)** | **el8 컨테이너/머신** |
 | **시스템 RPM(mesa-libGL 등)** | `syspkgs/rpm/` | **el8 정합** | **el8 컨테이너/머신**(`dnf download`) |
 | **GPL 대응 소스(SRPM)** | `syspkgs/ffmpeg-src/` | **el8 정합** | **el8 컨테이너/머신**(`dnf download --source`). **설치 대상 아님** — 아래 「왜 소스를 넣나」 참조 |
-| **PostgreSQL 16 RPM(옵션)** | `syspkgs/postgresql/` | **el8 정합** | **el8 컨테이너/머신**(PGDG **EL-8** repo + `dnf download`). 타깃에 PG 있으면 `SKIP_POSTGRES=1` |
 
 > **런타임 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh`(Python)는 tarball 을 받은
 > 직후 `scripts/lib/versions.sh` 의 공식 체크섬과 대조한다(불일치 시 즉시 중단). 설치 단계

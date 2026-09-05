@@ -43,6 +43,11 @@ public class SecurityConfig {
     private final LastLoginRecorder lastLoginRecorder;
     /** 진입 시 작업자 자동 등록기 — JWT 필터가 역할 없는 INTERNAL 요청에만 호출한다(@design AC-1016). */
     private final AutoWorkerRegistrar autoWorkerRegistrar;
+    /**
+     * 관제 인계 미등록 진입자 로컬 식별 레코드 발급기 — JWT 필터가 INTERNAL 채널 + 비숫자 sub +
+     * userId 조회 0건일 때만 호출한다(@design ADR-063 · UC-041 · AC-1016).
+     */
+    private final kr.co.cudo.authoring.user.service.ControlUserProvisioner controlUserProvisioner;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -60,7 +65,7 @@ public class SecurityConfig {
             throws Exception {
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver,
-                        lastLoginRecorder, autoWorkerRegistrar);
+                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).

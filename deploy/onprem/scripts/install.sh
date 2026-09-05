@@ -4,33 +4,43 @@ set -euo pipefail
 # install.sh — [대상 서버 / 폐쇄망] klid-label 오프라인 설치 오케스트레이터
 #
 #   root 로 실행한다. 외부 네트워크 호출은 전혀 하지 않는다(모든 의존성은 번들).
-#   (옵션)PostgreSQL → 런타임 설치 → backend → ai-server → frontend → (옵션)DB 초기화 순서.
+#   런타임 설치 → backend → ai-server → frontend → 스키마 적재 → WAS 배포 → 검증 순서.
 #
 #   사용법:
-#     sudo ./scripts/install.sh                   # 역할 미지정 = 전체 설치(종전 동작)
-#     sudo ./scripts/install.sh --role=app        # 서버 A: 프론트(httpd) + 백엔드(WAR) + DB
-#     sudo ./scripts/install.sh --role=ai         # 서버 B: ai-server(파이썬·휠·모델)
-#     sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh  # 외부(기존) PG 사용 — 번들 PG 설치 생략
-#     sudo SKIP_DB_INIT=1 ./scripts/install.sh    # DB 생성 단계 생략(이미 준비됨)
+#     sudo ./scripts/install.sh                   # 역할 미지정 = 전체 설치(단일 서버)
+#     sudo ./scripts/install.sh --role=was        # WAS 장비: 백엔드(api.war)만
+#     sudo ./scripts/install.sh --role=web        # 웹 장비: 프론트 정적자산만
+#     sudo ./scripts/install.sh --role=ai         # AI 장비: ai-server(파이썬·휠·모델)
+#     sudo ./scripts/install.sh --role=app        # 단일 서버: was + web 을 한 대에 (하위호환)
+#     sudo SKIP_SCHEMA_LOAD=1 ./scripts/install.sh  # 스키마가 이미 준비됨 — 적재 단계 생략
 #     sudo INSTALL_BACKEND_SYSTEMD_UNIT=1 ./scripts/install.sh  # 베어메탈 형상(jar + systemd) — 아래 ★
 #
 #   단계 선택(부분 실행 — 재실행은 멱등이라 안전하다):
 #     ./scripts/install.sh --list                 # 이 역할에서 도는 단계만 보고 끝낸다(root 불요·무변경)
 #     sudo ./scripts/install.sh --only=13         # 그 단계만 실행(여러 개면 --only=12,14)
-#     sudo ./scripts/install.sh --skip=10,11      # 그 단계만 빼고 실행
+#     sudo ./scripts/install.sh --skip=16,17      # 그 단계만 빼고 실행
 #     ★ 번호(10)·번호접두(13-)·전체 파일명 아무거나 받는다. --only 와 --skip 은 함께 쓸 수 없다.
 #     ★ 이미 끝난 단계를 빼고 <실패한 단계만> 다시 돌릴 때 쓴다. 각 단계는 앞 단계의 실행
 #       <여부>가 아니라 <결과물 존재>를 확인하므로, 건너뛰어 빠진 것이 있으면 그 자리에서
 #       "무엇이 없다"고 말하며 멈춘다(조용히 잘못된 상태로 끝나지 않는다).
 #
-#   ★★ 대상 장비는 2대다 (2026-08-30 확정):
-#       A) app : httpd(정적 서빙 + /api 프록시) + 외부 WAS 에 api.war + (옵션)PostgreSQL·DB 초기화
-#                ffmpeg·ffprobe 는 <이 서버의 전제조건>이며 관제지원시스템 팀이 설치한다.
-#                우리는 설치하지 않고 <검증만> 한다(19-verify-ffmpeg.sh — 없으면 die).
-#       B) ai  : ai-server(번들 파이썬 + 오프라인 휠 + YOLOX/SAM2 모델). httpd 불필요.
-#                장비에 GPU 가 있으나 <이번 반입은 CPU 전용>이다(torch CPU 휠).
+#   ★★ 대상 장비는 역할이 셋으로 갈린다 (2026-09-04 현장 확정):
+#       was : 외부 WAS 에 api.war. httpd 없음. (klid-ai-gen-was-01~04, 4대)
+#             ffmpeg·ffprobe 는 <이 장비의 전제조건>이며 관제지원시스템 팀이 설치한다.
+#             우리는 설치하지 않고 <검증만> 한다(19-verify-ffmpeg.sh — 없으면 die).
+#       web : 프론트 정적자산만. WAS 도 DB 도 없음. (klid-web-01~02, 2대)
+#             ⚠ httpd 설정은 현장 공용 설정이라 <우리가 고치지 않는다>.
+#       ai  : ai-server(번들 파이썬 + 오프라인 휠 + YOLOX/SAM2 모델). (klid-ai-gpu-01~02, 2대)
+#             장비에 GPU 가 있으나 <이번 반입은 CPU 전용>이다(torch CPU 휠).
 #     ★ 매체는 하나다 — 물리적으로 쪼개지 않고 <설치할 때 역할만 고른다>.
-#     ★ 하위호환: --role 을 주지 않으면 all(전체 설치)이라 기존 단일 서버 절차가 그대로 동작한다.
+#     ★ 하위호환: --role 을 주지 않으면 all(전체 설치)이고, --role=app 은 was+web 을 한 대에
+#       올리는 단일 서버 구성이다. 기존 절차가 그대로 동작한다.
+#     ★ 역할 → 역량 판정은 lib/common.sh 의 klid_role_caps 가 <단독으로> 소유한다.
+#       단계 번호를 호출부에 하드코딩하지 말 것 — 단계가 늘거나 줄면 조용히 어긋난다.
+#
+#   ★ PostgreSQL 은 우리가 배포하지 않는다 (2026-09-05 확정) — 장비에 이미 설치된 것을 쓴다.
+#     빈 데이터베이스와 앱 계정 준비는 <현장 담당의 선행 조건>이다.
+#     ⚠ 다만 <스키마 적재>는 우리도 한다(16 단계) — 둘을 같은 것으로 읽지 말 것.
 #
 #   ★ 배포 형상 = <외부 WAS 에 api.war 반입> (@design DEPLOY-001 · RUNBOOK-001, 2026-08-30 확정).
 #     이 스크립트는 backend 를 <배치까지만> 하고 기동하지 않으며, 자바 런타임도 설치하지 않는다
@@ -92,24 +102,27 @@ _step_matches() {
 # 이 역할에서 도는 단계 목록을 만든다(부작용 없음 — --list 가 root 없이 쓸 수 있어야 한다).
 _build_steps() {
   STEPS=()
-  klid_role_has app && STEPS+=("10-install-postgresql.sh")
   klid_role_has ai  && STEPS+=("11-install-runtimes.sh")
-  klid_role_has app && STEPS+=("12-install-backend.sh")
+  klid_role_has was && STEPS+=("12-install-backend.sh")
   klid_role_has ai  && STEPS+=("13-install-ai-server.sh")
-  klid_role_has app && STEPS+=("14-install-frontend.sh")
-  if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
-    STEPS+=("15-init-db.sh")
+  klid_role_has web && STEPS+=("14-install-frontend.sh")
+  # ★ 스키마 적재 — 현장 담당 선적용 우선 + 우리가 채움 (2026-09-05 확정).
+  #   대상 스키마가 비었으면 적재하고, 이미 있고 기대와 맞으면 건너뛰며,
+  #   기대와 다르면 <덮어쓰지 않고> 멈춘다. 판정은 16 단계가 소유한다.
+  #   ⚠ 데이터베이스 서버 설치와 데이터베이스·계정 생성은 우리 일이 아니다(현장 선행 조건).
+  #     그것과 <스키마 적재>를 같은 것으로 읽지 말 것.
+  if klid_role_has was && [[ "${SKIP_SCHEMA_LOAD:-0}" != "1" ]]; then
     STEPS+=("16-load-schema.sh")
   fi
   # ★ JBoss EAP 자동 배포 — 손으로 하던 구간(WAR 복사·JAVA_OPTS 배선·권한)을 대신한다.
   #   기본은 켜져 있다. 베어메탈 토글이나 다른 WAS 를 쓰면 SKIP_JBOSS_DEPLOY=1 로 끈다.
   #   ⚠ 재기동은 하지 않는다(같은 WAS 에 다른 앱이 있을 수 있다) — 스크립트가 명령을 찍는다.
-  if klid_role_has app && [[ "${SKIP_JBOSS_DEPLOY:-0}" != "1" ]]; then
+  if klid_role_has was && [[ "${SKIP_JBOSS_DEPLOY:-0}" != "1" ]]; then
     STEPS+=("17-deploy-jboss.sh")
   fi
-  klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
-  klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
-  klid_role_has app && STEPS+=("21-verify-ai-server-url.sh")
+  klid_role_has was && STEPS+=("19-verify-ffmpeg.sh")
+  klid_role_has web && STEPS+=("20-verify-frontend-config.sh")
+  klid_role_has was && STEPS+=("21-verify-ai-server-url.sh")
 
   if [[ -n "${_only_arg}" || -n "${_skip_arg}" ]]; then
     local _sel=() step
@@ -152,8 +165,11 @@ export STORAGE_RAW_PATH="${STORAGE_RAW_PATH:-/nas-storage}"
 export STORAGE_DEIDENTIFIED_PATH="${STORAGE_DEIDENTIFIED_PATH:-/nas-storage}"
 export ONPREM_ROOT
 export SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
-# 번들 PostgreSQL 사용 여부(기본 1). 0 이면 외부(기존) PG 를 쓰고 10-install-postgresql.sh 가 스킵.
-export USE_BUNDLED_POSTGRES="${USE_BUNDLED_POSTGRES:-1}"
+# ★ PostgreSQL 은 우리가 배포하지 않는다 (2026-09-05 확정).
+#   현장 장비에 이미 설치된 것을 쓰고, 빈 데이터베이스와 앱 계정 준비는 현장 담당의 선행 조건이다.
+#   ⚠ 구 토글 USE_BUNDLED_POSTGRES 폐기 — 되살리지 말 것. 그 값이 남아 있으면 "1 로 켜면 된다"는
+#     경로가 문서와 현장에 살아남고, 켜는 순간 번들 RPM 이 기존 시스템 라이브러리까지 끌어올린다.
+#   ⚠ 스키마 <적재>는 여전히 우리 일이다(16 단계). 데이터베이스를 만들지 않는 것과 혼동하지 말 것.
 # backend 를 systemd 유닛(java -jar)으로 돌리는 <베어메탈 형상> 토글(기본 0 = WAR 반입 형상).
 #   1 이면 12 단계가 jar + klid-backend.service 를 설치하고, 10 단계가 PG 기동순서 drop-in 을 만든다.
 #   ★ 반드시 export 한다 — 두 단계가 각각 다른 서브셸에서 이 값을 읽는다.
@@ -161,9 +177,7 @@ export INSTALL_BACKEND_SYSTEMD_UNIT="${INSTALL_BACKEND_SYSTEMD_UNIT:-0}"
 
 info "================================================================"
 info " klid-label 온프렘 설치 (대상 서버)"
-info "  역할   : ${KLID_ROLE}  $( [[ "${KLID_ROLE}" == "app" ]] && echo '(서버 A: 프론트+백엔드)' \
-                                 || { [[ "${KLID_ROLE}" == "ai" ]] && echo '(서버 B: ai-server)' \
-                                      || echo '(전체 — 단일 서버 구성)'; } )"
+info "  역할   : ${KLID_ROLE}  (역량: $(klid_role_caps))"
 info "  PREFIX : ${KLID_PREFIX}"
 info "  ETC    : ${KLID_ETC}"
 info "  USER   : ${KLID_USER}"
@@ -246,9 +260,11 @@ done
 #     ai  : vendor/wheels · models/weights · runtimes/python · syspkgs/{rpm,gpg}
 #   ★ syspkgs/rpm·gpg 는 <양쪽 모두>다 — app 은 httpd·semanage, ai 는 mesa-libGL·glib2.
 VERIFY_DIRS=(syspkgs/rpm syspkgs/gpg)
-if klid_role_has app; then
-  VERIFY_DIRS+=(artifacts/backend artifacts/frontend/dist syspkgs/postgresql
-                syspkgs/ffmpeg syspkgs/ffmpeg-src)
+if klid_role_has was; then
+  VERIFY_DIRS+=(artifacts/backend syspkgs/ffmpeg syspkgs/ffmpeg-src)
+fi
+if klid_role_has web; then
+  VERIFY_DIRS+=(artifacts/frontend/dist)
 fi
 if klid_role_has ai; then
   VERIFY_DIRS+=(vendor/wheels models/weights runtimes/python)
@@ -286,40 +302,60 @@ systemctl daemon-reload || warn "systemctl daemon-reload 실패 — systemd 환�
 
 info "================================================================"
 ok " 설치 완료(역할: ${KLID_ROLE}). 남은 단계는 <사람이> 해야 한다:"
-if klid_role_has app; then
-  info " [서버 A / app]"
+if klid_role_has was; then
+  info " [WAS 장비]"
   info "   1) 환경설정 편집:"
   info "        sudo \$EDITOR ${KLID_ETC}/application.properties   # ★ WAR 형상에서 WAS 가 읽는 파일"
   info "        (${KLID_ETC}/backend.env 는 베어메탈 형상용 — WAS 는 읽지 않는다)"
   info "      ★ 주소 항목을 먼저 맞춘다(04-configuration.md 「주소 한 표」):"
-  info "          AI_SERVER_URL       ← ai-server 장비(서버 B). 기본값 loopback 은 2대 구성에서 틀리다"
-  info "          CONTROL_DB_*  ← 외부 DB 를 쓰면 그 주소"
-  info "          KPST_DEID_BASE_URL  ← 동거 비식별 서버"
+  info "          AI_SERVER_URL       ← AI 장비 주소. 기본값 loopback 은 장비가 갈린 구성에서 틀리다"
+  info "                                ⚠ 이 값은 <씨앗>이다 — 원장에 장비가 등록되면 원장이 이긴다"
+  info "          CONTROL_DB_*        ← 현장이 제공하는 데이터베이스 주소"
+  info "          KPST_DEID_BASE_URL  ← 비식별 서버"
   info "          CONTROL_NOTIFY_URL  ← 관제 통지 수신처(CONTROL_NOTIFY_ENABLED=true 일 때)"
-  info "        고친 뒤 주소만 다시 확인:  sudo KLID_ROLE=app ${SELF_DIR}/install/21-verify-ai-server-url.sh"
+  info "        고친 뒤 주소만 다시 확인:  sudo KLID_ROLE=was ${SELF_DIR}/install/21-verify-ai-server-url.sh"
   info "   2) ★ WAS 설정 이관 — 건너뛰면 대용량 업로드만 조용히 깨진다:"
   info "        docs/10-was-settings.md 의 점검 체크리스트를 끝까지 수행"
   info "        (기동·일반 요청은 정상이라 이 단계를 빠뜨려도 배포 시점에는 아무 신호가 없다)"
   info "   3) ★ WAR 배포 — 백엔드는 이 스크립트가 기동하지 않는다:"
   info "        ${KLID_PREFIX}/app/api.war 를 WAS 배포 디렉터리로 <사람이> 복사"
-  info "        (파일 이름이 곧 웹 컨텍스트 /api 다 — 이름을 바꾸지 말 것)"
+  info "        ★ 웹 컨텍스트는 WAR 안 WEB-INF/jboss-web.xml 이 정한다 — /label-studio/api 다."
+  info "          파일명이 컨텍스트를 정하는 것이 아니므로 이름을 바꿔도 컨텍스트는 그대로다."
+  info "          ⚠ 다만 반입 문서·설치·런북이 api.war 라는 이름으로 산출물을 찾는다."
   info "        설정 예시: ${ONPREM_ROOT}/config/was/"
   info "   3-1) ★ ${KLID_ETC}/was.env 에 WAS 현장값을 적는다 (유닛명·WAS_HOME·로그 경로·실행 계정)"
   info "        운영 런북(docs/09-operations-runbook.md)의 백엔드 조작 명령이 이 값을 읽는다 —"
   info "        비워 두면 런북 명령이 전부 자리표시자로 남는다. 앱 설정이 아니므로 비밀값 금지."
-  info "   4) 웹 서버 기동(05-run-verify.md 참고):  sudo systemctl enable --now httpd"
-  info "   5) 헬스체크:  curl -fsS http://127.0.0.1:8080/api/actuator/health/liveness   # WAS 기동 후"
-  info "   ※ ffmpeg·ffprobe 는 이 서버의 <전제조건>이며 관제지원시스템 팀이 설치한다."
+  info "   4) 헬스체크:  curl -fsS http://127.0.0.1:8080/label-studio/api/actuator/health/liveness"
+  info "        ⚠ 컨텍스트가 <두 세그먼트>다. /label-studio/actuator/... 는 404 다."
+  info "   ※ ffmpeg·ffprobe 는 이 장비의 <전제조건>이며 관제지원시스템 팀이 설치한다."
   info "      우리 설치는 검증만 한다(19단계). 관제가 설치하지 않은 것이 확인된 경우에만:"
   info "        sudo ${SELF_DIR}/install/install-ffmpeg.sh"
+  info "   ※ 데이터베이스는 현장이 제공한다 — 우리는 설치하지도 만들지도 않는다."
+  info "      빈 데이터베이스와 앱 계정은 <현장 담당의 선행 조건>이다."
+  info "      스키마는 16 단계가 <비어 있을 때만> 적재한다(이미 맞으면 건너뛰고, 다르면 멈춘다)."
+fi
+if klid_role_has web; then
+  info " [웹 장비]"
+  info "   1) 런타임 설정 편집:  sudo \$EDITOR ${KLID_ETC}/frontend.env"
+  info "        고친 뒤 반영:  sudo ${KLID_PREFIX}/bin/klid-render-frontend-config"
+  info "   2) ★ httpd 설정은 <우리가 만들지 않는다> — 현장 공용 설정을 그대로 쓴다."
+  info "        여러 시스템이 함께 쓰는 파일이라 우리가 고치면 그쪽 위험을 우리가 만든다."
+  info "        <사람이> 확인할 것 둘:"
+  info "          · DocumentRoot 가 방금 배치한 경로를 가리키는가"
+  info "          · /label-studio/api/ 프록시 대상이 WAS 장비들의 8080 을 향하는가"
+  info "   3) 화면 확인:  curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1/"
+  info "        ⚠ 화면이 뜨는 것과 API 가 닿는 것은 <별개>다. 아래도 함께 확인한다:"
+  info "          curl -fsS http://127.0.0.1/label-studio/api/actuator/health/liveness"
+  info "        502/503 이면 WAS 가 아직이거나 프록시 대상이 틀린 것이다."
 fi
 if klid_role_has ai; then
-  info " [서버 B / ai]"
+  info " [AI 장비]"
   info "   1) 환경설정 편집:  sudo \$EDITOR ${KLID_ETC}/ai-server.env"
   info "   2) 서비스 기동:    sudo systemctl enable --now klid-ai-server"
   info "   3) 헬스체크:       curl -fsS http://127.0.0.1:9300/health"
   info "   ※ 이번 반입은 <CPU 전용>이다(torch CPU 휠). 장비에 GPU 가 있어도 사용하지 않는다."
-  info "   ※ 서버 A 의 backend.env/application.properties 의 AI_SERVER_URL 이 이 장비를"
+  info "   ※ WAS 장비의 application.properties 의 AI_SERVER_URL 이 이 장비를"
   info "      가리켜야 한다(기본값 localhost 는 단일 서버 구성 기준이다)."
 fi
 info "================================================================"

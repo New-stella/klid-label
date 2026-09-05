@@ -20,6 +20,36 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     Optional<LsAcntUser> findByUserNo(Long userNo);
 
     /**
+     * <b>관제 인계 토큰의 {@code userId} 클레임으로 사용자번호를 찾는다 — 단건 매칭일 때만</b>
+     * (@design ADR-063).
+     *
+     * <p>{@code LS_ACNT_USER.USER_ID} 에는 <b>유일 제약이 없다</b>(PK 는 {@code USER_NO} 뿐).
+     * 그래서 조회가 다중 매칭될 수 있고, 어느 행으로 잇는지가 추측이 되면 남의 계정으로 인가될 수
+     * 있다(CWE-639). 따라서 <b>정확히 1건일 때만</b> 그 {@code USER_NO} 를 돌려주고, 0건이거나
+     * 2건 이상이면 {@code empty} 를 돌려 fail-closed(무권한)로 흐르게 한다.
+     *
+     * <p>유일 인덱스로 입구를 좁히는 대신 <b>조회에서 닫는다</b> — 관제 ID 유일성이 보장되지 않은
+     * 상태에서 인덱스를 걸면 기존 중복 때문에 기동이 실패하고, fail-closed 는 되돌릴 것이 없다.
+     *
+     * <p>{@code null}/공백 {@code userId} 는 방어적으로 여기서도 {@code empty} 를 돌린다(빈 조회로
+     * 전 행을 훑지 않는다). {@code userId} 는 파라미터 바인딩만 쓴다(CWE-89).
+     */
+    default Optional<Long> findUserNoByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Optional.empty();
+        }
+        List<Long> matches = findUserNosByUserId(userId);
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
+    /**
+     * {@code USER_ID} 로 매칭되는 {@code USER_NO} 전부를 반환한다(다중/0건 판정용 — 단건 축약은
+     * {@link #findUserNoByUserId(String)} 가 한다). 유일 제약이 없어 2건 이상일 수 있다.
+     */
+    @Query("SELECT u.userNo FROM LsAcntUser u WHERE u.userId = :userId")
+    List<Long> findUserNosByUserId(@Param("userId") String userId);
+
+    /**
      * 주어진 userNo 목록에 해당하는 사용자 마스터를 한 번에 조회 (N+1 방지).
      * 빈 컬렉션 호출 시 빈 리스트 반환.
      */
@@ -76,6 +106,51 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     int upsertUser(@Param("userNo") Long userNo,
                    @Param("userId") String userId,
                    @Param("userNm") String userNm);
+
+    /**
+     * <b>관제 인계 미등록 진입자 로컬 식별 레코드 발급 — userNo 시퀀스 발급 + USER_ID 원자 upsert</b>
+     * (V32, @design ADR-063 · UC-041 · AC-1016).
+     *
+     * <h3>왜 서버가 userNo 를 발급하는가 (CWE-915)</h3>
+     * <p>관제 인계 토큰은 숫자 {@code userNo} 를 싣지 않고 문자열 로그인 ID 로만 식별한다. 그 로그인
+     * ID 행이 우리 마스터에 없으면 인가가 무권한으로 막히므로, 진입 순간 우리 {@code userNo} 를
+     * 발급한다. userNo 는 반드시 <b>시퀀스({@code ls_acnt_user_no_seq})</b>에서만 뽑는다 —
+     * 요청/토큰의 임의 숫자를 신뢰하면 남의 행을 덮어쓸 수 있다. 시퀀스는 관제가 {@code sub} 에
+     * 싣는 숫자 userNo·dev 시드와 겹치지 않는 <b>높은 disjoint 범위</b>(≥ 9e9)에서 시작한다.
+     *
+     * <h3>왜 조회 후 INSERT 가 아닌가 (CWE-362)</h3>
+     * <p>2노드 Active-Active 라 같은 관제 사용자가 두 노드에서 동시에 진입할 수 있다. "없으면 넣는다"
+     * 를 조회 → INSERT 두 문장으로 쓰면 두 노드가 모두 "없음"을 관측한 뒤 각각 INSERT 해
+     * <b>USER_ID 유니크 위반</b>이 나고, PostgreSQL 은 제약 위반 시 트랜잭션 전체를 abort 한다.
+     * {@code ON CONFLICT (USER_ID) DO NOTHING} 은 충돌을 <b>예외 없이</b> 흡수하므로 두 노드 모두
+     * 성공하며, 진 노드가 뽑은 {@code nextval} 은 버려지고(간극 허용) 호출자가 뒤이어 USER_ID 로
+     * 재조회해 이긴 행의 실제 userNo 를 읽는다.
+     *
+     * <p>{@code ON CONFLICT (USER_ID) WHERE USER_ID IS NOT NULL} — 부분 유니크 인덱스
+     * {@code uk_ls_acnt_user_user_id}(V32, {@code WHERE USER_ID IS NOT NULL})를 arbiter 로 추론하려면
+     * 그 인덱스 술어를 명시해야 한다. {@code USER_ID} 는 호출자가 정규화·컬럼 폭 절단을 마친
+     * non-null 값이다.
+     *
+     * <h3>역할은 만들지 않는다</h3>
+     * <p>이 문장은 {@code LS_ACNT_USER}(식별 마스터)만 만든다. 인가 역할({@code LS_USER_ROLE})은
+     * 건드리지 않는다 — 관제 권한을 우리 역할로 매핑하지 않는 원칙(ADR-021) 그대로다.
+     *
+     * <p>보안: 두 값 모두 파라미터 바인딩이다(CWE-89). {@code USE_YN='Y'} 로 활성 등록하되
+     * {@code USER_EML_ADDR} 는 인계 키에 없어 null 로 둔다(지어내지 않는다).
+     *
+     * <p>{@code clearAutomatically}: native 문장이 영속성 컨텍스트를 우회하므로 직후 재조회가
+     * 옛 스냅샷을 돌려주지 않도록 컨텍스트를 비운다.
+     *
+     * @return 신규 발급됐으면 1, 이미 같은 USER_ID 행이 있어 충돌 흡수됐으면 0
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USE_YN)
+            VALUES (nextval('ls_acnt_user_no_seq'), :userId, COALESCE(:userNm, ''), 'Y')
+            ON CONFLICT (USER_ID) WHERE USER_ID IS NOT NULL DO NOTHING
+            """, nativeQuery = true)
+    int insertWithIssuedUserNo(@Param("userId") String userId,
+                               @Param("userNm") String userNm);
 
     /**
      * <b>최종로그인일시 기록 — throttle 이 내장된 조건부 UPDATE</b> (V12).

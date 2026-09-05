@@ -1,0 +1,300 @@
+{
+  "item": {
+    "id": "SEQ-029",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "이관 이력 조회 — 목록에서 승인 보류를 가려내고 상세에서 경위를 되짚는다",
+    "slug": "이관-이력-조회-목록에서-승인-보류를-가려내고-상세에서-경위를-되짚는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "이관 이력 조회 — 목록에서 승인 보류를 가려내고 상세에서 경위를 되짚는다",
+      "source": "sequenceDiagram\n    actor admin as 관리자(ADMIN)\n    participant screen as 산출물 가져오기 화면\n    participant ctl as ImportHistoryController\n    participant svc as ImportHistoryQueryService\n    participant gate as ReviewApprovalGate\n    participant trnsfDb as LS_OTSD_DATST_TRNSF_HSTRY(이관 이력)\n    participant statusDb as LS_RAW_DATA_STATUS(검수 상태)\n\n    admin->>screen: 산출물 가져오기 화면에서 가져온 내역을 연다\n    admin->>screen: 이관 상태로 목록을 좁힌다\n    screen->>ctl: 이관 이력 목록 조회\n    ctl->>ctl: 관리자 권한을 먼저 평가한다 — 이력이 있는지 판정하기보다 앞선다\n    ctl->>svc: listHistory(이관 상태, 쪽)\n    svc->>svc: 상태 값 · 쪽 크기 · 쪽 번호가 계약 안인지 확인한다\n    Note over svc: [대안] 계약을 벗어난 요청에 빈 목록이나 찾을 수 없음으로 답하지 않고 거부한다. 그러면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않는다\n    svc->>trnsfDb: 이관 이력을 시간순으로 한 쪽 조회\n    trnsfDb-->>svc: 이관 이력 한 쪽\n    Note over svc: 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다. 지금 볼 것을 고르는 일은 걸러내기가 맡는다\n    svc->>gate: 한 쪽의 영상을 모아 검수 승인 보류 여부를 한 번에 조회\n    gate->>statusDb: 영상 식별자 묶음으로 검수 상태 조회\n    statusDb-->>gate: 영상별 검수 상태\n    gate-->>svc: 보류 · 없음 · 미상 세 갈래\n    Note over gate: 한 번에 읽어 조회 수가 목록 크기에 비례하지 않게 한다. 영상이 만들어지지 않은 이력에는 이 값이 없을 뿐 조회가 깨지지 않는다\n    svc-->>ctl: 이력 한 쪽과 항목별 승인 보류 여부\n    ctl-->>screen: 200 OK — 시각은 시간대 오프셋 없이 표기한다\n    screen-->>admin: 시간순 목록 — 항목마다 승인 보류 여부가 함께 실린다\n    Note over admin: [대안] 승인 보류 값이 비어 있어도 보류 아님으로 단정하지 않는다. 단정하면 기록하는 자리가 감춰져 그 영상은 승인될 길을 잃는다\n    admin->>screen: 승인 보류가 선 영상을 가려내고 그 행에서 비식별 완료를 기록하는 자리를 연다\n    Note over screen: 기록하는 행위 자체는 이 흐름 밖이다 — 이 흐름은 그 자리를 여는 데까지다\n    opt 상세를 여는 경우\n        admin->>screen: 경위를 확인할 이관 한 건을 골라 상세를 연다\n        screen->>ctl: 이관 이력 상세 조회\n        ctl->>svc: getHistory(이관 식별번호)\n        svc->>svc: 식별번호가 정수이고 정한 범위 안인지 확인한다\n        svc->>trnsfDb: 이관 이력 한 건 조회\n        trnsfDb-->>svc: 가져온 폴더 · 실행한 사람 · 만들어진 영상 · 들어온 프레임과 라벨의 규모 · 실패 사유\n        svc-->>ctl: 이관 이력 상세\n        ctl-->>screen: 200 OK\n        screen-->>admin: 상세 표시 — 검수 승인 보류 여부는 싣지 않는다\n        Note over admin: 상세가 말하는 것은 이관 그 자체이고 승인 보류는 그 이관이 만든 영상의 검수 상태라 축이 다르다. 그 값으로 조작을 여는 자리는 목록이지 상세가 아니다\n        Note over admin: [대안] 찾는 이력이 없으면 찾을 수 없음으로 답한다. 이력이 한 건도 없는 빈 상태는 조회 실패 안내와 다른 자리에 둔다\n    end\n",
+      "messages": [
+        {
+          "to": "screen",
+          "from": "admin",
+          "kind": "sync",
+          "label": "산출물 가져오기 화면에서 가져온 내역을 연다"
+        },
+        {
+          "to": "screen",
+          "from": "admin",
+          "kind": "sync",
+          "label": "이관 상태로 목록을 좁힌다"
+        },
+        {
+          "to": "ctl",
+          "from": "screen",
+          "kind": "sync",
+          "label": "이관 이력 목록 조회",
+          "item_ref": "API-207"
+        },
+        {
+          "to": "ctl",
+          "from": "ctl",
+          "kind": "self",
+          "label": "관리자 권한을 먼저 평가한다 — 이력이 있는지 판정하기보다 앞선다"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "listHistory(이관 상태, 쪽)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "상태 값 · 쪽 크기 · 쪽 번호가 계약 안인지 확인한다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 계약을 벗어난 요청에 빈 목록이나 찾을 수 없음으로 답하지 않고 거부한다. 그러면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않는다"
+        },
+        {
+          "to": "trnsfDb",
+          "from": "svc",
+          "kind": "sync",
+          "label": "이관 이력을 시간순으로 한 쪽 조회"
+        },
+        {
+          "to": "svc",
+          "from": "trnsfDb",
+          "kind": "return",
+          "label": "이관 이력 한 쪽"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다. 지금 볼 것을 고르는 일은 걸러내기가 맡는다"
+        },
+        {
+          "to": "gate",
+          "from": "svc",
+          "kind": "sync",
+          "label": "한 쪽의 영상을 모아 검수 승인 보류 여부를 한 번에 조회"
+        },
+        {
+          "to": "statusDb",
+          "from": "gate",
+          "kind": "sync",
+          "label": "영상 식별자 묶음으로 검수 상태 조회"
+        },
+        {
+          "to": "gate",
+          "from": "statusDb",
+          "kind": "return",
+          "label": "영상별 검수 상태"
+        },
+        {
+          "to": "svc",
+          "from": "gate",
+          "kind": "return",
+          "label": "보류 · 없음 · 미상 세 갈래"
+        },
+        {
+          "to": "gate",
+          "from": "gate",
+          "kind": "note",
+          "label": "한 번에 읽어 조회 수가 목록 크기에 비례하지 않게 한다. 영상이 만들어지지 않은 이력에는 이 값이 없을 뿐 조회가 깨지지 않는다"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "이력 한 쪽과 항목별 승인 보류 여부"
+        },
+        {
+          "to": "screen",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK — 시각은 시간대 오프셋 없이 표기한다"
+        },
+        {
+          "to": "admin",
+          "from": "screen",
+          "kind": "return",
+          "label": "시간순 목록 — 항목마다 승인 보류 여부가 함께 실린다"
+        },
+        {
+          "to": "admin",
+          "from": "admin",
+          "kind": "note",
+          "label": "[대안] 승인 보류 값이 비어 있어도 보류 아님으로 단정하지 않는다. 단정하면 기록하는 자리가 감춰져 그 영상은 승인될 길을 잃는다"
+        },
+        {
+          "to": "screen",
+          "from": "admin",
+          "kind": "sync",
+          "label": "승인 보류가 선 영상을 가려내고 그 행에서 비식별 완료를 기록하는 자리를 연다"
+        },
+        {
+          "to": "screen",
+          "from": "screen",
+          "kind": "note",
+          "label": "기록하는 행위 자체는 이 흐름 밖이다 — 이 흐름은 그 자리를 여는 데까지다"
+        },
+        {
+          "to": "screen",
+          "from": "admin",
+          "kind": "sync",
+          "label": "경위를 확인할 이관 한 건을 골라 상세를 연다"
+        },
+        {
+          "to": "ctl",
+          "from": "screen",
+          "kind": "sync",
+          "label": "이관 이력 상세 조회",
+          "item_ref": "API-208"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "getHistory(이관 식별번호)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "식별번호가 정수이고 정한 범위 안인지 확인한다"
+        },
+        {
+          "to": "trnsfDb",
+          "from": "svc",
+          "kind": "sync",
+          "label": "이관 이력 한 건 조회"
+        },
+        {
+          "to": "svc",
+          "from": "trnsfDb",
+          "kind": "return",
+          "label": "가져온 폴더 · 실행한 사람 · 만들어진 영상 · 들어온 프레임과 라벨의 규모 · 실패 사유"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "이관 이력 상세"
+        },
+        {
+          "to": "screen",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "admin",
+          "from": "screen",
+          "kind": "return",
+          "label": "상세 표시 — 검수 승인 보류 여부는 싣지 않는다"
+        },
+        {
+          "to": "admin",
+          "from": "admin",
+          "kind": "note",
+          "label": "상세가 말하는 것은 이관 그 자체이고 승인 보류는 그 이관이 만든 영상의 검수 상태라 축이 다르다. 그 값으로 조작을 여는 자리는 목록이지 상세가 아니다"
+        },
+        {
+          "to": "admin",
+          "from": "admin",
+          "kind": "note",
+          "label": "[대안] 찾는 이력이 없으면 찾을 수 없음으로 답한다. 이력이 한 건도 없는 빈 상태는 조회 실패 안내와 다른 자리에 둔다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "상세를 여는 경우",
+          "end_index": 31,
+          "start_index": 21
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — UC-036 의 흐름을 참가자와 메시지로 처음 시각화한다."
+      },
+      "description": "관리자가 이관 이력을 목록과 상세로 확인하는 흐름을 그린다. 언제 누가 어떤 폴더를 가져왔고 얼마나 들어왔는지를 보고, 적재가 실패했다면 그 사유를 되짚는다. 산출물을 가져오는 행위 자체는 이 흐름이 아니다.\n\n목록의 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다. 지금 볼 것을 고르는 일은 걸러내기가 맡는다.\n\n목록의 각 항목에는 그 이관으로 만들어진 영상에 검수 승인 보류가 서 있는지가 함께 실린다. 이 값은 이관 진행 상태와 다른 축이라 이관 상태로 대신 판단할 수 없다. 값은 보류 · 없음 · 미상 세 갈래이고, 비어 있는 것을 보류 아님으로 단정하지 않는다. 단정하면 기록하는 자리가 감춰져 그 영상은 승인될 길을 잃는다. 보류 여부는 한 쪽의 영상을 모아 한 번에 읽어 조회 수가 목록 크기에 비례하지 않게 한다.\n\n상세에는 승인 보류 여부를 싣지 않는다. 상세가 말하는 것은 이관 그 자체이고 승인 보류는 그 이관이 만든 영상의 검수 상태라 축이 다르다. 그 값으로 조작을 여는 자리는 목록이지 상세가 아니다. 목록과 상세의 이 차이는 빠뜨린 것이 아니라 축의 차이다.\n\n요청이 계약을 벗어나면 조용히 빈 결과를 돌려주지 않고 거부한다. 빈 목록이나 찾을 수 없음으로 답하면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않기 때문이다. 인가는 그 이력이 있는지 판정하기보다 먼저 평가한다.",
+      "invokes_apis": [
+        "API-207",
+        "API-208"
+      ],
+      "participants": [
+        {
+          "id": "admin",
+          "kind": "actor",
+          "name": "관리자(ADMIN)"
+        },
+        {
+          "id": "screen",
+          "kind": "system",
+          "name": "산출물 가져오기 화면",
+          "item_ref": "SCREEN-039"
+        },
+        {
+          "id": "ctl",
+          "kind": "service",
+          "name": "ImportHistoryController"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "ImportHistoryQueryService"
+        },
+        {
+          "id": "gate",
+          "kind": "service",
+          "name": "ReviewApprovalGate"
+        },
+        {
+          "id": "trnsfDb",
+          "kind": "database",
+          "name": "LS_OTSD_DATST_TRNSF_HSTRY(이관 이력)"
+        },
+        {
+          "id": "statusDb",
+          "kind": "database",
+          "name": "LS_RAW_DATA_STATUS(검수 상태)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-036"
+      ],
+      "related_acceptances": [
+        "AC-1082",
+        "AC-1083"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "누락 필드를 근거 있는 값으로 채운다. 도메인은 이 시퀀스가 시각화하는 유스케이스의 소속을 그대로 따랐고, 발행 이벤트와 참조 외부 연동은 이 시퀀스가 실제로 그리는 메시지에 대응하는 것만 걸었다. 함께 참가자 종류를 바로잡는다 — AI 추론 서버는 외부 시스템 목록에 없는 우리 구성요소라 외부에서 시스템으로 내리고, 실제 외부 시스템 네 곳에는 그 시스템 참조를 단다. 본문과 메시지는 바뀌지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T07:01:07.042Z",
+    "created_at": "2026-09-03T06:52:04.018Z"
+  }
+}

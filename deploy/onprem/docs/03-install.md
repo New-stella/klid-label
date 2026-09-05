@@ -50,12 +50,17 @@
 
 | 대상 | 왜 안 타나 | 어떻게 |
 |---|---|---|
-| PostgreSQL | **전제조건**이다. 빈 데이터베이스 1개(control)를 미리 받기로 했다 | `USE_BUNDLED_POSTGRES=0` — `10` 단계 전체 스킵 |
+| PostgreSQL | **전제조건**이다. 빈 데이터베이스 1개(control)와 앱 계정을 현장 담당이 준비한다 | 설치에 PG 단계가 **아예 없다**(2026-09-05 — 구 `10` 단계·`USE_BUNDLED_POSTGRES` 토글 제거) |
 | httpd | 관제와 공동 배치라 **이미 깔려 있을 가능성이 높다** | `14` 단계가 `command -v httpd` 로 확인해 **RPM 설치를 건너뛴다**(설정·정적 자산 배치는 그대로 수행) |
 
 ```bash
-# 권장 — 서버 A(app)
-sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh --role=app
+# 권장 — 장비 역할별 (2026-09-04 현장 형상: 웹 2 · WAS 4 · AI 2)
+sudo ./scripts/install-was.sh ...   # WAS 장비
+sudo ./scripts/install-web.sh ...   # 웹 장비
+sudo ./scripts/install-ai.sh        # AI 장비
+
+# 단일 서버 구성(하위호환)
+sudo ./scripts/install.sh --role=app
 ```
 
 번들 PG 를 꼭 써야 하고 위 1건이 걸린다면, `openssl-libs` 를 **장비 담당이 먼저 갱신**한 뒤
@@ -163,11 +168,8 @@ sudo ./scripts/install.sh
 옵션:
 
 ```bash
-# 외부(기존) PostgreSQL 사용 — 번들 PG16 설치 생략
-sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh --role=app
-
-# DB 자동 생성 단계 생략(DBA 가 이미 준비한 경우)
-sudo SKIP_DB_INIT=1 ./scripts/install.sh --role=app
+# 스키마가 이미 준비된 경우 — 적재 단계 생략
+sudo SKIP_SCHEMA_LOAD=1 ./scripts/install.sh --role=app
 
 # 기존 nginx 사용(httpd 대신 nginx.conf 템플릿만 배치)
 sudo USE_NGINX=1 ./scripts/install.sh
@@ -192,34 +194,80 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 `sudo /opt/klid/bin/klid-frontend-config` 실행 후 `install.sh` 를 다시 돌리면 이어진다.
 설치 후 값 변경은 재빌드·재설치 없이 그 명령 한 줄이다 — `04-configuration.md` C-1 절.
 
+## 웹 컨텍스트 — 두 향 중 하나를 고른다 (2026-09-05)
+
+현장 웹(httpd)이 `/label-studio/api/` 로 들어온 요청을 WAS 로 넘길 때 **그 대상 경로에 `/api` 를
+남기느냐 걷어내느냐**에 따라 WAS 가 받는 경로가 갈린다. **브라우저가 부르는 주소는 두 향에서
+똑같다**(`/label-studio/api/v1`) — 다른 것은 httpd 가 넘기는 모양뿐이다.
+
+| 향 | 현장 httpd | WAS 가 받는 경로 | WAR 컨텍스트 |
+|---|---|---|---|
+| **passthrough** | `→ balancer://…/label-studio/api/` | `/label-studio/api/v1` | `/label-studio/api` |
+| **strip** | `→ balancer://…/label-studio/` | `/label-studio/v1` | `/label-studio` |
+
+### 고르는 법 — 빌드 인자 하나
+
+```bash
+./gradlew bootWar                                   # 기본값(passthrough)
+./gradlew bootWar -PklidWebContext=/label-studio    # strip 향
+KLID_WEB_CONTEXT=/label-studio ./gradlew bootWar    # 같음
+```
+
+잘못된 값은 **빌드가 시작 전에 거부**한다(`/` 로 시작·`/` 로 끝나지 않음·경로 문자만).
+만들어진 향은 `artifacts/backend/BUILD-INFO.txt` 의 `web_context` 에 기록된다.
+
+### 어느 향인지 판정 — 브라우저 한 줄
+
+```
+https://<사이트>/label-studio/api/actuator/health/liveness
+```
+
+이 경로는 **인증 없이 열려 있다**(`permitAll`). JSON 이 나오면 지금 배포된 향이 맞고, **404 면 다른 향**이다.
+
+⚠ **틀린 향을 올려도 아무 신호가 없다.** WAS 는 정상 기동하고 배포도 성공이며 로그도 조용하고
+**화면까지 뜬다**(정적 자산은 `/label-studio/` 에서 따로 받아 온다). **API 만 전건 404** 다.
+그래서 설치(`17-deploy-jboss.sh` · `site-install.sh`)가 배포할 WAR 에서 컨텍스트를 **읽어** 확인한다 — 추측하지 않는다.
+
+### 바꿀 때 교체할 것 — WAR 하나뿐이다
+
+- **프론트는 재빌드하지 않는다** — 브라우저가 부르는 주소가 두 향에서 같다.
+- **httpd 설정은 건드리지 않는다** — 현장 공용 설정이다.
+- **`/etc/klid/frontend.env` 도 그대로다** — `VITE_API_BASE_URL=/label-studio/api/v1`.
+
+즉 다른 향으로 WAR 을 다시 만들어 배포 디렉터리의 파일만 갈아 끼우면 된다.
+
+⚠ 현장 httpd conf **원본이 우리 저장소에 없다** — 위 ProxyPass 는 2026-09-04 에 사람이 옮겨 적은
+한 줄이 유일한 근거다. 그래서 한쪽으로 못박지 않았다. 원본을 확인하면 그때 기본값을 확정한다.
+
+
 ## 단계별 동작
 
 | 단계 | 역할 | 스크립트 | 동작 |
 |------|:----:|----------|------|
 | 0 | 공통 | `install.sh` | `klid` 사용자/그룹 + 디렉토리 생성, **역할별** SHA256 무결성 검증 |
-| 1 | app | `install/10-install-postgresql.sh` | **(옵션·기본 ON)** 번들 PG16 RPM 오프라인 설치 + initdb + `postgresql.conf`/`pg_hba.conf` + `postgresql-16` 기동. `USE_BUNDLED_POSTGRES=0` 이면 전체 스킵(외부 PG) |
 | 2 | **ai** | `install/11-install-runtimes.sh` | **Python**(ai-server 용) + **RPM**(mesa-libGL/libglvnd-glx/glib2) 오프라인 설치. ⚠ 구 동작 폐기(2026-08-30): "**ffmpeg RPM 도 여기서 자동 설치**" — ffmpeg 는 서버 A 의 전제조건이라 자동 설치하지 않는다 |
-| 3 | app | `install/12-install-backend.sh` | **`api.war` 배치**(`/opt/klid/app/api.war`) + `application.properties`/`backend.env` + **`was.env`**(WAS 현장값 기록 파일). **기동하지 않는다** — WAS 배포·WAS 설정은 사람 작업. 베어메탈 형상(jar + systemd 유닛)은 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 일 때만 |
+| 3 | **was** | `install/12-install-backend.sh` | **`api.war` 배치**(`/opt/klid/app/api.war`) + `application.properties`/`backend.env` + **`was.env`**(WAS 현장값 기록 파일). **기동하지 않는다** — WAS 배포·WAS 설정은 사람 작업. 베어메탈 형상(jar + systemd 유닛)은 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 일 때만 |
 | 4 | **ai** | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛(`klid-ai-server`) |
-| 5 | app | `install/14-install-frontend.sh` | dist 배치 + **런타임 설정 정본(`/etc/klid/frontend.env`) 배치 + `klid-config.js` 생성**(★ 상위 로그인 주소가 비면 **여기서 설치가 멈춘다**) + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
-| 6 | app | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
-| 7 | app | `install/16-load-schema.sh` | (옵션) control DB 에 `db/schema.sql` 로드. `SCHEMA_LOAD_RUN=1` 일 때만 실제 로드, 아니면 수동 안내만. 테이블이 이미 있으면 **로드 생략**(멱등 가드) |
-| 9 | app | `install/19-verify-ffmpeg.sh` | **ffmpeg·ffprobe 전제조건 검증**. 없으면 **설치를 중단한다**(아래 「ffmpeg」 절) |
-| 10 | app | `install/20-verify-frontend-config.sh` | 프론트 런타임 설정 최종 게이트. 상위 로그인 주소가 비면 **설치를 실패로 종결한다** |
-| 11 | app | `install/21-verify-ai-server-url.sh` | **AI 추론 서버 주소 확인.** 2대 구성인데 기본값(loopback)이 남아 있으면 경고한다. ★ **설치를 실패시키지 않는다**(경고만) — 04 「주소 한 표」 ① 참고 |
+| 5 | **web** | `install/14-install-frontend.sh` | dist 배치 + **런타임 설정 정본(`/etc/klid/frontend.env`) 배치 + `klid-config.js` 생성**(★ 상위 로그인 주소가 비면 **여기서 설치가 멈춘다**) + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
+| 6 | **was** | `install/16-load-schema.sh` | **스키마 적재 — 조건부.** 비어 있으면 `db/schema.sql` 을 적재하고, 이미 있고 개수가 기대와 같으면 건너뛰며, **기대와 다르면 덮어쓰지 않고 멈춘다**. `SKIP_SCHEMA_LOAD=1` 로 생략. ⚠ 데이터베이스·계정 **생성은 하지 않는다**(현장 선행 조건) |
+| 9 | **was** | `install/19-verify-ffmpeg.sh` | **ffmpeg·ffprobe 전제조건 검증**. 없으면 **설치를 중단한다**(아래 「ffmpeg」 절) |
+| 10 | **web** | `install/20-verify-frontend-config.sh` | 프론트 런타임 설정 최종 게이트. 상위 로그인 주소가 비면 **설치를 실패로 종결한다** |
+| 11 | **was** | `install/21-verify-ai-server-url.sh` | **AI 추론 서버 주소 확인.** 2대 구성인데 기본값(loopback)이 남아 있으면 경고한다. ★ **설치를 실패시키지 않는다**(경고만) — 04 「주소 한 표」 ① 참고 |
 
 > **`install/install-ffmpeg.sh` 는 이 표에 없다** — 번호 접두가 없는 것이 그 표식이며,
 > `install.sh` 가 **호출하지 않는다**. 사람이 명시적으로 부를 때만 도는 수동 명령이다.
 
-> **PG vs DB/유저 vs 테이블 — 역할 분담**: 단계 1(`10`)은 **PG 엔진 설치+기동**, 단계 6(`15`)은
-> **control/portal DB·앱 유저 생성**, 단계 7·8(`16`·`17`)은 **테이블/스키마 준비**다.
-> 셋은 중복 없이 연계된다.
+> **데이터베이스 vs 스키마 — 역할 분담**: 데이터베이스 서버 설치와 데이터베이스·계정 생성은
+> **우리 일이 아니다**(현장 선행 조건). 우리 설치가 하는 것은 **스키마 적재**(단계 6·`16`)와
+> **WAS 배포**(단계 7·`17`)다.
+> ⚠ **「데이터베이스를 만들지 않는다」를 「스키마도 적재하지 않는다」로 읽지 말 것.** 다른 일이다.
 >
-> **★ 테이블은 전체 스키마 SQL 로드가 만든다 — 온프렘은 Flyway 를 쓰지 않는다.**
-> 경로는 **하나뿐이다.** 설치 단계 `16` 이 `db/schema.sql` 을 **1회 로드**하고,
-> 앱은 마이그레이션을 **수행하지 않는다**. 이것은 **의도적 결정**이며, 전체 스키마 SQL 을 따로
-> 만들어 둔 이유가 그것이다(반입 명세 `DEPLOY-001` — DBA 가 배포 전에 스키마 정의 파일을 1회 적용하고
-> 애플리케이션은 마이그레이션을 수행하지 않는다). 2노드 동시 기동 시의 Flyway 락 경합·최초 부팅 지연도
+> ⚠ **구 서술 폐기(2026-09-05)** — *"단계 1(`10`)은 PG 엔진 설치+기동, 단계 6(`15`)은 control/portal
+> DB·앱 유저 생성"*. 두 단계와 `USE_BUNDLED_POSTGRES` 토글이 **모두 제거**됐다. 되살리지 말 것.
+>
+> **★ 테이블은 전체 스키마 SQL 적재가 만든다 — 온프렘은 Flyway 를 쓰지 않는다.**
+> 경로는 **하나뿐이다.** 설치 단계 `16` 이 `db/schema.sql` 을 **1회 적재**하고,
+> 앱은 마이그레이션을 **수행하지 않는다**. 2노드 동시 기동 시의 Flyway 락 경합·최초 부팅 지연도
 > 함께 사라진다.
 >
 > ⚠ **앱 코드 자체의 기본값은 켬(`true`)이다.** 꺼진 상태는 **매체가 만든다** — `config/backend/` 의 두
@@ -227,27 +275,34 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 > (WAR 형상은 `application.properties` 의 `spring.flyway.enabled=false`, 베어메탈 형상은 `backend.env` 의
 > `SPRING_FLYWAY_ENABLED=false`). **그 한 줄을 지우면 앱 기본값이 되살아나 켜진다 — 지우지 말 것.**
 > 형상마다 키 이름이 다르고 한쪽에서는 조용히 무시되는 함정은
-> [04-configuration.md 「키 이름 변환 규칙」](04-configuration.md) 이 정본이다(여기서 되풀이하지 않는다).
+> [04-configuration.md 「키 이름 변환 규칙」](04-configuration.md) 이 정본이다.
 >
-> **★ 그런데 그 유일한 경로가 옵트인 플래그 뒤에 있다 — 누가 언제 만드는지 확인할 것.**
+> **★ 적재는 조건부다 — 현장 담당 선적용 우선 + 우리가 채움** (2026-09-05 확정)
 >
-> | 구성 | 테이블을 만드는 주체 | 언제·무엇으로 |
-> |---|---|---|
-> | 외부 기존 PG (`USE_BUNDLED_POSTGRES=0`) | **DBA**(설치 전) | `psql -f db/schema.sql` 을 사람이 1회 실행. `16` 단계는 그 절차를 **안내만** 한다 |
-> | 번들 PG16 (`USE_BUNDLED_POSTGRES=1`, 기본) | **설치 실행자**(설치 중 또는 직후) | 같은 파일을 `16` 단계가 로드한다 — 단 **`SCHEMA_LOAD_RUN=1` 을 줄 때만**. 안 주면 안내만 출력하고 넘어간다 |
+> | 대상 스키마 상태 | `16` 단계가 하는 일 |
+> |---|---|
+> | 비어 있음 | `db/schema.sql` 을 **적재한다** |
+> | 이미 있고 개수가 기대와 같음 | **건너뛴다**(현장 담당이 미리 적용해 둔 경우) |
+> | 이미 있는데 기대와 다름 | **덮어쓰지 않고 멈춘다** — 현장 데이터가 사라질 수 있다 |
 >
-> ⚠ **번들 PG 를 써도 자동으로 로드되지 않는다.** `15`(DB·유저 생성)도 `16`·`17`(스키마 로드)도 전부
-> 옵트인이다(`DB_INIT_RUN=1` / `SCHEMA_LOAD_RUN=1`, 그리고 `psql` 이 있을 때만). 기본 실행은 **수동 절차를
-> 출력하고 성공으로 끝난다.** 그래서 "설치는 끝났는데 테이블이 하나도 없는" 상태가 조용히 만들어질 수
-> 있고, **Flyway 가 없으므로 뒤에서 대신 만들어 주는 것이 없다.** 그대로 WAR 를 올리면 앱은
-> **기동에는 성공한다** — 그리고 화면·배치가 DB 를 처음 건드릴 때 전부 깨진다.
-> `SKIP_DB_INIT=1` 로 설치하면 `15`~`17` 이 **실행되지도 않으므로**(안내 출력조차 없다)
-> 더 조용하다 — 어느 경우든 아래 확인이 유일한 신호다.
+> 어느 쪽이 먼저 했든 결과가 같다. 여러 대가 같은 데이터베이스 한 벌을 보므로 **첫 대에서만** 적재한다.
+>
+> ⚠ **구 서술 폐기(2026-09-05)** — *"그 유일한 경로가 옵트인 플래그 뒤에 있다 … `SCHEMA_LOAD_RUN=1` 을
+> 줄 때만. 안 주면 안내만 출력하고 넘어간다"*. 기본이 「안 함」이면 **아무도 적재하지 않은 채 넘어간다.**
+> 이제 기본이 적재이고, 빠져나갈 문은 `SKIP_SCHEMA_LOAD=1` 하나다.
+>
+> ⚠ **그래도 「적재됐는지」는 반드시 세어서 확인한다.** `SKIP_SCHEMA_LOAD=1` 로 건너뛰거나,
+> 세 번째 갈래(개수 불일치)로 멈췄는데 그것을 넘겼다면 **테이블이 하나도 없는 상태가 조용히
+> 남을 수 있고, Flyway 가 없으므로 뒤에서 대신 만들어 주는 것이 없다.** 그대로 WAR 를 올리면
+> 앱은 **기동에는 성공한다** — 그리고 화면·배치가 DB 를 처음 건드릴 때 전부 깨진다.
+> 아래 확인이 유일한 신호다.
 >
 > ⚠⚠ **`ddl-auto=validate` 가 대신 막아 주지 않는다.** `application.yml` 에 `validate` 가
-> 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**(듀얼 데이터소스라 `JpaBuilderConfig` 가
-> `EntityManagerFactory` 를 직접 만들고 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
-> 전달되지 않는다). 그래서 **기동 로그가 깨끗해도 스키마가 비어 있을 수 있다.**
+> 선언돼 있지만 이 저장소에서는 **실동작하지 않는다** — `JpaBuilderConfig` 가
+> `EntityManagerFactory` 를 직접 만들면서 `spring.jpa.properties.*` 만 넘기므로
+> `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지 전달되지 않는다.
+> ⚠ 구 서술 폐기 — *"듀얼 데이터소스라"*. 포털 데이터소스는 2026-08-31 에 철거됐고,
+> 그럼에도 이 성질은 그대로다(EMF 를 직접 만드는 것이 원인이지 데이터소스가 둘이어서가 아니다). 그래서 **기동 로그가 깨끗해도 스키마가 비어 있을 수 있다.**
 > 근거·상세는 [09-operations-runbook.md](09-operations-runbook.md) §2-5-2 「왜 조용히 실패하나」.
 > ⚠ 구 서술 폐기(2026-08-30) — *"그대로 WAR 를 올리면 앱은 `ddl-auto=validate` 에서 기동에
 > 실패한다"*. 그 기대에 기대면 빈 스키마인 채로 운영에 넘어간다.
@@ -339,16 +394,14 @@ install.sh 가 N 단계에서 실패
 | 순서 | 스크립트 | 역할 | 하는 일 | 선행 조건 | 재실행 |
 |:--:|---|:--:|---|---|:--:|
 | 0 | `install.sh` (앞부분) | 공통 | `klid` 사용자·그룹, `/opt/klid`·`/etc/klid`·`/var/lib/klid`·`/var/log/klid` 생성, 무결성 검증 | 없음 | 안전 |
-| 1 | `10-install-postgresql.sh` | app | 번들 PG16 설치 + initdb + 기동 | 0 | 안전(설치·initdb 각각 가드) |
 | 2 | `11-install-runtimes.sh` | ai | Python 런타임 + RPM 의존성. `runtime/runtime.env` 기록 | 0 | 안전(대상 디렉터리 교체) |
-| 3 | `12-install-backend.sh` | app | `api.war` 배치 + 설정 템플릿 3종 | 0 | 안전(설정 파일 보존) |
+| 3 | `12-install-backend.sh` | **was** | `api.war` 배치 + 설정 템플릿 3종 | 0 | 안전(설정 파일 보존) |
 | 4 | `13-install-ai-server.sh` | ai | venv + 오프라인 휠 + 모델 + 유닛 | **2**(`runtime.env` 필요) | 안전(설정 보존, 앱 소스 교체) |
-| 5 | `14-install-frontend.sh` | app | dist 배치 + httpd + 드롭인 + 설정 생성 | 0 | 안전. ⚠ **httpd 드롭인은 매번 재생성**(손편집 소실) |
-| 6 | `15-init-db.sh` | app | control/portal DB·유저 생성 | 1 또는 외부 PG 접속 가능 | 안전(존재 시 생략) |
-| 7 | `16-load-schema.sh` | app | control 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략) |
-| 9 | `19-verify-ffmpeg.sh` | app | ffmpeg 전제조건 검증 | 없음 | 안전(검증만) |
-| 10 | `20-verify-frontend-config.sh` | app | 프론트 설정 게이트 | **5** | 안전(검증·생성) |
-| 11 | `21-verify-ai-server-url.sh` | app | AI 서버 주소 확인 | **3** | 안전(검증만) |
+| 5 | `14-install-frontend.sh` | **web** | dist 배치 + httpd + 드롭인 + 설정 생성 | 0 | 안전. ⚠ **httpd 드롭인은 매번 재생성**(손편집 소실) |
+| 6 | `16-load-schema.sh` | **was** | 스키마 적재(조건부 — 비었으면 적재·같으면 건너뜀·다르면 멈춤) | 현장이 빈 DB·앱 계정 준비 | 안전(멱등) |
+| 9 | `19-verify-ffmpeg.sh` | **was** | ffmpeg 전제조건 검증 | 없음 | 안전(검증만) |
+| 10 | `20-verify-frontend-config.sh` | **web** | 프론트 설정 게이트 | **5** | 안전(검증·생성) |
+| 11 | `21-verify-ai-server-url.sh` | **was** | AI 서버 주소 확인 | **3** | 안전(검증만) |
 
 > **0 단계는 스크립트가 따로 없다** — `install.sh` 의 앞부분에 인라인으로 들어 있다.
 > 그래서 **완전 수동으로 처음부터 갈 때는 `install.sh` 를 한 번 돌려 두는 것이 가장 확실하다.**
@@ -494,7 +547,8 @@ sudo ./scripts/install/install-ffmpeg.sh --force
    DB 비밀번호·`JWT_SECRET` 같은 **비밀값을 여기 넣지 말 것**(운영자가 읽고 고쳐야 하는
    파일이라 권한을 조이지 않는다). 앱 설정은 `application.properties`(WAR 형상) ·
    `backend.env`(베어메탈 형상)다.
-6. DB 준비 확인 — `15-init-db.sh` 출력의 DDL 또는 DBA 준비 결과.
+6. DB 준비 확인 — 현장이 준비한 빈 데이터베이스·앱 계정에 접속되는지, 그리고 16 단계가 스키마를
+   적재했는지(또는 이미 적재돼 있어 건너뛰었는지) **테이블 개수로** 확인한다. 기동 성공은 근거가 아니다.
 7. **ffmpeg 전제조건** — 19단계가 통과했는지 확인한다(위 「ffmpeg」 절). 중단됐다면 그 절을 따른다.
 8. 05-run-verify.md 로 기동·검증. **유닛은 `klid-ai-server`(서버 B)와 `httpd`(서버 A) 둘뿐**이며
    백엔드는 WAS 가 띄운다.
@@ -515,10 +569,9 @@ sudo ./scripts/install/install-ffmpeg.sh --force
   `FFMPEG_BIN`/`FFPROBE_BIN` 에 절대경로를 지정한다 — **19단계 검증도 그 값을 따라간다.**
 - **RPM(libGL/glib2) 누락**: 사내 미러가 있으면 `sudo dnf install -y mesa-libGL libglvnd-glx glib2`.
   폐쇄망이면 el8 컨테이너에서 `dnf download --resolve --archlist=x86_64,noarch` 로 받아 `syspkgs/rpm/` 에 채워 재설치.
-- **PG16 RPM 누락(`syspkgs/postgresql/` 비어 있음)**: 타깃에 이미 PG 가 있으면
-  `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh` 로 외부 PG 를 쓴다. 번들이 필요하면
-  el8 컨테이너에서 PGDG(EL-8) repo 추가 후 `dnf download --resolve --archlist=x86_64,noarch` 로 받아
-  `syspkgs/postgresql/` 에 채워 재실행한다(02-build-package.md / 55-collect-postgresql.sh 참고).
+- ⚠ **구 항목 폐기(2026-09-05)** — *"PG16 RPM 누락(`syspkgs/postgresql/` 비어 있음)"*.
+  **데이터베이스는 반입물이 아니다.** 매체에 그 디렉터리가 없는 것이 정상이며, 있어도 설치가 쓰지 않는다.
+  데이터베이스는 현장이 제공한다 — 접속이 안 되면 `CONTROL_DB_*` 주소·계정을 현장 담당과 확인한다.
 
 ffmpeg/ffprobe 가 없으면 backend FFmpegStep(프레임추출·duration)이, libGL.so.1 이 없으면 ai-server opencv 가 실패한다.
 ⚠ `mesa-libGL`·`libglvnd-glx` 를 "opencv headless 로 바꾸면 필요 없다"며 빼지 말 것 —

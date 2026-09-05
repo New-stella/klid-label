@@ -1,27 +1,68 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  klid-label backend — JBoss EAP 컨텍스트 경로 고정  [@design DEPLOY-001]
+  klid-label backend — JBoss EAP 컨텍스트 경로  [@design DEPLOY-001]
 
-  ★ 왜 필요한가 — 현장에서 WAR 파일명이 바뀐다.
-    WAR 배포에서 컨텍스트 경로는 <파일명>이 정하는 것이 기본이라, 종전에는 "api.war 로 두고
-    이름을 바꾸지 말 것"을 규칙으로 삼았다. 그런데 2026-09-04 현장 실측에서 같은 WAS 에
-    다른 애플리케이션(label-studio.war)이 함께 올라가 있었고, 운영 편의상 우리 WAR 가
-    klid-at-api.war 로 바뀐 채 배포됐다. 그러면 컨텍스트가 /klid-at-api 가 되어
-    프론트엔드·관제의 모든 호출(전부 /api 하위)이 404 가 된다.
+  ★★ 컨텍스트는 <두 향 중 하나>다 — 빌드 때 고른다 (2026-09-05).
+    이 파일의 값은 <기본값>이고, 산출물에 실리는 값은 빌드 인자가 정한다:
 
-    ⚠ 그 404 는 원인이 드러나지 않는다 — WAS 는 정상이고 배포도 성공이며 로그도 조용하다.
-      "왜 화면이 전부 안 되지"로만 나타난다.
+      ./gradlew bootWar                                  → 아래 기본값 그대로
+      ./gradlew bootWar -PklidWebContext=/label-studio    → 다른 향
+      KLID_WEB_CONTEXT=/label-studio ./gradlew bootWar    → 같음
 
-    이 파일은 <파일명과 무관하게> 컨텍스트를 /api 로 고정한다. 이름 규칙에 기대는 대신
-    계약을 명시하는 쪽이 안전하다.
+  ★ 두 향이 갈리는 지점은 <현장 httpd 가 WAS 로 넘길 때 /api 를 남기느냐>다.
+    브라우저가 부르는 주소는 두 향에서 <똑같다> — /label-studio/api/v1. 프론트는 재빌드 대상이 아니다.
 
-  ★ 이 파일은 EAP/WildFly 계열에서만 읽힌다. 다른 컨테이너에 배포하면 무시되고 종전대로
-    파일명이 컨텍스트를 정한다 — 그쪽에서는 여전히 api.war 라는 이름이 필요하다.
+      passthrough : ProxyPass /label-studio/api/  balancer://label-cluster/label-studio/api/
+                    → WAS 가 /label-studio/api/v1 을 받는다 → 컨텍스트 /label-studio/api
+      strip       : ProxyPass /label-studio/api/  balancer://label-cluster/label-studio/
+                    → WAS 가 /label-studio/v1 을 받는다     → 컨텍스트 /label-studio
 
-  ⚠ 컨텍스트를 바꾸려면 이 파일과 아래 둘을 <함께> 바꿔야 한다. 한 곳만 바꾸면 조용히 깨진다.
-      · 프론트엔드 앞단 프록시(config/frontend/httpd-klid.conf.template 의 /api 프록시)
-      · 관제서버가 호출하는 저작도구 API 주소
+    <Proxy balancer://label-cluster>
+      BalancerMember http://10.177.22.80:8080 route=label1
+      BalancerMember http://10.177.22.81:8080 route=label2
+      BalancerMember http://10.177.22.82:8080 route=label3
+      BalancerMember http://10.177.22.83:8080 route=label4
+    </Proxy>
+
+  ⚠ 위 ProxyPass 한 줄은 2026-09-04 에 <사람이 손으로 옮겨 적은 것>이고 우리 저장소에 현장 conf
+    원본이 없다. 그래서 어느 향인지 못박지 않고 <고를 수 있게> 둔다. 원본을 확인하면 그때 확정한다.
+
+  ★ 판정법 — 브라우저로 이 주소를 연다(인증 없이 열려 있다):
+      https://<사이트>/label-studio/api/actuator/health/liveness
+    JSON 이 나오면 지금 배포된 향이 맞고, 404 면 다른 향이다.
+
+  ★★ 왜 <두> 세그먼트가 후보인가 — 여기가 조용히 틀리는 자리다.
+    컨트롤러는 예외 없이 컨텍스트 <바로 아래> /v1 에서 시작한다. 그 사이의 /api 는
+    application.yml 의 server.servlet.context-path 에 적혀 있으나 <WAR 배포에서는 적용되지 않는다>
+    (ServletInitializer javadoc · docs/00-overview.md · 03-install.md · 06-troubleshooting.md).
+    즉 컨텍스트가 곧 <컨트롤러 앞에 붙는 전부>다.
+
+  ⚠ 틀린 향을 올려도 <아무 신호가 없다> — WAS 는 정상 기동하고 배포도 성공이며 server.log 도 조용하고
+    화면까지 뜬다(자산은 /label-studio/ 에서 따로 받아 온다). API 만 전건 404 다.
+    그래서 설치(17-deploy-jboss.sh · site-install.sh)가 이 값을 <WAR 에서 읽어> 확인한다.
+
+  ⚠ 반대로 구 형상(컨텍스트 /api)이 동작했던 것도 같은 규칙 때문이다 — /api + /v1 = /api/v1.
+    즉 context-path 는 그때도 무시되고 있었다.
+
+  ★ 화면이 열리는 자리는 그대로 /label-studio/ 다 — 컨텍스트와 <별개 축>이고 값이 다른 것이 정상이다.
+    VITE_BASE_PATH(자산 base)와 라우터 basename 을 함께 옮기지 말 것. 옮기면 화면 자체가 뜨지 않는다.
+
+  ★ 왜 우리가 맞추나 — 그 httpd 설정은 여러 시스템이 함께 쓰는 공용 설정이다
+    (general-cluster · general-cluster-2 · ingest-cluster · gis …). 우리 하나 때문에
+    거기를 고치면 다른 시스템의 위험을 우리가 만드는 것이다. 우리가 맞추는 쪽이 싸다.
+
+  ⚠ 프론트엔드도 같은 축이다 — VITE_API_BASE_URL 이 /label-studio/api/v1 이어야 한다.
+    이 값은 <빌드 시점에 박히므로> 바꾸려면 프론트를 다시 빌드해야 한다.
+
+  ⚠ 이 파일은 EAP/WildFly 계열에서만 읽힌다. 다른 컨테이너에서는 파일명이 컨텍스트를 정하는데,
+    파일명에는 슬래시를 넣을 수 없어 두 세그먼트를 이름으로 표현할 수 없다 — 그쪽에 배포하려면
+    컨테이너의 컨텍스트 설정으로 /label-studio/api 를 지정해야 한다.
+
+  ⚠ 컨텍스트를 바꾸려면 <세 곳을 함께> 바꾼다. 한 곳만 바꾸면 조용히 깨진다.
+      · 이 파일
+      · 프론트 빌드값 VITE_API_BASE_URL
+      · 웹 httpd 의 ProxyPass 대상 (현장 공용 설정)
 -->
 <jboss-web>
-  <context-root>/api</context-root>
+  <context-root>/label-studio/api</context-root>
 </jboss-web>

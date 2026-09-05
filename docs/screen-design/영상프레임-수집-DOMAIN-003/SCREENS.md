@@ -1,4 +1,4 @@
-# DOMAIN-003 화면 키트 — SCREENS.md
+# 영상·프레임 수집 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,18 +7,18 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-003 DOMAIN-003 |
-| last sync | 2026-08-31T11:40:35.634Z (session 1) |
+| Domain | DOMAIN-003 영상·프레임 수집 |
+| last sync | 2026-09-05T01:33:12.608Z (session 19) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003/ |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
+| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -27,9 +27,9 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 7 |
+| api_endpoint | _shared/api/ | 8 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 3 |
+| permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -47,6 +47,34 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-112]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-167]] | api_endpoint | NEW |
+| [[API-201]] | api_endpoint | CHANGED (v8→v9) |
+| [[ROLE-001]] | permission_role | CHANGED (v13→v14) |
+| [[ROLE-003]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | CHANGED (v4→v5) |
+| [[SCREEN-009]] | screen_spec | CHANGED (v75→v76) |
+| [[UI-035]] | ui_component | CHANGED (v6→v7) |
+| [[UI-037]] | ui_component | CHANGED (v4→v6) |
+| [[UI-046]] | ui_component | CHANGED (v7→v8) |
+| [[UI-071]] | ui_component | CHANGED (v4→v5) |
+| [[UI-072]] | ui_component | CHANGED (v4→v5) |
+| [[UI-096]] | ui_component | CHANGED (v5→v6) |
+| [[UI-105]] | ui_component | CHANGED (v1→v3) |
+| [[UI-129]] | ui_component | CHANGED (v1→v4) |
+| [[UI-131]] | ui_component | CHANGED (v1→v2) |
+| [[UI-132]] | ui_component | CHANGED (v1→v2) |
+| [[UI-134]] | ui_component | CHANGED (v1→v2) |
+| [[UI-138]] | ui_component | CHANGED (v1→v2) |
+| [[UI-139]] | ui_component | CHANGED (v1→v2) |
+| [[UI-140]] | ui_component | CHANGED (v1→v2) |
+| [[UC-011]] | use_case | CHANGED (v13→v19) |
+| [[UC-016]] | use_case | CHANGED (v25→v30) |
 
 ## Obsidian 볼트로 보기
 

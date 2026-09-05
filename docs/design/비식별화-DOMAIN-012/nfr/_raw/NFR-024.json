@@ -1,0 +1,55 @@
+{
+  "item": {
+    "id": "NFR-024",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "도입 HW·SW 사양을 반영한 아키텍처 설계",
+    "slug": "도입-hwsw-사양을-반영한-아키텍처-설계",
+    "sub_id": "RQ-ECR-05-03",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "도입 HW·SW 사양을 반영한 아키텍처 설계",
+      "metric": "도입 사양 반영 설계 및 개발·시험 환경 선확보 여부",
+      "status": "approved",
+      "target": {
+        "value": "도입 HW·SW 사양 기준 아키텍처 설계 + 사양 확정 전 개발·시험 환경 확보",
+        "operator": "="
+      },
+      "category": "other",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-ECR-05-03 (담당=공통, RFP p22) — 저작도구는 국가정보자원관리원에 반입·설치되므로 도입 사양이 아키텍처 전제가 된다.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "국가정보자원관리원 도입 HW·SW 사양을 참고하여 저작도구의 프로그램 개발과 아키텍처를 설계한다.\n- 웹·WAS·DB·AI 추론 서버의 배치와 자원 배분을 도입 사양에 맞춰 설계한다.\n- AI 추론(오토라벨링·분할·추적)의 GPU 자원은 동시 처리 한도를 결정하는 제약이므로, 도입 사양에 맞춰 동시 처리 상한과 부하 분산 기준을 정한다.\n- HW·SW 규격과 수량은 실제 도입 시점에 변경될 수 있으므로, 특정 사양에 종속되지 않는 구성을 택하고 변경 시 재설계 범위를 최소화한다.\n- 도입 이전 기간에도 개발·시험이 가능하도록 별도 개발환경을 선확보한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-004"
+      ],
+      "measurement_method": "아키텍처 설계 문서가 도입 사양을 근거로 작성되고, 사양 확정 이전에도 개발·시험이 가능한 환경이 확보된 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:22.382Z",
+    "created_at": "2026-09-05T00:12:22.382Z"
+  }
+}

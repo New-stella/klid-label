@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.security;
 import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.user.entity.LsUserRole;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -38,6 +39,35 @@ import org.springframework.stereotype.Component;
 public class UserRoleResolver {
 
     private final LsUserRoleRepository lsUserRoleRepository;
+    private final UserRepository userRepository;
+
+    /**
+     * <b>관제 인계 토큰의 {@code userId} 클레임으로 사용자번호를 해석한다 — 단건 매칭일 때만</b>
+     * (@design ADR-063 · UC-041).
+     *
+     * <p>2단 조인의 앞단이다: {@code userId → LS_ACNT_USER.USER_ID 조회 → userNo}. 뒤이어
+     * 호출자가 {@link #resolve(Long)} 로 역할을 얻는다. 표준 필드 {@code sub} 가 아니라 관제가
+     * 사용자 ID 로 의도해 넣은 {@code userId} 클레임을 조회 키로 쓴다.
+     *
+     * <p><b>Fail-closed</b> — 다중/0건 매칭이면 null(추측 매칭 금지, CWE-639). {@code null}/공백
+     * {@code userId} 도 null. DB 장애({@link DataAccessException})도 null 로 닫는다.
+     *
+     * <p>캐시하지 않는다 — 관제 인계 경로는 드물고, {@code userId→userNo} 매핑은 운영자가 사용자
+     * 마스터를 바꾸면 즉시 반영돼야 한다. 로그에 {@code userId} 를 남기지 않는다(PII/개행 주입 표면
+     * 차단, CWE-359/117).
+     */
+    public Long resolveUserNoByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            return userRepository.findUserNoByUserId(userId).orElse(null);
+        } catch (DataAccessException e) {
+            // fail-closed — DB 장애 시 무권한. 권한 상승(fail-open) 절대 금지.
+            log.warn("[Auth] userId lookup failed (fail-closed, deny)");
+            return null;
+        }
+    }
 
     /**
      * userNo 로 저작도구 인가 역할을 해석한다. 무권한이면 null.

@@ -27,7 +27,15 @@ require_root
 
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
 ONPREM="$(onprem_root)"
-WEB_DIR="${KLID_PREFIX}/web"
+# ★ 현장 httpd 의 DocumentRoot 가 따로 있으면 그쪽에 배치한다(KLID_WEB_ROOT).
+#   기본은 우리 경로. 지정하면 그 부모를 WEB_DIR 로 삼아 dist 를 그 아래 둔다.
+if [[ -n "${KLID_WEB_ROOT:-}" ]]; then
+  WEB_DIR="$(dirname "${KLID_WEB_ROOT}")"
+  DIST_NAME="$(basename "${KLID_WEB_ROOT}")"
+else
+  WEB_DIR="${KLID_PREFIX}/web"
+  DIST_NAME="dist"
+fi
 ensure_dir "${WEB_DIR}"
 
 BACKEND_ORIGIN="${BACKEND_ORIGIN:-http://127.0.0.1:8080}"
@@ -71,9 +79,21 @@ fi
 
 # ---- 1) 정적 자산 배치 ----
 info "[frontend] 정적 자산 배치 (배포 향: ${FE_FLAVOR})..."
-rm -rf "${WEB_DIR}/dist"
-cp -R "${DIST_SRC}" "${WEB_DIR}/dist"
-ok "[frontend] dist: ${WEB_DIR}/dist  (원본 ${DIST_SRC})"
+# ★ 기존 내용을 <지우지 않고 옮겨 둔다>.
+#   현장 DocumentRoot 를 지정한 경우(KLID_WEB_ROOT) 그 자리에 이미 다른 애플리케이션이
+#   올라가 있을 수 있다(실측: 1차 저작도구가 /GCLOUD/WebApp/label-studio 에 있었다).
+#   rm -rf 로 밀면 되돌릴 수 없다 — 옮겨 두면 잘못됐을 때 한 줄로 복구된다.
+_TARGET="${WEB_DIR}/${DIST_NAME}"
+if [[ -d "${_TARGET}" ]] && [[ -n "$(ls -A "${_TARGET}" 2>/dev/null)" ]]; then
+  _BAK="${_TARGET}.bak.$(date '+%Y%m%d%H%M%S')"
+  warn "[frontend] 대상 경로에 내용이 있습니다: ${_TARGET}"
+  warn "           지우지 않고 옮겨 둡니다 → ${_BAK}"
+  warn "           되돌리려면:  rm -rf '${_TARGET}' && mv '${_BAK}' '${_TARGET}'"
+  mv "${_TARGET}" "${_BAK}"
+fi
+ensure_dir "$(dirname "${_TARGET}")"
+cp -R "${DIST_SRC}" "${_TARGET}"
+ok "[frontend] dist: ${WEB_DIR}/${DIST_NAME}  (원본 ${DIST_SRC})"
 
 # ---- 1-1) 런타임 설정 정본 배치 + 생성기 설치 ----
 #   ★ 값의 정본은 산출물이 아니라 ${KLID_ETC}/frontend.env 다(백엔드가 DB 접속정보를 /etc/klid
@@ -114,7 +134,14 @@ install -m 0755 "${SELF_DIR}/render-frontend-config.sh" "${FE_CONFIG_RENDERER}"
 ok "[frontend] 설정 반영 명령 설치: ${FE_CONFIG_RENDERER}"
 
 # ---- 2) httpd 오프라인 설치 ----
-if command -v httpd >/dev/null 2>&1; then
+# ★ KLID_SKIP_HTTPD_CONF=1 이면 httpd 설치·설정을 <건드리지 않는다>.
+#   현장 httpd 설정(프록시·로드밸런싱)이 이미 잡혀 있는 형상에서 우리가 덮어쓰면
+#   그 설정이 통째로 날아간다. 그때는 정적 자산만 배치하고 끝낸다.
+if [[ "${KLID_SKIP_HTTPD_CONF:-0}" == "1" ]]; then
+  info "[frontend] httpd 설치·설정을 건너뜁니다(KLID_SKIP_HTTPD_CONF=1 — 현장 설정 보존)."
+  info "           배치 경로: ${WEB_DIR}/${DIST_NAME}"
+  info "           ★ 현장 httpd 의 DocumentRoot 가 이 경로를 가리키는지 확인하세요."
+elif command -v httpd >/dev/null 2>&1; then
   ok "[frontend] httpd 이미 설치됨: $(httpd -v 2>&1 | head -n1)"
 else
   rpms=("${ONPREM}"/syspkgs/rpm/httpd*.rpm)
@@ -136,7 +163,7 @@ fi
 # ---- 3) 설정 배치 ----
 #   conf.d 드롭인으로 넣는다. httpd 본체 설정(모듈 적재·MPM·MIME)은 배포판 것을 그대로 쓴다.
 CONF_DST="/etc/httpd/conf.d/klid-frontend.conf"
-sed -e "s#@WEB_ROOT@#${WEB_DIR}/dist#g" \
+sed -e "s#@WEB_ROOT@#${WEB_DIR}/${DIST_NAME}#g" \
     -e "s#@BACKEND_ORIGIN@#${BACKEND_ORIGIN}#g" \
     "${ONPREM}/config/frontend/httpd-klid.conf.template" > "${CONF_DST}"
 chmod 0644 "${CONF_DST}"
@@ -161,9 +188,9 @@ fi
 #   ★ SELinux 문맥 부여(4단계)보다 <앞>에 둔다 — 여기서 만든 klid-config.js 도 restorecon
 #     대상에 포함되게 하기 위해서다.
 info "[frontend] 런타임 설정 생성..."
-if KLID_ETC="${KLID_ETC}" KLID_PREFIX="${KLID_PREFIX}" WEB_ROOT="${WEB_DIR}/dist" \
+if KLID_ETC="${KLID_ETC}" KLID_PREFIX="${KLID_PREFIX}" WEB_ROOT="${WEB_DIR}/${DIST_NAME}" \
      "${FE_CONFIG_RENDERER}"; then
-  ok "[frontend] 런타임 설정 생성 완료: ${WEB_DIR}/dist/klid-config.js"
+  ok "[frontend] 런타임 설정 생성 완료: ${WEB_DIR}/${DIST_NAME}/klid-config.js"
 else
   FE_CONFIG_PENDING=1
   warn "----------------------------------------------------------------"
@@ -180,11 +207,11 @@ if command -v getenforce >/dev/null 2>&1 && [[ "$(getenforce 2>/dev/null)" == "E
   info "[frontend] SELinux Enforcing — 문맥·불리언 설정..."
   # 정적 자산을 httpd 가 읽을 수 있게 문맥 부여
   if command -v semanage >/dev/null 2>&1; then
-    semanage fcontext -a -t httpd_sys_content_t "${WEB_DIR}/dist(/.*)?" 2>/dev/null || true
+    semanage fcontext -a -t httpd_sys_content_t "${WEB_DIR}/${DIST_NAME}(/.*)?" 2>/dev/null || true
   else
     warn "[frontend] semanage 없음(policycoreutils-python-utils) — 문맥이 재부팅 후 초기화될 수 있습니다."
   fi
-  command -v restorecon >/dev/null 2>&1 && restorecon -R "${WEB_DIR}/dist" || true
+  command -v restorecon >/dev/null 2>&1 && restorecon -R "${WEB_DIR}/${DIST_NAME}" || true
   # 리버스프록시가 백엔드로 나가려면 이 불리언이 필요하다(기본 off → 프록시 503).
   if command -v setsebool >/dev/null 2>&1; then
     setsebool -P httpd_can_network_connect 1 \

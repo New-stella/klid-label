@@ -177,6 +177,12 @@ services:
     build:
       context: ./ai-server
       dockerfile: Dockerfile
+      args:
+        # ★ GPU 추론 판으로 빌드할지 — <b>AI_DEVICE 와 짝이다</b>.
+        #   AI_DEVICE=cuda 인데 이 값이 false 면 컨테이너에 CUDA provider 가 없어
+        #   조용히 CPU 로 떨어진다(예외가 나지 않아 알아채기 어렵다).
+        #   .env 한 곳에서 둘을 함께 켜고, 빌드할 때 인자를 손으로 붙이지 않는다.
+        AI_GPU: ${AI_GPU:-false}
     image: klid-ai-server:latest
     container_name: klid-ai-server
     restart: unless-stopped

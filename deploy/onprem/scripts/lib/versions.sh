@@ -152,30 +152,16 @@ FFPROBE_BIN_PATH="/usr/bin/ffprobe"
 #     관제지원시스템과 하나로 통일하기 위함이며, RPM 은 모듈 적재와 SELinux 문맥이
 #     이미 갖춰져 있어 우리가 관리할 표면이 줄어든다.
 
-# ---- PostgreSQL 16 (PGDG, RHEL 8.9 / el8 오프라인 번들) ----
-#   ★ 번들 PG 는 "옵션"이다(USE_BUNDLED_POSTGRES=1 기본). 타깃에 이미 PG 가 있으면 끈다(=0).
-#   ★ DB 스키마는 db/schema.sql(전체 통합 DDL)을 1회 로드해 만든다 — 온프렘은 Flyway 를 쓰지
-#     않는다(flyway.enabled=false). 따라서 PG 사전요건은
-#     "빈 DB 2개(control/portal) + 접속 사용자"뿐이고, 그 로드는 설치 단계(16-load-schema.sh)나
-#     DBA 가 <사람 손으로> 수행한다(자동으로 만들어지지 않는다).
-#   수집(55-collect-postgresql.sh)은 dnf/yum 환경에서만 수행되며, 비-RHEL(mac)은 graceful SKIP 한다.
-#   설치(10-install-postgresql.sh)는 syspkgs/postgresql/*.rpm 을 오프라인(--disablerepo='*')으로 설치한다.
+# ---- PostgreSQL — 반입 대상이 아니다 (2026-09-05 확정) ----
+#   데이터베이스는 현장 장비에 이미 설치된 것을 쓴다. 우리는 반입하지도 설치하지도 않으므로
+#   여기서 고정할 버전이 없다. 현장 실측 판은 17.11 이며 접속 정보만 설정으로 받는다.
 #
-#   PGDG repo 추가:    dnf install -y ${PGDG_REPO_RPM_URL}
-#   내장 모듈 비활성:  dnf -qy module disable postgresql
-#   수집 패키지:       ${POSTGRES_RPM_PKGS[*]}
-#   initdb:            /usr/pgsql-16/bin/postgresql-16-setup initdb
-#   서비스:            postgresql-16
-#
-#   ⚠ PGDG repo RPM 은 "...repo-latest.noarch.rpm" 이라 URL 자체가 가변(latest) → 버전 고정 체크섬
-#     핀이 불가하다. 수집 스크립트는 repo RPM 을 한 번 설치해 PGDG repo 메타만 추가하고 그것으로
-#     PG16 RPM 을 받는다. 받은 PG16 *.rpm 의 전송 무결성은 syspkgs/postgresql/SHA256SUMS 로 검증한다.
-POSTGRES_MAJOR="16"
-# ⚠ 구 값 폐기(2026-08-28) — EL-9-x86_64. el9 PG RPM 은 RHEL 8 에 설치되지 않는다.
-#   검증: 2026-08-30, 아래 EL-8 URL HTTP 200 확인.
-PGDG_REPO_RPM_URL="https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
-# 받을 PG16 RPM(전이 의존성은 dnf download --resolve --alldeps 가 함께 받는다).
-POSTGRES_RPM_PKGS=(postgresql16-server postgresql16 postgresql16-libs postgresql16-contrib)
+#   ⚠ 구 블록 폐기 — 번들 PG16(PGDG) 버전 핀·수집 패키지 목록·initdb·서비스명 안내가 있었다.
+#     실행 주체(10-install-postgresql.sh)·수집 주체(55-collect-postgresql.sh)·토글
+#     (USE_BUNDLED_POSTGRES)이 모두 제거됐다. **되살리지 말 것** — 번들 RPM 이 의존을 풀면서
+#     대상 장비의 기존 시스템 라이브러리까지 끌어올린다.
+#   ⚠ 구 사전요건 서술 "빈 DB 2개(control/portal)" 도 폐기다 — 포털 데이터소스는 2026-08-31 에
+#     철거됐고, 필요한 것은 빈 데이터베이스 1개와 앱 계정(현장 준비)뿐이다.
 
 # ---- ai-server torch CPU 인덱스 ----
 # pip download 시 CUDA wheel(거대) 대신 CPU wheel 을 받기 위한 인덱스.

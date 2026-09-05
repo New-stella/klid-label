@@ -1,0 +1,454 @@
+{
+  "item": {
+    "id": "SEQ-036",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "이벤트 마킹 — 비식별 영상에서 자동·수동으로 시점을 찍고 잔여 배치를 깨운다",
+    "slug": "이벤트-마킹-비식별-영상에서-자동수동으로-시점을-찍고-잔여-배치를-깨운다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "이벤트 마킹 — 비식별 영상에서 자동·수동으로 시점을 찍고 잔여 배치를 깨운다",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    actor worker as 라벨링 작업자(WORKER)\n    participant videoList as 영상 처리 현황 화면 (마킹 진입 팝업)\n    participant markingScreen as 마킹 화면\n    participant videoCtrl as VideoController\n    participant streamSvc as VideoStreamService\n    participant markingCtrl as MarkingController\n    participant guards as MarkingGuards\n    participant markingSvc as MarkingService\n    participant bridge as MarkingBatchBridge\n    participant reportCtrl as DeidentReportController\n    participant reportSvc as DeidentReportService\n    participant db as LS_DATA_RAW · LS_MARKING · LS_VRFC_EVNT_QSTN\n\n    Note over videoList: 마킹에 이르는 길은 둘이다 — 검수자가 미배정 영상을 팝업에서 바로 자동으로 돌리거나, 작업자에게 배정해 마킹 화면에서 직접 찍게 한다\n    opt 검수자가 미배정 영상을 팝업에서 처리하는 경우\n        reviewer->>videoList: 미배정·마킹 가능 영상에서 마킹 진입 팝업을 연다\n        reviewer->>videoList: 자동을 골라 프레임 간격을 정하면 그 자리에서 마킹을 만든다\n        Note over videoList: 이 경로는 마킹 화면을 거치지 않는다 — 검수자는 시작 안내만 받고 목록으로 돌아간다\n        reviewer->>videoList: 수동을 고르면 작업자 배정으로 넘어간다 — 배정 자체는 작업 배정 흐름이 소유한다\n    end\n    worker->>markingScreen: 배정받은 영상의 마킹 화면에 들어온다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}\n    videoCtrl->>db: 영상 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록 조회 — 정렬순서 오름차순\n    db-->>videoCtrl: 배치 단계 · 검증 이벤트 유형 · 질문 목록\n    videoCtrl-->>markingScreen: 200 OK — 질문 목록이 영상 상세에 함께 실려 온다\n    Note over markingScreen: 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 마킹 화면은 그것을 읽기만 하고 따로 조회하는 창구도 두지 않는다\n    Note over markingScreen: 배치 단계가 마킹 대기가 아니면 화면이 진입 자체를 막는다 — 편집기도 신고 단추도 열리지 않으므로 사유를 다 적고 제출한 뒤에야 거부되는 동선이 없다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}/stream-url\n    videoCtrl-->>markingScreen: 스트리밍 주소\n    markingScreen->>streamSvc: GET /v1/videos/{rawSn}/stream — 구간 요청\n    streamSvc->>db: 비식별 산출물 경로 조회\n    db-->>streamSvc: 비식별 영상 경로\n    streamSvc-->>markingScreen: 비식별 영상 구간 전송\n    Note over streamSvc: [대안] 비식별본이 없으면 영상을 주지 않는다 — 스트리밍은 항상 비식별본만 서빙해 원본 노출을 차단한다\n    worker->>markingScreen: 배속을 조절해 재생한다\n    alt 수동 — 재생하다 시점을 직접 찍고 질문을 고른다\n        worker->>markingScreen: 수동 — 이벤트 시점에서 마킹을 찍고 지운다\n        Note over markingScreen: 작업자가 프레임을 직접 고른다\n        worker->>markingScreen: 검증 질문을 고른다 — 고르지 않으면 첫 번째 질문이 쓰인다\n    end\n    alt 자동 — 프레임 간격이 시점을 정하고 첫 질문이 쓰인다\n        worker->>markingScreen: 자동 — 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다\n        Note over markingScreen: 자동에는 질문을 고르는 자리가 없다 — 그 유형의 첫 번째 질문이 자동으로 쓰인다\n        Note over markingScreen: 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다. [대안] 검증 이벤트 유형이 미수신이면 목록이 비어 선택 없이 진행하고 질문 칸은 비워 둔다 — 지어내지 않는다\n    end\n    worker->>markingScreen: 마킹을 완료한다\n    markingScreen->>markingCtrl: POST /v1/videos/{rawSn}/markings — 모드와 시점 배열 또는 프레임 간격, 고른 질문\n    markingCtrl->>guards: 채널 · 배정 · 배치 단계를 확인\n    guards-->>markingCtrl: 통과\n    markingCtrl->>markingSvc: save(모드, 시점 배열 또는 프레임 간격, 고른 질문)\n    markingSvc->>db: 고른 질문이 그 영상의 검증 이벤트 유형에 속하는지 확인\n    db-->>markingSvc: 질문의 소속 유형\n    Note over markingSvc: [대안] 값이 없거나 그 유형의 질문이 아니면 그 유형의 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다\n    markingSvc->>db: LS_MARKING 적재 — 시점 배열과 고른 질문 식별자를 함께 저장\n    markingSvc-)bridge: 마킹 완료 — 커밋 이후에 신호가 나간다\n    Note over bridge: 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다 — 마킹은 비식별 영상을 대상으로 하기 때문이다\n    bridge->>db: 작업 상태를 처리중으로 전이\n    bridge->>bridge: 잔여 배치를 비동기로 시작한다\n    Note over bridge: 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유한다 — 여기서는 깨우는 데까지만 그린다\n    markingSvc-->>markingCtrl: 저장 결과\n    markingCtrl-->>markingScreen: 200 OK\n    opt 마킹 도중 비식별 누락을 발견하면\n        worker->>markingScreen: 마킹 도중 비식별 누락을 발견해 신고한다\n        markingScreen->>reportCtrl: POST /v1/videos/{rawSn}/deident-report\n        reportCtrl->>reportSvc: report(rawSn, 사유, 신고 단계 = 마킹)\n        reportSvc->>db: 신고를 접수하고 비식별 표식을 신고 상태로 내린다 — 그 영상에 작업락이 걸려 마킹이 멈춘다\n        Note over reportSvc: 접수는 배치 단계가 마킹 대기일 때만 받는다. 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다\n        Note over reportSvc: 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다\n    end\n",
+      "messages": [
+        {
+          "to": "videoList",
+          "from": "videoList",
+          "kind": "note",
+          "label": "마킹에 이르는 길은 둘이다 — 검수자가 미배정 영상을 팝업에서 바로 자동으로 돌리거나, 작업자에게 배정해 마킹 화면에서 직접 찍게 한다"
+        },
+        {
+          "to": "videoList",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "미배정·마킹 가능 영상에서 마킹 진입 팝업을 연다"
+        },
+        {
+          "to": "videoList",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "자동을 골라 프레임 간격을 정하면 그 자리에서 마킹을 만든다"
+        },
+        {
+          "to": "videoList",
+          "from": "videoList",
+          "kind": "note",
+          "label": "이 경로는 마킹 화면을 거치지 않는다 — 검수자는 시작 안내만 받고 목록으로 돌아간다"
+        },
+        {
+          "to": "videoList",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "수동을 고르면 작업자 배정으로 넘어간다 — 배정 자체는 작업 배정 흐름이 소유한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "배정받은 영상의 마킹 화면에 들어온다"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "GET /v1/videos/{rawSn}",
+          "item_ref": "API-043"
+        },
+        {
+          "to": "db",
+          "from": "videoCtrl",
+          "kind": "sync",
+          "label": "영상 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록 조회 — 정렬순서 오름차순"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "db",
+          "kind": "return",
+          "label": "배치 단계 · 검증 이벤트 유형 · 질문 목록"
+        },
+        {
+          "to": "markingScreen",
+          "from": "videoCtrl",
+          "kind": "return",
+          "label": "200 OK — 질문 목록이 영상 상세에 함께 실려 온다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 마킹 화면은 그것을 읽기만 하고 따로 조회하는 창구도 두지 않는다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "배치 단계가 마킹 대기가 아니면 화면이 진입 자체를 막는다 — 편집기도 신고 단추도 열리지 않으므로 사유를 다 적고 제출한 뒤에야 거부되는 동선이 없다"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "GET /v1/videos/{rawSn}/stream-url",
+          "item_ref": "API-114"
+        },
+        {
+          "to": "markingScreen",
+          "from": "videoCtrl",
+          "kind": "return",
+          "label": "스트리밍 주소"
+        },
+        {
+          "to": "streamSvc",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "GET /v1/videos/{rawSn}/stream — 구간 요청",
+          "item_ref": "API-084"
+        },
+        {
+          "to": "db",
+          "from": "streamSvc",
+          "kind": "sync",
+          "label": "비식별 산출물 경로 조회"
+        },
+        {
+          "to": "streamSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "비식별 영상 경로"
+        },
+        {
+          "to": "markingScreen",
+          "from": "streamSvc",
+          "kind": "return",
+          "label": "비식별 영상 구간 전송"
+        },
+        {
+          "to": "streamSvc",
+          "from": "streamSvc",
+          "kind": "note",
+          "label": "[대안] 비식별본이 없으면 영상을 주지 않는다 — 스트리밍은 항상 비식별본만 서빙해 원본 노출을 차단한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "배속을 조절해 재생한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "수동 — 이벤트 시점에서 마킹을 찍고 지운다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "작업자가 프레임을 직접 고른다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "검증 질문을 고른다 — 고르지 않으면 첫 번째 질문이 쓰인다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "자동 — 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "자동에는 질문을 고르는 자리가 없다 — 그 유형의 첫 번째 질문이 자동으로 쓰인다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다. [대안] 검증 이벤트 유형이 미수신이면 목록이 비어 선택 없이 진행하고 질문 칸은 비워 둔다 — 지어내지 않는다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "마킹을 완료한다"
+        },
+        {
+          "to": "markingCtrl",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "POST /v1/videos/{rawSn}/markings — 모드와 시점 배열 또는 프레임 간격, 고른 질문",
+          "item_ref": "API-047"
+        },
+        {
+          "to": "guards",
+          "from": "markingCtrl",
+          "kind": "sync",
+          "label": "채널 · 배정 · 배치 단계를 확인"
+        },
+        {
+          "to": "markingCtrl",
+          "from": "guards",
+          "kind": "return",
+          "label": "통과"
+        },
+        {
+          "to": "markingSvc",
+          "from": "markingCtrl",
+          "kind": "sync",
+          "label": "save(모드, 시점 배열 또는 프레임 간격, 고른 질문)"
+        },
+        {
+          "to": "db",
+          "from": "markingSvc",
+          "kind": "sync",
+          "label": "고른 질문이 그 영상의 검증 이벤트 유형에 속하는지 확인"
+        },
+        {
+          "to": "markingSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "질문의 소속 유형"
+        },
+        {
+          "to": "markingSvc",
+          "from": "markingSvc",
+          "kind": "note",
+          "label": "[대안] 값이 없거나 그 유형의 질문이 아니면 그 유형의 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다"
+        },
+        {
+          "to": "db",
+          "from": "markingSvc",
+          "kind": "sync",
+          "label": "LS_MARKING 적재 — 시점 배열과 고른 질문 식별자를 함께 저장"
+        },
+        {
+          "to": "bridge",
+          "from": "markingSvc",
+          "kind": "async",
+          "label": "마킹 완료 — 커밋 이후에 신호가 나간다"
+        },
+        {
+          "to": "bridge",
+          "from": "bridge",
+          "kind": "note",
+          "label": "부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다 — 마킹은 비식별 영상을 대상으로 하기 때문이다"
+        },
+        {
+          "to": "db",
+          "from": "bridge",
+          "kind": "sync",
+          "label": "작업 상태를 처리중으로 전이"
+        },
+        {
+          "to": "bridge",
+          "from": "bridge",
+          "kind": "self",
+          "label": "잔여 배치를 비동기로 시작한다"
+        },
+        {
+          "to": "bridge",
+          "from": "bridge",
+          "kind": "note",
+          "label": "잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유한다 — 여기서는 깨우는 데까지만 그린다"
+        },
+        {
+          "to": "markingCtrl",
+          "from": "markingSvc",
+          "kind": "return",
+          "label": "저장 결과"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "markingScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "마킹 도중 비식별 누락을 발견해 신고한다"
+        },
+        {
+          "to": "reportCtrl",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "POST /v1/videos/{rawSn}/deident-report",
+          "item_ref": "API-091"
+        },
+        {
+          "to": "reportSvc",
+          "from": "reportCtrl",
+          "kind": "sync",
+          "label": "report(rawSn, 사유, 신고 단계 = 마킹)"
+        },
+        {
+          "to": "db",
+          "from": "reportSvc",
+          "kind": "sync",
+          "label": "신고를 접수하고 비식별 표식을 신고 상태로 내린다 — 그 영상에 작업락이 걸려 마킹이 멈춘다"
+        },
+        {
+          "to": "reportSvc",
+          "from": "reportSvc",
+          "kind": "note",
+          "label": "접수는 배치 단계가 마킹 대기일 때만 받는다. 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다"
+        },
+        {
+          "to": "reportSvc",
+          "from": "reportSvc",
+          "kind": "note",
+          "label": "그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "검수자가 미배정 영상을 팝업에서 처리하는 경우",
+          "end_index": 4,
+          "start_index": 1
+        },
+        {
+          "kind": "alt",
+          "label": "수동 — 재생하다 시점을 직접 찍고 질문을 고른다",
+          "end_index": 22,
+          "start_index": 20
+        },
+        {
+          "kind": "alt",
+          "label": "자동 — 프레임 간격이 시점을 정하고 첫 질문이 쓰인다",
+          "end_index": 25,
+          "start_index": 23
+        },
+        {
+          "kind": "opt",
+          "label": "마킹 도중 비식별 누락을 발견하면",
+          "end_index": 47,
+          "start_index": 42
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 이벤트 마킹 그 자체의 흐름을 처음으로 전용 시각화한다."
+      },
+      "description": "작업자가 비식별 영상에서 이벤트 시점을 찍고, 마킹이 끝나면 잔여 배치가 깨어나는 흐름을 그린다.\n\n[시점을 고르는 방식은 마킹 화면 안에서 갈린다] 수동은 재생하다 이벤트 시점에서 직접 찍고, 자동은 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다. 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다.\n\n[마킹에 이르는 길은 둘이다] 작업자가 배정받아 마킹 화면에서 찍는 것이 본줄기이고, 그와 별개로 검수자가 영상 처리 현황 화면의 마킹 진입 팝업에서 미배정 영상을 자동으로 바로 돌리거나 작업자에게 배정할 수 있다. 배정 자체는 작업 배정 흐름이 소유하므로 여기서는 마킹으로 이어지는 지점만 그린다.\n\n[재생되는 것은 언제나 비식별 영상이다] 비식별본이 없으면 영상을 주지 않아 원본이 노출되지 않는다.\n\n[질문은 미리 등록된 것을 고를 뿐이다] 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 저장하면 그 유형의 목록이 보이는 순서 그대로 통째로 교체되고 첫 번째가 그 유형의 기본 질문이 된다. 마킹 화면은 영상 상세 응답에 실려 온 그 목록을 읽기만 하고 여기서 만들거나 고치지 않는다.\n\n[자동은 질문을 고르지 않는다] 수동은 작업자가 목록에서 하나를 고르고 고르지 않으면 첫 번째가 쓰인다. 자동은 고르는 자리 자체가 없어 언제나 그 유형의 첫 번째 질문이 쓰인다. 서버는 고른 값이 그 유형에 속하는지 다시 확인하고 값이 없거나 다른 유형의 질문이면 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다. 검증 이벤트 유형이 미수신이면 목록이 비어 선택 없이 진행하고 질문 칸은 비워 둔다 — 지어내지 않는다.\n\n[완료는 커밋 뒤에 알린다] 마킹이 커밋된 뒤에야 완료 신호가 나가고, 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다. 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유하므로 여기서는 깨우는 데까지만 그린다.\n\n[마킹 도중 비식별 누락을 발견하면 그 자리에서 신고한다] 접수는 배치 단계가 마킹 대기일 때만 받으며, 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다. 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다.",
+      "invokes_apis": [
+        "API-047",
+        "API-043",
+        "API-114",
+        "API-084",
+        "API-091"
+      ],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "videoList",
+          "kind": "system",
+          "name": "영상 처리 현황 화면 (마킹 진입 팝업)",
+          "item_ref": "SCREEN-008"
+        },
+        {
+          "id": "markingScreen",
+          "kind": "system",
+          "name": "마킹 화면",
+          "item_ref": "SCREEN-006"
+        },
+        {
+          "id": "videoCtrl",
+          "kind": "service",
+          "name": "VideoController"
+        },
+        {
+          "id": "streamSvc",
+          "kind": "service",
+          "name": "VideoStreamService"
+        },
+        {
+          "id": "markingCtrl",
+          "kind": "service",
+          "name": "MarkingController"
+        },
+        {
+          "id": "guards",
+          "kind": "service",
+          "name": "MarkingGuards"
+        },
+        {
+          "id": "markingSvc",
+          "kind": "service",
+          "name": "MarkingService"
+        },
+        {
+          "id": "bridge",
+          "kind": "service",
+          "name": "MarkingBatchBridge"
+        },
+        {
+          "id": "reportCtrl",
+          "kind": "service",
+          "name": "DeidentReportController"
+        },
+        {
+          "id": "reportSvc",
+          "kind": "service",
+          "name": "DeidentReportService"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "LS_DATA_RAW · LS_MARKING · LS_VRFC_EVNT_QSTN"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [
+        "EVT-001"
+      ],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-019"
+      ],
+      "related_acceptances": [
+        "AC-1013",
+        "AC-1014",
+        "AC-1015"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이벤트 마킹 전용 시퀀스를 새로 만든다. 종전에는 이 유스케이스를 그리는 전용 시퀀스가 없어 파이프라인 전경 그림이 대신 실렸다. 시점을 고르는 두 방식(수동·자동)을 마킹 화면 안의 갈래로 그리고, 검수자가 목록 팝업에서 미배정 영상을 바로 돌리는 다른 진입점을 함께 담았다. 질문은 이벤트유형 관리 화면에 등록된 목록에서 고르며 자동에는 고르는 자리가 없어 첫 번째가 쓰인다는 점, 스트리밍이 언제나 비식별본만 서빙한다는 점, 완료 신호가 커밋 뒤에 나간다는 점을 담았다. 참가자 이름은 실제 설계 클래스명으로 붙였다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T09:01:39.441Z",
+    "created_at": "2026-09-03T09:01:39.441Z"
+  }
+}

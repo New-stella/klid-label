@@ -72,7 +72,7 @@ class StatsInProgressAxisIT {
     void setUp() {
         TransactionTemplate tx = new TransactionTemplate(txManager);
         userNo = ThreadLocalRandom.current().nextLong(900_000_000L, 999_999_999L);
-        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, "stat-prog-it", "진행축작업자"));
+        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, null, "진행축작업자"));
     }
 
     // ---------------------------------------------------------------- fixtures
@@ -208,7 +208,7 @@ class StatsInProgressAxisIT {
         assignVideo(LsRawDataStatus.STTS_REJECTED);
         long otherUserNo = userNo - 1L;
         new TransactionTemplate(txManager).executeWithoutResult(
-                s -> userRepository.upsertUser(otherUserNo, "stat-prog-it-other", "타작업자"));
+                s -> userRepository.upsertUser(otherUserNo, null, "타작업자"));
         for (int i = 0; i < 2; i++) {
             String clipId = "STAT-IP-OTHER-" + UUID.randomUUID();
             LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(

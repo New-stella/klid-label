@@ -8,13 +8,18 @@
 
 | 파일 | 크기 | 무엇 | 언제 쓰나 |
 |---|---:|---|---|
-| `01-CPU판-klid-onprem-jboss-20260904.tgz` | 1.4 GiB | 반입 매체 전량 | **항상** |
+| `01-CPU판-klid-onprem-jboss-20260904.tgz` | 1.4 GiB | 반입 매체 전량 | **항상 — 이것만 있으면 됩니다** |
 | `02-GPU델타-1of2.tgz.part-aa` | 1.86 GiB | GPU 전환 델타 (앞 조각) | GPU 장비에 올릴 때만 |
 | `02-GPU델타-2of2.tgz.part-ab` | 1.71 GiB | GPU 전환 델타 (뒤 조각) | 〃 |
 | `03-소스-backend-20260904.tar.gz` | 7.0 MiB | 백엔드 소스 (2,304 파일) | 소스 인계·감리 |
 | `04-소스-frontend-20260904.tar.gz` | 2.2 MiB | 프론트엔드 소스 (1,145 파일) | 〃 |
 | `05-소스-ai-server-20260904.tar.gz` | 86 KiB | ai-server 소스 (52 파일) | 〃 |
 | `SHA256SUMS` | — | 무결성 대조표 | 복사 직후·현장 도착 후 |
+
+> **입구는 하나입니다.** 01 을 풀고 `site-install.sh` 를 서버마다 한 번씩 돌리면 끝납니다.
+> 지금 배포가 실패해 있는 상태여도 그 스크립트가 잔재 마커를 치우고 새 WAR 로 다시 배포합니다.
+> (매체를 옮기기 전에 급히 풀어야 할 때만 쓰는 우회로가 매체 안
+> `onprem/scripts/klid-jboss-fix.sh` 에 따로 있습니다. 정식 설치에는 쓰지 않습니다.)
 
 ## 0. 옮기기 전과 후에 반드시
 
@@ -39,51 +44,62 @@ cd onprem
 
 | 항목 | 값 |
 |---|---|
-| WAS 서버 | `klid-ai-gen-was-01` ~ `04` (4대) — JBoss EAP 8.1 standalone + Java 17 |
-| AI 서버 | `klid-ai-gpu-01` ~ `02` (2대) |
+| **웹** | `klid-web-01` · `02` (2대) — 앞단 L2 있음 |
+| **WAS** | `klid-ai-gen-was-01` ~ `04` (4대) — JBoss EAP 8.1 standalone + Java 17 |
+| **AI** | `klid-ai-gpu-01` · `02` (2대) |
 | `JBOSS_HOME` | `/GCLOUD/JBOSS/jboss-eap-8.1` |
+| 웹 DocumentRoot | `/GCLOUD/WebApp/label-studio` ← **1차 도구가 있던 자리. 백업 후 교체** |
 | 실행 계정 | WAS `jboss` · 웹 `apache` |
-| NAS | `/nas-storage1` (**4대 공유**) |
-| DB 주소 | `10.177.199.148:19999` · `10.177.199.149:19999` (PostgreSQL) |
-| **데이터베이스** | **`klid_system_pg_prod`** |
-| **스키마** | **`klid_at`** ← 데이터베이스와 **다른 축**. 기본값이라 인자로 줄 필요 없음 |
+| NAS | `/nas-storage1` (**전체 공유**) |
+| DB | `10.177.199.148:19999` · `10.177.199.149:19999` / **`klid_system_pg_prod`** |
+| 스키마 | **`klid_at`** (기본값 — 인자로 줄 필요 없음) |
+| WAS 포트 | **8080** |
+| 콜백 경로 | **WAS 직행**(프록시 없음) → `--trusted-proxies=none` |
 | ffmpeg | `/usr/local/bin/{ffmpeg,ffprobe}` (설치돼 있음) |
 
-### WAS 서버 — 1번 (DB 생성·스키마 적재를 여기서만)
+### ★ 서버마다 자기 스크립트 하나만 실행합니다
+
+**① AI 서버 2대** — `klid-ai-gpu-01`, `02`
 
 ```bash
-sudo ./scripts/site-install.sh --role=app --node=first \
+sudo ./scripts/install-ai.sh
+```
+
+> 설치 뒤 **이 서버 주소를 WAS 관리자 화면의 「연동 서버 주소」에 등록**해야 합니다.
+> 2대면 **둘 다** — 한 대만 등록하면 나머지는 놀고 있는데 아무 오류도 나지 않습니다.
+
+**② WAS 1번** — `klid-ai-gen-was-01` (DB 스키마 적재를 여기서만)
+
+```bash
+sudo ./scripts/install-was.sh --node=first \
      --storage=/nas-storage1/klid \
      --db-hosts=10.177.199.148:19999,10.177.199.149:19999 \
-     --db-name=klid_system_pg_prod --db-user=postgres
+     --db-name=klid_system_pg_prod --db-user=postgres \
+     --trusted-proxies=none
 ```
 
-### WAS 서버 — 2~4번 (`--node=more` 필수)
+**③ WAS 2~4번** — 위와 같고 `--node=first` → **`--node=more`**
+
+> `--node=more` 를 빠뜨리면 이미 적재된 스키마 위에 다시 적재를 시도합니다.
+
+**④ 웹 2대** — `klid-web-01`, `02`
 
 ```bash
-sudo ./scripts/site-install.sh --role=app --node=more \
-     --storage=/nas-storage1/klid \
-     --db-hosts=10.177.199.148:19999,10.177.199.149:19999 \
-     --db-name=klid_system_pg_prod --db-user=postgres
+sudo ./scripts/install-web.sh --web-root=/GCLOUD/WebApp/label-studio
 ```
 
-### AI 서버 (GPU 2대)
+> **정적 자산만** 놓습니다. httpd 설정(프록시·LB)은 현장 것을 그대로 씁니다.
+> ⚠ 그 경로의 **기존 내용(1차 저작도구)은 지우지 않고** `.bak.<시각>` 으로 옮겨 둡니다.
+> 되돌리는 명령을 화면에 찍어 줍니다.
 
-```bash
-sudo ./scripts/site-install.sh --role=ai
-```
+> **먼저 무엇을 할지만 보려면** 각 스크립트에 `--check` 를 붙입니다 — 아무것도 바꾸지 않습니다.
+> **DB 비밀번호는 명령줄로 받지 않습니다** — 실행 중 화면에 안 찍히게 물어봅니다.
+> **멱등합니다** — 다시 돌려도 안전하고, 이미 맞는 것은 건너뜁니다.
 
 > ⚠ **`--restart` 는 붙이지 마세요(2026-09-04 현장).** WAS 가 systemd 밖에서 떠 있어
 > (`jboss.service` 는 `inactive` 인데 프로세스는 8월 19일부터 살아 있음), 재기동을 걸면
 > 두 번째 인스턴스가 뜨려다 포트를 못 잡습니다. 스크립트가 이 상태를 **감지하면 중단**합니다.
 > 기동 주체를 systemd 로 일원화한 뒤에 쓰세요.
->
-> ⚠ **DB 비밀번호는 명령줄로 받지 않습니다** — 실행 중 화면에 안 찍히게 물어봅니다.
-
-> **먼저 무엇을 할지만 보고 싶으면** `--check` 를 붙입니다 — 아무것도 바꾸지 않습니다.
-> **DB 비밀번호는 명령줄로 받지 않습니다** — 필요한 시점에 화면에 안 찍히게 물어봅니다
-> (`ps -ef` 와 셸 히스토리에 남기 때문입니다).
-> **멱등합니다** — 다시 돌려도 안전하고, 이미 맞는 것은 건너뜁니다.
 
 ### 현장 상태를 먼저 보고 싶으면
 

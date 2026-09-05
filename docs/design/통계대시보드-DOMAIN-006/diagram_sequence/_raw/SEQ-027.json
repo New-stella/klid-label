@@ -1,0 +1,341 @@
+{
+  "item": {
+    "id": "SEQ-027",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "전체 구축 현황 조회 — 검수완료 기준과 전체 기준을 나란히 세우고 한 파일로 내려받는다",
+    "slug": "전체-구축-현황-조회-검수완료-기준과-전체-기준을-나란히-세우고-한-파일로-내려받는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "전체 구축 현황 조회 — 검수완료 기준과 전체 기준을 나란히 세우고 한 파일로 내려받는다",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    participant screen as 전체 구축 현황 화면\n    participant ctl as StatsController\n    participant svc as StatsService\n    participant evtSvc as EventTypeService\n    participant repo as StatsQueryRepository\n    participant csv as OverallStatReportCsvWriter\n    participant db as LS_RAW_DATA_STATUS · LS_DATA_RAW · LS_DATA_SRC\n    participant evtDb as LS_EVNT_TYPE(이벤트 유형)\n\n    reviewer->>screen: 전체 구축 현황 화면 진입\n    screen->>ctl: GET /v1/stats/overall\n    ctl->>svc: getOverall()\n    svc->>svc: 검수자 권한을 확인한다 — 아니면 403\n    svc->>repo: 검수완료 기준과 전체 기준 누적 건수를 함께 집계\n    repo->>db: 검수완료 영상만 세는 질의와 검수 여부를 가리지 않는 질의\n    db-->>repo: 두 축의 누적 이미지·영상 건수\n    repo-->>svc: 확정 기준과 전체 기준\n    svc->>svc: 확정 기준 이미지 건수와 프레임 단위 분포에서 폐기된 프레임을 뺀다\n    Note over svc: 폐기된 프레임은 산출물과 데이터마트 노출에서 빠지므로 확정 분량에도 들어가지 않는다. 전체 누적은 수집한 전체 분량이라는 다른 축이라 걸러내지 않는다\n    svc->>evtSvc: 이벤트 유형 분포의 표시명 그룹을 요청\n    evtSvc->>evtDb: 관제 이벤트 유형 목록 조회\n    evtDb-->>evtSvc: 유형코드 · 유형명 · 대분류 · 카테고리명\n    evtSvc->>evtSvc: 표시명이 같은 상세 유형코드를 대표코드 한 칸으로 접는다\n    Note over evtSvc: 대표코드는 그룹 안의 가장 작은 유형코드다 — 실행마다 흔들리면 저장된 프리셋 매칭이 흔들린다\n    evtSvc-->>svc: 표시명 그룹과 그룹에 속한 유형코드 전부\n    svc->>repo: 그룹에 속한 유형코드 전부로 분포를 집계 — 검수완료 기준과 전체 기준 두 축\n    repo->>db: 그룹 멤버 유형코드로 묶은 분포 질의\n    db-->>repo: 두 축의 이벤트 유형 분포\n    repo-->>svc: 이벤트 유형 분포\n    svc->>svc: 데이터가 없는 카테고리도 0건으로 채운다\n    svc->>repo: 처리 현황 5종과 작업자별 표를 집계\n    repo-->>svc: 대기 · 승인 · 반려 · 진행중 · 검수대기와 작업자별 집계\n    svc-->>ctl: 다섯 축의 집계 결과\n    ctl-->>screen: 200 OK\n    screen-->>reviewer: 검수완료 기준을 주 수치로, 전체 수치를 보조로 병기해 보인다\n    Note over reviewer: 두 수치를 섞어 하나로 읽으면 산출물 달성률이 부풀려진다. 검수완료 기준 수치는 항상 대응하는 전체 수치 이하다\n    opt 내려받기를 요청하면\n        reviewer->>screen: 화면이 보여준 다섯 축을 한 파일로 내려받는다\n        screen->>ctl: GET /v1/stats/report\n        ctl->>svc: exportReport(집계 기간, actor)\n        svc->>svc: 검수자 권한과 집계 기간이 허용 목록 안인지 확인한다\n        Note over svc: [대안] 권한이 없거나 허용 목록 밖 집계 기간이면 파일을 내보내지 않고 거부한다. 거부 응답이 요청한 값을 그대로 되비추지 않는다\n        svc->>csv: 화면과 같은 시점 기준으로 다섯 축을 섹션 블록으로 묶는다\n        csv-->>svc: 리포트 파일\n        svc-->>ctl: 리포트 파일\n        ctl-->>screen: 200 OK — 첨부 파일로 내려보낸다\n        screen-->>reviewer: 파일 저장 — 같은 시점 화면이 보여주는 값과 일치한다\n    end\n",
+      "messages": [
+        {
+          "to": "screen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "전체 구축 현황 화면 진입"
+        },
+        {
+          "to": "ctl",
+          "from": "screen",
+          "kind": "sync",
+          "label": "GET /v1/stats/overall",
+          "item_ref": "API-057"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "getOverall()"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "검수자 권한을 확인한다 — 아니면 403"
+        },
+        {
+          "to": "repo",
+          "from": "svc",
+          "kind": "sync",
+          "label": "검수완료 기준과 전체 기준 누적 건수를 함께 집계"
+        },
+        {
+          "to": "db",
+          "from": "repo",
+          "kind": "sync",
+          "label": "검수완료 영상만 세는 질의와 검수 여부를 가리지 않는 질의"
+        },
+        {
+          "to": "repo",
+          "from": "db",
+          "kind": "return",
+          "label": "두 축의 누적 이미지·영상 건수"
+        },
+        {
+          "to": "svc",
+          "from": "repo",
+          "kind": "return",
+          "label": "확정 기준과 전체 기준"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "확정 기준 이미지 건수와 프레임 단위 분포에서 폐기된 프레임을 뺀다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "폐기된 프레임은 산출물과 데이터마트 노출에서 빠지므로 확정 분량에도 들어가지 않는다. 전체 누적은 수집한 전체 분량이라는 다른 축이라 걸러내지 않는다"
+        },
+        {
+          "to": "evtSvc",
+          "from": "svc",
+          "kind": "sync",
+          "label": "이벤트 유형 분포의 표시명 그룹을 요청"
+        },
+        {
+          "to": "evtDb",
+          "from": "evtSvc",
+          "kind": "sync",
+          "label": "관제 이벤트 유형 목록 조회"
+        },
+        {
+          "to": "evtSvc",
+          "from": "evtDb",
+          "kind": "return",
+          "label": "유형코드 · 유형명 · 대분류 · 카테고리명"
+        },
+        {
+          "to": "evtSvc",
+          "from": "evtSvc",
+          "kind": "self",
+          "label": "표시명이 같은 상세 유형코드를 대표코드 한 칸으로 접는다"
+        },
+        {
+          "to": "evtSvc",
+          "from": "evtSvc",
+          "kind": "note",
+          "label": "대표코드는 그룹 안의 가장 작은 유형코드다 — 실행마다 흔들리면 저장된 프리셋 매칭이 흔들린다"
+        },
+        {
+          "to": "svc",
+          "from": "evtSvc",
+          "kind": "return",
+          "label": "표시명 그룹과 그룹에 속한 유형코드 전부"
+        },
+        {
+          "to": "repo",
+          "from": "svc",
+          "kind": "sync",
+          "label": "그룹에 속한 유형코드 전부로 분포를 집계 — 검수완료 기준과 전체 기준 두 축"
+        },
+        {
+          "to": "db",
+          "from": "repo",
+          "kind": "sync",
+          "label": "그룹 멤버 유형코드로 묶은 분포 질의"
+        },
+        {
+          "to": "repo",
+          "from": "db",
+          "kind": "return",
+          "label": "두 축의 이벤트 유형 분포"
+        },
+        {
+          "to": "svc",
+          "from": "repo",
+          "kind": "return",
+          "label": "이벤트 유형 분포"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "데이터가 없는 카테고리도 0건으로 채운다"
+        },
+        {
+          "to": "repo",
+          "from": "svc",
+          "kind": "sync",
+          "label": "처리 현황 5종과 작업자별 표를 집계"
+        },
+        {
+          "to": "svc",
+          "from": "repo",
+          "kind": "return",
+          "label": "대기 · 승인 · 반려 · 진행중 · 검수대기와 작업자별 집계"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "다섯 축의 집계 결과"
+        },
+        {
+          "to": "screen",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "reviewer",
+          "from": "screen",
+          "kind": "return",
+          "label": "검수완료 기준을 주 수치로, 전체 수치를 보조로 병기해 보인다"
+        },
+        {
+          "to": "reviewer",
+          "from": "reviewer",
+          "kind": "note",
+          "label": "두 수치를 섞어 하나로 읽으면 산출물 달성률이 부풀려진다. 검수완료 기준 수치는 항상 대응하는 전체 수치 이하다"
+        },
+        {
+          "to": "screen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "화면이 보여준 다섯 축을 한 파일로 내려받는다"
+        },
+        {
+          "to": "ctl",
+          "from": "screen",
+          "kind": "sync",
+          "label": "GET /v1/stats/report",
+          "item_ref": "API-058"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "exportReport(집계 기간, actor)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "검수자 권한과 집계 기간이 허용 목록 안인지 확인한다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 권한이 없거나 허용 목록 밖 집계 기간이면 파일을 내보내지 않고 거부한다. 거부 응답이 요청한 값을 그대로 되비추지 않는다"
+        },
+        {
+          "to": "csv",
+          "from": "svc",
+          "kind": "sync",
+          "label": "화면과 같은 시점 기준으로 다섯 축을 섹션 블록으로 묶는다"
+        },
+        {
+          "to": "svc",
+          "from": "csv",
+          "kind": "return",
+          "label": "리포트 파일"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "리포트 파일"
+        },
+        {
+          "to": "screen",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK — 첨부 파일로 내려보낸다"
+        },
+        {
+          "to": "reviewer",
+          "from": "screen",
+          "kind": "return",
+          "label": "파일 저장 — 같은 시점 화면이 보여주는 값과 일치한다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "내려받기를 요청하면",
+          "end_index": 36,
+          "start_index": 27
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — UC-033 의 흐름을 참가자와 메시지로 처음 시각화한다."
+      },
+      "description": "검수자가 전체 구축 현황 화면에서 확정 기준 수치와 전체 누적 수치를 함께 확인하고, 화면이 보여준 다섯 축을 한 파일로 내려받는 흐름을 그린다.\n\n두 수치는 축이 다르다. 확정 기준은 검수완료된 영상만 세고 전체 기준은 진행중을 포함한다. 둘을 섞어 하나로 읽으면 산출물 달성률이 부풀려지므로 확정 기준을 주 수치로 두고 전체를 보조로 병기하며, 확정 기준 수치는 항상 대응하는 전체 수치 이하다.\n\n이벤트 유형 분포는 상세 유형코드 그대로가 아니라 표시명이 같은 것끼리 대표코드 한 칸으로 접어 보인다. 대표코드는 그룹 안의 가장 작은 유형코드이며 실행마다 흔들리면 저장된 프리셋 매칭이 흔들린다. 집계는 대표코드 하나가 아니라 그룹에 속한 유형코드 전부로 하며, 데이터가 없는 카테고리도 0건으로 채운다.\n\n확정 기준 이미지 건수와 프레임 단위 분포에서는 폐기된 프레임을 빼고, 전체 누적 수치에서는 걸러내지 않는다. 폐기된 프레임은 산출물과 데이터마트 노출에서 빠지므로 확정 분량에도 들어가지 않지만, 전체 누적은 수집한 전체 분량이라는 다른 축이기 때문이다.\n\n내려받기는 조회와 갈라 세우지 않고 같은 흐름 안에 둔다. 둘이 한 사람의 이어진 동선이고 화면 값과 파일 값이 일치해야 한다는 요구가 같은 흐름 안에서만 검증되기 때문이다. 권한이 없거나 허용 목록 밖 집계 기간으로 요청하면 파일을 내보내지 않고 거부하며, 거부 응답이 요청한 값을 그대로 되비추지 않는다.",
+      "invokes_apis": [
+        "API-057",
+        "API-058"
+      ],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "screen",
+          "kind": "system",
+          "name": "전체 구축 현황 화면",
+          "item_ref": "SCREEN-021"
+        },
+        {
+          "id": "ctl",
+          "kind": "service",
+          "name": "StatsController"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "StatsService"
+        },
+        {
+          "id": "evtSvc",
+          "kind": "service",
+          "name": "EventTypeService"
+        },
+        {
+          "id": "repo",
+          "kind": "service",
+          "name": "StatsQueryRepository"
+        },
+        {
+          "id": "csv",
+          "kind": "service",
+          "name": "OverallStatReportCsvWriter"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "LS_RAW_DATA_STATUS · LS_DATA_RAW · LS_DATA_SRC"
+        },
+        {
+          "id": "evtDb",
+          "kind": "database",
+          "name": "LS_EVNT_TYPE(이벤트 유형)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-033"
+      ],
+      "related_acceptances": [
+        "AC-1043",
+        "AC-1084",
+        "AC-1085"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "누락 필드를 근거 있는 값으로 채운다. 도메인은 이 시퀀스가 시각화하는 유스케이스의 소속을 그대로 따랐고, 발행 이벤트와 참조 외부 연동은 이 시퀀스가 실제로 그리는 메시지에 대응하는 것만 걸었다. 함께 참가자 종류를 바로잡는다 — AI 추론 서버는 외부 시스템 목록에 없는 우리 구성요소라 외부에서 시스템으로 내리고, 실제 외부 시스템 네 곳에는 그 시스템 참조를 단다. 본문과 메시지는 바뀌지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T07:01:06.699Z",
+    "created_at": "2026-09-03T06:52:03.737Z"
+  }
+}

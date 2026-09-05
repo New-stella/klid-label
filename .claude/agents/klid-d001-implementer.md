@@ -152,6 +152,28 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
   - **또 밟는 때**: local 프로파일 IT 를 설계·판정할 때. **생략하기 전에 반드시 `src/test/resources`
     쪽 시드를 열어 대조할 것.** 운영 시드(`src/main/resources/db/seed/`)를 근거로 삼지 마라.
 
+- **JWT 문자열 클레임의 empty vs absent 는 jjwt 빌더로 통합 재현이 안 된다 (2026-09-04, 관제 JWT 인계).**
+  jjwt 0.12 `Jwts.builder().issuer("")` 는 라운드트립에서 iss 를 **null 로 정규화**한다 — 파싱 후
+  `getIssuer()==null`. 그래서 「blank iss」 토큰은 빌더로 만들 수 없고, 통합 테스트에서 blank 거부를
+  검증하려 하면 실제로는 null(부재) 경로가 되어 게이트를 통과한다(오검). `aud` 등 다른 표준 문자열
+  클레임도 같은 정규화 대상일 수 있다.
+  - **근거**: javac 프로브 `Jwts.builder().issuer("")...parseSignedClaims → getIssuer()=null`. 최초
+    blank 통합 테스트가 200 을 받아 RED → blank 거부는 **검증기 단위**(`isAllowed("")==false`)로만 커버.
+  - **또 밟는 때**: JWT 표준 문자열 클레임(iss·aud·sub 등)의 empty-vs-absent 구분을 **통합 레벨**에서
+    빌더로 재현하려 할 때. empty 케이스는 **검증기 단위 테스트**에서 확인하고, 통합은 absent(null)만 다룬다.
+
+- **기존 컬럼에 UNIQUE 를 소급 추가하는 마이그레이션은 전역 시드·테스트데이터를 깬다 (2026-09-05, 관제 userNo 자동발급).**
+  V32 가 `LS_ACNT_USER.USER_ID` 에 부분유니크를 소급 추가하자, 중복 userId 를 심던 `dev-seed.sql`↔
+  `test-data.sql`('reviewer1')과 stats 시더가 **공유 Testcontainers 에서 누적 충돌**해 최초 전체 회귀가
+  37 RED(전부 duplicate key user_id)로 터졌다. 마이그레이션 하나가 여러 도메인 테스트로 번진다.
+  - **또 밟는 때**: 기존 컬럼에 UNIQUE(또는 부분유니크)를 추가하는 마이그레이션을 낼 때. **커밋 전 그
+    컬럼에 중복값을 심는 시드·테스트데이터를 전수 grep** 하고 disjoint 로 정리(userNo 등 숫자키는 그대로,
+    문자열 표시키만 개명). 시드/test-data 는 도메인 경계 밖이라 메인 Phase 3.5 로 처리.
+- **Mockito 는 Long/Integer 래퍼 반환 목에 null 이 아니라 0L(0)을 준다 (2026-09-04).**
+  스텁 안 한 `provision()` 이 0L 을 돌려 principal.sub 가 "0" 으로 정규화됐다. 필터/서비스가 그 반환의
+  **null 여부로 분기**하면 미스텁 목이 0L 로 통과해 오작동한다. → 래퍼 숫자 반환 협력자는 **반드시 명시
+  스텁**(`when(...).thenReturn(null)`). 근거: JwtFilterControlTokenIngressTest 에서 expected "admin" but was "0".
+
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
 ## 출력 (YAML 한 블록만)

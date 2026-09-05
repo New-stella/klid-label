@@ -22,6 +22,19 @@ set -euo pipefail
 # ============================================================================
 
 JBOSS_HOME_ARG=""; WAR_ARG=""; CHECK=0
+# ★ 웹 컨텍스트는 <배포된 WAR 에서 읽는다> — 추측하면 진단이 거짓이 된다 (2026-09-05).
+#   두 향이 있고 어느 쪽인지는 현장 httpd 설정이 정한다:
+#     passthrough(/label-studio/api) — 웹이 /api 를 그대로 넘김
+#     strip      (/label-studio)     — 웹이 /api 를 걷어냄
+APP_CONTEXT="${APP_CONTEXT:-}"
+klid_read_war_context() {
+  local w="$1"
+  [[ -f "${w}" ]] || return 0
+  unzip -p "${w}" WEB-INF/jboss-web.xml 2>/dev/null \
+    | tr -d '\r' | grep -o '<context-root>[^<]*</context-root>' \
+    | head -n1 | sed 's|.*<context-root>||; s|</context-root>.*||'
+}
+
 for a in "$@"; do
   case "$a" in
     --jboss-home=*) JBOSS_HOME_ARG="${a#*=}" ;;
@@ -163,8 +176,10 @@ echo
 
 if [[ -f "${D}/${WAR}.deployed" ]]; then
   echo "== 헬스 확인"
-  _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080/api/actuator/health/liveness 2>/dev/null || echo 000)"
-  echo "   /api/actuator/health/liveness → ${_c}"
+  [[ -n "${APP_CONTEXT}" ]] || APP_CONTEXT="$(klid_read_war_context "${D}/${WAR}")"
+  [[ -n "${APP_CONTEXT}" ]] || APP_CONTEXT="/label-studio/api"
+  _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:8080${APP_CONTEXT}/actuator/health/liveness" 2>/dev/null || echo 000)"
+  echo "   ${APP_CONTEXT}/actuator/health/liveness → ${_c}   (컨텍스트는 배포된 WAR 에서 읽었다)"
   if [[ "${_c}" != "200" ]]; then
     cat <<'EOF'
 

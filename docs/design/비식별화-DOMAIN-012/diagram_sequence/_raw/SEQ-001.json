@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "영상수집 파이프라인 — 비식별·마킹부터 트랙 보간까지",
-      "source": "sequenceDiagram\n    autonumber\n    participant CTL as 관제서버[외부] (학습용 설정)\n    participant SCAN as ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)\n    participant IG as TrainingVideoIngestService\n    participant DB as PostgreSQL\n    participant DE as DeidentifyStep → 외부 비식별 솔루션\n    participant WK as 작업자 (마킹)\n    participant BO as BatchOrchestrator\n    participant VLM as 외부 VLM\n    participant FF as FFmpeg (backend)\n    participant AI as ai-server (YOLO/SAM2)\n\n    Note over CTL,IG: ① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)\n    CTL->>DB: LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')\n    SCAN->>IG: 미처리 인입 행 폴링 (60초 간격)\n    IG->>DB: LS_DATA_RAW 적재 (dataSttsCd=PENDING)\n    IG->>IG: VideoIngestedEvent 발행\n\n    Note over IG,DE: ② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)\n    IG->>DE: IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner\n    DE->>DE: 외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)\n    DE->>DB: DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재\n    DE->>DB: dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)\n\n    Note over WK,DB: ③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)\n    WK->>DB: 비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)\n    opt 마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412\n        WK->>DB: POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락\n        Note over WK,DE: 자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기\n    end\n    WK->>DB: 질문 선택 — 그 영상의 검증 이벤트 유형에 등록된 질문 목록에서 하나를 고른다 (기본 선택 = 정렬순서 첫 번째)\n    WK->>DB: 마킹 저장 — 고른 질문 식별자를 마킹과 함께 적재 (LS_MARKING.VRFC_EVNT_QSTN_SN)\n    Note over WK,DB: 서버가 고른 질문의 소속 유형을 검증해 그 유형의 질문이 아니거나 값이 없으면 첫 번째 질문으로 되돌린다 — 화면 입력을 신뢰하지 않는다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다\n    Note over WK,DB: 질문이 없다고 마킹·위탁이 막히지 않는다 — 검증 이벤트 유형이 미수신이거나 등록된 질문이 0건이면 선택 없이 진행하고 이벤트 어노테이션의 질문 칸이 빌 뿐이다\n    WK->>BO: 마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)\n\n    Note over BO,AI: ④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지\n    BO->>DB: LS_RAW_DATA_STATUS → PROCESSING\n    opt 전체 건너뛰기 스위치 켜짐 — 위탁 대신 자동 표식\n        Note over BO,VLM: 전체 건너뛰기 스위치(batch.vlm.skip-by-default)가 켜져 있으면 위탁하지 않는다 — 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 덮지 않는다\n        BO->>DB: 건너뜀 표식 기록 (사유 = batch.vlm.skip-by-default-reason) — 외부 호출 0\n    end\n    Note over BO,VLM: 전체 건너뛰기 스위치 판정은 위탁으로 나가는 모든 진입 경로가 통과한다 — 재개 러너·미결 회수도 예외가 아니다\n    BO->>VLM: POST /v1/videovlm-klid/describe(CoT) + POST /v1/videovlm-klid/describe-sub(VQA) 이중 위탁 — 축마다 별도 요청 식별자, 논블로킹 제출(subscribe)이라 파이프라인 스레드 미점유\n    VLM--)BO: 결과 콜백 POST /v1/vlm/callback (서술 1건 — 두 축 공용 수신, 요청 식별자로 CoT/VQA 축 역조회)\n    BO->>DB: LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)\n    Note over BO,VLM: 신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)\n    BO->>FF: 마킹 위치 기반 프레임 추출 (원본+비식별 2벌)\n    BO->>DB: 프리셋 판정 — 그 영상의 검증 이벤트 유형에 실효한 오토라벨 프리셋이 있는지 확인 (탐지 전 선행)\n    Note over BO,DB: 판정 결과에 따라 갈래가 나뉜다 — 실효(오토라벨 수행) / 오토라벨 제외(프리셋은 있으나 담긴 라벨이 하나도 없다) / 그 밖(보류). 라벨을 하나도 담지 않은 것은 그 유형을 오토라벨에서 빼겠다는 사람의 선언이라 완료로 마감하고, 라벨은 있는데 전부 AI 검출 클래스에 미매핑인 것은 사고라 보류한다\n    Note over BO,AI: 묶음째 보류하는 이유 — 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 된다\n    opt 프리셋 판정이 오토라벨 제외 — 보류하지 않고 오토라벨 묶음만 건너뛰어 배치를 완료로 마감\n        BO->>DB: 오토라벨 제외 표식 기록 — 사유 = 프리셋에 담긴 라벨이 하나도 없음 (보류 사유와 구분해 남긴다)\n        BO->>DB: 오토라벨 묶음만 건너뛰고 배치를 완료로 마감 — LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    end\n    Note over BO,DB: 제외는 재개 대상이 아니다 — 사람이 일부러 뺀 것이라 프리셋이 등록·수정돼도 되살릴 것이 없다\n    opt 프리셋 판정이 보류 — 이벤트 유형 미등록 / 프리셋 없음 / 라벨이 전부 미매핑. 오토라벨 묶음째 보류하고 배치를 완료로 마감하지 않는다\n        BO->>DB: 보류 표식 기록 — 사유 구분(이벤트 유형 미등록 / 프리셋 없음 / 프리셋 라벨이 마스터에 미연결 / 연결됐으나 전부 AI 검출 클래스 미매핑)\n        BO->>DB: 선점 해제 — 실패가 아니라 건너뜀이라 작업 상태를 역행시키지 않고 재시도 상한도 소진하지 않는다\n    end\n    Note over BO,DB: 프리셋이 등록·수정되면 재개가 촉발돼 오토라벨 묶음 전체(탐지→분할→보간)를 다시 돈다\n    opt 프리셋 판정 실효 — 오토라벨 묶음 실행 후 배치 완료 마감\n        BO->>AI: YOLO 추론 (원본만 실행)\n        AI-->>BO: 바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)\n        BO->>AI: SAM2 추론\n        AI-->>BO: 세그멘테이션 마스크\n        BO->>BO: 트랙 보간\n        BO->>DB: LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    end\n    Note over BO,AI: 실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다",
+      "source": "sequenceDiagram\n    participant CTL as 관제서버[외부] (학습용 설정)\n    participant SCAN as ControlTrainingVideoScanJob\n    participant IG as TrainingVideoIngestService\n    participant DB as PostgreSQL\n    participant DE as DeidentifyStep\n    actor WK as 작업자 (마킹)\n    participant BO as BatchOrchestrator\n    participant VLM as 외부 VLM\n    participant FF as FFmpeg (backend)\n    participant AI as ai-server (YOLO/SAM2)\n\n    Note over CTL: ① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)\n    CTL->>DB: LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')\n    SCAN->>IG: 미처리 인입 행 폴링 (60초 간격)\n    IG->>DB: LS_DATA_RAW 적재 (dataSttsCd=PENDING)\n    IG->>IG: VideoIngestedEvent 발행\n    Note over IG: ② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)\n    IG->>DE: IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner\n    DE->>DE: 외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)\n    DE->>DB: DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재\n    DE->>DB: dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)\n    Note over WK: ③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)\n    WK->>DB: 비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)\n    opt 마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412\n        WK->>DB: POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락\n        Note over WK: 자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기\n    end\n    WK->>DB: 질문 선택 — 그 영상의 검증 이벤트 유형에 등록된 질문 목록에서 하나를 고른다 (기본 선택 = 정렬순서 첫 번째)\n    WK->>DB: 마킹 저장 — 고른 질문 식별자를 마킹과 함께 적재 (LS_MARKING.VRFC_EVNT_QSTN_SN)\n    Note over WK: 서버가 고른 질문의 소속 유형을 검증해 그 유형의 질문이 아니거나 값이 없으면 첫 번째 질문으로 되돌린다 — 화면 입력을 신뢰하지 않는다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다\n    Note over WK: 질문이 없다고 마킹·위탁이 막히지 않는다 — 검증 이벤트 유형이 미수신이거나 등록된 질문이 0건이면 선택 없이 진행하고 이벤트 어노테이션의 질문 칸이 빌 뿐이다\n    WK->>BO: 마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)\n    Note over BO: ④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지\n    BO->>DB: LS_RAW_DATA_STATUS → PROCESSING\n    opt 전체 건너뛰기 스위치 켜짐 — 위탁 대신 자동 표식\n        Note over BO: 전체 건너뛰기 스위치(batch.vlm.skip-by-default)가 켜져 있으면 위탁하지 않는다 — 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 덮지 않는다\n        BO->>DB: 건너뜀 표식 기록 (사유 = batch.vlm.skip-by-default-reason) — 외부 호출 0\n    end\n    Note over BO: 전체 건너뛰기 스위치 판정은 위탁으로 나가는 모든 진입 경로가 통과한다 — 재개 러너·미결 회수도 예외가 아니다\n    BO->>VLM: POST /v1/videovlm-klid/describe(CoT) + POST /v1/videovlm-klid/describe-sub(VQA) 이중 위탁 — 축마다 별도 요청 식별자, 논블로킹 제출(subscribe)이라 파이프라인 스레드 미점유\n    VLM-)BO: 결과 콜백 POST /v1/vlm/callback (서술 1건 — 두 축 공용 수신, 요청 식별자로 CoT/VQA 축 역조회)\n    BO->>DB: LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)\n    Note over BO: 신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)\n    BO->>FF: 마킹 위치 기반 프레임 추출 (원본+비식별 2벌)\n    BO->>DB: 프리셋 판정 — 그 영상의 검증 이벤트 유형에 실효한 오토라벨 프리셋이 있는지 확인 (탐지 전 선행)\n    Note over BO: 판정 결과에 따라 갈래가 나뉜다 — 실효(오토라벨 수행) / 오토라벨 제외(프리셋은 있으나 담긴 라벨이 하나도 없다) / 그 밖(보류). 라벨을 하나도 담지 않은 것은 그 유형을 오토라벨에서 빼겠다는 사람의 선언이라 완료로 마감하고, 라벨은 있는데 전부 AI 검출 클래스에 미매핑인 것은 사고라 보류한다\n    Note over BO: 묶음째 보류하는 이유 — 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 된다\n    opt 프리셋 판정이 오토라벨 제외 — 보류하지 않고 오토라벨 묶음만 건너뛰어 배치를 완료로 마감\n        BO->>DB: 오토라벨 제외 표식 기록 — 사유 = 프리셋에 담긴 라벨이 하나도 없음 (보류 사유와 구분해 남긴다)\n        BO->>DB: 오토라벨 묶음만 건너뛰고 배치를 완료로 마감 — LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    end\n    Note over BO: 제외는 재개 대상이 아니다 — 사람이 일부러 뺀 것이라 프리셋이 등록·수정돼도 되살릴 것이 없다\n    opt 프리셋 판정이 보류 — 이벤트 유형 미등록 / 프리셋 없음 / 라벨이 전부 미매핑. 오토라벨 묶음째 보류하고 배치를 완료로 마감하지 않는다\n        BO->>DB: 보류 표식 기록 — 사유 구분(이벤트 유형 미등록 / 프리셋 없음 / 프리셋 라벨이 마스터에 미연결 / 연결됐으나 전부 AI 검출 클래스 미매핑)\n        BO->>DB: 선점 해제 — 실패가 아니라 건너뜀이라 작업 상태를 역행시키지 않고 재시도 상한도 소진하지 않는다\n    end\n    Note over BO: 프리셋이 등록·수정되면 재개가 촉발돼 오토라벨 묶음 전체(탐지→분할→보간)를 다시 돈다\n    opt 프리셋 판정 실효 — 오토라벨 묶음 실행 후 배치 완료 마감\n        BO->>AI: YOLO 추론 (원본만 실행)\n        AI-->>BO: 바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)\n        BO->>AI: SAM2 추론\n        AI-->>BO: 세그멘테이션 마스크\n        BO->>BO: 트랙 보간\n        BO->>DB: LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    end\n    Note over BO: 실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다\n",
       "messages": [
         {
           "to": "IG",
@@ -330,7 +330,7 @@
         {
           "id": "SCAN",
           "kind": "service",
-          "name": "ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)"
+          "name": "ControlTrainingVideoScanJob"
         },
         {
           "id": "IG",
@@ -345,7 +345,7 @@
         {
           "id": "DE",
           "kind": "service",
-          "name": "DeidentifyStep → 외부 비식별 솔루션"
+          "name": "DeidentifyStep"
         },
         {
           "id": "WK",
@@ -364,16 +364,17 @@
         },
         {
           "id": "FF",
-          "kind": "service",
+          "kind": "system",
           "name": "FFmpeg (backend)"
         },
         {
           "id": "AI",
-          "kind": "service",
+          "kind": "system",
           "name": "ai-server (YOLO/SAM2)"
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -390,9 +391,7 @@
       ],
       "referenced_items": [],
       "realizes_use_cases": [
-        "UC-018",
-        "UC-019",
-        "UC-011"
+        "UC-018"
       ],
       "related_acceptances": [],
       "related_requirements": [],
@@ -402,12 +401,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 20,
+    "current_version": 22,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "오토라벨 묶음 앞 프리셋 판정에 오토라벨 제외 갈래를 더한다 — 프리셋은 있으나 담긴 라벨이 하나도 없는 경우는 그 유형을 오토라벨에서 빼겠다는 사람의 선언이므로 보류가 아니라 완료다. 오토라벨 묶음만 건너뛰고 배치를 완료로 마감하며, 되살릴 것이 없어 재개 대상도 아니다. 사고인 보류(이벤트 유형 미등록 / 프리셋 없음 / 라벨이 전부 AI 검출 클래스 미매핑)와 구분되도록 제외 사유를 따로 남기고, 두 갈래가 흐름에서 한눈에 갈라지게 별도 조건 블록으로 세웠다. 직전 리비전의 보류 분기는 그대로 두고 갈래만 더했다 — 제거한 원소가 없고 기존 메시지는 문구·상대순서 그대로다. 보류 블록의 라벨만 '실효 아님'에서 보류 사유 열거로 바꿨다 — 제외도 실효는 아니어서 옛 라벨로는 두 블록이 같은 조건으로 읽혔다. 정형 메시지·조건 블록과 렌더 원문(mermaid)을 같은 사양으로 함께 고쳤다 — 한쪽만 고치면 실제로 보이는 그림이 옛 사양을 그린다.",
+    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 이름 뒤에 붙은 괄호 주석과 화살표 때문에 설계 클래스 목록에서 그 클래스가 개별로 잡히지 않았고, 일괄로 풀면 주석에서 딸려 나온 낱말(스케줄러 이름·트랜잭션 전파 속성·SQL 낱말)이 설계 클래스로 올라간다. 클래스명만 남기고 주석은 뗀다. 우리가 만들지 않은 도구와 별도 프로세스는 종류를 시스템으로 바로잡는다. 메시지와 조각은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T10:54:13.100Z",
+    "last_updated_at": "2026-09-03T22:42:04.910Z",
     "created_at": "2026-06-01T06:59:19.046Z"
   }
 }

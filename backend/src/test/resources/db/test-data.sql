@@ -41,7 +41,7 @@ SELECT setval(t.seq, GREATEST(1003, nextval(t.seq)))
   FROM (SELECT pg_get_serial_sequence('ls_data_raw', 'raw_sn') AS seq) t;
 
 INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USER_EML_ADDR, USE_YN, REG_DT) VALUES
-  (1,   'reviewer1', '검수자1', 'r1@example.com', 'Y', CURRENT_TIMESTAMP),
+  (1,   'it-reviewer1', '검수자1', 'r1@example.com', 'Y', CURRENT_TIMESTAMP),
   (100, 'worker100', '작업자100', 'w100@example.com', 'Y', CURRENT_TIMESTAMP),
   (101, 'worker101', '작업자101', 'w101@example.com', 'Y', CURRENT_TIMESTAMP),
   (200, 'worker200', '작업자200', 'w200@example.com', 'N', CURRENT_TIMESTAMP);

@@ -65,6 +65,18 @@ CREATE TABLE klid_at.ls_acnt_user (
 
 
 --
+-- Name: ls_acnt_user_no_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+CREATE SEQUENCE klid_at.ls_acnt_user_no_seq
+    START WITH 9000000000
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
 -- Name: ls_ai_srvr; Type: TABLE; Schema: klid_at; Owner: -
 --
 
@@ -3055,6 +3067,13 @@ COPY klid_at.qrtz_triggers (sched_name, trigger_name, trigger_group, job_name, j
 
 
 --
+-- Name: ls_acnt_user_no_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_acnt_user_no_seq', 9000000000, false);
+
+
+--
 -- Name: ls_ai_srvr_altmnt_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
 --
 
@@ -4955,6 +4974,13 @@ CREATE UNIQUE INDEX uk_leuja_job_mark ON klid_at.ls_eblc_uld_job_artcl USING btr
 --
 
 CREATE UNIQUE INDEX uk_lmna_raw_pending ON klid_at.ls_mon_noti_acml USING btree (raw_sn) WHERE ((stts_cd)::text = 'PENDING'::text);
+
+
+--
+-- Name: uk_ls_acnt_user_user_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_acnt_user_user_id ON klid_at.ls_acnt_user USING btree (user_id) WHERE (user_id IS NOT NULL);
 
 
 --

@@ -68,8 +68,9 @@
          → ffmpeg 전제조건 검증 → 프론트 런타임 설정 게이트 → AI 서버 주소 확인
           ★ ffmpeg 가 없으면 여기서 멈춘다(관제팀 설치 요청 또는 install/install-ffmpeg.sh)
           ★ 상위 로그인 주소가 비어 있어도 멈춘다(프론트 설정 게이트 — docs/04-configuration.md)
-          ★ DB 스키마 로드는 <옵트인>이다(SCHEMA_LOAD_RUN=1). 넣지 않아도 설치·기동은 성공하고
-            화면·배치가 DB 를 처음 쓸 때 깨진다 — docs/03-install.md 「테이블을 만드는 주체」
+          ★ DB 스키마 적재는 조건부다 — 비었으면 적재, 이미 맞으면 건너뜀, 다르면 덮어쓰지 않고 멈춤.
+            건너뛰려면 SKIP_SCHEMA_LOAD=1. ⚠ 적재되지 않아도 설치·기동은 성공하고
+            화면·배치가 DB 를 처음 쓸 때 깨진다 — 테이블 개수로 확인할 것
 
   4) sudo $EDITOR /etc/klid/application.properties   # DB 비밀번호·JWT 시크릿 등 필수 입력
                                                      # (backend.env 는 베어메탈 형상용)

@@ -12,7 +12,7 @@ set -euo pipefail
 #     ./scripts/install-step.sh list                 # 단계 목록 보기(권한 불필요)
 #     sudo ./scripts/install-step.sh 14              # 14 단계만 실행
 #     sudo ./scripts/install-step.sh 14-install-frontend.sh
-#     sudo KLID_ROLE=app ./scripts/install-step.sh 14
+#     sudo KLID_ROLE=web ./scripts/install-step.sh 14
 #
 #   ★ 이 스크립트는 <단계 목록을 자기가 들고 있지 않다>. install/ 디렉터리에서 그때그때
 #     찾는다 — 목록을 여기에 또 적으면 install.sh 와 어긋나는 두 번째 진실원이 된다.
@@ -44,7 +44,7 @@ list_steps() {
       "$(sed -n 's/^# \{0,1\}[0-9][0-9]-[a-z-]*\.sh — \(.*\)$/\1/p' "${f}" | head -1)"
   done
   echo
-  info "실행:  sudo KLID_ROLE=<app|ai|all> ${BASH_SOURCE[0]} <번호>"
+  info "실행:  sudo KLID_ROLE=<was|web|ai|app|all> ${BASH_SOURCE[0]} <번호>"
 }
 
 [[ $# -ge 1 ]] || { usage; exit 1; }
@@ -78,7 +78,7 @@ target="${matches[0]}"
 # ---- 역할을 눈에 보이게 알린다 ----
 #   2대 구성에서 역할을 빠뜨리면 <그 장비에서 돌면 안 되는 단계>가 돈다. 다만 단일 서버
 #   구성에서는 all 이 맞으므로 강제하지 않고, 무엇으로 도는지 반드시 보여 준다.
-info "역할: ${KLID_ROLE}  (단일 서버면 all 이 맞고, 2대 구성이면 app|ai 를 명시하세요)"
+info "역할: ${KLID_ROLE}  (단일 서버면 all|app, 장비가 갈렸으면 was|web|ai 를 명시하세요)"
 info "실행: $(basename "${target}")"
 echo
 

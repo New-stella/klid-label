@@ -291,14 +291,69 @@ tasks.named('test') {
             "-XX:HeapDumpPath=${layout.buildDirectory.get().asFile}/test-heapdump.hprof"
 }
 
-// ★ WAR 산출물 이름 = 웹 컨텍스트 (@design DEPLOY-001)
-//   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가
-//   WAR 파일명(또는 컨텍스트 설정)으로 정한다. 지금 API 주소가 전부 /api 하위이므로 파일명을
-//   api.war 로 고정해 주소 체계를 그대로 유지한다.
-//   ⚠ ROOT.war 로 바꾸면 컨텍스트가 '/' 가 되어 프론트엔드·관제의 모든 호출이 404 가 된다.
-//     이름을 바꾸려면 그 두 소비자의 주소를 함께 바꿔야 한다.
+// ★★ 웹 컨텍스트는 두 향 중 하나다 — 빌드 때 고른다 (2026-09-05)
+//   현장 웹(httpd)이 /label-studio/api/ 로 들어온 요청을 WAS 로 넘길 때, 그 <대상 경로>에
+//   /api 를 남기느냐 걷어내느냐에 따라 WAS 가 받는 경로가 갈린다. 브라우저가 부르는 주소는
+//   두 향에서 <똑같다>(/label-studio/api/v1) — 다른 것은 httpd 가 넘기는 모양뿐이다.
+//
+//     passthrough : ProxyPass /label-studio/api/  balancer://.../label-studio/api/
+//                   → WAS 가 /label-studio/api/v1 을 받는다 → 컨텍스트 /label-studio/api
+//     strip       : ProxyPass /label-studio/api/  balancer://.../label-studio/
+//                   → WAS 가 /label-studio/v1 을 받는다     → 컨텍스트 /label-studio
+//
+//   ⚠ 어느 향인지는 <현장 httpd 설정 원본>이 정한다. 우리 저장소에 그 파일이 없어 손으로 옮겨
+//     적은 한 줄이 유일한 근거였으므로, 한쪽으로 못박지 않고 고를 수 있게 둔다.
+//   ★ 판정법: 브라우저로 https://<사이트>/label-studio/api/actuator/health/liveness 를 연다.
+//     JSON 이 나오면 그때 배포된 향이 맞는 것이고, 404 면 다른 향이다(그 경로는 인증 없이 열려 있다).
+//   ⚠ 틀린 향을 올려도 <아무 신호가 없다> — WAS 는 정상 기동하고 화면도 뜨며 API 만 전건 404 다.
+//     그래서 설치(17-deploy-jboss.sh)가 배포할 WAR 에서 이 값을 <읽어> 확인한다. 추측하지 않는다.
+//
+//   고르는 법:  ./gradlew bootWar -PklidWebContext=/label-studio
+//               KLID_WEB_CONTEXT=/label-studio ./gradlew bootWar
+//   기본값은 src/main/webapp/WEB-INF/jboss-web.xml 에 적힌 값이다(현재 /label-studio/api).
+def klidWebContext = (
+    project.findProperty('klidWebContext')
+        ?: System.getenv('KLID_WEB_CONTEXT')
+        ?: '/label-studio/api'
+).toString().trim()
+
+// fail-closed — 잘못된 값이 조용히 실린 WAR 가 나가는 것을 막는다.
+if (!(klidWebContext ==~ '/[A-Za-z0-9._~/-]*[A-Za-z0-9._~-]')) {
+    throw new GradleException(
+        "klidWebContext 값이 부적합합니다: '${klidWebContext}'\n" +
+        "  · '/' 로 시작하고 '/' 로 끝나지 않아야 하며 경로 문자만 씁니다.\n" +
+        "  · 아는 향은 둘입니다 — /label-studio/api (passthrough) · /label-studio (strip)")
+}
+
+// ★ WAR 산출물 이름 (@design DEPLOY-001)
+//   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가 정한다.
+//   ★ 대상 WAS(JBoss EAP)에서는 WEB-INF/jboss-web.xml 의 context-root 가 정하므로
+//     <파일명과 컨텍스트가 분리된다>. 그 값을 위 klidWebContext 로 갈아끼운다.
+//   ⚠ 구 서술 폐기(2026-09-05) — "파일명을 api.war 로 고정해 주소 체계를 유지한다"·"ROOT.war 로
+//     바꾸면 컨텍스트가 '/' 가 된다"는 EAP 에서 성립하지 않는다. 이름을 바꿔도 컨텍스트는 그대로다.
+//   ★ 그래도 api.war 를 유지하는 이유는 <주소가 아니라 절차>다 — 반입 문서·설치 스크립트·운영 런북이
+//     이 이름으로 산출물을 찾는다. 바꾸려면 그쪽을 함께 바꿔야 한다.
+//   ⚠ 배포 서술자를 읽지 않는 컨테이너에서는 여전히 파일명이 컨텍스트다. 그쪽에서는 파일명에
+//     슬래시를 넣을 수 없어 두 세그먼트를 표현할 수 없으므로 컨테이너 설정으로 지정해야 한다.
 tasks.named('bootWar') {
     archiveFileName = 'api.war'
+
+    // 값이 바뀌면 다시 만들게 한다 — 안 걸면 캐시가 옛 컨텍스트를 담은 WAR 를 그대로 내준다.
+    inputs.property('klidWebContext', klidWebContext)
+
+    filesMatching('WEB-INF/jboss-web.xml') {
+        filter { String line ->
+            line.replaceAll('<context-root>[^<]*</context-root>',
+                            '<context-root>' + klidWebContext + '</context-root>')
+        }
+    }
+
+    doFirst {
+        def flavor = klidWebContext == '/label-studio/api' ? 'passthrough — httpd 가 /api 를 그대로 넘김'
+                   : klidWebContext == '/label-studio'     ? 'strip — httpd 가 /api 를 걷어냄'
+                   : '알 수 없는 향 (아는 둘 중 어느 쪽도 아님 — 의도한 값인지 확인하세요)'
+        logger.lifecycle("[klid] WAR 웹 컨텍스트 = ${klidWebContext}  (${flavor})")
+    }
 }
 
 // 일반 war 태스크는 쓰지 않는다 — bootWar 가 의존성까지 담은 배포 가능 산출물을 만든다.

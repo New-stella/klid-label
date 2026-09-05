@@ -73,7 +73,7 @@ class StatsAutoLabelRateAxisIT {
     void setUp() {
         TransactionTemplate tx = new TransactionTemplate(txManager);
         userNo = ThreadLocalRandom.current().nextLong(900_000_000L, 999_999_999L);
-        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, "stat-axis-it", "판정축작업자"));
+        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, null, "판정축작업자"));
     }
 
     // ---------------------------------------------------------------- fixtures

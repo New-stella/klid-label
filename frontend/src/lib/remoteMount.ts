@@ -101,5 +101,19 @@ export const REMOTE_ENTRY_CACHE_CONTROL = 'no-cache';
  *   `router/__tests__/portalMountBasename.test.tsx`.
  */
 export function resolveRouterBasename(): string | undefined {
-  return isPortalEmbedChannel() ? PORTAL_MOUNT_BASENAME : undefined;
+  if (isPortalEmbedChannel()) return PORTAL_MOUNT_BASENAME;
+
+  // ★ 관제 채널은 <자산 base 에서 도출>한다 (2026-09-04).
+  //   현장은 https://www.aicctv.go.kr/label-studio/ 에서 열린다. basename 이 없으면
+  //   첫 진입은 되는데 링크·새로고침이 그 접두어를 잃어 404 가 된다 —
+  //   그리고 그 실패는 <빌드가 아니라 브라우저에서> 드러난다.
+  //
+  //   값의 출처를 Vite 의 base(import.meta.env.BASE_URL)로 <하나로> 둔 이유:
+  //   자산 경로와 라우팅 접두어는 항상 같아야 하는데, 따로 받으면 한쪽만 바뀌어
+  //   "화면은 뜨는데 링크가 깨지는" 형태로 갈린다.
+  //   ⚠ 런타임 입력에서 받지 않는다 — basename 을 런타임으로 열면 오픈 리다이렉트 표면이 된다.
+  const base = import.meta.env.BASE_URL;
+  if (typeof base !== 'string') return undefined;
+  const trimmed = base.replace(/\/+$/, '');
+  return trimmed === '' ? undefined : trimmed;
 }

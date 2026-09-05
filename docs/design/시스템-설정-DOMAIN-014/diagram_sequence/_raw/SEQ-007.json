@@ -11,14 +11,162 @@
       "theme": "neutral",
       "title": "라벨링 정밀도 조절 — 설정 변경부터 SAM2 단순화 적용까지",
       "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant SCC as SystemConfigController\n    participant SCS as SystemConfigService\n    participant DB as PostgreSQL (설정)\n    participant CA as Caffeine 캐시 (TTL 60s)\n    participant STS as Sam2TrackService\n\n    RV->>SCC: PUT /v1/manage/configs/POLYGON_SIMPLIFY_TOLERANCE (value)\n    alt WORKER 호출\n        SCC-->>RV: 403 (REVIEWER 전용)\n    else 값 범위 초과\n        SCC-->>RV: 400 (@Valid)\n    else 정상\n        SCC->>SCS: update(key, value, claims)\n        SCS->>DB: 설정값 저장\n        SCS->>CA: 캐시 전체 무효화\n        SCS-->>SCC: ConfigResponse\n        SCC-->>RV: 200 OK\n    end\n    Note over STS,CA: 이후 SAM2 track 시 적용\n    STS->>SCS: getDouble(POLYGON_SIMPLIFY_TOLERANCE)\n    SCS->>CA: 캐시 조회\n    alt 조회 실패\n        STS->>STS: 기본값 1.0px fail-safe\n    else 설정값\n        CA-->>STS: epsilon\n    end\n    STS->>STS: PolygonSimplifier.simplify(epsilon)",
-      "messages": [],
-      "fragments": [],
+      "messages": [
+        {
+          "to": "configCtrl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "PUT /v1/manage/configs/POLYGON_SIMPLIFY_TOLERANCE (value)"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "403 (REVIEWER 전용)"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "400 (@Valid)"
+        },
+        {
+          "to": "configSvc",
+          "from": "configCtrl",
+          "kind": "sync",
+          "label": "update(key, value, claims)"
+        },
+        {
+          "to": "configDb",
+          "from": "configSvc",
+          "kind": "sync",
+          "label": "설정값 저장"
+        },
+        {
+          "to": "configCache",
+          "from": "configSvc",
+          "kind": "sync",
+          "label": "캐시 전체 무효화"
+        },
+        {
+          "to": "configCtrl",
+          "from": "configSvc",
+          "kind": "return",
+          "label": "ConfigResponse"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "note",
+          "label": "이후 SAM2 track 시 적용"
+        },
+        {
+          "to": "configSvc",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "getDouble(POLYGON_SIMPLIFY_TOLERANCE)"
+        },
+        {
+          "to": "configCache",
+          "from": "configSvc",
+          "kind": "sync",
+          "label": "캐시 조회"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "기본값 1.0px fail-safe"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "configCache",
+          "kind": "return",
+          "label": "epsilon"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "PolygonSimplifier.simplify(epsilon)"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "WORKER 호출",
+          "end_index": 1,
+          "start_index": 1
+        },
+        {
+          "kind": "alt",
+          "label": "값 범위 초과",
+          "end_index": 2,
+          "start_index": 2
+        },
+        {
+          "kind": "alt",
+          "label": "정상",
+          "end_index": 7,
+          "start_index": 3
+        },
+        {
+          "kind": "alt",
+          "label": "조회 실패",
+          "end_index": 11,
+          "start_index": 11
+        },
+        {
+          "kind": "alt",
+          "label": "설정값",
+          "end_index": 12,
+          "start_index": 12
+        }
+      ],
       "description": "SystemConfigController.update(PUT /v1/manage/configs/{key}, REVIEWER 전용, WORKER 호출 시 403) → SystemConfigService.update 가 POLYGON_SIMPLIFY_TOLERANCE 값을 LS 설정 테이블에 저장 + Caffeine 캐시(TTL 60s) 전체 무효화. 이후 Sam2TrackService.readSimplifyTolerance 가 해당 epsilon 을 조회해 폴리곤 단순화에 적용하며, 조회 실패 시 기본값(1.0px)으로 fail-safe 폴백.",
       "invokes_apis": [
         "API-069"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "configCtrl",
+          "kind": "service",
+          "name": "SystemConfigController"
+        },
+        {
+          "id": "configSvc",
+          "kind": "service",
+          "name": "SystemConfigService"
+        },
+        {
+          "id": "configDb",
+          "kind": "database",
+          "name": "PostgreSQL (설정)"
+        },
+        {
+          "id": "configCache",
+          "kind": "system",
+          "name": "Caffeine 캐시 (TTL 60s)"
+        },
+        {
+          "id": "sam2TrackSvc",
+          "kind": "service",
+          "name": "Sam2TrackService"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -41,12 +189,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:56.284Z",
+    "change_summary": "원문만 있던 이 시퀀스에 구조화 데이터를 넣는다. 내용은 바꾸지 않았다 — 원문의 메시지 문구와 순서, 조각 범위를 그대로 옮겼고 기계 대조로 완전 일치를 확인했다. 참가자 표시명도 손대지 않았다. 새로 더한 것은 참가자마다의 종류다 — 사람·저장소·외부 시스템·우리 것이지만 설계 클래스가 아닌 것(프레임워크·캐시·스토리지·화면·별도 프로세스)을 갈라 적었다. 이 구분이 없으면 저장소나 캐시 이름이 설계 클래스 목록에 섞여 올라간다. 원문은 그대로 두었고 두 표현의 내용이 같음을 확인했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T07:42:27.514Z",
     "created_at": "2026-06-02T13:12:21.386Z"
   }
 }
