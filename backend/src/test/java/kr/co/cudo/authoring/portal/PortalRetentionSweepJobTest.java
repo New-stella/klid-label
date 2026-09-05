@@ -171,11 +171,11 @@ class PortalRetentionSweepJobTest {
     @Test
     @DisplayName("한_회차가_예외로_죽어도_잡_자체는_살아남는다")
     void runSwallowsRuntimeException() {
-        when(txService.sweepDatamartLabels()).thenThrow(new IllegalStateException("boom"));
+        when(txService.sweepDatamartWorks()).thenThrow(new IllegalStateException("boom"));
 
         job.run();
 
-        verify(txService).sweepDatamartLabels();
+        verify(txService).sweepDatamartWorks();
     }
 
     private static ExpiredUpload candidate(long uldSn, Axis axis, String... filePaths) {

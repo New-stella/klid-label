@@ -25,6 +25,7 @@ import { Checkbox } from '@/components/common/Checkbox';
 
 import type { PrivacyMetaSource, YnFlag } from '../api/videoPrivacyMeta';
 import { useVideoPrivacyMeta, useUpdateVideoPrivacyMeta } from '../hooks/useVideoPrivacyMeta';
+import { isUserDeterminedMetaValue } from '../utils/metaPromotion';
 
 import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
 
@@ -65,11 +66,13 @@ function boolToYn(v: boolean): 'Y' | 'N' {
  * 저장 시 필드별 전송값 결정 — 프리필값의 조용한 MANUAL 승격 방지(BE 전체 교체 계약).
  * 사용자가 값을 바꿨거나(touched=현재값≠원본값) 원본이 이미 수동값(MANUAL)이면 값을 전송하고,
  * 손대지 않은 프리필(DERIVED)은 null 로 보내 BE 가 기본상수 프리필 상태를 유지하게 한다.
- * (EnvironmentMetaPanel.resolveField 와 동일 규율 — 추정값이 사람의 판정으로 굳는 것을 막는다.)
+ *
+ * ★판정 자체는 {@link isUserDeterminedMetaValue} 가 <b>단독 소유</b>한다(구 주석의
+ *   "EnvironmentMetaPanel.resolveField 와 동일 규율" 이 그 사실을 말로만 적고 있었다 — 이제
+ *   같은 함수를 부른다). 여기 남는 것은 판정 결과를 이 창구의 전송값으로 옮기는 부분뿐이다.
  */
 function resolveField(current: boolean, original: boolean, source: PrivacyMetaSource): YnFlag {
-  if (current !== original || source === 'MANUAL') return boolToYn(current);
-  return null;
+  return isUserDeterminedMetaValue(current, original, source) ? boolToYn(current) : null;
 }
 
 export function VideoPrivacyMetaPanel({

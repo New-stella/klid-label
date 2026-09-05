@@ -23,7 +23,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +44,19 @@ class AdminSessionServiceTest {
             "admin-session-service-test-key-0123456789abcdef".getBytes(StandardCharsets.UTF_8));
     private static final JwtKeyResolver RESOLVER = () -> KEY;
 
+    /**
+     * ★고정 Clock(분 경계 flake 수정) — {@code consumeOrReject} 의 windowStart 산출이 실제 시스템
+     * 시각을 쓰면, 같은 테스트 안의 연속 호출이 분 경계를 넘는 순간 카운터 버킷이 바뀌어 리셋된다
+     * (★속도_제한을_넘기면_429 가 간헐 flake 하던 원인). Clock.fixed 는 결코 흐르지 않으므로 이
+     * 파일의 모든 반복 호출이 항상 같은 분 버킷에 든다.
+     *
+     * <p>고정 시각을 <b>분 경계 직전(59.999초)</b>으로 둔 것은 의도다 — 실제 시계였다면 이 지점의
+     * 6회 연속 호출이 반드시 버킷을 넘어 깨진다. 즉 이 시각 자체가 "고정 Clock 이 실제로 물려
+     * 있는가"의 회귀 가드다(RoleClaimRateLimiterTest 의 동명 기법과 같다).
+     */
+    private static final Clock FIXED_CLOCK =
+            Clock.fixed(Instant.parse("2026-01-01T00:00:59.999Z"), ZoneOffset.UTC);
+
     private String adminPlaintext;
     private AdminSessionService service;
     private ListAppender<ILoggingEvent> logAppender;
@@ -58,7 +73,7 @@ class AdminSessionServiceTest {
                 new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext));
         service = new AdminSessionService(
                 verifier,
-                new RoleClaimRateLimiter(null, 5, 50),
+                new RoleClaimRateLimiter(null, 5, 50, FIXED_CLOCK),
                 new AdminSessionTokenService(RESOLVER, verifier, 10));
 
         logAppender = new ListAppender<>();
@@ -178,7 +193,9 @@ class AdminSessionServiceTest {
         AdminPasswordVerifier unconfiguredVerifier = new AdminPasswordVerifier("");
         AdminSessionService unconfigured = new AdminSessionService(
                 unconfiguredVerifier,
-                new RoleClaimRateLimiter(null, 5, 50),
+                // 이 시험은 속도 제한을 검증하지 않지만, 같은 파일에서 억제기 생성 방식이 갈리면
+                // 다음 사람이 어느 쪽이 옳은지 헷갈린다 — 고정 Clock 으로 통일한다.
+                new RoleClaimRateLimiter(null, 5, 50, FIXED_CLOCK),
                 new AdminSessionTokenService(RESOLVER, unconfiguredVerifier, 10));
 
         assertThatThrownBy(() -> unconfigured.open(new AdminSessionRequest(adminPlaintext), admin()))

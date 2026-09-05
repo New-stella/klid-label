@@ -76,7 +76,8 @@ class PortalKeypointRemovedTest {
                 rawDataStatusRepository, videoRepository, deidentGate,
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
-                new ObjectMapper(), null);
+                new ObjectMapper(), null,
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class));
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/f.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(frame));

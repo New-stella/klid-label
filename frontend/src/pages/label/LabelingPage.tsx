@@ -61,6 +61,12 @@ import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMet
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
 import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
+import { PortalWorkMetaTab } from '@/features/portal/work/components/PortalWorkMetaTab';
+import {
+  isPortalUnavailableError,
+  portalWorkErrorMessage,
+  PORTAL_WORK_ERROR_UNAVAILABLE,
+} from '@/features/portal/work/workError';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
@@ -639,12 +645,12 @@ export function LabelingPage() {
   //   포털은 ADR-013 상 이슈 소통 자체가 미제공이라 탭도 두지 않는다(별개 축).
   const showIssues = !portalMode;
   const issuesReady = showIssues && issueRawSn !== undefined;
-  // 메타 탭(프레임 설명 + 시계열 메타). ★포털에 닫혀 있는 것은 아직 만들지 않았기 때문이지
-  //   ADR-013 이 막아서가 아니다 — ADR-013 v10 은 데이터마트 로드분의 메타·이벤트 어노테이션을
-  //   포털에서 표시·수정·추가하는 것을 제공으로 확정했다. 미제공인 것은 외부 시계열 분석 서버로
-  //   나가는 위탁 연동(호출·콜백) 축이다. 포털 메타·어노테이션 API 가 아직 0건이라 이 플래그만
-  //   켜면 전량 403 이 된다 — 화면을 여는 것은 후속 작업이다.
-  const showMeta = !portalMode;
+  // 메타 탭 — ★<b>두 채널 모두</b> 연다. 포털에 미제공인 것은 외부 시계열 분석 서버로 나가는
+  //   위탁 연동(호출·콜백) 축이지 그 결과물의 표시·수정이 아니다(ADR-013 v10). 구 주석이 「포털
+  //   메타·어노테이션 창구가 0건이라 켜면 전량 403」이라 적었는데 그 창구들이 생겼다.
+  //   ⚠ 탭은 같아도 <b>본문은 채널마다 다른 컴포넌트</b>다 — 내부 패널은 내부 창구를 부르므로
+  //     포털이 그것을 그대로 쓰면 원장 수정·재검토 표시·관제 통지가 일어나 단방향 불변이 깨진다.
+  const showMeta = true;
   const hasTabs = showMeta || showIssues;
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
@@ -1514,15 +1520,17 @@ export function LabelingPage() {
     );
   }
 
-  // R17 이슈5 — 포털 모드에서 라벨 로드 403(미승인/미노출 영상) 시 graceful 차단 화면.
-  // 빈 캔버스 노출(데이터 없는 UI) 대신 명확한 안내 + 뒤로 가기. (FORBIDDEN 만 별도 처리,
-  // 그 외 에러는 기존 '라벨 조회 실패' 분기 유지.)
-  const isPortalForbidden =
-    portalMode &&
-    !!error &&
-    ((error as { status?: number }).status === 403 ||
-      (error as { errorCode?: string }).errorCode === 'FORBIDDEN');
-  if (isPortalForbidden) {
+  // R17 이슈5 — 포털 모드에서 라벨 로드가 거부되면 graceful 차단 화면.
+  // 빈 캔버스 노출(데이터 없는 UI) 대신 명확한 안내 + 뒤로 가기.
+  //
+  // ★★403 과 404 를 <b>가르지 않는다</b>. 백엔드는 미노출·미승인에 403 을, 프레임 부재에 404 를
+  //   내므로 화면이 두 상태를 다른 문구로 나누면 그 분기가 <b>실재 여부 오라클</b>이 된다 — 서버가
+  //   감춘 것이 화면 층에서 그대로 풀린다. 같은 포털 화면의 메타·이벤트 어노테이션 축이 이미 두
+  //   상태를 한 문구로 모으고 있어, 라벨 축만 가르면 <b>한 화면 안에서 규칙이 갈린다</b>.
+  //   판정·문구는 포털 작업 화면의 단일 지점(workError)이 소유한다.
+  // ⚠ 내부 채널은 이 규칙의 대상이 아니다 — 아래 일반 분기가 그대로 서버 문구를 보여 준다.
+  const isPortalUnavailable = portalMode && !!error && isPortalUnavailableError(error);
+  if (isPortalUnavailable) {
     return (
       <div
         className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
@@ -1531,8 +1539,10 @@ export function LabelingPage() {
       >
         <div className="text-center">
           <p className="text-title-md font-semibold mb-2">접근할 수 없는 영상입니다</p>
-          <p className="text-body-md text-gray-600 mb-4">
-            데이터마트에 노출되지 않은 영상이거나 접근 권한이 없습니다.
+          {/* ★문구는 상태코드로만 만든다 — 서버 메시지를 실으면 「프레임을 찾을 수 없습니다」가
+              그대로 나가 404 와 403 이 구분된다(CWE-209). 세 축이 이 상수 하나를 쓴다. */}
+          <p className="text-body-md text-gray-600 mb-4" data-testid="portal-unavailable-message">
+            {PORTAL_WORK_ERROR_UNAVAILABLE}
           </p>
           <button
             type="button"
@@ -1555,7 +1565,15 @@ export function LabelingPage() {
       >
         <div className="text-center">
           <p className="text-title-md font-semibold mb-2">라벨 조회 실패</p>
-          <p className="text-body-md text-gray-600 mb-4">{error.message}</p>
+          {/*
+            ★포털 모드는 서버 메시지를 <b>에코하지 않는다</b> — 백엔드 문구가 대상의 실재 여부를
+              드러내기 때문이다(CWE-209). 문구는 상태코드로만 만든다.
+            ⚠ 내부 채널은 종전대로 서버 문구를 그대로 보여 준다 — 그쪽은 감출 대상이 없고,
+              신고 게이트(412)처럼 서버가 준 행위 중립 안내가 그 자체로 필요하다.
+          */}
+          <p className="text-body-md text-gray-600 mb-4">
+            {portalMode ? portalWorkErrorMessage(error) : error.message}
+          </p>
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -1986,6 +2004,18 @@ export function LabelingPage() {
               id="right-panel-meta"
               aria-labelledby="right-tab-meta"
             >
+              {portalMode ? (
+                /*
+                 * ★포털 채널은 <b>포털 전용 창구</b>만 부르는 별도 본문을 그린다. 아래 내부 패널을
+                 *   그대로 쓰면 내부 창구가 불려 원장 컬럼 쓰기·재검토 표시·관제 통지·동결본
+                 *   재동결이 일어나 「원본·데이터마트를 수정하지 않는다(단방향)」가 깨진다.
+                 *   이 위반은 「중복 구현을 피하자」는 가장 자연스러운 판단에서 나온다.
+                 * 세로 순서(촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 →
+                 *   시계열 메타 → 이벤트 어노테이션)는 두 채널이 같다.
+                 */
+                <PortalWorkMetaTab srcSn={data?.srcSn} rawSn={data?.videoId} />
+              ) : (
+                <>
               {/* 촬영환경(날씨·시간대·계절) — 영상(rawSn) 단위, 내부 채널만. */}
               <EnvironmentMetaPanel rawSn={data?.videoId} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
@@ -2006,6 +2036,8 @@ export function LabelingPage() {
                   여섯의 나열 순서는 바꾸지 않는다. 이관으로 들어온 영상에서만 스스로 렌더한다
                   (그 밖의 영상에서는 목록이 비어 있는 것이 정상이라 패널째 감춘다). */}
               <ImportedMetaPanel srcSn={data?.srcSn} />
+                </>
+              )}
             </div>
           ) : (
             /* ★'객체' 탭의 세로 구성은 사양 고정이다 — 객체 목록 → (AI 자동 추적) → 속성 →

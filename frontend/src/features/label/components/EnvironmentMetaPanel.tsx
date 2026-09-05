@@ -27,6 +27,16 @@ import {
   useEnvironmentMeta,
   useUpdateEnvironmentMeta,
 } from '../hooks/useEnvironmentMeta';
+import { isUserDeterminedMetaValue } from '../utils/metaPromotion';
+// 촬영환경 선택 어휘·표시 변환은 포털 채널과 <b>같은 표</b>를 쓴다(사본이 갈리면 한 화면에서만
+// 고를 수 있는 값이 생긴다). 값의 소유자는 여전히 BE 화이트리스트다.
+import {
+  displayOf,
+  SEASON_OPTIONS,
+  TIME_OF_DAY_OPTIONS,
+  UNSELECTED_LABEL,
+  WEATHER_OPTIONS,
+} from '../utils/shootingEnvironmentOptions';
 
 import { MetaReadonlyField, MetaSection } from './MetaSection';
 
@@ -41,28 +51,8 @@ export interface EnvironmentMetaPanelProps {
   readOnly?: boolean;
 }
 
-/** 날씨 옵션 — 코드와 표시가 동일한 한글 5종. */
-const WEATHER_OPTIONS = ['맑음', '흐림', '비', '눈', '안개'] as const;
-
-/** 시간대 옵션 — 코드(BE)↔한글 표시. */
-const TIME_OF_DAY_OPTIONS = [
-  { code: 'DAY', label: '주간' },
-  { code: 'NGT', label: '야간' },
-] as const;
-
-/** 계절 옵션 — 코드(BE)↔한글 표시. */
-const SEASON_OPTIONS = [
-  { code: 'SPRING', label: '봄' },
-  { code: 'SUMMER', label: '여름' },
-  { code: 'FALL', label: '가을' },
-  { code: 'WINTER', label: '겨울' },
-] as const;
-
 const WEATHER_ID = 'env-weather-select';
 const SEASON_ID = 'env-season-select';
-
-/** 미선택(빈 값) 라벨 — 공통 Select 의 placeholder(disabled·hidden)와 달리 <b>선택 가능</b>해야 한다. */
-const UNSELECTED_LABEL = '선택 안 함';
 
 const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
 
@@ -81,32 +71,19 @@ function toPayload(v: string): string | null {
  * 사용자가 값을 바꿨거나(touched=현재값≠원본값) 원본이 이미 수동값(MANUAL)이면 값을 전송하고,
  * 손대지 않은 파생값(DERIVED, 또는 source 미상+미입력)은 null 로 보내 BE 가 촬영일시
  * 파생 프리필을 유지하게 한다. 이렇게 해야 "파생값 그대로 재전송 → MANUAL 승격"이 방지된다.
+ *
+ * ★판정 자체는 {@link isUserDeterminedMetaValue} 가 <b>단독 소유</b>한다 — 같은 규율이 이 패널·
+ *   영상축/프레임축 개인정보 패널·포털 메타 패널 네 곳에 필요한데, 사본이 늘면 한쪽만 고쳐도
+ *   화면은 그럴듯하게 보인다. 여기 남는 것은 «판정 결과를 이 창구의 전송값으로 옮기는» 부분뿐이다.
  */
 function resolveField(
   current: string,
   original: string,
   source: MetaSource,
 ): string | null {
-  if (current !== original || source === 'MANUAL') return toPayload(current);
-  return null;
+  return isUserDeterminedMetaValue(current, original, source) ? toPayload(current) : null;
 }
 
-/** 코드 → 화면 표시 문구. 미선택(빈 값)이면 null 을 돌려 읽기 전용 행이 미입력 표식을 쓰게 한다. */
-function displayOf(
-  value: string,
-  options: readonly { code: string; label: string }[] | readonly string[],
-): string | null {
-  if (value === '') return null;
-  for (const opt of options) {
-    if (typeof opt === 'string') {
-      if (opt === value) return opt;
-    } else if (opt.code === value) {
-      return opt.label;
-    }
-  }
-  // 코드표에 없는 값이라도 버리지 않고 원문을 보여준다(조용한 손실 금지).
-  return value;
-}
 
 export function EnvironmentMetaPanel({
   rawSn,
