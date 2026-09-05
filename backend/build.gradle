@@ -291,12 +291,17 @@ tasks.named('test') {
             "-XX:HeapDumpPath=${layout.buildDirectory.get().asFile}/test-heapdump.hprof"
 }
 
-// ★ WAR 산출물 이름 = 웹 컨텍스트 (@design DEPLOY-001)
-//   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가
-//   WAR 파일명(또는 컨텍스트 설정)으로 정한다. 지금 API 주소가 전부 /api 하위이므로 파일명을
-//   api.war 로 고정해 주소 체계를 그대로 유지한다.
-//   ⚠ ROOT.war 로 바꾸면 컨텍스트가 '/' 가 되어 프론트엔드·관제의 모든 호출이 404 가 된다.
-//     이름을 바꾸려면 그 두 소비자의 주소를 함께 바꿔야 한다.
+// ★ WAR 산출물 이름 (@design DEPLOY-001)
+//   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가 정한다.
+//   ★ 대상 WAS(JBoss EAP)에서는 WEB-INF/jboss-web.xml 의 context-root 가 정하므로
+//     <파일명과 컨텍스트가 분리된다>. 확정 컨텍스트는 /label-studio/api 이며 그 파일이 정본이다.
+//   ⚠ 구 서술 폐기(2026-09-05) — "지금 API 주소가 전부 /api 하위이므로 파일명을 api.war 로 고정해
+//     주소 체계를 유지한다"·"ROOT.war 로 바꾸면 컨텍스트가 '/' 가 된다"는 EAP 에서 성립하지 않는다.
+//     이름을 바꿔도 컨텍스트는 그대로다.
+//   ★ 그래도 api.war 를 유지하는 이유는 <주소가 아니라 절차>다 — 반입 문서·설치 스크립트·운영 런북이
+//     이 이름으로 산출물을 찾는다. 바꾸려면 그쪽을 함께 바꿔야 한다.
+//   ⚠ 배포 서술자를 읽지 않는 컨테이너에서는 여전히 파일명이 컨텍스트다. 그쪽에서는 파일명에
+//     슬래시를 넣을 수 없어 두 세그먼트를 표현할 수 없으므로 컨테이너 설정으로 지정해야 한다.
 tasks.named('bootWar') {
     archiveFileName = 'api.war'
 }
