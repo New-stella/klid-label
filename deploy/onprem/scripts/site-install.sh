@@ -32,8 +32,8 @@ set -euo pipefail
 #
 #   옵션
 #     --role=was|web|ai|app  (필수 — 위 「역할」 참조)
-#     --storage=<경로>     영상·프레임 저장 루트. 미지정이면 마운트에서 자동 탐지
-#     --db-hosts=<h:p,...> DB 주소(이중화 가능). --role=app 에서만
+#     --storage=<경로>     영상·프레임 저장 루트. 미지정이면 마운트에서 자동 탐지(was·app)
+#     --db-hosts=<h:p,...> DB 주소(이중화 가능). 백엔드를 올리는 역할(was·app)에서만
 #     --db-name= --db-user=  DB 이름·사용자
 #     --db-schema=<이름>   스키마(기본 klid_at). ★ 데이터베이스 이름과 <다른 축>이다
 #     --web-root=<경로>    --role=web : 정적 dist 를 놓을 곳(현장 httpd 의 DocumentRoot)
@@ -174,7 +174,10 @@ row "실행 계정"   "${RUN_USER}:${RUN_GROUP}"
 [[ -n "${WEB_USER}" ]] && row "웹 실행 계정" "${WEB_USER}"
 
 # 저장소 — 마운트에서 찾는다. 기본값 /nas-storage 를 그대로 쓰다 조용히 깨진 적이 있다.
-if [[ -z "${STORAGE}" && "${ROLE}" == "app" ]]; then
+# ★ 자동 탐지는 저장소를 쓰는 역할 전부에 적용한다 (2026-09-05).
+#   ⚠ 구 동작은 조건이 ROLE == "app" 이라 --role=was 에서는 탐지가 <돌지 않고> 곧바로 die 했는데,
+#     도움말은 "미지정이면 마운트에서 자동 탐지"라고 적고 있었다 — 문서와 동작이 갈려 있었다.
+if [[ -z "${STORAGE}" && "${IS_WAS}" -eq 1 ]]; then
   for c in /nas-storage /nas-storage1 /nas-storage2; do
     mountpoint -q "${c}" 2>/dev/null && { STORAGE="${c}/klid"; break; }
   done
@@ -245,19 +248,18 @@ else
   # ★ KLID_USER/GROUP 을 실행 계정으로 넘긴다. 기본값 klid 로 두면 WAS(jboss)가 설정을
   #   읽지 못해 <WAS 는 뜨고 앱만> 기동에 실패한다 — 오늘 실제로 걸린 자리다.
   #   ★ 17단계는 여기서 돌리지 않는다(설정·권한을 먼저 맞춘 뒤 5번에서 돈다).
-  # ★ 이 단계에서는 DB 를 <건드리지 않는다>(SKIP_DB_INIT=1).
+  # ★ 이 단계에서는 DB 를 <건드리지 않는다>(SKIP_SCHEMA_LOAD=1).
   #   DB 이름·사용자·비밀번호는 아래 4번에서야 확정되기 때문이다. 여기서 돌리면
-  #   15/16 단계가 기본값(klid_system)으로 동작해 <엉뚱한 DB 를 만들거나 못 찾는다>.
-  #   실제 스키마 적재는 4번 뒤의 4-b 에서 확정값으로 수행한다.
+  #   16 단계가 기본값(klid_system)으로 동작해 <엉뚱한 DB 를 찾는다>.
+  #   실제 스키마 적재는 4번 뒤의 4-b 에서 확정값으로 같은 16 단계를 호출해 수행한다.
   # ★ 역할별로 <어느 단계를 돌릴지> 고른다. 웹과 WAS 가 다른 장비이므로
   #   WAS 에 httpd 를 깔거나 웹 장비에 WAR 을 두면 안 된다.
+  # ★ 역할을 그대로 넘긴다 — 단계 번호를 여기에 적지 않는다 (2026-09-05).
+  #   ⚠ 구 방식 폐기: was → --skip=10,14,20 · web → --only=14,20 처럼 번호를 박아 두었는데,
+  #     단계가 하나만 늘거나 줄어도 그 목록이 조용히 어긋난다 — 실제로 PostgreSQL 단계를
+  #     걷어내는 순간 어긋났다. 무엇이 도는지는 install.sh 가 역량으로 판정한다
+  #     (lib/common.sh 의 klid_role_caps 가 단독 소유).
   _inst_role="${ROLE}"; _inst_extra=()
-  case "${ROLE}" in
-    was) _inst_role="app"; _inst_extra=(--skip=10,14,20) ;;  # PG·프론트(httpd)·프론트검증 제외
-    web) _inst_role="app"; _inst_extra=(--only=14,20)     ;;  # 프론트 단계만
-    app) _inst_role="app" ;;
-    ai)  _inst_role="ai"  ;;
-  esac
   # ★ 웹 장비에는 WAS 가 없다. BACKEND_ORIGIN 기본값 127.0.0.1:8080 을 그대로 두면
   #   프론트는 뜨는데 /api 가 전부 502 다 — 화면은 나오고 데이터만 안 나온다.
   export BACKEND_ORIGIN="${BACKEND_ORIGIN_RESOLVED:-http://127.0.0.1:8080}"
@@ -266,7 +268,7 @@ else
   [[ -n "${WEB_ROOT}" ]] && export KLID_WEB_ROOT="${WEB_ROOT}"
   KLID_USER="${RUN_USER}" KLID_GROUP="${RUN_GROUP}" \
   STORAGE_RAW_PATH="${STORAGE:-}" STORAGE_DEIDENTIFIED_PATH="${STORAGE:-}" \
-  SKIP_JBOSS_DEPLOY=1 SKIP_DB_INIT=1 \
+  SKIP_JBOSS_DEPLOY=1 SKIP_SCHEMA_LOAD=1 \
     "${ONPREM}/scripts/install.sh" --role="${_inst_role}" "${_inst_extra[@]}"
 fi
 
@@ -478,6 +480,10 @@ fi
 #   여러 대가 <같은 DB 한 벌>을 보므로 --node=more 는 건너뛴다.
 # ---------------------------------------------------------------------------
 banner "4-b. 스키마 적재"
+# ★ 판정과 적재는 16 단계가 <단독으로> 소유한다 — 여기서 다시 구현하지 않는다 (2026-09-05).
+#   구 형상은 이 자리에 psql 적재를 그대로 복제해 두어, 16 단계에만 있는
+#   <구 스키마 잔재 fail-closed 가드>(public 에 저작도구 테이블이 남았는데 대상 스키마가 빈 경우)를
+#   이 경로가 통째로 건너뛰고 있었다. 두 구현이 다른 것을 막던 셈이다.
 if [[ "${NODE}" != "first" ]]; then
   info "[schema] --node=${NODE} 이므로 건너뜁니다(DB 는 한 벌이고 첫 노드가 이미 적재했습니다)."
 elif [[ "${SKIP_DB}" -eq 1 ]]; then
@@ -489,40 +495,14 @@ else
   _H="$(_get CONTROL_DB_HOST)"; _P="$(_get CONTROL_DB_PORT)"
   _N="$(_get CONTROL_DB_NAME)"; _U="$(_get CONTROL_DB_USERNAME)"
   _W="$(_get CONTROL_DB_PASSWORD)"; _S="$(_get DB_SCHEMA)"; _S="${_S:-klid_at}"
-  # 이중화 주소면 첫 호스트로 붙는다(적재는 한 번만 하면 되고, 프록시/HA 뒤라 어느 쪽이든 같다)
+  # 이중화 주소면 첫 호스트로 붙는다(적재는 한 번만 하면 되고 어느 쪽이든 같은 DB 다)
   _H1="${_H%%,*}"; _P1="${_P}"
   [[ "${_H1}" == *:* ]] && { _P1="${_H1#*:}"; _H1="${_H1%%:*}"; }
-
-  if ! command -v psql >/dev/null 2>&1; then
-    warn "[schema] psql 이 없어 자동 적재를 못 합니다. 아래를 <사람이> 실행하세요:"
-    warn "  psql -h ${_H1} -p ${_P1} -U ${_U} -d ${_N} -v ON_ERROR_STOP=1 -f ${ONPREM}/db/schema.sql"
-  else
-    _cnt="$(PGPASSWORD="${_W}" psql -h "${_H1}" -p "${_P1}" -U "${_U}" -d "${_N}" -tAc \
-            "select count(*) from information_schema.tables where table_schema='${_S}'" 2>/dev/null || echo '?')"
-    _want_t="$(grep -c '^CREATE TABLE klid_at\.' "${ONPREM}/db/schema.sql" 2>/dev/null || echo 0)"
-    _want_v="$(grep -c '^CREATE VIEW klid_at\.'  "${ONPREM}/db/schema.sql" 2>/dev/null || echo 0)"
-    _want=$(( _want_t + _want_v ))
-    info "[schema] 대상 ${_H1}:${_P1}/${_N} 스키마 ${_S} — 현재 ${_cnt} 개 / 매체 기대 ${_want} 개"
-    if [[ "${_cnt}" == "0" ]]; then
-      info "[schema] 비어 있어 ${ONPREM}/db/schema.sql 을 적재합니다..."
-      if PGPASSWORD="${_W}" psql -h "${_H1}" -p "${_P1}" -U "${_U}" -d "${_N}" \
-           -v ON_ERROR_STOP=1 -q -f "${ONPREM}/db/schema.sql" >/dev/null; then
-        _now="$(PGPASSWORD="${_W}" psql -h "${_H1}" -p "${_P1}" -U "${_U}" -d "${_N}" -tAc \
-                "select count(*) from information_schema.tables where table_schema='${_S}'" 2>/dev/null || echo '?')"
-        [[ "${_now}" == "${_want}" ]] \
-          && ok   "[schema] 적재 완료 — ${_now} 개 (기대값과 일치)" \
-          || warn "[schema] 적재했으나 개수가 다릅니다 — 현재 ${_now} / 기대 ${_want}"
-      else
-        warn "[schema] ★ 적재에 실패했습니다. 권한(CREATE SCHEMA)과 DB 이름을 확인하세요."
-      fi
-    elif [[ "${_cnt}" == "${_want}" ]]; then
-      ok "[schema] 이미 적재돼 있고 개수가 기대값과 같습니다 — 건너뜁니다."
-    else
-      warn "[schema] ★ 이미 테이블이 있는데 개수가 다릅니다(현재 ${_cnt} / 기대 ${_want})."
-      warn "         <덮어쓰지 않습니다> — 현장 데이터가 사라질 수 있습니다."
-      warn "         이전 반입 형상일 수 있으니 db/README.md 의 증분 적용 규칙을 보세요."
-    fi
-  fi
+  info "[schema] 대상 ${_H1}:${_P1}/${_N} 스키마 ${_S}"
+  PGHOST="${_H1}" PGPORT="${_P1}" \
+  CONTROL_DB_NAME="${_N}" DB_APP_USER="${_U}" DB_APP_PASSWORD="${_W}" DB_SCHEMA="${_S}" \
+    "${ONPREM}/scripts/install/16-load-schema.sh" \
+    || warn "[schema] 적재 단계에서 문제가 있었습니다 — 위 출력을 보세요."
 fi
 
 # ---------------------------------------------------------------------------

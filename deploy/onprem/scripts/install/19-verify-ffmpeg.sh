@@ -37,8 +37,8 @@ source "${SELF_DIR}/../lib/versions.sh"
 ONPREM="$(onprem_root)"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
 
-if ! klid_role_has app; then
-  info "[ffmpeg] 역할이 app 이 아니므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE:-all})."
+if ! klid_role_has was; then
+  info "[ffmpeg] 이 역할에는 백엔드가 없으므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE:-all})."
   info "         ai-server 는 ffmpeg 실행 파일을 쓰지 않습니다."
   exit 0
 fi

@@ -226,7 +226,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `ENV` | ★(stg·prd) | **배포 환경 표식**(`stg`/`prd`) — 프로파일과 독립된 축. 서버 잔존 `.env`·셸 환경이 `SPRING_PROFILES_ACTIVE` 를 `dev` 로 덮어도 이 값이 배포 표식이면 dev 편의 엔드포인트(`DevProfileGuard`)·Quartz 단일노드 허용(`QuartzClusteringGuard`)이 모두 **거부**된다. **배포 서버에서 비우면 이 방어축이 통째로 무력해진다** |
 | `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 `db/schema.sql` 1회 로드로 준비(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
-| `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Quartz `tablePrefix` / JPA `default_schema`(그리고 Flyway 를 켠 개발 환경이면 `schemas`·`default-schema`)가 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. **portal DB 는 대상 아님**(별개 물리 DB, `public` 유지) |
+| `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Quartz `tablePrefix` / JPA `default_schema`(그리고 Flyway 를 켠 개발 환경이면 `schemas`·`default-schema`)가 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. ⚠ 구 서술 폐기: *"portal DB 는 대상 아님"* — 포털 데이터소스 자체가 2026-08-31 에 철거됐다 |
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
 | `JWT_ISSUER` / `JWT_ALLOWED_ISSUERS` | · | 기본 `klid-auth` / `klid-auth,klid,klid-portal` |
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
@@ -488,16 +488,15 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 
 ## D. DB 준비
 
-### PostgreSQL 엔진 — 번들 vs 외부 (설치 토글)
+### PostgreSQL 엔진 — 현장 제공 (설치 토글 없음)
 
-| 토글(install.sh 인자) | 의미 |
-|-----------------------|------|
-| `USE_BUNDLED_POSTGRES=1` (기본) | 번들 PG16 을 오프라인 설치(`10-install-postgresql.sh`): RPM 설치 + initdb + `postgresql.conf`(`listen_addresses`/port) + `pg_hba.conf`(127.0.0.1/::1 scram-sha-256) + `postgresql-16` 기동 |
-| `USE_BUNDLED_POSTGRES=0` | 외부(기존) PG 사용 — 번들 PG 설치 생략. `CONTROL_DB_*` 가 그 PG 를 가리키게 둠 |
+**데이터베이스는 현장이 제공한다** — 우리가 설치하지 않으므로 고를 토글이 없다(2026-09-05 확정).
+`CONTROL_DB_*` 가 그 데이터베이스를 가리키게 두는 것이 전부다.
 
-> 동일 호스트가 아닌 외부 PG 면 `pg_hba.conf`/`listen_addresses` 는 그 PG 운영 주체가 관리한다.
-> 번들 PG 를 다른 대역에서 접속시키려면 `PG_HBA_EXTRA_CIDR=10.0.0.0/8 PG_LISTEN_ADDRESSES='*'` 등으로
-> `10-install-postgresql.sh` 에 주입한다.
+⚠ **구 절 폐기(2026-09-05)** — *"PostgreSQL 엔진 — 번들 vs 외부(설치 토글 `USE_BUNDLED_POSTGRES`)"*.
+그 토글과 실행 주체(`10-install-postgresql.sh`)가 **모두 제거**됐다. **되살리지 말 것.**
+`pg_hba.conf`·`listen_addresses`·`PG_HBA_EXTRA_CIDR`·`PG_LISTEN_ADDRESSES` 는 전부
+그 데이터베이스 운영 주체(현장)의 소관이다.
 
 ### ★ 스키마는 `db/schema.sql` 1회 로드로 만든다 — 온프렘은 Flyway 를 쓰지 않는다
 
@@ -510,15 +509,22 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 - `db/schema.sql` 은 `LS_*` 62개 · `QRTZ_*` 11개 · 뷰 4개 + 시드 66행이다. **`MNG_*` 는 들어 있지
   않고** `CREATE TABLE IF NOT EXISTS` 도 쓰지 않는다(빈 스키마 전제). 구 서술 "Flyway V2 가
   `MNG_*` 까지 `IF NOT EXISTS` 로 자동 생성한다" 는 **폐기** — `MNG_*` 공유 테이블 자체가 이미 제거됐다.
-- DBA(또는 `15-init-db.sh`)가 준비할 것은 **빈 DB 2개 + 앱 유저·비밀번호**뿐(backend.env 와 일치):
-  control(`klid_system`) / portal(`portal`). **`klid_at` 스키마는 미리 만들지 않아도 된다** —
-  `db/schema.sql` 이 `CREATE SCHEMA` 를 포함한다. 앱 유저가 DB OWNER 면 충분.
-- ⚠ **로드는 자동이 아니다.** `16-load-schema.sh` 는 `SCHEMA_LOAD_RUN=1` 이고 `psql` 이 있을 때만
-  실제로 넣고, 평시엔 수동 절차만 출력한다. **아무도 넣지 않으면 대신 만들어 주는 것이 없다.**
-  구성별 담당은 `03-install.md` 의 표가 정본이다.
+- **현장 담당이 준비할 것은 빈 데이터베이스 1개(control, 예 `klid_system`) + 앱 계정·비밀번호**뿐이다.
+  ⚠ 구 서술 폐기(2026-09-05) — *"DBA(또는 `15-init-db.sh`)가 준비할 것은 빈 DB 2개 …
+  control / portal"*. 포털 데이터소스는 2026-08-31 에 철거됐고 `15-init-db.sh` 도 제거됐다.
+  **`klid_at` 스키마는 미리 만들지 않아도 된다** — `db/schema.sql` 이 `CREATE SCHEMA` 를 포함한다.
+  앱 계정이 그 데이터베이스의 소유자면 충분하다.
+- **★ 적재는 조건부다 — 현장 담당 선적용 우선 + 우리가 채움**(2026-09-05 확정).
+  `16-load-schema.sh` 가 대상 스키마를 보고 갈린다: **비었으면 적재**하고, **이미 있고 개수가
+  기대와 같으면 건너뛰며**, **기대와 다르면 덮어쓰지 않고 멈춘다**. 어느 쪽이 먼저 했든 결과가 같다.
+  여러 대가 같은 데이터베이스 한 벌을 보므로 **첫 대에서만** 적재한다.
+  ⚠ 구 서술 폐기(2026-09-05) — *"로드는 자동이 아니다. `SCHEMA_LOAD_RUN=1` 이고 `psql` 이 있을 때만
+  실제로 넣고 평시엔 수동 절차만 출력한다"*. 기본이 「안 함」이면 아무도 적재하지 않은 채 넘어간다.
+  이제 기본이 적재이고 빠져나갈 문은 `SKIP_SCHEMA_LOAD=1` 하나다.
 - ⚠⚠ **★ 그래도 기동은 성공한다 — `ddl-auto=validate` 가 대신 막아 주지 않는다.**
   `application.yml` 에 `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**:
-  듀얼 데이터소스라 `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데, 거기에 넘기는
+  `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데(⚠ 구 서술 *"듀얼 데이터소스라"* 는
+  폐기 — 포털 데이터소스는 철거됐고 원인은 EMF 를 직접 만드는 것이다), 거기에 넘기는
   것은 `spring.jpa.properties.*` 뿐이라 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
   전달되지 않는다. 그래서 **테이블이 하나도 없어도 기동 로그는 깨끗하고**, 실패는 그 테이블을
   처음 건드리는 요청·배치에서 `relation ... does not exist` 로 나타난다.
@@ -535,8 +541,9 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 - **기존 DB(저작도구 객체가 `public` 에 있는 DB)는 배포 전에 스키마 이관이 필요**하다 →
   `09-operations-runbook.md` §2-5-1. 이관하지 않으면 앱이 빈 `klid_at` 을 보고 데이터는 `public` 에 남는다
   (오류가 아니라 조용한 분기). `16-load-schema.sh` 는 이 상태를 감지하면 로드를 거부한다.
-- DB·유저 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
-  (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — `16-load-schema.sh` 담당.)
+- ⚠ **구 항목 폐기(2026-09-05)** — *"DB·유저 자동 생성 보조: `15-init-db.sh`"*. 그 스크립트는 제거됐다.
+  외부 제공 데이터베이스에 `CREATE DATABASE`/`CREATE ROLE` 을 할 권한이 우리에게 없다 —
+  **빈 데이터베이스와 앱 계정 준비는 현장 선행 조건**이다.
 
 ### ★ D-4. 배포 향 — 이 매체는 「관제 연동 배포」다
 

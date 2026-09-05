@@ -12,7 +12,7 @@ set -euo pipefail
 #   ★ 판정은 <역할>로 가른다 — 무조건 필수로 만들지 않는다.
 #       · 역할 미지정(all, 단일 서버) : ai-server 가 같은 장비에 설치되므로 loopback 이 <맞다>.
 #                                       여기서 경고하면 정상 설치가 매번 경고를 뱉는다.
-#       · --role=app (서버 A)         : 이 장비에는 ai-server 를 설치하지 않는다. 따라서
+#       · --role=was (WAS 장비)       : 이 장비에는 ai-server 를 설치하지 않는다. 따라서
 #                                       loopback 은 <가리킬 대상이 없는 주소>다 → 경고한다.
 #
 #   ★ 설치를 실패로 만들지 않는다(die 하지 않는다). 이 스크립트가 도는 시점은 운영자가
@@ -26,7 +26,7 @@ set -euo pipefail
 #     건너뛰려면 AI_SERVER_PROBE=0.
 #
 #   단독 실행(설정을 고친 뒤 다시 확인할 때):
-#       sudo KLID_ROLE=app ./scripts/install/21-verify-ai-server-url.sh
+#       sudo KLID_ROLE=was ./scripts/install/21-verify-ai-server-url.sh
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,8 +36,8 @@ source "${SELF_DIR}/../lib/common.sh"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
 KLID_ROLE="${KLID_ROLE:-all}"
 
-if ! klid_role_has app; then
-  info "[ai-url] 역할이 app 이 아니므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE})."
+if ! klid_role_has was; then
+  info "[ai-url] 이 역할에는 백엔드가 없으므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE})."
   exit 0
 fi
 
@@ -100,7 +100,7 @@ if [[ "${_is_loopback}" -eq 1 ]]; then
   warn ""
   warn "  3) 고친 뒤 이 검사를 다시 돌려 확인하세요:"
   warn ""
-  warn "       sudo KLID_ROLE=app ${SELF_DIR}/21-verify-ai-server-url.sh"
+  warn "       sudo KLID_ROLE=was ${SELF_DIR}/21-verify-ai-server-url.sh"
   warn ""
   warn "  ※ backend 설정을 바꾸면 WAS 재기동이 필요합니다(04-configuration.md 반영 방법 표)."
   warn "----------------------------------------------------------------"

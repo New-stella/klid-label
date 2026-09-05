@@ -15,7 +15,7 @@ set -euo pipefail
 #     ./scripts/package-step.sh 30            # 30 단계만 실행
 #     ./scripts/package-step.sh 30-collect-ai-server.sh
 #     ./scripts/package-step.sh from 40       # 40 부터 끝까지 이어서 실행  ← 막혔을 때의 주 동선
-#     SKIP_POSTGRES=1 ./scripts/package-step.sh from 40    # 토글은 그대로 먹는다
+#     SKIP_FFMPEG=1 ./scripts/package-step.sh from 40      # 토글은 그대로 먹는다
 #
 #   ★ 이 스크립트는 <단계 목록을 자기가 들고 있지 않다>. 순서·토글 규칙은
 #     package/steps.sh 가, 각 단계의 설명·소요·선행조건은 각 스크립트 머리말의 `# @step`

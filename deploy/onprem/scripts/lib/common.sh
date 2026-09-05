@@ -262,7 +262,7 @@ confirm() {
 #   ★★ 파일 <이름>으로 고르지 않는다 — 이름 규약이 배포처마다 다르다 (2026-08-30 실측 사고).
 #     PGDG(PostgreSQL 공식 리포)의 키 파일명은 `PGDG-RPM-GPG-KEY-RHEL` 이라 종전의
 #     `RPM-GPG-KEY-*` 글롭에 <걸리지 않는다>. 그 한 글자 차이로:
-#       · 조달(55-collect-postgresql.sh)이 그 키를 매체에 담지 못했고
+#       · 조달이 그 키를 매체에 담지 못했고
 #       · 설치(이 함수)가 담겼더라도 import 하지 못했을 것이며
 #       · 타깃에서 `Public key for postgresql16-....rpm is not installed / GPG check FAILED`
 #         (Key ID 40bca2b408b40d20)로 번들 PG 설치가 <첫 단계에서> 죽었다.
@@ -617,16 +617,52 @@ REPO
 klid_normalize_role() {
   local r="${1:-all}"
   case "${r}" in
-    all|app|ai) printf '%s\n' "${r}" ;;
-    *) die "알 수 없는 설치 역할: ${r} (허용: all | app | ai)" ;;
+    all|app|was|web|ai) printf '%s\n' "${r}" ;;
+    *) die "알 수 없는 설치 역할: ${r} (허용: all | app | was | web | ai)" ;;
   esac
 }
 
-# klid_role_has <role> — 현재 KLID_ROLE 이 <role> 을 포함하면 0.
-#   all 은 두 역할을 모두 포함한다.
+# ----------------------------------------------------------------------------
+# 역할 ↔ 역량(capability) — ★ 역할 판정의 단일 소유 지점 (2026-09-05)
+#
+#   왜 역량으로 가르나: 현장 장비가 웹·WAS·AI 로 갈리는데(2026-09-04 확정) 역할이
+#   all|app|ai 셋뿐이라, 통합 진입점(site-install.sh)이 <단계 번호를 하드코딩>해
+#   web/was 를 흉내 내고 있었다(was → --skip=10,14,20 · web → --only=14,20).
+#   단계가 하나만 늘거나 줄어도 그 목록이 조용히 어긋난다 — 실제로 이 라운드에서
+#   PostgreSQL 단계를 걷어내며 즉시 어긋났다. 그래서 번호가 아니라 <역량>으로 가른다.
+#
+#   역량 셋: was(백엔드 WAR) · web(프론트 정적자산) · ai(추론 서버)
+#   역할 → 역량:  all={was,web,ai}  app={was,web}  was={was}  web={web}  ai={ai}
+#
+#   ⚠ 하위호환: --role=app 은 종전대로 백엔드+프론트를 한 대에 올리는 단일 서버 구성이다.
+#     기존 절차가 그대로 동작한다.
+#   ⚠ 「app」은 이제 <역할 이름>일 뿐 역량이 아니다. klid_role_has 에 app 을 묻지 말 것 —
+#     묻고 싶은 것은 언제나 was 인지 web 인지다. 그 구분을 흐리면 웹 장비에 WAR 이,
+#     WAS 장비에 httpd 가 올라간다.
+# ----------------------------------------------------------------------------
+klid_role_caps() {
+  case "${KLID_ROLE:-all}" in
+    all) printf 'was web ai\n' ;;
+    app) printf 'was web\n' ;;
+    was) printf 'was\n' ;;
+    web) printf 'web\n' ;;
+    ai)  printf 'ai\n' ;;
+    *)   printf '\n' ;;
+  esac
+}
+
+# klid_role_has <capability> — 현재 역할이 그 역량을 포함하면 0.
+#   capability 는 was | web | ai 셋뿐이다.
 klid_role_has() {
-  local want="$1" cur="${KLID_ROLE:-all}"
-  [[ "${cur}" == "all" || "${cur}" == "${want}" ]]
+  local want="$1" cap
+  case "${want}" in
+    was|web|ai) ;;
+    *) die "klid_role_has: 알 수 없는 역량 '${want}' (허용: was | web | ai). 역할 이름(app·all)을 묻지 마세요." ;;
+  esac
+  for cap in $(klid_role_caps); do
+    [[ "${cap}" == "${want}" ]] && return 0
+  done
+  return 1
 }
 
 # ----------------------------------------------------------------------------
