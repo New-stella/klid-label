@@ -56,8 +56,8 @@ const CONTROL_ROLE_PRESETS: readonly RolePreset[] = [
     role: Role.ADMIN,
     channel: Channel.INTERNAL,
     defaultUserNo: '9001',
-    defaultName: '박관리',
-    label: 'ADMIN (9001, 박관리)',
+    defaultName: '시스템관리자',
+    label: 'ADMIN (9001, 시스템관리자)',
     description: '사용자 관리·연동 설정 등 관리 기능을 소유하며 검수자 권한을 함께 갖는 역할입니다.',
   },
   {

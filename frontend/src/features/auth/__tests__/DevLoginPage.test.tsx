@@ -250,7 +250,7 @@ describe('DevLoginPage', () => {
 
     const radios = screen.getAllByRole('radio');
     const expected = [
-      ['ADMIN (9001, 박관리)', 'INTERNAL'],
+      ['ADMIN (9001, 시스템관리자)', 'INTERNAL'],
       ['REVIEWER (1001, 김검수)', 'INTERNAL'],
       ['WORKER (2001, 최라벨)', 'INTERNAL'],
     ] as const;
@@ -273,14 +273,14 @@ describe('DevLoginPage', () => {
     renderPage();
 
     expect(screen.getByLabelText('REVIEWER (1001, 김검수)')).toBeChecked();
-    expect(screen.getByLabelText('ADMIN (9001, 박관리)')).not.toBeChecked();
+    expect(screen.getByLabelText('ADMIN (9001, 시스템관리자)')).not.toBeChecked();
   });
 
   it('ADMIN_선택_시_role_ADMIN_channel_INTERNAL_로_전송되고_ingress_로_진입한다', async () => {
     const user = userEvent.setup();
     const token = buildJwt(
       { alg: 'HS256', typ: 'JWT' },
-      { sub: '9001', role: 'ADMIN', channel: 'INTERNAL', exp: 9999999999, name: '박관리' },
+      { sub: '9001', role: 'ADMIN', channel: 'INTERNAL', exp: 9999999999, name: '시스템관리자' },
     );
 
     const captured: BodyHolder = { value: null };
@@ -298,7 +298,7 @@ describe('DevLoginPage', () => {
               sub: '9001',
               role: 'ADMIN',
               channel: 'INTERNAL',
-              name: '박관리',
+              name: '시스템관리자',
               exp: 9999999999,
             },
             authorizationHeader: `Bearer ${token}`,
@@ -311,7 +311,7 @@ describe('DevLoginPage', () => {
 
     renderPage();
 
-    await user.click(screen.getByLabelText('ADMIN (9001, 박관리)'));
+    await user.click(screen.getByLabelText('ADMIN (9001, 시스템관리자)'));
     await user.click(screen.getByRole('button', { name: /토큰 발급/ }));
 
     await waitFor(() => {
@@ -327,18 +327,18 @@ describe('DevLoginPage', () => {
     expect(localStorage.getItem('klid-user-id')).toBe('9001');
   });
 
-  it('ADMIN_기본값_안내는_9001_박관리다', async () => {
-    // userNo placeholder·안내 문구가 역할과 연동된다(사양). 시드(9001 박관리)와 어긋나면
+  it('ADMIN_기본값_안내는_9001_시스템관리자다', async () => {
+    // userNo placeholder·안내 문구가 역할과 연동된다(사양). 시드(9001 시스템관리자)와 어긋나면
     // 토큰의 sub 가 다른 사람의 행을 가리킨다 — 과거 1002/2001 오매핑이 그 사고였다.
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByLabelText('ADMIN (9001, 박관리)'));
+    await user.click(screen.getByLabelText('ADMIN (9001, 시스템관리자)'));
 
     const userNoInput = screen.getByLabelText(/userNo/i) as HTMLInputElement;
     expect(userNoInput.placeholder).toBe('9001');
     // 카드 제목에도 같은 값이 들어 있으므로 안내 문구 쪽만 집는다.
-    expect(screen.getByText(/비워두면 BE 기본값\(9001, 박관리\)/)).toBeInTheDocument();
+    expect(screen.getByText(/비워두면 BE 기본값\(9001, 시스템관리자\)/)).toBeInTheDocument();
   });
 
   // ───────────────────────────────────────────────────────────────────────────

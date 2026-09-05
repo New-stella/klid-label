@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 public class DevStandardAccounts {
 
     // 기본 USER_NO 는 dev-seed.sql 과 1:1 매칭되어야 한다.
-    //   1001=REVIEWER(김검수) · 2001=WORKER(최라벨) · 3001=PORTAL_USER(홍길동) · 9001=ADMIN(박관리)
+    //   1001=REVIEWER(김검수) · 2001=WORKER(최라벨) · 3001=PORTAL_USER(홍길동) · 9001=ADMIN(시스템관리자)
     // 과거 1002(WORKER)·2001(PORTAL) 매핑은 시드와 어긋나 WORKER 토큰의 sub 가
     // 실제 REVIEWER 사용자를 가리켜 LABELER 배정 0건이 반환되는 버그가 있었다.
     public static final String DEFAULT_USER_NO_REVIEWER = "1001";

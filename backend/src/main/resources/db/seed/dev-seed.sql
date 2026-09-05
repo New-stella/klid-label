@@ -82,7 +82,7 @@ INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USER_EML_ADDR, USE_YN, REG_
     (2001, 'worker1',   '최라벨', 'worker1@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (2002, 'worker2',   '정작업', 'worker2@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (3001, 'portal1',   '홍길동', 'portal1@example.com',  'Y', '2026-03-01 09:00:00'),
-    (9001, 'admin1',    '박관리', 'admin1@cudo.co.kr',    'Y', '2026-08-28 09:00:00')
+    (9001, 'admin',     '시스템관리자', 'admin@cudo.co.kr',     'Y', '2026-08-28 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET
     USER_NM       = EXCLUDED.USER_NM,
     USER_EML_ADDR = EXCLUDED.USER_EML_ADDR,

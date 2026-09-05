@@ -109,7 +109,16 @@ function decodeJwtPayload(token: string): TokenClaims | null {
     const rawRole = raw.role;
     const hasRole = rawRole !== undefined && rawRole !== null && rawRole !== '';
     const role: Role | null = hasRole && isKnownRole(rawRole) ? rawRole : null;
-    const channel = isChannel(raw.channel) ? raw.channel : null;
+    // 관제 인계 토큰은 channel 클레임을 싣지 않는다 — BE 는 부재 시 INTERNAL 로 기본 처리한다
+    //   (@design ADR-063). FE 도 동일하게 <부재는 INTERNAL>로 본다. 부재를 거부하면 관제 토큰이
+    //   여기서 탈락해 claims=null → SessionIngress 가 「토큰 없음」으로 오판해 로그인 무한루프가
+    //   된다(실측 2026-09-05). 값이 <있는데> 우리가 모르는 채널이면 종전대로 거부(BE valueOf 대칭).
+    const channel =
+      raw.channel === undefined || raw.channel === null
+        ? Channel.INTERNAL
+        : isChannel(raw.channel)
+          ? raw.channel
+          : null;
     const exp = typeof raw.exp === 'number' ? raw.exp : 0;
     const name = typeof raw.name === 'string' ? raw.name : undefined;
 
