@@ -67,6 +67,7 @@ KIND_PLATE = "plate"
 KIND_TEXT = "text"
 KIND_PERSON = "person"
 KIND_VEHICLE = "vehicle"
+KIND_MOTORCYCLE = "motorcycle"
 
 #: 모델 파일명 — 조달 스크립트(``bin/fetch-deid-models.sh``)와 <b>한 세트</b>다.
 MODEL_FILES = {
@@ -101,9 +102,13 @@ BOX_TTL_FRAMES = DETECT_EVERY_MOVING * 3
 MASK_RANGE_MIN = 0.5
 MASK_RANGE_MAX = 3.0
 
-#: 사람 박스에서 머리로 간주할 상단 비율. 얼굴 미검출을 보상하되 <b>상체까지 덮지는 않는다</b>
-#: — 사람 키에서 머리는 약 13% 이고, 검출 박스 부정확·자세를 감안한 여유만 더한다.
-PERSON_HEAD_RATIO = 0.16
+#: 사람 박스에서 머리로 간주할 상단 비율.
+#: ⚠ <b>교과서값(키의 13%)을 쓰면 안 된다.</b> 그것은 정면·수평에서 전신이 보일 때의 비율이고,
+#:   CCTV 는 <b>위에서 내려다보는 각도</b>라 다리가 짧게 찍혀 머리 비율이 커진다(실측: 720x480
+#:   도심 CCTV 보행자에서 머리가 박스 높이의 <b>약 31%</b> — 격자 측정, 2026-09-05).
+#:   0.16 으로 줄였더니 마스킹이 머리 위쪽 절반만 덮고 <b>얼굴이 남았다</b>.
+#: 상단 25% 는 머리와 어깨 정도라 몸통·팔·다리가 남아 행동 라벨링에는 지장이 없다.
+PERSON_HEAD_RATIO = 0.25
 
 #: 차량 박스에서 번호판이 있을 자리 — 하단 높이 비율 · 가로 중앙 비율.
 #: ⚠ <b>실측 근거</b>: 실 CCTV(도심 교차로 720x480)에서 번호판은 텍스트 검출기로도(0건),
@@ -124,6 +129,16 @@ PERSON_HEAD_RATIO = 0.16
 PLATE_BAND_HEIGHT_RATIO = 0.14
 PLATE_BAND_WIDTH_RATIO = 0.75
 
+#: ★오토바이는 자동차와 <b>번호판 높이가 다르다</b> — 하단이 아니라 차체 중간이다.
+#: 검출 박스가 앞바퀴~뒷바퀴를 감싸는데 번호판은 뒷면 중간에 달려 있어, 자동차용 하단 띠
+#: (14%)는 <b>바퀴 아래 도로</b>를 가리고 번호판은 그대로 남는다(실측: 번호판이 박스 하단
+#: 기준 52~62% 구간 — 격자 측정, 2026-09-05).
+#: 그래서 하단에 붙이지 않고 <b>띄워서</b> 덮는다: 하단 기준 MOTO_BAND_TOP_RATIO 지점부터
+#: MOTO_BAND_HEIGHT_RATIO 만큼.
+MOTO_BAND_TOP_RATIO = 0.75
+MOTO_BAND_HEIGHT_RATIO = 0.35
+MOTO_BAND_WIDTH_RATIO = 0.70
+
 #: 얼굴 검출 임계. <b>일부러 높게</b> 잡는다 — 실 CCTV 에서 간판·옷 무늬를 얼굴로 오검출했고,
 #: 놓친 얼굴은 사람(YOLOX) 폴백이 머리 영역째 덮으므로 <b>놓침보다 오검출이 더 해롭다</b>
 #: (불필요하게 가린 영역은 그대로 학습데이터 품질 손실이다).
@@ -132,6 +147,14 @@ FACE_CONF_THRESHOLD = 0.7
 #: 모자이크 격자 수 — 영역을 가로·세로 각각 이 개수 이하의 블록으로 뭉갠다.
 #: 블록 <b>크기</b>가 아니라 <b>개수</b>를 고정해야 가로로 긴 텍스트 영역도 확실히 지워진다.
 MOSAIC_BLOCKS = 8
+
+#: 텍스트(간판) 검출기 입력 한 변. 표준 736 대신 <b>960</b> 을 쓴다.
+#: ⚠ 작은 간판을 놓치는 원인은 <b>임계가 아니라 해상도</b>였다 — 임계를 0.3→0.15 로 낮춰도
+#:   검출 수가 전혀 늘지 않았고(7.5→7.5), 입력을 960 으로 키우자 늘었다(12프레임 중 11프레임
+#:   우세 · 합계 90→116, +29% — 실측 2026-09-05).
+#: 비용은 34.7→54.4ms/회 지만 텍스트는 DETECT_EVERY_STATIC 마다 한 번만 돌아 프레임당
+#: 약 +0.3ms 다(전체의 1% 미만).
+OCR_INPUT_SIZE = 960
 
 #: 프레임 1장에서 마스킹할 최대 영역 수 (CWE-400/770).
 #: 텍스트가 빽빽한 화면에서 PP-OCR 후보가 폭주해 처리가 <b>50배</b> 느려지는 것을 실측했다.
@@ -179,7 +202,7 @@ class DeidSummary:
             self.texts += n
         elif kind == KIND_PERSON:
             self.persons += n
-        elif kind == KIND_VEHICLE:
+        elif kind in (KIND_VEHICLE, KIND_MOTORCYCLE):
             self.vehicles += n
 
 
@@ -223,8 +246,14 @@ _YOLOX_INPUT = 640
 _YOLOX_STRIDES = (8, 16, 32)
 _COCO_PERSON = 0
 #: COCO 차량류 — 자동차·오토바이·버스·트럭. 번호판을 다는 것들이다(자전거는 없다).
-_COCO_VEHICLES = (2, 3, 5, 7)
-_YOLOX_WANTED = {_COCO_PERSON: KIND_PERSON, **{c: KIND_VEHICLE for c in _COCO_VEHICLES}}
+_COCO_VEHICLES = (2, 5, 7)
+#: 오토바이(3)는 번호판 높이가 달라 <b>별도 종류</b>로 다룬다(위 MOTO_BAND_* 참조).
+_COCO_MOTORCYCLE = 3
+_YOLOX_WANTED = {
+    _COCO_PERSON: KIND_PERSON,
+    _COCO_MOTORCYCLE: KIND_MOTORCYCLE,
+    **{c: KIND_VEHICLE for c in _COCO_VEHICLES},
+}
 _YOLOX_CONF = 0.35
 
 
@@ -268,7 +297,9 @@ class _Detectors:
             model.setBinaryThreshold(0.3).setPolygonThreshold(0.5)
             model.setUnclipRatio(2.0).setMaxCandidates(MAX_BOXES_PER_FRAME)
             model.setInputParams(
-                1.0 / 255.0, (736, 736), (122.67891434, 116.66876762, 104.00698793)
+                1.0 / 255.0,
+                (OCR_INPUT_SIZE, OCR_INPUT_SIZE),
+                (122.67891434, 116.66876762, 104.00698793),
             )
             return model
         except Exception as exc:  # noqa: BLE001
@@ -324,8 +355,9 @@ class _Detectors:
             return []
         cv2 = self.cv2
         try:
-            resized = cv2.resize(frame, (736, 736))
-            sx, sy = self.width / 736.0, self.height / 736.0
+            resized = cv2.resize(frame, (OCR_INPUT_SIZE, OCR_INPUT_SIZE))
+            sx = self.width / float(OCR_INPUT_SIZE)
+            sy = self.height / float(OCR_INPUT_SIZE)
             boxes, _ = self.text.detect(resized)
         except Exception as exc:  # noqa: BLE001
             logger.debug("[MOCK][DEID] 텍스트 검출 예외 type=%s", type(exc).__name__)
@@ -431,6 +463,13 @@ def _expand(
         band_w = max(6, int(w * PLATE_BAND_WIDTH_RATIO))
         x = x + (w - band_w) // 2
         y = y + h - band_h
+        w, h = band_w, band_h
+    elif kind == KIND_MOTORCYCLE:
+        # 번호판이 차체 <b>중간</b>이라 하단에 붙이지 않고 띄운다.
+        band_h = max(4, int(h * MOTO_BAND_HEIGHT_RATIO))
+        band_w = max(6, int(w * MOTO_BAND_WIDTH_RATIO))
+        x = x + (w - band_w) // 2
+        y = y + h - int(h * MOTO_BAND_TOP_RATIO)
         w, h = band_w, band_h
     cx, cy = x + w / 2.0, y + h / 2.0
     nw, nh = w * ratio, h * ratio
