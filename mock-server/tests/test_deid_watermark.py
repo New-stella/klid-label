@@ -335,11 +335,14 @@ def test_ffmpeg_바이너리가_없으면_원본복사로_폴백한다(
     with caplog.at_level(logging.INFO, logger="app.services.deid_sim"):
         ok = _burn(src, target, in_dir=in_dir, out_dir=out_dir)
 
-    # then — 워터마킹은 실패(False)를 반환하고 폴백 사유가 WARN 으로 남는다
+    # then — 산출은 실패(False)를 반환하고 폴백 <b>사유</b>가 WARN 으로 남는다.
+    #   ⚠ 로그 문구가 아니라 <b>사유(ffmpeg 부재)</b>를 검증한다. ffmpeg 는 워터마크뿐 아니라
+    #     실제 비식별 엔진의 인코딩에도 쓰이므로, 이 폴백은 더 이상 워터마크 전용이 아니다
+    #     (문구도 'watermark skip' → 'deid render skip' 으로 바뀌었다).
     assert ok is False
     assert not target.exists()
     warns = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert any("watermark" in m for m in warns)
+    assert any("ffmpeg" in m for m in warns)
 
 
 def test_폰트파일이_없으면_원본복사로_폴백한다(

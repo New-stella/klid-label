@@ -20,3 +20,11 @@ python-multipart>=0.0.20
 # 테스트
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+# ── 실제 비식별(마스킹) 엔진 — app/services/deid_engine.py ──────────────────
+#   목 서버가 워터마크 대신 <b>실제로 얼굴·사람·간판을 가린</b> 영상을 산출하는 데 쓴다.
+#   headless 판을 쓰는 이유: 컨테이너에 GUI(libGL) 의존을 끌어들이지 않기 위해서다.
+#   ⚠ 이 패키지가 없어도 목 서버는 <b>기존 워터마크 동작</b>으로 폴백한다(엔진 lazy import).
+#     검출 모델(bin/fetch-deid-models.sh)도 마찬가지로 없으면 폴백이라, 둘 다 선택 사항이다.
+opencv-python-headless>=4.9.0
+numpy>=1.26.0

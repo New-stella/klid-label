@@ -240,6 +240,10 @@ async def create_project(req: ProjectCreateRequest) -> ProjectCreateResponse:
         # 그 산출을 실패(procState=99)로 종결한다(임의 파일 노출·디스크 고갈 차단). 대체 산출물을
         # 남기는 안은 폐기 — 읽지도 못한 원본을 '비식별 완료'로 승격시키는 위장 산출물(CWE-345).
         input_base=settings.effective_input_base(),
+        # 마스킹 방식·영역 배율은 <b>요청 그대로</b> 산출 단계로 넘긴다. 실제 비식별 엔진이
+        # 켜져 있으면 이 값으로 가리고(색상0/모자이크2/블러3 · 배율), 엔진이 없으면 무시된다.
+        masking_type=req.masking_type,
+        masking_range=req.masking_range,
     )
 
     return ProjectCreateResponse(result="success", prj_id=project.prj_id)
@@ -350,14 +354,28 @@ async def retrieve_report(request: Request) -> dict[str, Any]:
         if rate < 100.0:
             continue  # 완료 데이터셋 없는 프로젝트 제외(산출 미완/실패 포함)
         ds_status: list[dict[str, Any]] = []
-        for ds in get_store().datasets_of(project.prj_id):
+        # ★ 실제 비식별 엔진이 돌았으면 <b>실측 검출 수</b>를, 아니면 기존 mock 수를 쓴다.
+        #   요약은 산출 순서(= 데이터셋 등록 순서)대로 쌓이므로 인덱스로 짝짓는다.
+        #   ⚠ 이 값은 <b>연 프레임 합</b>이다(같은 사람이 100프레임에 걸쳐 있으면 100). 실벤더가
+        #     고유 객체 수를 보고한다면 의미가 다르므로, 이 수치로 벤더 응답을 검증하지 말 것.
+        summaries = list(getattr(project, "deid_summaries", []) or [])
+        for i, ds in enumerate(get_store().datasets_of(project.prj_id)):
             total_frame = _dataset_total_frame(ds)
+            summary = summaries[i] if i < len(summaries) else None
             ds_status.append(
                 {
                     "dsId": ds.dataset_id,
                     "fileName": ds.name,
-                    "faceCount": deid_sim.face_count_for(ds.dataset_id, total_frame),
-                    "lpCount": deid_sim.lp_count_for(ds.dataset_id, total_frame),
+                    "faceCount": (
+                        summary.faces if summary is not None
+                        else deid_sim.face_count_for(ds.dataset_id, total_frame)
+                    ),
+                    # 번호판은 전용 검출기가 없고 <b>차량 폴백</b>으로 가리므로, 가린 횟수인
+                    # 차량 검출 수를 보고한다(실측상 LPD 전용 모델은 진짜 번호판을 못 잡았다).
+                    "lpCount": (
+                        summary.vehicles if summary is not None
+                        else deid_sim.lp_count_for(ds.dataset_id, total_frame)
+                    ),
                     "totalFrame": total_frame,
                     "startTime": deid_sim.format_dt(project.created_epoch),
                     "endTime": deid_sim.format_dt(project.created_epoch),

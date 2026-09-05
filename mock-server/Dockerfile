@@ -4,8 +4,11 @@
 #   ⚠ 인증 없음 + VLM 콜백 SSRF 표면 — 운영/외부망에 노출 금지.
 #     신뢰된 네트워크(로컬/CI/내부 테스트망)에서만 기동할 것.
 #
-#   베이스: python:3.11-slim — 무거운 AI 의존성이 없어(순수 FastAPI/httpx/pydantic)
-#     경량 slim 이미지로 충분하다. ai-server 와 달리 torch/CUDA 불필요.
+#   베이스: python:3.11-slim — torch/CUDA 같은 무거운 AI 스택이 없어 경량 slim 으로 충분하다.
+#     ⚠ 비식별 엔진용 opencv-python-headless(약 50MB)만 예외로 들어간다. headless 판이라
+#       GUI(libGL) 의존을 끌어오지 않으며, 검출 모델은 이미지에 굽지 않고 <b>실행 시 조달</b>한다
+#       (bin/fetch-deid-models.sh → models/). 모델이 없으면 목은 기존 워터마크로 폴백하므로
+#       이미지 자체는 모델 없이도 정상 동작한다.
 # ============================================================================
 FROM python:3.11-slim
 
@@ -26,6 +29,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 코드
 COPY app ./app
+# 모델 조달 스크립트 — 컨테이너 안에서 실제 마스킹을 켤 때 쓴다(모델은 굽지 않는다).
+COPY bin ./bin
 
 # 비루트 유저로 실행(권한 최소화).
 RUN useradd -r -m -d /home/app app \

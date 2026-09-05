@@ -85,3 +85,11 @@ watchfiles==1.2.0
     # via uvicorn
 websockets==16.0
     # via uvicorn
+
+# -- 비식별 엔진용 (requirements.in 참조) — pip-compile 재생성 시 위치가 정렬된다 --
+opencv-python-headless==4.13.0.92
+    # via -r requirements.in
+numpy==2.4.6
+    # via
+    #   -r requirements.in
+    #   opencv-python-headless

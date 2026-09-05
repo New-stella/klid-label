@@ -40,7 +40,7 @@ from typing import Any, Optional
 
 from starlette.concurrency import run_in_threadpool
 
-from app.services import media_probe, path_policy
+from app.services import deid_engine, media_probe, path_policy
 from app.state import (
     PRODUCTION_FAILED,
     PRODUCTION_RUNNING,
@@ -1332,6 +1332,18 @@ def _is_duration_preserved(src: Path, temp: Path, src_base: str, out_base: str) 
     return True
 
 
+def _engine_codec_args(ffmpeg: str) -> list[str]:
+    """비식별 엔진의 비디오 인코딩 옵션 — 워터마크 경로와 동일한 인코더 선택 규약을 쓴다.
+
+    HW 인코더가 있으면 그걸 쓰고 없으면 libx264 로 내려간다. 다만 화질 파라미터는 워터마크보다
+    한 단계 좋게 잡는다(crf 23) — 워터마크는 "글자가 보이면 그만"이지만 비식별본은 <b>라벨링
+    대상 영상</b>이라 압축 잡음이 객체 경계를 뭉개면 검수 판단을 방해한다.
+    """
+    if _ffmpeg_has_hw_encoder(ffmpeg):
+        return ["-c:v", HW_ENCODER, "-preset", "p4", "-cq", "23"]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
+
+
 def _burn_deid_watermark(
     src: Path,
     target: Path,
@@ -1341,8 +1353,19 @@ def _burn_deid_watermark(
     output_dir: Path,
     export_path: str = "",
     output_base: str = "",
+    masking_type: int = deid_engine.MASK_BLUR,
+    masking_range: float = 1.0,
+    summary_out: Optional[list] = None,
 ) -> bool:
-    """원본 영상에 '비식별 완료' 워터마크를 구워 ``target`` 으로 산출한다.
+    """원본 영상을 비식별해 ``target`` 으로 산출한다.
+
+    <b>실제 마스킹이 1순위, 워터마크가 2순위다.</b> 검출 모델이 갖춰져 있으면
+    ``deid_engine`` 이 얼굴·사람·텍스트를 실제로 가린 영상을 만들고, 모델이 없거나 엔진이
+    실패하면 기존 '비식별 완료' 워터마크를 굽는다. 둘 다 안 되면 False 를 돌려 호출측이
+    원본 복사로 폴백한다. 즉 <b>모델이 없는 환경에서 목의 기존 동작은 그대로다</b>.
+
+    ``summary_out`` 이 주어지면 엔진이 만든 ``DeidSummary`` 를 여기에 append 한다
+    (리포트의 실제 검출 수 원천). 워터마크 폴백 경로에서는 아무것도 넣지 않는다.
 
     성공하면 True. 아래 어느 경우든 <b>예외 없이</b> False 를 반환해 호출측이 기존
     ``_copy_no_overwrite`` 로 폴백하게 한다(워터마킹 실패가 요청 실패로 번지면 안 된다):
@@ -1385,10 +1408,16 @@ def _burn_deid_watermark(
         )
         return False
 
-    tools = _resolve_watermark_tools(src.name)
-    if tools is None:
+    # ⚠ 워터마크 도구(drawtext·폰트) 확인을 여기서 하지 <b>않는다</b>. 그러면 폰트가 없는
+    #   빌드에서 <b>실제 마스킹 엔진까지 함께 막힌다</b> — 엔진은 폰트가 필요 없다.
+    #   폰트 검사는 워터마크로 폴백하는 시점으로 미룬다.
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        logger.warning(
+            "[MOCK][KPST] deid render skip — ffmpeg 바이너리 없음. 원본 복사로 폴백 file=%s",
+            sanitize_for_log(src.name),
+        )
         return False
-    ffmpeg, font_path = tools
 
     temp = _temp_path_for(target_resolved)
     if temp is None:
@@ -1397,9 +1426,38 @@ def _burn_deid_watermark(
     src_probe_base = input_base or os.fspath(src_resolved.parent)
     out_probe_base = os.fspath(target_resolved.parent)
 
+    rendered_by_engine = False
     try:
-        if not _run_ffmpeg_watermark(ffmpeg, src_resolved, temp, font_path):
-            return False
+        # ① 실제 비식별 엔진 — 모델이 갖춰져 있을 때만. 실패는 예외 없이 None 이다.
+        if deid_engine.engine_available():
+            summary = deid_engine.render_masked(
+                src_resolved,
+                temp,
+                ffmpeg=ffmpeg,
+                ffprobe=shutil.which("ffprobe") or "ffprobe",
+                masking_type=masking_type,
+                masking_range=masking_range,
+                codec_args=_engine_codec_args(ffmpeg),
+                threads=FFMPEG_THREADS,
+                faststart=temp.suffix.lower() in _FASTSTART_SUFFIXES,
+            )
+            if summary is not None:
+                rendered_by_engine = True
+                if summary_out is not None:
+                    summary_out.append(summary)
+
+        # ② 워터마크 폴백 — 엔진이 없거나 실패했을 때. 여기서만 폰트를 요구한다.
+        if not rendered_by_engine:
+            # 엔진이 남긴 부분 산출물을 먼저 치운다(ffmpeg -n 은 기존 파일이 있으면 실패한다).
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            tools = _resolve_watermark_tools(src.name)
+            if tools is None:
+                return False
+            if not _run_ffmpeg_watermark(ffmpeg, src_resolved, temp, tools[1]):
+                return False
         # #4 — 승격 판정을 BE 무결성 게이트(≥512B + 컨테이너 시그니처)와 동일 기준으로 맞춘다.
         if not is_promotable_artifact(temp):
             logger.warning(
@@ -1453,11 +1511,17 @@ def _burn_deid_watermark(
         # 무시되므로 남겨도 무해하고, 다음 요청/기동 sweep 이 내부를 정리한다.
 
     # 성공 로그는 <b>승격된 산출물만</b> 남긴다 — 폴백 사유는 위 WARN 들로 구분된다(OWASP A09).
-    logger.info(
-        "[MOCK][KPST] watermark burned — '%s' 우측하단, 길이·무결성 검증 통과 file=%s",
-        WATERMARK_TEXT,
-        sanitize_for_log(target.name),
-    )
+    if rendered_by_engine:
+        logger.info(
+            "[MOCK][KPST] deid rendered — 실제 마스킹(엔진), 길이·무결성 검증 통과 file=%s",
+            sanitize_for_log(target.name),
+        )
+    else:
+        logger.info(
+            "[MOCK][KPST] watermark burned — '%s' 우측하단, 길이·무결성 검증 통과 file=%s",
+            WATERMARK_TEXT,
+            sanitize_for_log(target.name),
+        )
     return True
 
 
@@ -1531,6 +1595,9 @@ def _write_one_output(
     output_base: str = "",
     allow_watermark: bool = True,
     bytes_budget: Optional["_OutputBytesBudget"] = None,
+    masking_type: int = deid_engine.MASK_BLUR,
+    masking_range: float = 1.0,
+    summary_out: Optional[list] = None,
 ) -> bool:
     """단일 출력 파일을 생성한다 — 허용 루트 안의 원본이 있으면 워터마크 굽기/복사, 없으면 실패.
 
@@ -1582,6 +1649,9 @@ def _write_one_output(
                 output_dir=output_dir,
                 export_path=export_path,
                 output_base=output_base,
+                masking_type=masking_type,
+                masking_range=masking_range,
+                summary_out=summary_out,
             ):
                 return True
             allowance = budget.allowance()
@@ -1661,6 +1731,10 @@ class ProductionOutcome:
     written: list[Path] = field(default_factory=list)
     failed: bool = False
     reason: Optional[str] = None
+    #: 실제 비식별 엔진이 만든 산출물별 검출 요약(``deid_engine.DeidSummary``).
+    #: 엔진이 돌지 않은(모델 부재·워터마크 폴백) 산출물은 <b>여기 들어오지 않는다</b> —
+    #: 리포트는 이 목록이 비면 기존 mock 카운트를 쓴다.
+    summaries: list = field(default_factory=list)
 
 
 
@@ -1673,6 +1747,8 @@ def produce_deid_outputs(
     output_base: str = "",
     input_base: str = "",
     requested: Optional[int] = None,
+    masking_type: int = deid_engine.MASK_BLUR,
+    masking_range: float = 1.0,
 ) -> ProductionOutcome:
     """★ 실제 산출 본체 — <b>백그라운드에서만</b> 호출한다(요청 처리 안에서 부르지 말 것).
 
@@ -1751,6 +1827,7 @@ def produce_deid_outputs(
         )
 
     failed_reason: Optional[str] = None
+    summaries: list = []
     for source_base, mask_name in outputs:
         target = out_dir / mask_name
         # 심층 방어 — 최종 경로가 out_dir 하위인지 재확인(마스킹명 조립 이후에도 한 번 더)
@@ -1783,6 +1860,9 @@ def produce_deid_outputs(
             output_base=output_base,
             allow_watermark=allow_watermark,
             bytes_budget=bytes_budget,
+            masking_type=masking_type,
+            masking_range=masking_range,
+            summary_out=summaries,
         )
         if not ok and failed_reason is None:
             failed_reason = "OUTPUT_WRITE_FAILED"
@@ -1810,7 +1890,10 @@ def produce_deid_outputs(
         )
         failed_reason = "NO_OUTPUT_PLANNED" if not outputs else "NO_OUTPUT_PRODUCED"
     return ProductionOutcome(
-        written=written, failed=failed_reason is not None, reason=failed_reason
+        written=written,
+        failed=failed_reason is not None,
+        reason=failed_reason,
+        summaries=summaries,
     )
 
 
@@ -1959,9 +2042,16 @@ async def run_production(prj_id: int, **params: Any) -> None:
         )
         store.set_production_state(prj_id, PRODUCTION_FAILED)
         return
+    # 실제 엔진이 낸 검출 요약을 프로젝트에 붙인다 — 리포트가 가짜 수 대신 이 값을 쓴다.
+    # 엔진이 돌지 않았으면 빈 목록이라 리포트는 기존 mock 카운트로 폴백한다.
+    if outcome.summaries:
+        store.set_deid_summaries(prj_id, outcome.summaries)
     store.set_production_state(prj_id, PRODUCTION_SUCCEEDED)
     logger.info(
-        "[MOCK][KPST] production completed prj_id=%d files=%d", prj_id, len(outcome.written)
+        "[MOCK][KPST] production completed prj_id=%d files=%d detected=%d",
+        prj_id,
+        len(outcome.written),
+        len(outcome.summaries),
     )
 
 
