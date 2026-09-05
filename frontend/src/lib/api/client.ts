@@ -2,7 +2,11 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 
 
 import { detectChannel, redirectToUpstream } from '@/features/auth/redirectToUpstream';
-import { getAccessToken } from '@/features/auth/tokenHandoff';
+import {
+  buildAuthHeader,
+  getAccessToken,
+  resolveAuthHeaderName,
+} from '@/features/auth/tokenHandoff';
 import { resolveConfig } from '@/lib/runtimeConfig';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -52,12 +56,15 @@ export const apiClient = axios.create({
 // 창구가 Host 에 매번 다시 물어, Host 가 세션을 갱신한 뒤에도 죽은 토큰을 붙잡지 않는다.
 // 여기서 다시 스토어를 읽으면 포털 채널에서 그 파손이 되살아난다 — 근거 전문은 창구 파일 상단.
 //
-// ⚠ 헤더 스킴은 이번 슬라이스에서 `Authorization: Bearer` 그대로다. 포털 계약의 전용 헤더로
-//   바꾸는 것은 백엔드가 그 헤더를 inbound 로 수용하는 것과 **함께** 가야 한다(현재 수용 0건).
+// 헤더 스킴도 **채널이 가른다** — 관제는 `Authorization: Bearer`, 포털은 전용 헤더
+// `x-access-token`(Bearer 접두 없음). 판정·조립은 창구 파일의 `buildAuthHeader` 한 곳이 소유하며
+// 여기서 채널을 다시 판정하지 않는다. 근거·함정(접두를 붙이면 401 · 두 헤더 동시 전송 시 401)은
+// 그 함수의 주석 참조.
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
-    config.headers.set('Authorization', `Bearer ${token}`);
+    const { name, value } = buildAuthHeader(token);
+    config.headers.set(name, value);
   }
   return config;
 });
@@ -77,13 +84,20 @@ apiClient.interceptors.response.use(
     const status = err.response?.status ?? 0;
 
     if (status === 401 && !err.config?.skipAuthRedirect) {
-      // Race 방어: 토큰 적재 직전에 발사된 요청은 Authorization 헤더가 비어 있어 401 을 받는다.
+      // Race 방어: 토큰 적재 직전에 발사된 요청은 인증 헤더가 비어 있어 401 을 받는다.
       // 이 경우 (지금 창구에 토큰이 있고, 1차 시도에서 헤더 없이 보냈다면) 한 번만 재시도.
+      //
+      // ⚠ 되읽을 헤더 이름도 **채널이 가른다.** 여기에 `'Authorization'` 을 다시 적으면 포털
+      //   채널에서는 언제나 「헤더가 없다」로 읽혀 붙어 나간 요청까지 한 번 더 쏘게 되고,
+      //   그 재시도는 반대 채널 헤더를 덧붙여 **두 헤더 충돌 401** 을 만든다.
       const config = err.config as (InternalAxiosRequestConfig & {
         _retriedWithToken?: boolean;
       }) | undefined;
       const currentToken = getAccessToken();
-      const sentAuth = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+      const authHeaderName = resolveAuthHeaderName();
+      const sentAuth =
+        config?.headers?.get?.(authHeaderName) ??
+        (config?.headers as Record<string, unknown> | undefined)?.[authHeaderName];
       if (
         config &&
         currentToken &&
@@ -91,7 +105,8 @@ apiClient.interceptors.response.use(
         !config._retriedWithToken
       ) {
         config._retriedWithToken = true;
-        config.headers?.set?.('Authorization', `Bearer ${currentToken}`);
+        const { name, value } = buildAuthHeader(currentToken);
+        config.headers?.set?.(name, value);
         return apiClient.request(config);
       }
       // 정상 401 — 토큰 제거 + 상위 시스템 로그인 페이지로 이동

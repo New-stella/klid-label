@@ -30,6 +30,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
+    /**
+     * 포털 채널 전용 인계 헤더 (@design INT-013).
+     *
+     * <p>포털은 저작도구 프론트를 자기 화면 안에서 실행하는 임베딩이라 같은 출처 브라우저 저장소로
+     * 토큰을 넘겨받는 전제가 성립하지 않는다. Host 가 주입한 인계 창구에서 얻은 access token 을
+     * <b>이 전용 헤더</b>로 싣는다. 계약이 <b>Bearer 스킴 미사용</b>이므로 여기서 접두를 요구하지
+     * 않으며, 접두가 붙어 오면 그 문자열 전체가 토큰으로 취급돼 파싱에서 거부된다(관대 처리 없음).
+     */
+    static final String PORTAL_TOKEN_HEADER = "x-access-token";
+
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
@@ -87,9 +97,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
-            String token = header.substring(BEARER_PREFIX.length());
+        TokenIngress ingress = extractToken(request);
+        if (ingress.conflict()) {
+            // ★ 두 인계 자리에 <서로 다른> 토큰이 실렸다 — 어느 쪽 신원으로 동작할지 서버가 고를 수
+            //   없는 모호한 상태다. 조용히 한쪽을 채택하면 <의도치 않은 신원>으로 요청이 처리되므로
+            //   거부한다(fail-closed). 서명·만료가 유효한 토큰이 섞여 있어도 채택하지 않는다.
+            //   * 인지·수용한 대가 — 경유 장비가 Authorization 을 자동으로 덧붙이는 형상에서는 포털
+            //     요청이 전량 거부된다. 다만 <즉시 드러나며> 잘못된 신원으로 도는 것보다 낫다.
+            //   * 거부 방식은 다른 실패 경로(서명 불일치·issuer 불일치·exp 부재)와 동일하다 —
+            //     컨텍스트를 비우고 체인을 이어, 보호 엔드포인트는 진입점이 401 을 표준 응답 형식으로
+            //     낸다. 필터가 직접 응답을 쓰면 그 형식이 이 경로에서만 갈린다.
+            log.debug("[Auth] rejected conflicting token headers");
+            SecurityContextHolder.clearContext();
+            chain.doFilter(request, response);
+            return;
+        }
+        String token = ingress.token();
+        if (token != null) {
             try {
                 Jws<Claims> jws = Jwts.parser()
                         .verifyWith(keyResolver.resolve())
@@ -241,6 +265,96 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * 두 인계 자리에서 얻은 토큰 — 또는 <b>모호(conflict)</b> 표식.
+     *
+     * @param token    검증 대상 토큰. 없으면 {@code null}
+     * @param conflict 두 헤더가 서로 다른 토큰을 실었는가(모호 → 거부)
+     */
+    record TokenIngress(String token, boolean conflict) {
+        static final TokenIngress ABSENT = new TokenIngress(null, false);
+        static final TokenIngress CONFLICT = new TokenIngress(null, true);
+    }
+
+    /**
+     * <b>토큰을 어디서 읽는가</b>의 단일 지점 (@design INT-013 · ADR-012).
+     *
+     * <p>인계 자리는 채널마다 갈린다 — 관제(내부)는 {@code Authorization: Bearer}, 포털은 전용 헤더
+     * {@link #PORTAL_TOKEN_HEADER}. <b>검증은 갈리지 않는다</b> — 두 채널이 같은 발급 서버를 쓰므로
+     * 어느 자리로 들어오든 아래 단일 경로에서 같은 서명·발급자·만료 검증을 탄다. 이 메서드가 하는
+     * 일은 "토큰 문자열을 고르는 것"뿐이고, <b>채널 판정은 여전히 JWT {@code channel} 클레임이
+     * 소유한다</b> — 헤더로 채널을 추정하지 않는다.
+     *
+     * <p>정규화 규칙(갈릴 수 없게 한 지점에 둔다):
+     * <ul>
+     *   <li>{@code Authorization} 은 {@code Bearer } 접두가 있을 때만 인정한다(종전 동작 보존).</li>
+     *   <li>{@link #PORTAL_TOKEN_HEADER} 는 접두를 요구하지 않는다 — 계약이 Bearer 미사용이다.</li>
+     *   <li>다듬은 값이 빈 문자열이면 <b>「없음」과 같이</b> 다룬다(공백만 실린 헤더 = 미첨부).</li>
+     *   <li>둘 다 있고 값이 <b>다르면</b> {@link TokenIngress#CONFLICT}, <b>같으면</b> 그 값을 쓴다.</li>
+     * </ul>
+     *
+     * <p><b>★다듬기(trim)의 적용 범위 — 「비교·공백판정」에만 쓰고 파싱 값은 원문을 유지한다.</b>
+     * {@code Authorization} 단독 경로가 파서에 넘기는 값은 <b>{@code Bearer } 를 벗긴 원문 그대로</b>다.
+     * 여기서 다듬으면 {@code "Bearer  T"}(공백 2개) · {@code "Bearer T\t"} · {@code "Bearer T\r"} ·
+     * C0 제어문자가 섞인 값 등 <b>종전에 거부되던 형태가 통과</b>한다({@link String#trim()} 은 U+0020
+     * 이하 전 문자를 벗긴다). 권한이 오르지는 않지만(여전히 유효 서명·미만료·허용 발급자 필요) 자격증명
+     * 문자열 해석이 RFC 9110 의 {@code Bearer SP token68} 과 갈라져, 앞단에서 {@code Authorization} 을
+     * 파싱하는 구성요소(게이트웨이·WAF·토큰 차단목록·자격증명 기반 rate limit)와 <b>해석 차이
+     * 표면</b>(CWE-436)이 생긴다. 인증 입구가 느는 변경이라 회귀 0 을 우선한다.
+     *
+     * <p>두 헤더가 <b>함께</b> 왔을 때만 다듬은 값으로 비교하고 그 값을 파서에 넘긴다 —
+     * {@code "Bearer  X"} 와 {@code "X"} 를 원문끼리 비교하면 <b>같은 토큰인데 거짓 충돌</b>로
+     * 거부되기 때문이다. 그 조합은 전용 헤더가 생기기 전에는 <b>존재하지 않던 새 조합</b>이라
+     * 회귀가 아니다.
+     *
+     * <p><b>⚠ 사각 — 같은 헤더가 여러 번 실린 경우.</b> {@code getHeader} 는 <b>첫 값만</b> 돌려주므로
+     * {@code x-access-token: A} + {@code x-access-token: B} 는 A 로 인증되고 <b>충돌 판정에 닿지
+     * 않는다</b>({@code Authorization} 도 종전부터 동일). 권한 상승은 아니지만 「모호한 인증 상태를
+     * 거부한다」는 선언이 <b>그 형태에서는 성립하지 않는다</b>. 현재 동작을 시험으로 고정해 두었으니
+     * 다음 감사가 결함으로 재발견하지 않게 이 문단을 함께 읽을 것.
+     */
+    static TokenIngress extractToken(HttpServletRequest request) {
+        // ★ 원문 유지 — 공백 판정에만 다듬은 값을 쓰고, 파서에는 벗긴 원문을 그대로 넘긴다.
+        String bearerRaw = stripBearer(request.getHeader("Authorization"));
+        String bearer = (bearerRaw == null || bearerRaw.trim().isEmpty()) ? null : bearerRaw;
+        // 전용 헤더는 새 표면이라 종전 판정이 없다 — 다듬은 값을 그대로 쓴다(회귀 대상 아님).
+        String portal = normalize(request.getHeader(PORTAL_TOKEN_HEADER));
+        if (bearer != null && portal != null) {
+            // 두 헤더 병존 — 「같은 토큰인가」는 다듬은 값으로 판정한다("Bearer  X" 와 "X" 는 같다).
+            String bearerToken = bearer.trim();
+            return bearerToken.equals(portal)
+                    ? new TokenIngress(bearerToken, false)
+                    : TokenIngress.CONFLICT;
+        }
+        if (bearer != null) {
+            return new TokenIngress(bearer, false);
+        }
+        if (portal != null) {
+            return new TokenIngress(portal, false);
+        }
+        return TokenIngress.ABSENT;
+    }
+
+    /** {@code Bearer } 접두가 있을 때만 뒤를 돌려준다. 접두가 없는 Authorization 은 종전대로 무시. */
+    private static String stripBearer(String header) {
+        if (header == null || !header.startsWith(BEARER_PREFIX)) {
+            return null;
+        }
+        return header.substring(BEARER_PREFIX.length());
+    }
+
+    /**
+     * 공백만 실린 헤더는 「없음」과 같이 다룬다. <b>전용 헤더 전용</b>이다 —
+     * {@code Authorization} 은 파싱 값 원문을 유지해야 해서 이 경로를 쓰지 않는다(위 javadoc 참조).
+     */
+    private static String normalize(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

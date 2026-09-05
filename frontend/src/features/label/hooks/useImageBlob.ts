@@ -1,10 +1,11 @@
 // 프레임 이미지 blob URL 발급 훅.
 //
-// BE 의 `/v1/frames/{srcSn}/image` 는 인증 헤더 (Authorization: Bearer ...) 가 필요하다.
+// BE 의 `/v1/frames/{srcSn}/image` 는 인증 헤더가 필요하다(헤더 이름·모양은 채널마다 다르며
+// 판정은 `features/auth/tokenHandoff.buildAuthHeader` 한 곳이 소유한다).
 // 그러나 <img src="/api/v1/frames/.../image"> 직접 호출은 axios interceptor 를 거치지 않아
 // 토큰 헤더가 누락되어 401 응답을 받는다.
 //
-// 해결: axios 로 fetch (Bearer 자동 첨부) → blob 응답 → URL.createObjectURL 로 임시 URL 생성
+// 해결: axios 로 fetch (인터셉터가 인증 헤더 자동 첨부) → blob 응답 → URL.createObjectURL 로 임시 URL 생성
 //      → konva Image 가 해당 blob URL 을 로드.
 //
 // 라이프사이클:
