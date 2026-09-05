@@ -30,6 +30,8 @@ set -euo pipefail
 #       --jboss-home=<경로>   JBOSS_HOME 직접 지정(미지정 시 자동 탐지)
 #       --war-name=<이름>     배포 파일명(기본: 이미 배포된 이름이 있으면 그것, 없으면 api.war)
 #       --was-unit=<유닛명>   systemd 유닛명(미지정 시 자동 탐지)
+#       --retire-legacy       1차 저작도구 WAR(label-studio.war)을 <이름을 바꿔> 내린다.
+#                             지우지 않는다 — label-studio.war_<YYMMDD> 로 옮긴다.
 #       --restart             배선 후 WAS 를 재기동한다
 #       --check               아무것도 바꾸지 않고 현재 상태만 본다
 #
@@ -44,6 +46,10 @@ require_root
 
 ONPREM="$(onprem_root)"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
+# ★ 웹 컨텍스트 — WAR 안 jboss-web.xml 이 정하는 값과 같아야 한다(현장: /label-studio).
+#   여기서 갈리면 헬스체크가 404 를 받고 <설치가 실패한 것처럼> 보인다.
+APP_CONTEXT="${APP_CONTEXT:-/label-studio}"
+
 KLID_PREFIX="${KLID_PREFIX:-/opt/klid}"
 KLID_DATA="${KLID_DATA:-/var/lib/klid}"
 KLID_LOG="${KLID_LOG:-/var/log/klid}"
@@ -53,6 +59,7 @@ WAR_NAME_ARG=""
 WAS_UNIT_ARG=""
 DO_RESTART=0
 CHECK_ONLY=0
+RETIRE_LEGACY=0
 
 for arg in "$@"; do
   case "${arg}" in
@@ -60,6 +67,7 @@ for arg in "$@"; do
     --war-name=*)   WAR_NAME_ARG="${arg#*=}" ;;
     --was-unit=*)   WAS_UNIT_ARG="${arg#*=}" ;;
     --restart)      DO_RESTART=1 ;;
+    --retire-legacy) RETIRE_LEGACY=1 ;;
     --check)        CHECK_ONLY=1 ;;
     --help|-h)      sed -n '3,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "알 수 없는 옵션: ${arg} (--help 로 사용법)" ;;
@@ -353,6 +361,40 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
+# 2-b) 1차 저작도구 WAR 내리기 (--retire-legacy)
+#   ★ 지우지 않는다. 현장에서 사람이 쓰던 이름 규칙(label-studio.war_YYMMDD)에 맞춰 옮긴다.
+#     배포 디렉터리에서 이름이 .war 가 아니게 되면 스캐너가 알아서 내린다.
+#   ⚠ 우리 배포와 <컨텍스트가 겹치지 않으므로>(그쪽 /label-studio, 우리 /api) 이 단계를
+#     건너뛰어도 배포는 성공한다. 정리는 운영 판단이라 기본값을 <하지 않음>으로 둔다.
+# ---------------------------------------------------------------------------
+shopt -s nullglob
+_legacy=()
+for _f in "${DEPLOY_DIR}"/label-studio*.war; do
+  [[ "$(basename "${_f}")" == "${WAR_NAME}" ]] && continue
+  _legacy+=("${_f}")
+done
+shopt -u nullglob
+if [[ "${#_legacy[@]}" -gt 0 ]]; then
+  if [[ "${RETIRE_LEGACY}" -eq 1 ]]; then
+    info "[legacy] 1차 저작도구 WAR 을 내립니다(지우지 않고 이름만 바꿉니다)"
+    for _f in "${_legacy[@]}"; do
+      _b="$(basename "${_f}")"; _to="${_f}_$(date '+%y%m%d')"
+      if [[ -e "${_to}" ]]; then
+        info "[legacy] 이미 백업본이 있습니다 — 건너뜁니다: $(basename "${_to}")"
+        continue
+      fi
+      mv "${_f}" "${_to}"
+      rm -f "${_f}".deployed "${_f}".dodeploy "${_f}".failed 2>/dev/null || true
+      ok "[legacy] ${_b} → $(basename "${_to}")"
+      info "         되돌리려면:  mv '${_to}' '${_f}' && touch '${_f}.dodeploy'"
+    done
+  else
+    info "[legacy] 1차 저작도구 WAR 이 있습니다 — 컨텍스트가 겹치지 않아 배포에는 지장이 없습니다."
+    info "         내리려면 --retire-legacy 를 주세요(지우지 않고 이름만 바꿉니다)."
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 3) WAR 배포
 # ---------------------------------------------------------------------------
 info "[deploy] ${WAR_SRC} → ${WAR_DST}"
@@ -446,5 +488,5 @@ info "  3) undertow/io 설정 — 별도 스크립트가 있습니다(기동 중
 info "       sudo ./scripts/install/18-jboss-settings.sh --check     # 먼저 현재 값을 본다"
 info "       sudo ./scripts/install/18-jboss-settings.sh --apply"
 info "  4) 살아 있는지"
-info "       curl -i http://127.0.0.1:8080/api/actuator/health/liveness"
+info "       curl -i http://127.0.0.1:8080${APP_CONTEXT}/api/actuator/health/liveness"
 echo

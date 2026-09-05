@@ -1,0 +1,327 @@
+{
+  "item": {
+    "id": "SEQ-032",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "온라인 AI 객체 탐지 — 사람이 눌러 부르고 저장 없이 좌표만 돌려준다",
+    "slug": "온라인-ai-객체-탐지-사람이-눌러-부르고-저장-없이-좌표만-돌려준다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "온라인 AI 객체 탐지 — 사람이 눌러 부르고 저장 없이 좌표만 돌려준다",
+      "source": "sequenceDiagram\n    actor worker as 라벨링 작업자(WORKER)\n    participant canvas as 라벨링 캔버스 화면\n    participant ctl as AutolabelController\n    participant guard as LabelAccessGuard\n    participant svc as AutolabelOnlineService\n    participant preset as PresetLabelLookupService\n    participant config as SystemConfigService\n    participant ai as AiServerClient\n    participant infer as AI 추론 서버\n    participant db as LS_LABEL(라벨 마스터)\n\n    worker->>canvas: 탐지 대상 분류를 고르거나 고르지 않고 AI 탐지를 실행한다\n    canvas->>ctl: POST /v1/frames/{srcSn}/autolabel\n    ctl->>guard: 배정과 작업락을 확인\n    guard-->>ctl: 통과 — 잠긴 영상이면 막고 외부 추론을 부르지 않는다\n    ctl->>svc: detect(srcSn, 요청 분류, 신뢰도 문턱)\n    svc->>svc: 같은 프레임의 동시 탐지를 하나만 통과시킨다\n    Note over svc: 겹쳐 통과시키면 같은 라벨이 두 벌 만들어진다. 동시 요청이 상한을 넘으면 요청이 너무 많다로 거부해 추론 자원 경합을 막는다\n    svc->>preset: 라벨 마스터에 매핑된 검출 분류 조회\n    preset->>db: 활성 라벨의 검출 클래스 매핑 조회\n    db-->>preset: 매핑된 검출 클래스\n    preset-->>svc: 매핑 목록\n    svc->>svc: 화면이 보낸 분류와 매핑된 분류의 교집합으로 탐지 대상을 정한다\n    Note over svc: 화면 요청을 그대로 믿지 않는다 — 무엇을 탐지할지의 판정은 서버가 소유한다\n    Note over svc: [대안] 요청한 분류가 전부 미매핑이거나 매핑된 라벨이 하나도 없으면 외부를 부르지 않고 빈 결과와 안내를 돌려준다\n    svc->>config: 신뢰도 문턱 조회\n    config-->>svc: 시스템 설정값\n    Note over svc: 문턱은 요청값 · 시스템 설정 · 코드 기본값 순으로 정하고, 단순화 정밀도와 함께 그 요청에만 적용하며 저장하지 않는다\n    opt 매핑된 대상이 있을 때 — 외부를 부르고 돌아온 좌표를 다듬는다\n        svc->>ai: 탐지 요청 — 이 동안 저장소 연결을 붙잡지 않는다\n        ai->>infer: POST /infer/yolo/predict\n        infer-->>ai: 검출 좌표와 신뢰도\n        ai-->>svc: 검출 목록\n        Note over svc: [대안] 외부 추론이 실패하면 외부 오류로 알리고 진행 표식을 푼다. 목 응답은 자동 적용하지 않고 빈 결과와 안내만 돌려준다\n        svc->>svc: 음수와 이미지 초과 좌표를 경계로 좁힌다\n        svc->>svc: 이미지 밖 퇴화 상자는 그 검출만 뺀다\n        svc->>svc: 수가 아닌 좌표가 섞이면 그 응답의 검출을 하나도 돌려주지 않는다\n        Note over svc: 좁히는 것과 거르는 것을 가른다 — 경계 밖 좌표는 좁혀 살리고 형식 위반은 전부 거른다\n        svc->>guard: 추론이 끝난 사이에 그 영상이 잠겼는지 다시 확인\n        guard-->>svc: 판정\n        Note over svc: [대안] 추론 뒤에 작업락이 걸렸으면 좌표를 돌려주지 않고 충돌로 막는다. 진행 표식을 풀어 다시 요청할 수 있게 한다\n    end\n    svc-->>ctl: 검출 좌표 — 저장 없이 좌표만\n    ctl-->>canvas: 200 OK\n    canvas-->>worker: 캔버스에 후보 반영 — 기존 라벨은 지워지지 않는다\n    worker->>canvas: 후보를 확인·수정한 뒤 저장한다\n    Note over canvas: 저장은 라벨 편집 흐름이 소유한다 — 이 흐름은 저장소에 아무것도 쓰지 않는다\n",
+      "messages": [
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "탐지 대상 분류를 고르거나 고르지 않고 AI 탐지를 실행한다"
+        },
+        {
+          "to": "ctl",
+          "from": "canvas",
+          "kind": "sync",
+          "label": "POST /v1/frames/{srcSn}/autolabel",
+          "item_ref": "API-124"
+        },
+        {
+          "to": "guard",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "배정과 작업락을 확인"
+        },
+        {
+          "to": "ctl",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과 — 잠긴 영상이면 막고 외부 추론을 부르지 않는다"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "detect(srcSn, 요청 분류, 신뢰도 문턱)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "같은 프레임의 동시 탐지를 하나만 통과시킨다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "겹쳐 통과시키면 같은 라벨이 두 벌 만들어진다. 동시 요청이 상한을 넘으면 요청이 너무 많다로 거부해 추론 자원 경합을 막는다"
+        },
+        {
+          "to": "preset",
+          "from": "svc",
+          "kind": "sync",
+          "label": "라벨 마스터에 매핑된 검출 분류 조회"
+        },
+        {
+          "to": "db",
+          "from": "preset",
+          "kind": "sync",
+          "label": "활성 라벨의 검출 클래스 매핑 조회"
+        },
+        {
+          "to": "preset",
+          "from": "db",
+          "kind": "return",
+          "label": "매핑된 검출 클래스"
+        },
+        {
+          "to": "svc",
+          "from": "preset",
+          "kind": "return",
+          "label": "매핑 목록"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "화면이 보낸 분류와 매핑된 분류의 교집합으로 탐지 대상을 정한다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "화면 요청을 그대로 믿지 않는다 — 무엇을 탐지할지의 판정은 서버가 소유한다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 요청한 분류가 전부 미매핑이거나 매핑된 라벨이 하나도 없으면 외부를 부르지 않고 빈 결과와 안내를 돌려준다"
+        },
+        {
+          "to": "config",
+          "from": "svc",
+          "kind": "sync",
+          "label": "신뢰도 문턱 조회"
+        },
+        {
+          "to": "svc",
+          "from": "config",
+          "kind": "return",
+          "label": "시스템 설정값"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "문턱은 요청값 · 시스템 설정 · 코드 기본값 순으로 정하고, 단순화 정밀도와 함께 그 요청에만 적용하며 저장하지 않는다"
+        },
+        {
+          "to": "ai",
+          "from": "svc",
+          "kind": "sync",
+          "label": "탐지 요청 — 이 동안 저장소 연결을 붙잡지 않는다"
+        },
+        {
+          "to": "infer",
+          "from": "ai",
+          "kind": "sync",
+          "label": "POST /infer/yolo/predict",
+          "item_ref": "API-113"
+        },
+        {
+          "to": "ai",
+          "from": "infer",
+          "kind": "return",
+          "label": "검출 좌표와 신뢰도"
+        },
+        {
+          "to": "svc",
+          "from": "ai",
+          "kind": "return",
+          "label": "검출 목록"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 외부 추론이 실패하면 외부 오류로 알리고 진행 표식을 푼다. 목 응답은 자동 적용하지 않고 빈 결과와 안내만 돌려준다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "음수와 이미지 초과 좌표를 경계로 좁힌다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "이미지 밖 퇴화 상자는 그 검출만 뺀다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "수가 아닌 좌표가 섞이면 그 응답의 검출을 하나도 돌려주지 않는다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "좁히는 것과 거르는 것을 가른다 — 경계 밖 좌표는 좁혀 살리고 형식 위반은 전부 거른다"
+        },
+        {
+          "to": "guard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "추론이 끝난 사이에 그 영상이 잠겼는지 다시 확인"
+        },
+        {
+          "to": "svc",
+          "from": "guard",
+          "kind": "return",
+          "label": "판정"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 추론 뒤에 작업락이 걸렸으면 좌표를 돌려주지 않고 충돌로 막는다. 진행 표식을 풀어 다시 요청할 수 있게 한다"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "검출 좌표 — 저장 없이 좌표만"
+        },
+        {
+          "to": "canvas",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "worker",
+          "from": "canvas",
+          "kind": "return",
+          "label": "캔버스에 후보 반영 — 기존 라벨은 지워지지 않는다"
+        },
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "후보를 확인·수정한 뒤 저장한다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "note",
+          "label": "저장은 라벨 편집 흐름이 소유한다 — 이 흐름은 저장소에 아무것도 쓰지 않는다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "매핑된 대상이 있을 때 — 외부를 부르고 돌아온 좌표를 다듬는다",
+          "end_index": 28,
+          "start_index": 17
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — UC-039 의 흐름을 참가자와 메시지로 처음 시각화한다."
+      },
+      "description": "라벨링 화면에서 사람이 눌러 실행하는 탐지를 그린다. 배치가 자동으로 도는 탐지와 달리 사람이 그 자리에서 부르며, 결과를 저장하지 않고 좌표만 돌려주어 작업본 편집에 쓰인다. 저장은 라벨 편집 흐름이 소유한다.\n\n무엇을 탐지할지는 서버가 정한다. 화면이 보낸 대상 분류를 그대로 믿지 않고 라벨 마스터에 매핑된 분류와의 교집합으로 정하며, 매핑되지 않은 분류만 요청되면 외부를 부르지 않고 빈 결과와 안내를 돌려준다.\n\n좌표는 경계로 좁히되 형식 위반은 전부 거른다. 음수와 이미지 초과는 경계로 좁혀 돌려주고, 이미지 밖 퇴화 상자는 그 검출만 빼며, 수가 아닌 좌표가 섞이면 그 응답의 검출을 하나도 돌려주지 않는다. 좁히는 것과 거르는 것은 다른 판정이다.\n\n잠긴 영상이면 외부 추론을 부르기 전에 막고, 외부 호출이 끝난 사이에 잠겼으면 좌표를 돌려주지 않고 충돌로 막되 진행 표식을 풀어 다시 요청할 수 있게 한다. 같은 프레임의 동시 탐지는 하나만 통과시켜 라벨이 겹쳐 만들어지지 않게 하고, 동시 요청이 상한을 넘으면 거부해 추론 자원 경합을 막는다.\n\n클릭으로 외곽을 따는 것과 객체를 따라가는 것은 각각 별도 흐름이 소유하므로 여기서 그리지 않는다.",
+      "invokes_apis": [
+        "API-124",
+        "API-113"
+      ],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "canvas",
+          "kind": "system",
+          "name": "라벨링 캔버스 화면",
+          "item_ref": "SCREEN-005"
+        },
+        {
+          "id": "ctl",
+          "kind": "service",
+          "name": "AutolabelController"
+        },
+        {
+          "id": "guard",
+          "kind": "service",
+          "name": "LabelAccessGuard"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "AutolabelOnlineService"
+        },
+        {
+          "id": "preset",
+          "kind": "service",
+          "name": "PresetLabelLookupService"
+        },
+        {
+          "id": "config",
+          "kind": "service",
+          "name": "SystemConfigService"
+        },
+        {
+          "id": "ai",
+          "kind": "service",
+          "name": "AiServerClient"
+        },
+        {
+          "id": "infer",
+          "kind": "system",
+          "name": "AI 추론 서버"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "LS_LABEL(라벨 마스터)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-039"
+      ],
+      "related_acceptances": [
+        "AC-1034",
+        "AC-1035"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "조각을 실제 조건이 있는 자리로만 좁힌다. 앞선 편집에서 지면 분할 자리를 만들려고 늘 실행되는 구간에도 선택 조각을 걸었는데, 선택 조각은 조건이 맞을 때만 실행된다는 뜻이라 그림이 사실과 달라졌다. 조건이 실재하는 구간만 남기고 채널이 둘로 갈리는 자리는 갈림 조각으로 바로잡는다. 참가자와 메시지는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T19:31:51.282Z",
+    "created_at": "2026-09-03T06:52:04.462Z"
+  }
+}

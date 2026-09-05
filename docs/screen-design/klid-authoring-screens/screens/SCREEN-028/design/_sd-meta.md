@@ -6,7 +6,6 @@
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-028 |
-| 디자인 시스템 | DS-002 (외부 채널 축) |
 
 ## renders
 

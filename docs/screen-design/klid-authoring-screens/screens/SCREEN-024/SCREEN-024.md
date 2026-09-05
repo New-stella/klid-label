@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-024
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-28T22:11:33.786Z
+version: 33
+last_updated_at: 2026-09-02T03:11:15.349Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:39:29.404Z
-sync_session: 37
+synced_at: 2026-09-05T02:34:48.358Z
+sync_session: 35
 stale: true
 status: UNCHANGED
 prev_version: null
@@ -401,7 +401,7 @@ _(empty)_
 
 ### notes
 
-2026-08-27 — 관리 기능을 별도 진입 경로로 분리했다. 새 역할을 만들지 않고, 관리자 패스워드 확인으로 열리는 단기 유효창을 역할 변경에 가산한다.
+2026-08-27 — 관리 기능을 별도 진입 경로로 분리했다. 새 역할을 만들지 않고, 관리자 패스워드 확인으로 열리는 단기 유효창을 역할 변경에 가산한다. ⚠ 「새 역할을 만들지 않고」는 뒤집혔다 — ADR-055 가 관리자 역할(ADMIN)을 신설했다. 그 시점의 판단으로 남겨 두되 현재 사양이 아니다. 관리 기능을 별도 진입 경로로 빼고 그 진입에 관리자 패스워드를 요구하는 것은 이번 변경 대상이 아니며 그대로다.
 - 라우트를 관리자 페이지로 옮겼다. 구 경로는 이 화면의 주소가 아니다.
 - 화면과 창구를 갈랐다. 화면 진입은 관리자 역할을 요구하고, 목록·단건 조회 창구 자체는 검수자 권한으로도 응답한다 — 그 창구까지 막으면 작업 배정 흐름이 끊긴다.
 - 유효창은 인가를 대체하지 않고 가산된다. 관리자 역할은 그대로 필요하며 유효창이 역할을 승격시키지 않는다.
@@ -452,6 +452,10 @@ web
 - API-001
 - API-004
 - API-194
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 
@@ -514,6 +518,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 

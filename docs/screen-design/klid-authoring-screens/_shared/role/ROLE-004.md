@@ -1,7 +1,7 @@
 ---
 logicraft_item: ROLE-004
 type: permission_role
-version: 4
+version: 5
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/ROLE-004.json
@@ -72,7 +72,7 @@ ADR-055
 - view
 - update
 
-- **condition**: 사용자 관리 — 목록 조회·검색·역할 지정(관리자·검수자·작업자). 사용자 생성은 두지 않는다(진입 시 작업자로 자동 등록된다). 마지막 관리자의 강등은 거부된다
+- **condition**: 사용자 관리 — 목록 조회·검색·역할 지정(관리자·검수자·작업자·포털). 사용자 생성은 두지 않는다(진입 시 작업자로 자동 등록된다). 마지막 관리자의 강등은 거부된다
 - **target_id**: SCREEN-024
 - **target_kind**: screen_spec
 
@@ -135,6 +135,10 @@ ADR-055
 ## inherits_from
 
 - ROLE-001
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 

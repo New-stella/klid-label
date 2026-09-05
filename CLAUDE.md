@@ -228,7 +228,7 @@ slowBuild: true
 - **마킹 화면**: **비식별 영상** 스트리밍(`GET /v1/videos/{rawSn}/stream`, HTTP Range 지원 — 항상 비식별 영상 서빙, 비식별 미완료 시 NOT_FOUND 로 원본 노출 차단) + 배속 설정(0.25x~4x) + 키보드 단축키(Space: 마킹, Del: 삭제, Enter: 완료). 마킹 중 비식별 누락 발견 시 **비식별 신고** 가능(rawSn 기준, `POST /v1/videos/{rawSn}/deident-report` — 구현됨)
 - **★VLM·KPST 위탁은 논블로킹 제출이다 (2026-08-03 실측 정정 — 구 "동기 호출(45s 타임아웃)" 서술 폐기)**: `VlmTimeseriesStep` 은 `.block(45s)` 로 파이프라인 스레드를 붙잡지 않고 **`subscribe()` 로 제출만 개시**한다(Phase C-1). 구 방식은 외부가 느려지면 core 2 짜리 배치 풀이 통째로 마르고 CallerRuns 역압이 호출 스레드까지 물었다. **KPST 비식별 제출도 대칭**으로, WAITING 원장 행을 선커밋하고 `createProject` 를 비동기 디스패치한다(Phase C-2).
   - **스텝이 확정적으로 말하는 사실은 "제출을 개시했다" 뿐**이다. 수락(ACK) 여부는 완료 핸들러가 `LS_BATCH_PROC_LOG`·원장에 비동기 기록하고, 그 기록은 `publishOn` 이 아니라 **명시적 디스패치**(`SubmitSignalDispatch`)로 전용 풀에서만 실행한다 — `publishOn` 은 풀 포화 시 거부가 **시그널을 나른 reactor-netty 이벤트 루프**로 흘러 JPA 쓰기를 이벤트 루프에서 실행시킨다.
-  - **★아무 신호도 없으면 회수기가 집는다 — 단 회수기는 축마다 다르다 (2026-09-03 코드 실측 정정)**: 시계열은 **전용 미결 스위퍼**(`VlmSubmitPendingSweeper`)가 집어 **재위탁**하고, **비식별에는 전용 스위퍼가 없다** — **폴링 잡이 ACK 대기 유예 만료로 회수**해 실패 코드(`KPST_ACK_MISSING`)로 원장을 마감한다(**재위탁하지 않는다**). ⚠ **구 서술 폐기** — *「미결 스위퍼가 회수한다(KPST 대칭)」·「스위퍼가 유일한 회수 경로다」*. **제출 축(논블로킹 선커밋)은 대칭이 맞으나 회수 축은 아니다** — 위 줄의 대칭 서술까지 함께 지우지 말 것. ⚠⚠ **구 서술 폐기 — 앞 절은 참인데 결론이 거짓이었다 (2026-09-03 재정정, 코드 실측)**: *「비식별 쪽 회수는 「우리가 ACK 를 관측하지 못했다」는 뜻이지 「외부에서 실패했다」가 아니므로 **영상 비식별 상태를 실패(`F`)로 내리지 않는다**」* 는 **사실과 다르다.** 그 회수는 확정 실패와 **같은 종결 경로**를 타 **영상을 `'F'` 로 내린다.** 영상 상태를 건드리지 않는 것은 **`KPST_SUBMIT_CANCELED`**(호출자 트랜잭션 롤백 — **외부로 나간 것이 없다**) 하나뿐이고, 코드가 그 구분을 명시한다 — *「ACK 유예 회수에 맡기면 그 종착이 `'F'` 라, 실패한 요청이 3분 뒤 영상을 차단 상태로 만든다」*. **`ACK_MISSING` 을 따로 둔 이유는 영상 상태가 아니라 운영 조치다** — KPST 쪽에 프로젝트가 실제로 생성돼 있을 수 있어 사람이 외부 상태를 확인해야 한다. ⚠ 세 종결 코드(`SUBMIT_FAILED`·`ACK_MISSING`·`SUBMIT_CANCELED`)가 **전부 같은 조건부 UPDATE 로 `POLL_STTS_CD='FAILED'` 를 세우므로** 「같은 종료값, 다른 결과」 구조는 실재하나 **예외는 취소 종결 쪽이다.** ⚠ 앞 절(「관측하지 못했다는 뜻이지 외부 실패가 아니다」)은 **그대로 참이니 함께 지우지 말 것** — 그 구분이 나타나는 자리가 영상 상태가 아닐 뿐이다. in-memory subscription 은 노드가 죽으면 통째로 사라져 ACK 도 실패 신호도 오지 않고, **실패 행이 없어 재시도 큐·실패 회수기가 집지 못한다** — 그래서 **각 축의 이 회수 경로가 유일하다**. 2노드 Active-Active 에서 같은 후보를 두 번 재위탁하지 않도록 처리 전 **조건부 UPDATE 로 원자 클레임**한다(Quartz 클러스터링은 트리거 중복만 막는다).
+  - **★아무 신호도 없으면 회수기가 집는다 — 단 회수기는 축마다 다르다 (2026-09-03 코드 실측 정정)**: 시계열은 **전용 미결 스위퍼**(`VlmSubmitPendingSweeper`)가 집어 **재위탁**하고, **비식별에는 전용 스위퍼가 없다** — **폴링 잡이 ACK 대기 유예 만료로 회수**해 실패 코드(`KPST_ACK_MISSING`)로 원장을 마감한다(**재위탁하지 않는다**). ⚠ **구 서술 폐기** — *「미결 스위퍼가 회수한다(KPST 대칭)」·「스위퍼가 유일한 회수 경로다」*. **제출 축(논블로킹 선커밋)은 대칭이 맞으나 회수 축은 아니다** — 위 줄의 대칭 서술까지 함께 지우지 말 것. ⚠⚠ **구 서술 폐기 — 앞 절은 참인데 결론이 거짓이었다 (2026-09-03 재정정, 코드 실측)**: *「비식별 쪽 회수는 「우리가 ACK 를 관측하지 못했다」는 뜻이지 「외부에서 실패했다」가 아니므로 **영상 비식별 상태를 실패(`F`)로 내리지 않는다**」* 는 **사실과 다르다.** 그 회수는 확정 실패와 **같은 종결 경로**를 타 **영상을 `'F'` 로 내린다.** 영상 상태를 건드리지 않는 것은 **`KPST_SUBMIT_CANCELED`**(호출자 트랜잭션 롤백 — **외부로 나간 것이 없다**) 하나뿐이고, 코드가 그 구분을 명시한다 — *「ACK 유예 회수에 맡기면 그 종착이 `'F'` 라, 실패한 요청이 3분 뒤 영상을 차단 상태로 만든다」*. **`ACK_MISSING` 을 따로 둔 이유는 영상 상태가 아니라 운영 조치다** — KPST 쪽에 프로젝트가 실제로 생성돼 있을 수 있어 사람이 외부 상태를 확인해야 한다. ⚠ 세 종결 코드(`SUBMIT_FAILED`·`ACK_MISSING`·`SUBMIT_CANCELED`)가 **전부 같은 조건부 UPDATE 로 `POLL_STTS_CD='FAILED'` 를 세우므로** 「같은 종료값, 다른 결과」 구조는 실재하나 **예외는 취소 종결 쪽이다.** ⚠ 앞 절(「관측하지 못했다는 뜻이지 외부 실패가 아니다」)은 **그대로 참이니 함께 지우지 말 것** — 그 구분이 나타나는 자리가 영상 상태가 아닐 뿐이다. in-memory subscription 은 노드가 죽으면 통째로 사라져 ACK 도 실패 신호도 오지 않고, **실패 행이 없어 재시도 큐·실패 회수기가 집지 못한다** — 그래서 **각 축의 이 회수 경로가 유일하다**. 여러 노드가 함께 뜨는 Active-Active 형상에서 같은 후보를 두 번 재위탁하지 않도록 처리 전 **조건부 UPDATE 로 원자 클레임**한다(Quartz 클러스터링은 트리거 중복만 막는다).
   - ⚠ **미결 임계는 두 개이며 하나로 덮으면 정상 위탁을 뺏는다**: **ACK 창**(`stale-timeout-minutes`, 기본 30분 — 원장 `ISSUED`, 수락 응답조차 못 본 건) / **콜백 창**(`callback-timeout-minutes`, 기본 360분 — 원장 `ACCEPTED`, 벤더 분석은 영상 길이에 따라 수십 분 걸린다). 두 창을 구분하는 근거는 완료 핸들러의 `ISSUED → ACCEPTED` 전이(`VlmSubmitOutcomeRecorder`)이며, 그 전이가 없으면 구분이 성립하지 않는다.
   - 결과 상세는 VLM 서버가 콜백(`POST /v1/vlm/callback`)으로 별도 전송 → `VlmResultService` 가 `LS_DATA_META` 적재(`vlm.description` — 묘사 축만. 두 축 다 이벤트 어노테이션 초안으로도 간다 — 아래 적재 축 절) + 검수큐(`LS_DATA_META_REVIEW`) 진입은 `vlm.description` 1건만 (아래 verify 절)
 - **★외부 시계열 위탁은 묘사(`describe`) + 추가 질문(`describe-sub`) 두 창구다 (2026-08-24 사용자 확정, 구속 · `ADR-051` — 구 `verify` 단일 규격 폐기)**: 확정 계약은 **KLID 연동 API v1.1.0**(`docs/연동규격서/video_vlm_klid_api_v1.1.0.pdf`)이며 우리가 호출하는 것은 **`POST /v1/videovlm-klid/describe`**(장소·환경·상황 서술)와 **`POST /v1/videovlm-klid/describe-sub`**(발생 여부와 근거 서술) 둘이다. **판정 창구 `POST /v1/videovlm-klid/verify` 는 연동하지 않는다** — 그 창구만 제공하는 `detected`·`accuracy` 가 우리 확정 경로(화면 확정·산출물·데이터마트) 어디에도 쓰이지 않기 때문이다.
@@ -761,7 +761,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
   - **근거**: ①연동 4종은 **내부망의 별도 GPU 서버**에 있을 가능성이 높아 대역 차단이 **정당한 대상을 막는다**(실제로 `ai-server` 기본값이 `localhost:9300` 이라 구 정책에서 400 이었다) ②시스템 전체가 **온프렘 내부망 배포**이고 외부에 노출되지 않는다(노출되는 것은 포털향뿐이며 **설정 화면은 포털 채널에 비노출**) ③아웃바운드·인바운드 통제는 **인프라 계층이 담당**한다.
   - ⚠ **구 정책(2026-08-10 오전) 폐기**: *"도메인을 IP 로 해석한 뒤 내부망 대역(127.0.0.1·10.x·172.16~31.x·192.168.x·169.254.169.254) 차단 + 요청 직전 재검증(DNS rebinding)"*. **되살리지 말 것** — 되살리면 정상 연동이 전부 막힌다.
   - ⚠ **잔여 위험(인지·수용)**: 관리자 패스워드를 얻은 자가 주소를 바꿔 영상·라벨을 다른 서버로 내보낼 수 있다. 이는 **대역 차단으로는 애초에 막히지 않던 위험**(공인망 주소로 바꾸면 그만)이라 이번 반전으로 새로 생긴 것이 아니다. 클라우드 메타데이터 탈취 경로는 **온프렘이라 성립하지 않는다**.
-- **관리자 인증 = 단기 유효창**: 기존 관리자 공유 패스워드(`ADMIN_CLAIM_PASSWORD_HASH`) 재사용 · 무상태 서명 토큰(2노드 공유 저장소 불필요) · **기본 10분, 상한 30분 강제** · 유효성 판정은 **서버 소유** · 토큰은 **주소 설정 변경 권한 한정**이며 역할을 승격시키지 않는다.
+- **관리자 인증 = 단기 유효창**: 기존 관리자 공유 패스워드(`ADMIN_CLAIM_PASSWORD_HASH`) 재사용 · 무상태 서명 토큰(노드 간 공유 저장소 불필요) · **기본 10분, 상한 30분 강제** · 유효성 판정은 **서버 소유** · 토큰은 **주소 설정 변경 권한 한정**이며 역할을 승격시키지 않는다.
   - ⚠ `RoleClaimService.claim` 을 그대로 부르면 안 된다(역할 보유자면 409) — **해시·rate limiter 는 공유하되 진입점은 별도**.
 - **감사**: 새 테이블을 만들지 않는다. `LS_SYSTEM_CONFIG.MDFR_ID`/`MDFCN_DT` + INFO 로그로 충당한다(**패스워드·토큰은 절대 기록 금지**).
 
@@ -794,7 +794,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > ⚠ 위 4가지는 **요약이라 그대로 구현 근거로 쓸 수 없다.** 응답 코드·적용 경로 목록·예외(파생영상·포털 업로드 자산)는 정본에만 있다.
 
 ### 배치 성능
-- Spring Boot + Quartz는 **주 서버 2노드 Active-Active 이중화** 배포 — 관제서버와 동일 서버 공동 배치, 앱 2노드 동시 기동, **Quartz 클러스터링 적용**(PostgreSQL JobStore 락으로 잡 중복 방지). DB는 별도 DB 서버(이중화), 파일 스토리지는 별도 NAS 서버(공유 마운트) *(구 '단일 인스턴스·클러스터 미적용' 서술 대체 — 2026-07-14 배포 토폴로지 확정, D5 v1.10 정합)*
+- Spring Boot + Quartz는 **Active-Active 이중화** 배포. **★노드 수는 넷이다 (2026-09-04 현장 실측)** — WAS 는 `klid-ai-gen-was-01~04` 네 대이고, 웹의 httpd 분산 묶음 `label-cluster` 에 **네 대가 모두 등록**돼 있어(BalancerMember `10.177.22.80~83:8080`) 넷이 함께 뜬다. ⚠ **구 수치 「2노드」는 2026-07-14 설계 시점 값이다** — 틀렸다기보다 그 뒤 현장 형상이 넷으로 늘었다. 지우지 않고 남기되, **노드 수를 근거로 하는 판단(락 경합·부하 산정·재시도 중복·공유 저장소 필요 여부)은 넷으로 계산할 것.** **Quartz 클러스터링 적용**(PostgreSQL JobStore 락으로 잡 중복 방지). DB는 별도 DB 서버(이중화), 파일 스토리지는 별도 NAS 서버(공유 마운트). ⚠⚠ **「관제서버와 동일 서버 공동 배치」는 확인되지 않았다 — 근거로 쓰지 말 것.** 2026-09-04 현장에서 사용자가 관제와 서버가 다른 데 있는 것 같다고 했으나 확정이 아니고, 반대로 반입 명세는 영상 처리 도구를 관제지원 측이 **같은 장비에** 설치한다고 적어 두 서술이 어긋나 있다. 어느 쪽인지 확인되기 전까지는 미확인이다 *(구 '단일 인스턴스·클러스터 미적용' 서술 대체 — 2026-07-14 배포 토폴로지 확정, D5 v1.10 정합)*
 - **클러스터링은 stg/prd 에서 강제(fail-closed) — 꺼져 있으면 기동 거부** *(2026-07-29 확정, B-ISSUE-81/02)*: `QUARTZ_CLUSTERED` 는 stg/prd 프로파일 기본값이 `true` 이고, `false`(또는 미설정으로 공통 기본값 상속) 면 `QuartzClusteringGuard` 가 `@PostConstruct` 에서 기동을 실패시킨다. 판정은 **allowlist**(단일 노드 허용 = local/dev 프로파일 전부일 때만, `containsAll`) + **`ENV` 배포 표식 독립 축**(`DevProfileGuard.DEPLOYED_ENVS` 동일 기준 — `SPRING_PROFILES_ACTIVE=dev` 로 낮춰도 우회 불가) 두 축이며, 오타·미지정·혼합 프로파일은 자동으로 엄격하다. WARN 은 배포 로그에 묻히므로 경고가 아니라 기동 차단이다(`VlmUrlPolicy`·`GenAiIntegrationWiringGuard` 와 동일 골격). ⚠ 클러스터링은 **트리거 중복 발화**만 막는다 — 잡 내부 레이스는 각 잡의 원자 클레임(조건부 UPDATE)이 별도로 막으며 서로 대체하지 않는다. ⚠ 노드 간 시계 동기(NTP) 전제 — 운영 체크리스트는 `deploy/onprem/docs/04-configuration.md`·`09-operations-runbook.md`
 - Quartz 기반 1건/분 처리. ai-server 추론 자원 모니터링 포인트 확보
 - **ai-server(YOLO/SAM2)는 주 서버 내 별도 프로세스(무상태)** — 필요 시 다중 프로세스 확장 가능
@@ -957,6 +957,22 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★★★ **2026-09-05 SYNC — 구현 15 키트 전량 (비기능 요구 정합 라운드).**
+> 계기는 **`nfr` 26건 신규 + 8건 수정**이다. 요구사항정의서(비기능)의 담당=`공통` 88건 중 저작도구가
+> 담고 있던 것이 9건뿐이어서 나머지를 등재했고(`NFR-023`~`NFR-048`), `nfr` 은 **전역 타입이라 15개 키트
+> 전부가 영향권**이다. 전 키트 `nfr` 15 → **41건**.
+> **검증**: 15키트 전건 `서버 건수 = pin 건수` 일치 · 직전 커밋 `version-master.md` 대비 **유실 0** ·
+> 키트 `_raw` 와 서버 본문 **완전일치**(무열화).
+> ★**두 바퀴 돌려야 수렴한다** — 1차 실행이 끝나면 다운로더가 **새 미판정을 채우기 때문**이다. 1차에서
+> 핵심 타입 48건(`CDIAG-016`~`045` · `DFEAT-060` · `API-242`~`244` · `ADR-063` · `INT-014` · `SEQ-036` ·
+> `ERD-032` · `EVT-001`)이 올라왔고, 2차에서 그것을 승격·재다운로드해 **핵심 타입 잔여 0** 이 됐다.
+> 한 바퀴만 돌고 끝내면 그 48건은 설계에 있는데 키트가 못 보는 상태로 남는다.
+> ⚠ **`SCREEN-034` 를 pin 에서 걷어냈다** — 포털 키트가 `pin 124 / 서버 123` 으로 어긋났는데, 그 차집합을
+> `status` 조회하니 **`deprecated`**(포털 라벨링 화면이 `SCREEN-029` 로 통합)였다. `_retired/` 에 보존돼
+> 있어 유실이 아니다. 근거는 `.kit-scope.json` 의 `note_pruned` 에 남겼다.
+> ⚠ **화면 키트 7종은 이 라운드 대상이 아니다** — 화면 키트 스코프에는 `nfr` 타입이 없어 영향이 없다.
+> ⚠ 자격증명·`--domain` 함정은 그대로다(아래 ★★★ 항목).
+>
 > ★★★★ **2026-09-02 SYNC — 구현 15 + 화면 7 = 22 키트 전량 (증강 종류 단일화 라운드 · `ADR-059`).**
 > 전 키트 **유실 0**(직전 커밋 `version-master.md` 대비 ID 집합 대조). 건수가 는 둘은 **`ADR-059` 승격분**이다 —
 > `DOMAIN-007`(소속 도메인) 77→78 · `DOMAIN-003`(`SCREEN-022`·`DFEAT-029`·`ERD-012` 를 pin 해 영향권) 136→137.
@@ -1001,21 +1017,21 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 69 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 137 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 113 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 108 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
-| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 46 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 78 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
-| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 46 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 170 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 56 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 83 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 79 | implemented 35 / in_progress 1 / verified 4 / planned 31 / (미기재) 11 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 84 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 46 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 65 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 62 | implemented 21 / in_progress 1 / verified 6 / planned 27 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, SD 고충실 시안 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 108 | implemented 34 / planned 55 / (미기재) 19 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 181 | implemented 82 / in_progress 3 / verified 1 / planned 63 / (미기재) 32 | CONST 상수값 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 175 | implemented 75 / in_progress 7 / planned 61 / (미기재) 32 | TEST 통합시험 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 138 | implemented 63 / in_progress 1 / verified 1 / planned 51 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 75 | implemented 19 / planned 47 / (미기재) 9 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 110 | implemented 36 / in_progress 1 / planned 51 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 75 | implemented 22 / planned 46 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 201 | implemented 101 / in_progress 1 / planned 68 / (미기재) 31 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 23 / in_progress 2 / planned 47 / (미기재) 15 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 118 | implemented 36 / in_progress 2 / planned 59 / (미기재) 21 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 127 | implemented 38 / in_progress 3 / planned 71 / (미기재) 15 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 130 | implemented 55 / in_progress 1 / planned 56 / (미기재) 18 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 73 | implemented 20 / planned 48 / (미기재) 5 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 93 | implemented 26 / in_progress 2 / planned 51 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 106 | implemented 33 / in_progress 4 / planned 58 / (미기재) 11 | CONST 상수값, C4 컴포넌트 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -1041,6 +1057,43 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ⚠ **후속 라운드(같은 날) — 평평 디렉터리 정리 + 화면 2건 편입.**
+> ①**키트 루트의 평평한 타입 디렉터리를 전부 지웠다**(추적 파일 **2,423개** — 앞 문단의 「1,155개」는 과소
+> 집계였다). 지우기 전에 그 내용이 정본 경로에 있는지 대조했고, 이름이 정본에 없던 `SD-*` 26건도
+> 실체는 `screens/*/design/`(`_sd-meta.md`·`design-main.html/css`·`design-notes.md`)에 있고 버전은
+> `version-master.md` 가 추적한다. 문서의 경로 참조도 **0건**이었다. `bin/`(와이어프레임 생성기)은 보존.
+> ⇒ 이제 키트 최상위는 `screens/`·`_shared/`(+통합만 `bin/`·`_retired/`) 뿐이다.
+> ②**`SCREEN-044`(포털 증강)·`SCREEN-045`(포털 업로드 영상 마킹)를 폐포와 함께 편입**했다 — 소비 API 6건
+> (`API-232`·`233`·`238`~`241`)과 UC 경유 AC 2건(`AC-1070`·`1071`). 통합 키트는 전 화면 정본이라
+> 서버 활성 38건과 이제 같다.
+> ★★**소형 키트에는 담당 화면만 둔다 (2026-09-05 사용자 확정, 구속)** — 그래프로 닿는다는 이유로 새 화면을
+> 편입하지 않는다. 전 화면이 필요하면 **통합 키트(38화면)** 를 쓴다. 후보 25건(D003 +10 · D010 +7 ·
+> D001 +4 · D005 +2 · D015 +2)은 **매 SYNC 마다 pending 에 다시 올라오며 그때마다 기각**한다 —
+> 각 키트 `.kit-scope.json` 의 `note_pruned` 에도 같은 문구를 박아 뒀다. **되살리지 말 것.**
+> ⚠ **화면의 소속으로 키트 귀속을 정할 수 없다** — `screen_spec` **38건 전부 `domain_id` 가 없다**(실측).
+> 소형 키트의 화면 목록은 그래프가 아니라 **손으로 큐레이션한 것**이며, 그래서 새 화면 편입이 사실 판정이
+> 아니라 결정이다. **위 확정이 그 결정이다.**
+>
+> ★★★ **2026-09-05 SYNC — 7개 키트 전부 (구현 키트 라운드에 이어 화면 축 따라잡기).**
+> 계기는 **뒤처짐이 실측으로 확인된 것**이다 — 로컬 `_raw` 의 `current_version` 을 서버와 대조해
+> 통합 48 · D010 19 · D003 19 · D005 18 · D001 18 · D009 16 · D015 16 건을 확인하고 돌렸다.
+> **결과: 정본 경로(`screens/`·`_shared/`) 뒤처짐 7키트 전부 0** · 재실행 델타 `변경 0 · 유지 467` 로 수렴 ·
+> 직전 커밋 `version-master.md` 대비 **유실 0** · **`design.html`/`design.css` 로컬 원본 변경·삭제 0**.
+> ★**`--scope-file` 만으로는 pin 이 적용되지 않는다 — `--domain` 이 함께 있어야 한다.**
+> 다운로더가 `scopeByClient = Boolean(domain) && …` 로 판정하므로, `--domain` 을 빼면 pin 분기에
+> 아예 들어가지 않고 **프로젝트 전량(1,646건)** 을 받는다. dry-run 이 그것을 잡았다(pin 468 vs 서버 1,646).
+> 통합 키트의 pin `domain` 값은 **`DOMAIN-000`** 이므로 그 값을 그대로 넘긴다.
+> ★**pending 판정을 「따라잡기」와 「스코프 확대」로 갈랐다** — 기존 pin 화면이 소비하는 API·연결된 UC/AC·
+> 공유자산(ROLE·CONST) **42건만 승격**하고, **새 화면 25건과 그에 딸린 SD 6건은 보류**했다. 도메인별
+> 소형 키트는 담당 화면만 담는 의도적 축소판이라, 그래프로 닿는다고 새 화면을 넣으면 키트 정체성이 바뀐다.
+> ⚠ **`SCREEN-034` 를 통합 pin 에서 걷어냈다**(서버 `deprecated` — `SCREEN-029` 로 통합). `_retired/` 보존, 유실 아님.
+> ⚠ **통합 키트에 아직 없는 화면 2건: `SCREEN-044`(포털 증강) · `SCREEN-045`.** 화면 편입은 폐포(소비 API·UC·AC·렌더)를
+> 함께 승격하는 별도 라운드가 필요하다 — `SCREEN-039` 때와 같은 이유다.
+> ⚠ **키트 루트에 평평한 타입 디렉터리가 남아 있다**(`use_case/`·`api_endpoint/`·`screen_spec/` 등 키트당 8~10개,
+> 추적 파일 1,155개). 과거 `--out` 을 키트 루트로 준 실수(스킬 §함정 1)의 잔재이며 **arranger 가 관리하지 않아
+> 영원히 낡는다.** 실제로 이번에 남은 「뒤처짐」은 전부 여기에 있었다(정본 경로는 0). 정리는 추적 파일 삭제라 별도 판단.
+> ⚠ **`.staging-s1`~`s37c` 옛 스냅샷 7개**가 통합 키트에 있다(미추적). 버전 대조 시 이것까지 세면 뒤처짐이 부풀려진다.
+>
 > ★★ **2026-08-29 SYNC — 7개 키트 전부 · `--ids` 대신 pin(`--scope-file`)으로 돌렸다.** 전 키트 **`서버 건수 = pin 건수`**(통합 539·D010 225·D005 172·D001 168·D009 168·D003 166·D015 163)이고, 직전 커밋 `version-master.md` 대비 **유실 0 · 신규 0**. 통합 키트는 **32 → 36 화면**이 됐다(SCREEN-040~043 편입). 세션은 통합 s33 · 도메인 s15(D003 만 s18)다.
 > 이 라운드가 바꾼 것: **`SCREEN-002` 가 「역할 클레임」에서 「관리자 등록」으로 전면 개정**됐고(역할 선택 라디오가 사양에서 사라졌다), 관리자 화면 6곳의 `검수자 권한`·`검수자 전용` 서술이 실제 인가(`ADMIN_ONLY`)에 맞춰졌으며, `UI-110` 배지 카탈로그에 **관리자·미매핑** 변형이 생겼다. 와이어프레임 7건·시안 9건을 재게시했고 전건 **`replace` opcode 0** 으로 무손상을 증명했다.
 > ⚠ **`검수자 권한` 을 일괄 치환하지 마라** — *"조회도 검수자 권한만으로는 되지 않는다"*(검수자를 **하한**으로 말함)와 *"관리자가 검수자 권한을 계층으로 물려받는다"* 는 **정당한 서술**이다. 실제로 `GET /v1/users` 는 `hasRole('REVIEWER')` 이고 `PATCH` 만 `ADMIN` 이다. 바꿔야 하는 것은 **유효창이 가산되는 밑바탕 권한**을 검수자로 적은 자리뿐이다.
@@ -1069,13 +1122,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (36화면)** | 36개 (SCREEN-001~043 중 36건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-28 (s33)** | 539 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-28 (s15) | 225 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-28 (s15) | 172 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-28 (s15) | 163 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-28 (s18) | 166 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-28 (s15) | 168 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-28 (s15) | 168 |
+| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-05 (s35)** | 477 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-05 (s16) | 227 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-05 (s16) | 180 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-05 (s16) | 166 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-05 (s19) | 163 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-05 (s16) | 172 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-05 (s16) | 176 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

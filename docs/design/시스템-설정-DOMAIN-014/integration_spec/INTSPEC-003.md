@@ -1,14 +1,14 @@
 ---
 logicraft_item: INTSPEC-003
 type: integration_spec
-version: 12
+version: 13
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:10:29.312Z
-status: NEW
-prev_version: null
-content_hash: 78fec5d4b712ae8c8c1c7c06299bff5b38620b5e15f929c9db5ce5f18c0b44c8
-stale: false
+synced_at: 2026-09-05T00:43:34.847Z
+status: CHANGED
+prev_version: 12
+content_hash: 811d33f0b40f40d7a2c7f97636c445feac4fd78efe74b4d2d85466c368878660
+stale: true
 raw: ./_raw/INTSPEC-003.json
 links:
   references: ["[[INT-002]]"]
@@ -28,6 +28,10 @@ draft
 ## spec_kind
 
 markdown
+
+## attached_files
+
+_(empty)_
 
 ## change_summary
 
@@ -115,6 +119,9 @@ KLID 연동 API v1.1.0 기준 이중 위탁 규격. endpoint 를 /v1/videovlm/ve
 - **request_id**: 위탁 발급 상관관계 키. 콜백 수신 시 웹훅 멱등 원장으로 rawSn 과 위탁 종류를 역매핑한다(INTSPEC-002 §4).
 - **event_type**: 검증 대상 이벤트 유형. 조달처는 관제 인입 원장이며 저작도구가 매핑표를 만들지 않는다. 값이 없거나 우리가 아는 목록 밖이어도 위탁을 막지 않고 조달값을 그대로 실어 보내며, 수용 여부는 벤더 응답이 정한다.
 - **selected_frames 조달**: 마킹 본문에서 인덱스를 얻으면 그것을 싣는다(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임). 하나도 얻지 못하면 `frame_interval` mode 로 내리고 selected_frames 를 싣지 않는다 — 빈 목록은 규격 위반이라 거부된다. 마킹 이벤트 컨텍스트(이벤트명·마킹 시점 배열)는 전송하지 않는다 — 마킹 결과는 `frame_policy` 로만 반영된다.
+- **질문 문구(미전송 — 벤더 회신 대기)**: 저작도구는 검증 이벤트 유형별 질문 문구를 보관하고 마킹이 고른 값을 함께 저장하지만, **현행 요청 본문에는 그 값을 실을 필드가 없어 전송하지 않는다.** 질문 문장은 이벤트별로 벤더 서버가 관리하며 연동 시스템이 지정할 수 없다. 그럼에도 보관하는 이유는 이후 연동 시스템이 질의를 지정하는 방향으로 규격이 바뀔 수 있다는 협의가 있어 그 전환을 미리 준비하기 때문이며, 벤더가 필드를 열면 보관값을 그대로 전송한다.
+  - ★ **필드가 열릴 때 확정돼야 할 것 — 아래 넷은 확정된 규격이 아니라 벤더에게 물어야 할 미결 항목이다.** ①필드명·타입·위치(최상위인지 `frame_policy` 같은 하위 객체인지) ②`describe`·`describe-sub` 중 **어느 창구가 받는지** — 질문이 의미를 갖는 축은 추가 질문이고, 묘사는 장소·환경 서술이라 질문이 필요 없을 수 있다 ③미전송 시 벤더 서버의 기본 동작(자기 첫 번째 질문을 쓰는지, 거부인지) ④**문구를 보내는지 식별자를 보내는지** — 식별자면 벤더 채번 체계와 저작도구 보관 목록 사이의 매핑이 별도로 필요하다.
+  - ⚠ **인지·수용한 잔여 위험**: 그 필드가 열리기 전까지, 첫 번째가 아닌 질문을 고르면 기록된 질문과 벤더가 실제로 쓴 질문이 달라진다. 이를 알고 수용했다(되돌리지 말 것).
 
 ## 7. 전송 항목
 
@@ -127,6 +134,7 @@ KLID 연동 API v1.1.0 기준 이중 위탁 규격. endpoint 를 /v1/videovlm/ve
 | 영상 지정 | `media{type,source_type,path}` |
 | 프레임 정책 | `frame_policy{mode=frame_selected, selected_frames}` — 추출 간격 필드 없음 |
 | 이벤트 유형 | `event_type` 전송 |
+| 질문 문구 | **미전송** — 요청 본문에 실을 자리가 없다(§6). 벤더가 필드를 열면 보관값을 그대로 싣는다 |
 | callback_url | **필수 전송**(생략하지 않는다) |
 | 동기 응답 | `request_id`+`status(accepted)` — `accepted` 만 정상으로 인정한다 |
 | 사전 확인 | `GET …/status` · `GET …/events` |

@@ -20,7 +20,7 @@
       "variants": [
         {
           "name": "multiple",
-          "description": "이미지용 — input 에 multiple. 안내 문구가 '이미지를 끌어다 놓거나'"
+          "description": "[폐기] 여러 파일을 한 번에 받던 변형이다. 포털이 접수하는 자산이 영상 단건뿐이라 이 변형을 두지 않는다 — 단건 변형이 그 자리를 대신한다."
         },
         {
           "name": "single",
@@ -43,19 +43,19 @@
           "name": "multiple",
           "type": "boolean",
           "required": false,
-          "description": "여러 파일 선택 허용 여부. 이미지 업로드는 true, 영상 업로드는 미지정(단건)"
+          "description": "여러 파일 선택 허용 여부. 포털 업로드는 영상 단건이라 미지정으로 둔다"
         },
         {
           "name": "accept",
           "type": "string",
           "required": true,
-          "description": "허용 MIME·확장자 목록. 예: image/jpeg,image/png,.jpg,.jpeg,.png"
+          "description": "허용 MIME·확장자 목록. 예: video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi"
         },
         {
           "name": "lead",
           "type": "string",
           "required": true,
-          "description": "받침 안 안내 문구. '여기로 이미지를 끌어다 놓거나 눌러서 고르세요'"
+          "description": "받침 안 안내 문구. '여기로 영상을 끌어다 놓거나 눌러서 고르세요'"
         },
         {
           "name": "ctaLabel",
@@ -76,18 +76,19 @@
           "description": "정책 힌트(.field-hint) 요소 id 연결"
         }
       ],
-      "usage_example": "SCREEN-033 포털 자산 업로드 화면의 ① 이미지 업로드(다중) · ② 영상 업로드(단건) 두 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다",
+      "usage_example": "SCREEN-033 포털 자산 업로드 화면의 영상 업로드(단건) 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다",
+      "attached_files": [],
       "design_system_id": "DS-001",
       "accessibility_notes": "file input 이 position:absolute; inset:0; opacity:0; z-index:1 로 표면 전체를 덮고 .dropzone-body 는 pointer-events:none 이라, 포커스 링이 드롭존 전체에 그려진다(outline-offset:-2px). 파선 --n-4 대 --n-0 은 2.82:1 로 3:1 미달이지만 확정 관례라 유지했고, 컨트롤 식별은 안쪽 '파일 고르기' 경계 4.13:1 + 안내 문구 + 아이콘이 담당한다. aria-describedby 로 정책 힌트를 연결한다."
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "register_ui_component: input: UploadDropzone",
+    "change_summary": "2026-09-02 확정 — 포털 이미지 자산 접수 폐기에 따라 사양에서 이미지 축을 제거한다. 다중 선택 변형은 원소를 지우지 않고 더 이상 두지 않는 이유를 적어 남겼고(영상 단건 변형이 그 자리를 대신한다), multiple 속성 설명·accept 예시·안내 문구 예시·사용 예를 영상 단건 전제로 다시 적었다. 접수하지 않는 종류를 부품 사양이 계속 예시로 들면 없는 쓰임을 만들게 된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T05:01:57.025Z",
+    "last_updated_at": "2026-09-02T08:21:46.914Z",
     "created_at": "2026-08-14T05:01:57.025Z"
   }
 }

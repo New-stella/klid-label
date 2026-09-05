@@ -293,7 +293,7 @@
           "description": "업로드 세션 식별자(UUID)"
         }
       ],
-      "description": "application/offset+octet-stream 본문을 스트리밍으로 청크 append 한다(OOM 방어). Upload-Offset 이 현재 서버 오프셋과 일치해야 하며 불일치 시 409. 청크 크기는 portal.upload.max-chunk-bytes 상한(기본 16MB). 전체 길이에 도달하면 완료 후보로 보고, 락·트랜잭션 밖에서 매직바이트 컨테이너 검증 + ffprobe 비디오 스트림 존재 검증을 수행하며 실패 시 세션을 거부 확정(CANCELLED 영속화)하고 400 을 반환한다. 성공 완료 시 LS_PORTAL_ULD 에 합류되며(PortalVideoUploadedEvent 발행 → 프레임 추출 트리거), 완료 멱등은 DB 조건부 UPDATE 로 보장된다(재전송 안전).",
+      "description": "application/offset+octet-stream 본문을 스트리밍으로 청크 append 한다(OOM 방어). Upload-Offset 이 현재 서버 오프셋과 일치해야 하며 불일치 시 409. 청크 크기는 portal.upload.max-chunk-bytes 상한(기본 16MB). 전체 길이에 도달하면 완료 후보로 보고, 락·트랜잭션 밖에서 매직바이트 컨테이너 검증 + ffprobe 비디오 스트림 존재 검증을 수행하며 실패 시 세션을 거부 확정(CANCELLED 영속화)하고 400 을 반환한다. 성공 완료 시 영상 원장(LS_DATA_RAW)에 출처 PORTAL_ULD 로 합류되며(PortalVideoUploadedEvent 발행 → 프레임 추출 트리거), 완료 멱등은 DB 조건부 UPDATE 로 보장된다(재전송 안전).",
       "request_body": {
         "schema": {
           "type": "string",
@@ -303,6 +303,7 @@
         "required": true,
         "content_type": "application/offset+octet-stream"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -312,7 +313,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:50.456Z"
+        "last_updated": "2026-08-29T01:23:50.456Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -320,12 +322,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "변경요약에서 내부 회차·구현 심볼 표기를 걷어낸다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:50.456Z",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
+    "change_summary": "포털 채널 전용 테이블 흡수(ADR-058) 반영 — 업로드 완료 시 합류처를 공용 영상 원장으로 고치고 출처 판별자를 명시한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T22:39:43.570Z",
     "created_at": "2026-07-30T07:10:39.340Z"
   }
 }

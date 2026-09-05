@@ -19,12 +19,12 @@
       },
       "category": "performance",
       "priority": "must",
-      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-02-01 (담당=공통, RFP p32, 중요도 상). D5 §3 발주처 1:1 정합으로 화면 응답시간 항목만 유지 — 기존 번들의 기능 수행 지연 안내(RQ-PER-03-01)·오류 응답 속도(RQ-PER-04-01)는 별도 NFR로 분리.",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-02-01·RQ-PER-02-02 (담당=공통, RFP p32, 중요도 상). D5 §3 발주처 1:1 정합으로 화면 응답시간 항목만 유지 — 기존 번들의 기능 수행 지연 안내(RQ-PER-03-01)·오류 응답 속도(RQ-PER-04-01)는 별도 NFR로 분리.",
       "brownfield": {
         "status": "new",
         "diff_summary": "2차 RFP 공통 성능 요구를 저작도구 화면 기준으로 수용"
       },
-      "description": "라벨링·검수·마킹·목록 등 저작도구 전 화면의 페이지 응답속도 3초 이하 (초과 불가피 시 발주기관 협의). 페이지 용량·요청을 최적화해 응답시간 기준을 만족한다.",
+      "description": "라벨링·검수·마킹·목록 등 저작도구 전 화면의 페이지 응답속도 3초 이하 (초과 불가피 시 발주기관 협의). 페이지별 용량과 HTTP 요청 횟수를 최소화해 응답시간 기준을 만족한다.",
       "attached_files": [],
       "implementation": {
         "status": "planned",
@@ -52,12 +52,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이 요건을 검증하는 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1050, AC-1051). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "change_summary": "같은 요구사항명(용량 및 응답시간)의 담당=공통 항목 RQ-PER-02-02 를 근거에 함께 명시한다. 3초 기준과 최적화 수단(용량·요청 횟수 최소화)이 그 항목에서 오므로 본문 표현을 근거와 일치시킨다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:27:10.269Z",
+    "last_updated_at": "2026-09-05T00:14:44.792Z",
     "created_at": "2026-06-04T09:28:23.731Z"
   }
 }

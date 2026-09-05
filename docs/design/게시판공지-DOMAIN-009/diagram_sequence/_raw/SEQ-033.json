@@ -1,0 +1,492 @@
+{
+  "item": {
+    "id": "SEQ-033",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "공지·가이드라인 관리와 열람 — 초안은 존재조차 드러나지 않고 첨부는 새 이름으로 보관한다",
+    "slug": "공지가이드라인-관리와-열람-초안은-존재조차-드러나지-않고-첨부는-새-이름으로-보관한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "공지·가이드라인 관리와 열람 — 초안은 존재조차 드러나지 않고 첨부는 새 이름으로 보관한다",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    actor worker as 라벨링 작업자(WORKER)\n    actor admin as 관리자(ADMIN)\n    participant listScreen as 공지 목록 화면\n    participant writeScreen as 공지 작성 화면\n    participant editScreen as 공지 수정 화면\n    participant detailScreen as 공지 상세 화면\n    participant noticeCtrl as NoticeController\n    participant attachCtrl as NoticeAttachController\n    participant svc as NoticeService\n    participant attachSvc as NoticeAttachService\n    participant storage as 첨부 저장소\n    participant db as LS_NOTICE · LS_NOTICE_ATTACH\n\n    reviewer->>listScreen: 공지 목록을 연다\n    listScreen->>noticeCtrl: GET /v1/notices\n    noticeCtrl->>svc: list(actor, 쪽)\n    svc->>db: 고정한 글을 앞에, 그다음 등록일 내림차순으로 한 쪽 조회\n    db-->>svc: 공지 한 쪽\n    svc-->>noticeCtrl: 목록\n    noticeCtrl-->>listScreen: 200 OK\n    Note over listScreen: 목록에 저장소 기본 키가 드러나는 번호 열을 두지 않는다\n    reviewer->>writeScreen: 전용 작성 화면에서 제목과 내용을 넣어 저장한다\n    writeScreen->>noticeCtrl: POST /v1/notices\n    noticeCtrl->>svc: create(제목, 내용, 등록자)\n    svc->>db: 초안 상태로 만들고 등록자를 기록\n    db-->>svc: 공지 식별자\n    noticeCtrl-->>writeScreen: 201 Created\n    Note over writeScreen: 작성 화면에는 첨부 영역이 없다 — 첨부는 수정 화면에서 다룬다\n    reviewer->>editScreen: 전용 수정 화면에서 내용을 고친다\n    editScreen->>noticeCtrl: PUT /v1/notices/{id}\n    noticeCtrl->>svc: update(id, 제목, 내용)\n    svc->>db: 본문 갱신\n    opt 첨부를 올리는 경우\n        reviewer->>editScreen: 첨부를 올린다\n        editScreen->>attachCtrl: POST /v1/notices/{id}/attachments\n        attachCtrl->>attachSvc: 확장자 허용 목록과 크기 상한을 확인\n        Note over attachSvc: [대안] 허용 목록 밖 확장자이거나 크기 상한을 넘으면 업로드를 거부하고 파일을 저장하지 않는다. 그 공지에 첨부 기록도 남지 않는다\n        attachSvc->>attachSvc: 사용자가 준 이름을 쓰지 않고 새 이름을 만든다\n        attachSvc->>storage: 새 이름으로 정해진 폴더 안에만 저장\n        attachSvc->>db: 첨부 기록 등록 — 원본 이름은 기록에 남기지 않는다\n        Note over attachSvc: 사용자가 정한 문자열이 기록으로 흘러들면 기록이 오염되고 개인정보가 샐 수 있다\n    end\n    reviewer->>detailScreen: 발행한다\n    detailScreen->>noticeCtrl: POST /v1/notices/{id}/publish\n    noticeCtrl->>svc: publish(id)\n    svc->>db: 발행 상태로 전이하고 발행 일시를 세운다\n    Note over svc: 발행 일시는 현재 상태의 전이 시점이다 — 발행을 취소하면 비워지고 다시 발행하면 새로 기록되며 최초 발행 이력은 보존하지 않는다\n    opt 작업자가 열람하는 경우\n        worker->>listScreen: 공지 목록을 연다\n        listScreen->>noticeCtrl: GET /v1/notices\n        noticeCtrl->>svc: list(actor, 쪽)\n        svc->>svc: 작업자에게는 발행된 글만 담는다\n        worker->>detailScreen: 발행된 공지의 상세를 연다\n        detailScreen->>noticeCtrl: GET /v1/notices/{id}\n        Note over noticeCtrl: [대안] 작업자나 포털 회원이 발행되지 않은 글을 직접 지정해 요청해도 찾을 수 없음으로 거부한다. 권한 없음으로 구분되지 않아 존재 여부가 드러나지 않는다\n    end\n    opt 첨부를 내려받는 경우\n        worker->>detailScreen: 첨부를 내려받는다\n        detailScreen->>attachCtrl: GET /v1/notices/{id}/attachments/{attachId}/download\n        attachCtrl->>attachSvc: 첨부 스트림 요청\n        attachSvc->>storage: 저장된 파일 읽기\n        storage-->>attachSvc: 파일\n        attachSvc-->>detailScreen: 파일 전송\n        Note over attachSvc: 첨부 내려받기에는 일반 요청과 다른 전용 제한 시간을 건다 — 큰 파일 전송에 충분하되 무한정 기다리지 않는다\n    end\n    opt 발행을 취소하거나 글을 지우는 경우\n        reviewer->>detailScreen: 발행을 취소하거나 글을 삭제한다\n        detailScreen->>noticeCtrl: POST /v1/notices/{id}/unpublish 또는 DELETE /v1/notices/{id}\n        noticeCtrl->>svc: unpublish(id) 또는 delete(id)\n        svc->>db: 발행 일시를 비우거나 공지를 삭제\n        svc->>storage: 삭제 시 첨부 파일도 함께 정리\n    end\n    Note over reviewer: [대안] 작업자가 작성이나 수정 주소로 직접 들어오면 권한 없음 화면으로 막힌다. 목록과 상세 열람은 그대로 가능하다. 포털 채널은 채널이 달라 이 흐름에 닿지 않으며 발행 여부와 무관하다\n    Note over admin: 관리자는 역할 계층으로 검수자 자리를 물려받아 같은 쓰기를 한다 — 별도 창구를 두지 않는다\n",
+      "messages": [
+        {
+          "to": "listScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "공지 목록을 연다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "listScreen",
+          "kind": "sync",
+          "label": "GET /v1/notices",
+          "item_ref": "API-095"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "list(actor, 쪽)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "고정한 글을 앞에, 그다음 등록일 내림차순으로 한 쪽 조회"
+        },
+        {
+          "to": "svc",
+          "from": "db",
+          "kind": "return",
+          "label": "공지 한 쪽"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "svc",
+          "kind": "return",
+          "label": "목록"
+        },
+        {
+          "to": "listScreen",
+          "from": "noticeCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "listScreen",
+          "from": "listScreen",
+          "kind": "note",
+          "label": "목록에 저장소 기본 키가 드러나는 번호 열을 두지 않는다"
+        },
+        {
+          "to": "writeScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "전용 작성 화면에서 제목과 내용을 넣어 저장한다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "writeScreen",
+          "kind": "sync",
+          "label": "POST /v1/notices",
+          "item_ref": "API-097"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "create(제목, 내용, 등록자)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "초안 상태로 만들고 등록자를 기록"
+        },
+        {
+          "to": "svc",
+          "from": "db",
+          "kind": "return",
+          "label": "공지 식별자"
+        },
+        {
+          "to": "writeScreen",
+          "from": "noticeCtrl",
+          "kind": "return",
+          "label": "201 Created"
+        },
+        {
+          "to": "writeScreen",
+          "from": "writeScreen",
+          "kind": "note",
+          "label": "작성 화면에는 첨부 영역이 없다 — 첨부는 수정 화면에서 다룬다"
+        },
+        {
+          "to": "editScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "전용 수정 화면에서 내용을 고친다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "editScreen",
+          "kind": "sync",
+          "label": "PUT /v1/notices/{id}",
+          "item_ref": "API-098"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "update(id, 제목, 내용)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "본문 갱신"
+        },
+        {
+          "to": "editScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "첨부를 올린다"
+        },
+        {
+          "to": "attachCtrl",
+          "from": "editScreen",
+          "kind": "sync",
+          "label": "POST /v1/notices/{id}/attachments",
+          "item_ref": "API-106"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachCtrl",
+          "kind": "sync",
+          "label": "확장자 허용 목록과 크기 상한을 확인"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachSvc",
+          "kind": "note",
+          "label": "[대안] 허용 목록 밖 확장자이거나 크기 상한을 넘으면 업로드를 거부하고 파일을 저장하지 않는다. 그 공지에 첨부 기록도 남지 않는다"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachSvc",
+          "kind": "self",
+          "label": "사용자가 준 이름을 쓰지 않고 새 이름을 만든다"
+        },
+        {
+          "to": "storage",
+          "from": "attachSvc",
+          "kind": "sync",
+          "label": "새 이름으로 정해진 폴더 안에만 저장"
+        },
+        {
+          "to": "db",
+          "from": "attachSvc",
+          "kind": "sync",
+          "label": "첨부 기록 등록 — 원본 이름은 기록에 남기지 않는다"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachSvc",
+          "kind": "note",
+          "label": "사용자가 정한 문자열이 기록으로 흘러들면 기록이 오염되고 개인정보가 샐 수 있다"
+        },
+        {
+          "to": "detailScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "발행한다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "detailScreen",
+          "kind": "sync",
+          "label": "POST /v1/notices/{id}/publish",
+          "item_ref": "API-100"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "publish(id)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "발행 상태로 전이하고 발행 일시를 세운다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "발행 일시는 현재 상태의 전이 시점이다 — 발행을 취소하면 비워지고 다시 발행하면 새로 기록되며 최초 발행 이력은 보존하지 않는다"
+        },
+        {
+          "to": "listScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "공지 목록을 연다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "listScreen",
+          "kind": "sync",
+          "label": "GET /v1/notices",
+          "item_ref": "API-095"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "list(actor, 쪽)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "작업자에게는 발행된 글만 담는다"
+        },
+        {
+          "to": "detailScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "발행된 공지의 상세를 연다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "detailScreen",
+          "kind": "sync",
+          "label": "GET /v1/notices/{id}",
+          "item_ref": "API-096"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "noticeCtrl",
+          "kind": "note",
+          "label": "[대안] 작업자나 포털 회원이 발행되지 않은 글을 직접 지정해 요청해도 찾을 수 없음으로 거부한다. 권한 없음으로 구분되지 않아 존재 여부가 드러나지 않는다"
+        },
+        {
+          "to": "detailScreen",
+          "from": "worker",
+          "kind": "sync",
+          "label": "첨부를 내려받는다"
+        },
+        {
+          "to": "attachCtrl",
+          "from": "detailScreen",
+          "kind": "sync",
+          "label": "GET /v1/notices/{id}/attachments/{attachId}/download",
+          "item_ref": "API-107"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachCtrl",
+          "kind": "sync",
+          "label": "첨부 스트림 요청"
+        },
+        {
+          "to": "storage",
+          "from": "attachSvc",
+          "kind": "sync",
+          "label": "저장된 파일 읽기"
+        },
+        {
+          "to": "attachSvc",
+          "from": "storage",
+          "kind": "return",
+          "label": "파일"
+        },
+        {
+          "to": "detailScreen",
+          "from": "attachSvc",
+          "kind": "return",
+          "label": "파일 전송"
+        },
+        {
+          "to": "attachSvc",
+          "from": "attachSvc",
+          "kind": "note",
+          "label": "첨부 내려받기에는 일반 요청과 다른 전용 제한 시간을 건다 — 큰 파일 전송에 충분하되 무한정 기다리지 않는다"
+        },
+        {
+          "to": "detailScreen",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "발행을 취소하거나 글을 삭제한다"
+        },
+        {
+          "to": "noticeCtrl",
+          "from": "detailScreen",
+          "kind": "sync",
+          "label": "POST /v1/notices/{id}/unpublish 또는 DELETE /v1/notices/{id}",
+          "item_ref": "API-101"
+        },
+        {
+          "to": "svc",
+          "from": "noticeCtrl",
+          "kind": "sync",
+          "label": "unpublish(id) 또는 delete(id)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "발행 일시를 비우거나 공지를 삭제"
+        },
+        {
+          "to": "storage",
+          "from": "svc",
+          "kind": "sync",
+          "label": "삭제 시 첨부 파일도 함께 정리"
+        },
+        {
+          "to": "reviewer",
+          "from": "reviewer",
+          "kind": "note",
+          "label": "[대안] 작업자가 작성이나 수정 주소로 직접 들어오면 권한 없음 화면으로 막힌다. 목록과 상세 열람은 그대로 가능하다. 포털 채널은 채널이 달라 이 흐름에 닿지 않으며 발행 여부와 무관하다"
+        },
+        {
+          "to": "admin",
+          "from": "admin",
+          "kind": "note",
+          "label": "관리자는 역할 계층으로 검수자 자리를 물려받아 같은 쓰기를 한다 — 별도 창구를 두지 않는다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "첨부를 올리는 경우",
+          "end_index": 26,
+          "start_index": 19
+        },
+        {
+          "kind": "opt",
+          "label": "작업자가 열람하는 경우",
+          "end_index": 38,
+          "start_index": 32
+        },
+        {
+          "kind": "opt",
+          "label": "첨부를 내려받는 경우",
+          "end_index": 45,
+          "start_index": 39
+        },
+        {
+          "kind": "opt",
+          "label": "발행을 취소하거나 글을 지우는 경우",
+          "end_index": 50,
+          "start_index": 46
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — UC-040 의 흐름을 참가자와 메시지로 처음 시각화한다."
+      },
+      "description": "작업 안내를 게시하고 읽는 흐름을 그린다. 쓰기는 검수자 이상이 하고 관리자는 역할 계층으로 같은 일을 하며, 작업자는 발행된 글만 읽는다.\n\n발행하지 않은 글은 작업자의 목록에 담기지 않고 식별자를 직접 지정해 상세를 요청해도 찾을 수 없다는 응답으로 돌아온다. 권한이 없다는 응답으로 구분되지 않아 존재 자체가 드러나지 않는다.\n\n발행 일시는 현재 상태의 전이 시점이다. 발행을 취소하면 비워지고 다시 발행하면 새로 기록되며 최초 발행 이력은 보존하지 않는다.\n\n첨부는 사용자가 준 이름을 그대로 쓰지 않고 새로 만든 이름으로 정해진 폴더 안에만 저장한다. 원본 이름은 저장소에만 보관하고 기록에는 남기지 않는다 — 사용자가 정한 문자열이 기록으로 흘러들면 기록이 오염되고 개인정보가 샐 수 있기 때문이다. 첨부 내려받기에는 일반 요청과 다른 전용 제한 시간을 건다.\n\n작성 화면에는 첨부 영역이 없고 첨부는 수정 화면에서 다룬다. 목록에는 저장소 기본 키가 드러나는 번호 열을 두지 않는다. 포털 채널은 채널이 달라 이 흐름에 닿지 않으며 그것은 발행 여부와 무관하다.",
+      "invokes_apis": [
+        "API-095",
+        "API-096",
+        "API-097",
+        "API-098",
+        "API-099",
+        "API-100",
+        "API-101",
+        "API-106",
+        "API-107",
+        "API-108"
+      ],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "admin",
+          "kind": "actor",
+          "name": "관리자(ADMIN)"
+        },
+        {
+          "id": "listScreen",
+          "kind": "system",
+          "name": "공지 목록 화면",
+          "item_ref": "SCREEN-030"
+        },
+        {
+          "id": "writeScreen",
+          "kind": "system",
+          "name": "공지 작성 화면",
+          "item_ref": "SCREEN-036"
+        },
+        {
+          "id": "editScreen",
+          "kind": "system",
+          "name": "공지 수정 화면",
+          "item_ref": "SCREEN-037"
+        },
+        {
+          "id": "detailScreen",
+          "kind": "system",
+          "name": "공지 상세 화면",
+          "item_ref": "SCREEN-031"
+        },
+        {
+          "id": "noticeCtrl",
+          "kind": "service",
+          "name": "NoticeController"
+        },
+        {
+          "id": "attachCtrl",
+          "kind": "service",
+          "name": "NoticeAttachController"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "NoticeService"
+        },
+        {
+          "id": "attachSvc",
+          "kind": "service",
+          "name": "NoticeAttachService"
+        },
+        {
+          "id": "storage",
+          "kind": "system",
+          "name": "첨부 저장소"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "LS_NOTICE · LS_NOTICE_ATTACH"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-040"
+      ],
+      "related_acceptances": [
+        "AC-1050",
+        "AC-1051"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "조각을 실제 조건이 있는 자리로만 좁힌다. 앞선 편집에서 지면 분할 자리를 만들려고 늘 실행되는 구간에도 선택 조각을 걸었는데, 선택 조각은 조건이 맞을 때만 실행된다는 뜻이라 그림이 사실과 달라졌다. 조건이 실재하는 구간만 남기고 채널이 둘로 갈리는 자리는 갈림 조각으로 바로잡는다. 참가자와 메시지는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T19:31:51.748Z",
+    "created_at": "2026-09-03T06:52:04.604Z"
+  }
+}

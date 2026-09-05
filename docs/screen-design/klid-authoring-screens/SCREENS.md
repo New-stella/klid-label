@@ -1,4 +1,4 @@
-# DOMAIN-000 화면 키트 — SCREENS.md
+# KLID 저작도구 전체 화면 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,11 +7,11 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-000 DOMAIN-000 |
-| last sync | 2026-09-01T08:39:29.926Z (session 37) |
-| 화면 수 | 37개 |
+| Domain | DOMAIN-000 KLID 저작도구 전체 화면 |
+| last sync | 2026-09-05T02:34:48.532Z (session 35) |
+| 화면 수 | 38개 |
 | ui_component 카탈로그 | populated 145건 |
-| 출력 루트 | . |
+| 출력 루트 | docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -39,13 +39,12 @@
 | [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]] | [[ROLE-001]] |
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
 | [[SCREEN-027]] | 파일 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-194]] | [[ROLE-004]] |
-| [[SCREEN-028]] | 포털 홈 화면 | UNCHANGED | ✅ | [[API-115]], [[API-203]] | [[ROLE-003]] |
-| [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]] | [[ROLE-003]] |
+| [[SCREEN-028]] | 포털 내 작업 화면 | UNCHANGED | ✅ | [[API-225]], [[API-203]] | [[ROLE-003]] |
+| [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]], [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-234]], [[API-235]], [[API-236]], [[API-237]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-032]] | 비식별 신고 관리 화면 | UNCHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]], [[API-207]], [[API-215]] | [[ROLE-001]] |
-| [[SCREEN-033]] | 포털 업로드 화면 | UNCHANGED | ✅ | [[API-139]], [[API-142]], [[API-151]], [[API-163]], [[API-166]], [[API-169]], [[API-171]], [[API-161]] | [[ROLE-003]] |
-| [[SCREEN-034]] | 포털 업로드 라벨링 화면 | UNCHANGED | ✅ | [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-157]], [[API-159]] | [[ROLE-003]] |
+| [[SCREEN-033]] | 포털 업로드 화면 | UNCHANGED | ✅ | [[API-140]], [[API-142]], [[API-151]], [[API-157]], [[API-159]], [[API-161]], [[API-163]], [[API-166]], [[API-169]], [[API-171]], [[API-231]] | [[ROLE-003]] |
 | [[SCREEN-035]] | 라벨 관리 화면 | UNCHANGED | ✅ | [[API-024]], [[API-025]], [[API-026]], [[API-027]], [[API-028]], [[API-029]], [[API-030]], [[API-031]] | [[ROLE-001]] |
 | [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
 | [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
@@ -53,8 +52,10 @@
 | [[SCREEN-039]] | 산출물 가져오기 | UNCHANGED | ✅ | [[API-205]], [[API-206]], [[API-207]], [[API-208]], [[API-209]], [[API-210]], [[API-211]], [[API-215]], [[API-221]], [[API-222]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-004]] |
 | [[SCREEN-040]] | 관리자 페이지 진입 화면 | UNCHANGED | ✅ | [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-041]] | 관리자 패스워드 교체 | UNCHANGED | ✅ | [[API-223]], [[API-194]] | [[ROLE-004]] |
-| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]] | [[ROLE-004]] |
+| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
 | [[SCREEN-043]] | 위험 작업 화면 | UNCHANGED | ✅ |  | [[ROLE-004]] |
+| [[SCREEN-044]] | 포털 증강 화면 | NEW | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
+| [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | NEW | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
 
 ## 공유 자산 인덱스
 
@@ -63,7 +64,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 145 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 202 |
+| api_endpoint | _shared/api/ | 208 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -103,22 +104,38 @@
 | 19 | [[SCREEN-025]] — 시스템 설정 화면 | screens/SCREEN-025/SCREEN-025.md | wireframe.html | uc/ | ac/ |
 | 20 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
 | 21 | [[SCREEN-027]] — 파일 업로드 | screens/SCREEN-027/SCREEN-027.md | wireframe.html | uc/ | ac/ |
-| 22 | [[SCREEN-028]] — 포털 홈 화면 | screens/SCREEN-028/SCREEN-028.md | wireframe.html | uc/ | ac/ |
+| 22 | [[SCREEN-028]] — 포털 내 작업 화면 | screens/SCREEN-028/SCREEN-028.md | wireframe.html | uc/ | ac/ |
 | 23 | [[SCREEN-029]] — 포털 라벨링 화면 | screens/SCREEN-029/SCREEN-029.md | wireframe.html | uc/ | ac/ |
 | 24 | [[SCREEN-030]] — 공지 목록 화면 | screens/SCREEN-030/SCREEN-030.md | wireframe.html | uc/ | ac/ |
 | 25 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 26 | [[SCREEN-032]] — 비식별 신고 관리 화면 | screens/SCREEN-032/SCREEN-032.md | wireframe.html | uc/ | ac/ |
 | 27 | [[SCREEN-033]] — 포털 업로드 화면 | screens/SCREEN-033/SCREEN-033.md | wireframe.html | uc/ | ac/ |
-| 28 | [[SCREEN-034]] — 포털 업로드 라벨링 화면 | screens/SCREEN-034/SCREEN-034.md | wireframe.html | uc/ | ac/ |
-| 29 | [[SCREEN-035]] — 라벨 관리 화면 | screens/SCREEN-035/SCREEN-035.md | wireframe.html | uc/ | ac/ |
-| 30 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
-| 31 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
-| 32 | [[SCREEN-038]] — 이벤트유형 관리 화면 | screens/SCREEN-038/SCREEN-038.md | wireframe.html | uc/ | ac/ |
-| 33 | [[SCREEN-039]] — 산출물 가져오기 | screens/SCREEN-039/SCREEN-039.md | wireframe.html | uc/ | ac/ |
-| 34 | [[SCREEN-040]] — 관리자 페이지 진입 화면 | screens/SCREEN-040/SCREEN-040.md | wireframe.html | uc/ | ac/ |
-| 35 | [[SCREEN-041]] — 관리자 패스워드 교체 | screens/SCREEN-041/SCREEN-041.md | wireframe.html | uc/ | ac/ |
-| 36 | [[SCREEN-042]] — 연동 서버 주소 관리 화면 | screens/SCREEN-042/SCREEN-042.md | wireframe.html | uc/ | ac/ |
-| 37 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
+| 28 | [[SCREEN-035]] — 라벨 관리 화면 | screens/SCREEN-035/SCREEN-035.md | wireframe.html | uc/ | ac/ |
+| 29 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
+| 30 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
+| 31 | [[SCREEN-038]] — 이벤트유형 관리 화면 | screens/SCREEN-038/SCREEN-038.md | wireframe.html | uc/ | ac/ |
+| 32 | [[SCREEN-039]] — 산출물 가져오기 | screens/SCREEN-039/SCREEN-039.md | wireframe.html | uc/ | ac/ |
+| 33 | [[SCREEN-040]] — 관리자 페이지 진입 화면 | screens/SCREEN-040/SCREEN-040.md | wireframe.html | uc/ | ac/ |
+| 34 | [[SCREEN-041]] — 관리자 패스워드 교체 | screens/SCREEN-041/SCREEN-041.md | wireframe.html | uc/ | ac/ |
+| 35 | [[SCREEN-042]] — 연동 서버 주소 관리 화면 | screens/SCREEN-042/SCREEN-042.md | wireframe.html | uc/ | ac/ |
+| 36 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
+| 37 | [[SCREEN-044]] — 포털 증강 화면 | screens/SCREEN-044/SCREEN-044.md | wireframe.html | uc/ | ac/ |
+| 38 | [[SCREEN-045]] — 포털 업로드 영상 마킹 화면 | screens/SCREEN-045/SCREEN-045.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[AC-1070]] | acceptance | NEW |
+| [[AC-1071]] | acceptance | NEW |
+| [[API-232]] | api_endpoint | NEW |
+| [[API-233]] | api_endpoint | NEW |
+| [[API-238]] | api_endpoint | NEW |
+| [[API-239]] | api_endpoint | NEW |
+| [[API-240]] | api_endpoint | NEW |
+| [[API-241]] | api_endpoint | NEW |
+| [[SCREEN-044]] | screen_spec | NEW |
+| [[SCREEN-045]] | screen_spec | NEW |
 
 ## Obsidian 볼트로 보기
 
@@ -126,7 +143,7 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 13건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 15건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -134,11 +151,13 @@
 > - UC-016 — SCREEN-009, SCREEN-032
 > - UC-023 — SCREEN-018, SCREEN-019
 > - UC-024 — SCREEN-028, SCREEN-029
-> - UC-027 — SCREEN-033, SCREEN-034
+> - UC-027 — SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
 > - UC-032 — SCREEN-026, SCREEN-038
 > - UC-036 — SCREEN-032, SCREEN-039
 > - AC-1032 — SCREEN-039, SCREEN-039
 > - AC-1033 — SCREEN-039, SCREEN-039
+> - AC-1070 — SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
+> - AC-1071 — SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
 > - AC-1086 — SCREEN-027, SCREEN-027
 > - AC-1087 — SCREEN-027, SCREEN-027
 

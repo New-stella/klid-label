@@ -347,7 +347,7 @@
     "schema_version": 1,
     "current_version": 26,
     "stale": true,
-    "stale_reason": "DFEAT-059의 3개 필드 변경이 realizes로 2-hop 전파",
+    "stale_reason": "UC-016의 3개 필드 변경 — realizes",
     "change_summary": "이 화면이 실현하는 흐름에 이관 이력 조회를 더한다. 이번에 더해진 두 구획은 가져온 산출물 가운데 검수 승인이 보류된 영상을 목록으로 보여주고 그 보류를 푸는 자리인데, 그 목록을 조달하는 곳이 이관 이력이고 보류를 푸는 자리를 여는 단계가 그 흐름 안에 있다. 반대 방향은 이미 이어져 그 흐름이 이 화면을 자기 화면으로 꼽고 있었으므로, 한쪽만 이어진 상태를 메운다. 신고와 해소를 담는 기존 흐름은 그대로 남는다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-09-01T07:06:24.157Z",

@@ -1,219 +1,187 @@
-# Version Master — DOMAIN-009
+# Version Master — 게시판·공지 (DOMAIN-009) — 화면 키트
 
 | 항목 | 값 |
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
-| Domain | DOMAIN-009 |
-| Last sync | 2026-09-02T10:54:12.880Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 168 |
+| Domain | DOMAIN-009 게시판·공지 |
+| 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
+| Last sync | 2026-09-05T01:33:13.149Z (session 16) |
+| Mode | SYNC — NEW 4 / CHANGED 16 / UNCHANGED 152 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
-| 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
-| 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
-| 스코프 | DOMAIN-009 — .kit-scope.json (스킬 LLM 판정) |
-| 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 41건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
-## ⚠️ 스코프 밖 ITEM (유실 점검)
+## ITEM 버전 표
 
-도메인 필터는 `domain_id` 컬럼 일치만 본다. 아래는 이번 스코프에 들어오지 않은 핵심 타입이다.
-**🚨 = 프로젝트엔 있는데 이번 키트엔 0건** — 구현이 그 설계를 못 본다.
-
-```
-  🚨 domain_feature: 이번 키트 0건 / 프로젝트 전역 48건 — 전량 누락
-  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 210건
-  🚨 erd: 이번 키트 0건 / 프로젝트 전역 23건 — 전량 누락
-  🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 26건 (그중 domain_id 없음 14건) — 전량 누락
-  ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
-  🚨 use_case: 이번 키트 0건 / 프로젝트 전역 35건 (그중 domain_id 없음 3건) — 전량 누락
-  🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 80건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  permission_role: 이번 키트 3건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
-  🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  🚨 adr: 이번 키트 0건 / 프로젝트 전역 52건 (그중 domain_id 없음 10건) — 전량 누락
-  🚨 nfr: 이번 키트 0건 / 프로젝트 전역 15건 (그중 domain_id 없음 15건) — 전량 누락
-  🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
-```
-
-해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
-`--cross-domain-types` 에 그 타입을 추가한다.
-
-> 💡 이 키트 루트를 Obsidian 볼트로 열면 ITEM 관계가 그래프로 보인다.
-> 그래프뷰 → 필터 → *Existing files only* 를 켜면 키트 밖 ITEM(MOD·LEGACY 등)의
-> 유령 노드가 사라진다.
-
-## Changelog (this run)
-
-- (변경 없음)
-
-## ITEM 표
-
-| ID | type | version | status |
-|---|---|---|---|
-| [[API-095]] | api_endpoint | 6 | UNCHANGED |
-| [[API-096]] | api_endpoint | 7 | UNCHANGED |
-| [[API-097]] | api_endpoint | 7 | UNCHANGED |
-| [[API-098]] | api_endpoint | 7 | UNCHANGED |
-| [[API-099]] | api_endpoint | 6 | UNCHANGED |
-| [[API-100]] | api_endpoint | 8 | UNCHANGED |
-| [[API-101]] | api_endpoint | 8 | UNCHANGED |
-| [[API-106]] | api_endpoint | 9 | UNCHANGED |
-| [[API-107]] | api_endpoint | 7 | UNCHANGED |
-| [[API-108]] | api_endpoint | 6 | UNCHANGED |
-| [[DS-001]] | design_system | 9 | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 26 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 5 | UNCHANGED |
-| [[SCREEN-030]] | screen_spec | 26 | UNCHANGED |
-| [[SCREEN-031]] | screen_spec | 33 | UNCHANGED |
-| [[SCREEN-036]] | screen_spec | 8 | UNCHANGED |
-| [[SCREEN-037]] | screen_spec | 8 | UNCHANGED |
-| [[SD-007]] | screen_design | 6 | UNCHANGED |
-| [[SD-008]] | screen_design | 4 | UNCHANGED |
-| [[SD-010]] | screen_design | 10 | UNCHANGED |
-| [[SD-011]] | screen_design | 6 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 11 | UNCHANGED |
-| [[UI-001]] | ui_component | 3 | UNCHANGED |
-| [[UI-002]] | ui_component | 6 | UNCHANGED |
-| [[UI-003]] | ui_component | 5 | UNCHANGED |
-| [[UI-004]] | ui_component | 4 | UNCHANGED |
-| [[UI-005]] | ui_component | 4 | UNCHANGED |
-| [[UI-006]] | ui_component | 4 | UNCHANGED |
-| [[UI-007]] | ui_component | 7 | UNCHANGED |
-| [[UI-008]] | ui_component | 6 | UNCHANGED |
-| [[UI-009]] | ui_component | 3 | UNCHANGED |
-| [[UI-010]] | ui_component | 4 | UNCHANGED |
-| [[UI-011]] | ui_component | 4 | UNCHANGED |
-| [[UI-012]] | ui_component | 3 | UNCHANGED |
-| [[UI-013]] | ui_component | 3 | UNCHANGED |
-| [[UI-014]] | ui_component | 5 | UNCHANGED |
-| [[UI-015]] | ui_component | 4 | UNCHANGED |
-| [[UI-016]] | ui_component | 5 | UNCHANGED |
-| [[UI-017]] | ui_component | 8 | UNCHANGED |
-| [[UI-018]] | ui_component | 10 | UNCHANGED |
-| [[UI-019]] | ui_component | 4 | UNCHANGED |
-| [[UI-020]] | ui_component | 5 | UNCHANGED |
-| [[UI-021]] | ui_component | 4 | UNCHANGED |
-| [[UI-022]] | ui_component | 5 | UNCHANGED |
-| [[UI-023]] | ui_component | 3 | UNCHANGED |
-| [[UI-024]] | ui_component | 6 | UNCHANGED |
-| [[UI-025]] | ui_component | 3 | UNCHANGED |
-| [[UI-026]] | ui_component | 6 | UNCHANGED |
-| [[UI-027]] | ui_component | 4 | UNCHANGED |
-| [[UI-028]] | ui_component | 4 | UNCHANGED |
-| [[UI-029]] | ui_component | 5 | UNCHANGED |
-| [[UI-030]] | ui_component | 6 | UNCHANGED |
-| [[UI-031]] | ui_component | 3 | UNCHANGED |
-| [[UI-032]] | ui_component | 3 | UNCHANGED |
-| [[UI-033]] | ui_component | 3 | UNCHANGED |
-| [[UI-034]] | ui_component | 4 | UNCHANGED |
-| [[UI-035]] | ui_component | 7 | UNCHANGED |
-| [[UI-036]] | ui_component | 3 | UNCHANGED |
-| [[UI-037]] | ui_component | 6 | UNCHANGED |
-| [[UI-038]] | ui_component | 3 | UNCHANGED |
-| [[UI-039]] | ui_component | 3 | UNCHANGED |
-| [[UI-040]] | ui_component | 6 | UNCHANGED |
-| [[UI-041]] | ui_component | 3 | UNCHANGED |
-| [[UI-042]] | ui_component | 4 | UNCHANGED |
-| [[UI-043]] | ui_component | 4 | UNCHANGED |
-| [[UI-044]] | ui_component | 4 | UNCHANGED |
-| [[UI-045]] | ui_component | 5 | UNCHANGED |
-| [[UI-046]] | ui_component | 8 | UNCHANGED |
-| [[UI-047]] | ui_component | 6 | UNCHANGED |
-| [[UI-048]] | ui_component | 7 | UNCHANGED |
-| [[UI-049]] | ui_component | 7 | UNCHANGED |
-| [[UI-050]] | ui_component | 6 | UNCHANGED |
-| [[UI-051]] | ui_component | 4 | UNCHANGED |
-| [[UI-052]] | ui_component | 7 | UNCHANGED |
-| [[UI-053]] | ui_component | 8 | UNCHANGED |
-| [[UI-054]] | ui_component | 5 | UNCHANGED |
-| [[UI-055]] | ui_component | 11 | UNCHANGED |
-| [[UI-056]] | ui_component | 6 | UNCHANGED |
-| [[UI-057]] | ui_component | 6 | UNCHANGED |
-| [[UI-058]] | ui_component | 4 | UNCHANGED |
-| [[UI-059]] | ui_component | 5 | UNCHANGED |
-| [[UI-060]] | ui_component | 5 | UNCHANGED |
-| [[UI-061]] | ui_component | 5 | UNCHANGED |
-| [[UI-062]] | ui_component | 4 | UNCHANGED |
-| [[UI-063]] | ui_component | 4 | UNCHANGED |
-| [[UI-064]] | ui_component | 5 | UNCHANGED |
-| [[UI-065]] | ui_component | 4 | UNCHANGED |
-| [[UI-066]] | ui_component | 5 | UNCHANGED |
-| [[UI-067]] | ui_component | 4 | UNCHANGED |
-| [[UI-068]] | ui_component | 6 | UNCHANGED |
-| [[UI-069]] | ui_component | 4 | UNCHANGED |
-| [[UI-070]] | ui_component | 4 | UNCHANGED |
-| [[UI-071]] | ui_component | 5 | UNCHANGED |
-| [[UI-072]] | ui_component | 5 | UNCHANGED |
-| [[UI-073]] | ui_component | 4 | UNCHANGED |
-| [[UI-074]] | ui_component | 5 | UNCHANGED |
-| [[UI-075]] | ui_component | 5 | UNCHANGED |
-| [[UI-076]] | ui_component | 4 | UNCHANGED |
-| [[UI-077]] | ui_component | 4 | UNCHANGED |
-| [[UI-078]] | ui_component | 4 | UNCHANGED |
-| [[UI-079]] | ui_component | 4 | UNCHANGED |
-| [[UI-080]] | ui_component | 5 | UNCHANGED |
-| [[UI-081]] | ui_component | 4 | UNCHANGED |
-| [[UI-082]] | ui_component | 4 | UNCHANGED |
-| [[UI-083]] | ui_component | 5 | UNCHANGED |
-| [[UI-084]] | ui_component | 5 | UNCHANGED |
-| [[UI-085]] | ui_component | 4 | UNCHANGED |
-| [[UI-086]] | ui_component | 4 | UNCHANGED |
-| [[UI-087]] | ui_component | 5 | UNCHANGED |
-| [[UI-088]] | ui_component | 4 | UNCHANGED |
-| [[UI-089]] | ui_component | 5 | UNCHANGED |
-| [[UI-090]] | ui_component | 6 | UNCHANGED |
-| [[UI-091]] | ui_component | 6 | UNCHANGED |
-| [[UI-092]] | ui_component | 4 | UNCHANGED |
-| [[UI-093]] | ui_component | 6 | UNCHANGED |
-| [[UI-094]] | ui_component | 5 | UNCHANGED |
-| [[UI-095]] | ui_component | 5 | UNCHANGED |
-| [[UI-096]] | ui_component | 6 | UNCHANGED |
-| [[UI-097]] | ui_component | 5 | UNCHANGED |
-| [[UI-098]] | ui_component | 2 | UNCHANGED |
-| [[UI-099]] | ui_component | 2 | UNCHANGED |
-| [[UI-100]] | ui_component | 2 | UNCHANGED |
-| [[UI-101]] | ui_component | 1 | UNCHANGED |
-| [[UI-102]] | ui_component | 1 | UNCHANGED |
-| [[UI-103]] | ui_component | 1 | UNCHANGED |
-| [[UI-104]] | ui_component | 1 | UNCHANGED |
-| [[UI-105]] | ui_component | 3 | UNCHANGED |
-| [[UI-106]] | ui_component | 1 | UNCHANGED |
-| [[UI-107]] | ui_component | 1 | UNCHANGED |
-| [[UI-108]] | ui_component | 1 | UNCHANGED |
-| [[UI-109]] | ui_component | 1 | UNCHANGED |
-| [[UI-110]] | ui_component | 2 | UNCHANGED |
-| [[UI-111]] | ui_component | 3 | UNCHANGED |
-| [[UI-112]] | ui_component | 3 | UNCHANGED |
-| [[UI-113]] | ui_component | 1 | UNCHANGED |
-| [[UI-114]] | ui_component | 1 | UNCHANGED |
-| [[UI-115]] | ui_component | 1 | UNCHANGED |
-| [[UI-116]] | ui_component | 1 | UNCHANGED |
-| [[UI-117]] | ui_component | 1 | UNCHANGED |
-| [[UI-118]] | ui_component | 1 | UNCHANGED |
-| [[UI-119]] | ui_component | 1 | UNCHANGED |
-| [[UI-120]] | ui_component | 1 | UNCHANGED |
-| [[UI-121]] | ui_component | 1 | UNCHANGED |
-| [[UI-122]] | ui_component | 1 | UNCHANGED |
-| [[UI-123]] | ui_component | 1 | UNCHANGED |
-| [[UI-124]] | ui_component | 1 | UNCHANGED |
-| [[UI-125]] | ui_component | 1 | UNCHANGED |
-| [[UI-126]] | ui_component | 1 | UNCHANGED |
-| [[UI-127]] | ui_component | 1 | UNCHANGED |
-| [[UI-128]] | ui_component | 1 | UNCHANGED |
-| [[UI-129]] | ui_component | 4 | UNCHANGED |
-| [[UI-130]] | ui_component | 1 | UNCHANGED |
-| [[UI-131]] | ui_component | 2 | UNCHANGED |
-| [[UI-132]] | ui_component | 2 | UNCHANGED |
-| [[UI-133]] | ui_component | 2 | UNCHANGED |
-| [[UI-134]] | ui_component | 2 | UNCHANGED |
-| [[UI-135]] | ui_component | 1 | UNCHANGED |
-| [[UI-136]] | ui_component | 1 | UNCHANGED |
-| [[UI-137]] | ui_component | 1 | UNCHANGED |
-| [[UI-138]] | ui_component | 2 | UNCHANGED |
-| [[UI-139]] | ui_component | 2 | UNCHANGED |
-| [[UI-140]] | ui_component | 2 | UNCHANGED |
-| [[UI-141]] | ui_component | 1 | UNCHANGED |
-| [[UI-142]] | ui_component | 1 | UNCHANGED |
-| [[UI-143]] | ui_component | 1 | UNCHANGED |
-| [[UI-144]] | ui_component | 1 | UNCHANGED |
+| ITEM ID | type | title | version | stale | status |
+|---|---|---|---|---|---|
+| [[AC-1050]] | acceptance | UC-040 공지·가이드라인 관리와 열람 — 목록·작성·수정·발행·열람·삭제 (happy) | 7 | true | NEW |
+| [[AC-1051]] | acceptance | UC-040 공지 접근·첨부·쓰기 제어 — 초안 존재 미노출·허용 밖 첨부 거부·작업자 쓰기 진입 차단 (negative) | 5 | true | NEW |
+| [[API-095]] | api_endpoint | GET /v1/notices | 6 | false | UNCHANGED |
+| [[API-096]] | api_endpoint | GET /v1/notices/{id} | 7 | false | UNCHANGED |
+| [[API-097]] | api_endpoint | POST /v1/notices | 7 | false | UNCHANGED |
+| [[API-098]] | api_endpoint | PUT /v1/notices/{id} | 7 | false | UNCHANGED |
+| [[API-099]] | api_endpoint | DELETE /v1/notices/{id} | 6 | false | UNCHANGED |
+| [[API-100]] | api_endpoint | POST /v1/notices/{id}/publish | 8 | false | UNCHANGED |
+| [[API-101]] | api_endpoint | POST /v1/notices/{id}/unpublish | 8 | false | UNCHANGED |
+| [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 9 | false | UNCHANGED |
+| [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 7 | false | UNCHANGED |
+| [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | UNCHANGED |
+| [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | NEW |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | CHANGED |
+| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 26 | true | UNCHANGED |
+| [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 33 | true | UNCHANGED |
+| [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | UNCHANGED |
+| [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | UNCHANGED |
+| [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 6 | true | UNCHANGED |
+| [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | true | UNCHANGED |
+| [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | UNCHANGED |
+| [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | true | UNCHANGED |
+| [[UC-040]] | use_case | 공지·가이드라인 관리와 열람 | 5 | false | NEW |
+| [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
+| [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
+| [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
+| [[UI-004]] | ui_component | overlay: Modal | 4 | false | UNCHANGED |
+| [[UI-005]] | ui_component | overlay: ConfirmDialog | 4 | false | UNCHANGED |
+| [[UI-006]] | ui_component | overlay: Drawer | 4 | false | UNCHANGED |
+| [[UI-007]] | ui_component | data: DataTable | 7 | false | UNCHANGED |
+| [[UI-008]] | ui_component | navigation: Pagination | 6 | false | UNCHANGED |
+| [[UI-009]] | ui_component | navigation: Tabs | 3 | false | UNCHANGED |
+| [[UI-010]] | ui_component | display: KpiCard | 4 | false | UNCHANGED |
+| [[UI-011]] | ui_component | layout: Card | 4 | false | UNCHANGED |
+| [[UI-012]] | ui_component | layout: PageHeader | 3 | false | UNCHANGED |
+| [[UI-013]] | ui_component | navigation: Breadcrumb | 3 | false | UNCHANGED |
+| [[UI-014]] | ui_component | display: StatusBadge | 5 | false | UNCHANGED |
+| [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | UNCHANGED |
+| [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | UNCHANGED |
+| [[UI-017]] | ui_component | display: StageBadge | 8 | false | UNCHANGED |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 10 | false | UNCHANGED |
+| [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | UNCHANGED |
+| [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | UNCHANGED |
+| [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | UNCHANGED |
+| [[UI-022]] | ui_component | feedback: LoadingOverlay | 5 | false | UNCHANGED |
+| [[UI-023]] | ui_component | feedback: Toast | 3 | false | UNCHANGED |
+| [[UI-024]] | ui_component | input: Checkbox | 6 | false | UNCHANGED |
+| [[UI-025]] | ui_component | input: Radio | 3 | false | UNCHANGED |
+| [[UI-026]] | ui_component | input: RadioGroup | 6 | false | UNCHANGED |
+| [[UI-027]] | ui_component | input: Textarea | 4 | false | UNCHANGED |
+| [[UI-028]] | ui_component | input: DatePicker | 4 | false | UNCHANGED |
+| [[UI-029]] | ui_component | input: DateRangePicker | 5 | false | UNCHANGED |
+| [[UI-030]] | ui_component | [폐기] input: FormField | 6 | false | UNCHANGED |
+| [[UI-031]] | ui_component | overlay: Popover | 3 | false | UNCHANGED |
+| [[UI-032]] | ui_component | feedback: Spinner | 3 | false | UNCHANGED |
+| [[UI-033]] | ui_component | feedback: Skeleton | 3 | false | UNCHANGED |
+| [[UI-034]] | ui_component | layout: AppLayout | 4 | false | UNCHANGED |
+| [[UI-035]] | ui_component | navigation: Gnb | 7 | false | CHANGED |
+| [[UI-036]] | ui_component | navigation: Lnb | 3 | false | UNCHANGED |
+| [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | CHANGED |
+| [[UI-038]] | ui_component | layout: Footer | 3 | false | UNCHANGED |
+| [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
+| [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
+| [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-043]] | ui_component | action: MarkingToolbar | 4 | false | UNCHANGED |
+| [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
+| [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
+| [[UI-046]] | ui_component | display: CanvasShell | 8 | false | CHANGED |
+| [[UI-047]] | ui_component | action: ToolBar | 6 | false | UNCHANGED |
+| [[UI-048]] | ui_component | overlay: LabelPickerModal | 7 | false | UNCHANGED |
+| [[UI-049]] | ui_component | data: ObjectClassTree | 7 | false | UNCHANGED |
+| [[UI-050]] | ui_component | input: ObjectAttributePanel | 6 | false | UNCHANGED |
+| [[UI-051]] | ui_component | navigation: FrameFilmstrip | 4 | false | UNCHANGED |
+| [[UI-052]] | ui_component | navigation: FrameNavigator | 7 | false | UNCHANGED |
+| [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
+| [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
+| [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
+| [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
+| [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
+| [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |
+| [[UI-060]] | ui_component | layout: ReviewHeader | 5 | false | UNCHANGED |
+| [[UI-061]] | ui_component | [폐기] data: IssueSidebar | 5 | false | UNCHANGED |
+| [[UI-062]] | ui_component | overlay: RejectModal | 4 | false | UNCHANGED |
+| [[UI-063]] | ui_component | navigation: ReviewFrameTimeline | 4 | false | UNCHANGED |
+| [[UI-064]] | ui_component | [폐기] data: ObjectListPanel | 5 | false | UNCHANGED |
+| [[UI-065]] | ui_component | input: ReviewMemoPanel | 4 | false | UNCHANGED |
+| [[UI-066]] | ui_component | data: VersionList | 5 | false | UNCHANGED |
+| [[UI-067]] | ui_component | display: DiffViewer | 4 | false | UNCHANGED |
+| [[UI-068]] | ui_component | [폐기] input: VersionPicker | 6 | false | UNCHANGED |
+| [[UI-069]] | ui_component | overlay: RollbackConfirmModal | 4 | false | UNCHANGED |
+| [[UI-070]] | ui_component | layout: HistoryPanel | 4 | false | UNCHANGED |
+| [[UI-071]] | ui_component | input: ProcessKindCard | 5 | false | CHANGED |
+| [[UI-072]] | ui_component | display: JobCard | 5 | false | CHANGED |
+| [[UI-073]] | ui_component | action: DecisionCard | 4 | false | UNCHANGED |
+| [[UI-074]] | ui_component | [폐기] input: TimeseriesSidePanel | 5 | false | UNCHANGED |
+| [[UI-075]] | ui_component | [폐기] display: StateChangeTimeline | 5 | false | UNCHANGED |
+| [[UI-076]] | ui_component | display: ConfidenceDistributionChart | 4 | false | UNCHANGED |
+| [[UI-077]] | ui_component | data: MyTasksTable | 4 | false | UNCHANGED |
+| [[UI-078]] | ui_component | display: EventDistributionGrid | 4 | false | UNCHANGED |
+| [[UI-079]] | ui_component | display: NoticeCard | 4 | false | UNCHANGED |
+| [[UI-080]] | ui_component | data: WorkerStatsTable | 5 | false | UNCHANGED |
+| [[UI-081]] | ui_component | data: DailyCompletionChart | 4 | false | UNCHANGED |
+| [[UI-082]] | ui_component | data: EventTypePieChart | 4 | false | UNCHANGED |
+| [[UI-083]] | ui_component | overlay: AssignModal | 5 | false | UNCHANGED |
+| [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
+| [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
+| [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
+| [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
+| [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
+| [[UI-090]] | ui_component | action: DangerActions | 6 | false | UNCHANGED |
+| [[UI-091]] | ui_component | overlay: PresetEditModal | 6 | false | UNCHANGED |
+| [[UI-092]] | ui_component | display: PresetCodeChip | 4 | false | UNCHANGED |
+| [[UI-093]] | ui_component | [폐기] display: BatchStageSteps | 6 | false | UNCHANGED |
+| [[UI-094]] | ui_component | action: VideoActions | 5 | false | UNCHANGED |
+| [[UI-095]] | ui_component | input: VideoFilters | 5 | false | UNCHANGED |
+| [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | CHANGED |
+| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | UNCHANGED |
+| [[UI-098]] | ui_component | input: FileInput | 2 | false | UNCHANGED |
+| [[UI-099]] | ui_component | input: Field | 2 | false | UNCHANGED |
+| [[UI-100]] | ui_component | input: DeidentConfigCard | 2 | false | UNCHANGED |
+| [[UI-101]] | ui_component | display: RecheckBadge | 1 | false | UNCHANGED |
+| [[UI-102]] | ui_component | display: ReadOnlyBadge | 1 | false | UNCHANGED |
+| [[UI-103]] | ui_component | feedback: AlertBanner | 1 | false | UNCHANGED |
+| [[UI-104]] | ui_component | display: CountChip | 1 | false | UNCHANGED |
+| [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | CHANGED |
+| [[UI-106]] | ui_component | data: KeyValueGrid | 1 | false | UNCHANGED |
+| [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
+| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
+| [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
+| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
+| [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
+| [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
+| [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
+| [[UI-114]] | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
+| [[UI-115]] | ui_component | display: FieldCounter | 1 | false | UNCHANGED |
+| [[UI-116]] | ui_component | display: LockIconBadge | 1 | false | UNCHANGED |
+| [[UI-117]] | ui_component | feedback: DevOnlyNotice | 1 | false | UNCHANGED |
+| [[UI-118]] | ui_component | display: ChannelChip | 1 | false | UNCHANGED |
+| [[UI-119]] | ui_component | action: IconButton | 1 | false | UNCHANGED |
+| [[UI-120]] | ui_component | display: Tooltip | 1 | false | UNCHANGED |
+| [[UI-121]] | ui_component | display: DeidentStageBadge | 1 | false | UNCHANGED |
+| [[UI-122]] | ui_component | data: DeidentArtifactCandidateList | 1 | false | UNCHANGED |
+| [[UI-123]] | ui_component | input: ToggleSwitch | 1 | false | UNCHANGED |
+| [[UI-124]] | ui_component | input: ColorSwatchField | 1 | false | UNCHANGED |
+| [[UI-125]] | ui_component | input: DynamicList | 1 | false | UNCHANGED |
+| [[UI-126]] | ui_component | display: DisplayNameSourceChip | 1 | false | UNCHANGED |
+| [[UI-127]] | ui_component | display: DetectClassMapChip | 1 | false | UNCHANGED |
+| [[UI-128]] | ui_component | data: DatamartVideoCard | 1 | false | UNCHANGED |
+| [[UI-129]] | ui_component | layout: PortalHero | 4 | false | CHANGED |
+| [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
+| [[UI-131]] | ui_component | input: UploadDropzone | 2 | false | CHANGED |
+| [[UI-132]] | ui_component | display: AssetTypeChip | 2 | false | CHANGED |
+| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | UNCHANGED |
+| [[UI-134]] | ui_component | display: SelectionSummary | 2 | false | CHANGED |
+| [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
+| [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |
+| [[UI-137]] | ui_component | feedback: InlineResultSummary | 1 | false | UNCHANGED |
+| [[UI-138]] | ui_component | data: FramePairGrid | 2 | false | CHANGED |
+| [[UI-139]] | ui_component | overlay: SideBySideCompare | 2 | false | CHANGED |
+| [[UI-140]] | ui_component | display: AugmentPromptSummary | 2 | false | CHANGED |
+| [[UI-141]] | ui_component | feedback: AugmentProgressPanel | 1 | false | UNCHANGED |
+| [[UI-142]] | ui_component | display: WorkerNameSub | 1 | false | UNCHANGED |
+| [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |
+| [[UI-144]] | ui_component | display: ProcessingStackBar | 1 | false | UNCHANGED |

@@ -63,7 +63,16 @@ const SIDE_EFFECT_FREE_MODULES = [
   '/src/components/layout/AppLayout.tsx',
 ];
 
+// ★ 자산 base 경로 — 앱이 도메인 루트가 아닌 하위 경로에서 열릴 때 필요하다.
+//   현장(관제 채널)은 https://www.aicctv.go.kr/label-studio/ 에서 열리므로
+//   빌드 시 VITE_BASE_PATH=/label-studio/ 를 준다. 미지정이면 종전대로 '/'.
+//   ⚠ 끝의 슬래시가 의미를 가진다 — 없으면 /label-studioassets/... 처럼 붙는다.
+//   ⚠ 이 값은 import.meta.env.BASE_URL 로 앱에 노출되고, 라우터 basename 이 그것을 읽는다
+//     (lib/remoteMount.resolveRouterBasename). 두 값을 따로 주면 갈린다.
+const BASE_PATH = process.env.VITE_BASE_PATH ?? '/';
+
 export default defineConfig({
+  base: BASE_PATH,
   plugins: [react()],
   build: {
     rollupOptions: {

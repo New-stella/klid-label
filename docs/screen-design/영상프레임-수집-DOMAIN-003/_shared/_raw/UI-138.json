@@ -59,17 +59,18 @@
         }
       ],
       "usage_example": "SCREEN-023 증강 결과 확인 화면의 각 결과 탭 패널 안 '원본 · 증강 프레임 비교' 구획. 격자 아래에 자체 페이저(.grid-foot > .pagination)를 둔다",
+      "attached_files": [],
       "design_system_id": "DS-001",
-      "accessibility_notes": "각 칸이 <a href> 라 키보드로 순회하고 눌러서 확대 비교를 연다. 실패 표시 아이콘은 aria-hidden 이고 '생성 실패' 한글이 함께 있어 색만으로 전달하지 않는다. 자체 페이저에 aria-label('겨울 #1 프레임 쌍 페이지')을 붙여 항목 페이저와 구분한다. 480px 이하에서 1열로 접힌다."
+      "accessibility_notes": "각 칸이 <a href> 라 키보드로 순회하고 눌러서 확대 비교를 연다. 실패 표시 아이콘은 aria-hidden 이고 '생성 실패' 한글이 함께 있어 색만으로 전달하지 않는다. 자체 페이저에 aria-label('증강 AI #1 프레임 쌍 페이지')을 붙여 항목 페이저와 구분한다. 480px 이하에서 1열로 접힌다."
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "register_ui_component: data: FramePairGrid",
+    "change_summary": "증강 종류 단일화(AUGMENT) 반영 — 페이저 aria-label 예시의 구 종류명 교체.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T05:01:57.100Z",
+    "last_updated_at": "2026-09-02T08:45:32.185Z",
     "created_at": "2026-08-14T05:01:57.100Z"
   }
 }

@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "NFR-041",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "데이터 표준 관리 (변경이력·주기 점검)",
+    "slug": "데이터-표준-관리-변경이력주기-점검",
+    "sub_id": "RQ-DAR-02-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "데이터 표준 관리 (변경이력·주기 점검)",
+      "metric": "표준사전과 데이터 항목의 일치 여부 주기 점검 수행",
+      "status": "approved",
+      "target": {
+        "value": "표준 변경이력 관리 + 표준사전 대비 데이터 항목 일치 주기 점검",
+        "operator": "="
+      },
+      "category": "compliance",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-DAR-02-01 (담당=공통, RFP p55, 중요도 상) — 표준 수립(RQ-DAR-01-01)과 달리 구축기간 중의 관리 절차를 요구하는 항목이다.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 데이터 표준 관리 기준:\n- 구축기간 동안 데이터 표준의 변경이력을 관리하는 방안을 수립하고 적용한다.\n- 표준사전과 실제 데이터 항목의 일치 여부를 주기적으로 점검한다.\n- 신규 데이터베이스 객체를 만들 때 물리명(표준단어 조합)과 자료형·길이(표준도메인)를 표준사전과 대조해 확정하고, 대조 결과를 변경 단위로 남긴다.\n- 표준에 없는 개념이 필요하면 임의 약어를 만들지 않고 소유 주체의 등록 절차를 거쳐 사용한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [],
+      "measurement_method": "표준 변경이력과 주기 점검 결과로 표준사전과 실제 데이터 항목이 일치하는 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:26.478Z",
+    "created_at": "2026-09-05T00:12:26.478Z"
+  }
+}

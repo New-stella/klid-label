@@ -362,11 +362,12 @@
       "attached_files": [],
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-03T11:01:43.977Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -375,12 +376,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "창구의 이름만 가져오기 축으로 맞춘다. 이 창구를 부르는 화면이 파일을 올리는 자리에서 외부 산출물을 가져오는 자리로 옮겨졌는데 창구 이름만 파일을 올리던 시절 그대로 남아 있었다. 개발용 이름 자리에 두면 운영 기능이 개발용으로 보이고 그 자리는 설정으로 여닫는 곳이라 오해를 부른다. 아직 코드가 없어 깨질 호출부가 없는 지금이 가장 싼 시점이다. 경로와 태그와 이름표를 이미 있는 가져오기 창구들의 관례에 맞추고 마킹 갈래임이 경로에서 드러나게 한다. 권한과 요청·응답 스키마와 동작 서술은 하나도 바뀌지 않았다.",
+    "change_summary": "폴더 검사 창구 구현 — 재귀 짝짓기·건별 판정·상한 신고",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T06:13:33.184Z",
+    "last_updated_at": "2026-09-03T11:01:43.977Z",
     "created_at": "2026-08-24T10:32:21.904Z"
   }
 }

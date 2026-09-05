@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "NFR-047",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "개인정보처리 위탁계약 관리 및 수탁자 관리·감독",
+    "slug": "개인정보처리-위탁계약-관리-및-수탁자-관리감독",
+    "sub_id": "RQ-SER-05-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "개인정보처리 위탁계약 관리 및 수탁자 관리·감독",
+      "metric": "위탁계약 준수·재위탁 금지·안전성 확보조치 이행 여부",
+      "status": "approved",
+      "target": {
+        "value": "표준 위탁계약 준수 + 재위탁 없음 + 안전성 확보조치 적용 + 관리·감독 응대",
+        "operator": "="
+      },
+      "category": "security",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-SER-05-01·RQ-SER-05-02 (담당=공통, RFP p71, 중요도 상/중) — 저작도구는 영상 비식별·시계열 분석·영상 증강을 외부 서비스에 위탁하므로 직접 적용된다.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 개인정보 위탁 처리 기준:\n- 개인정보 처리에 관하여 표준 개인정보처리 위탁계약서 내용을 준수한다.\n- 계약상의 권리와 의무는 전부 또는 일부를 재위탁하지 않는다.\n- 개인정보의 안전성 확보조치 기준에 따라 필요한 기술적·관리적 조치를 취한다 — 외부에 전달하는 자료는 위탁 목적에 필요한 최소 범위로 한정하고, 비식별 처리가 끝난 자료를 우선 전달하며, 전달 경로와 저장 위치를 지정된 범위로 제한한다.\n- 위탁업무 수행 목적 범위를 넘어 개인정보를 이용하거나 제3자에게 제공·누설하지 않는다.\n- 수탁자에 대한 개인정보 처리현황, 접속현황, 접속대상자, 목적 외 이용·제공 및 재위탁 금지 준수 여부 관리·감독에 응한다. 이를 위해 위탁 요청·응답 이력과 처리 결과를 조회 가능한 형태로 보존한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-012",
+        "DOMAIN-004",
+        "DOMAIN-007"
+      ],
+      "measurement_method": "위탁 처리 대상과 전달 범위, 접근·처리 이력, 안전성 확보조치 적용 내역으로 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:27.955Z",
+    "created_at": "2026-09-05T00:12:27.955Z"
+  }
+}

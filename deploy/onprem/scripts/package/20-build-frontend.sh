@@ -18,7 +18,8 @@ set -euo pipefail
 #     ⚠ 되살리지 말 것. 되살리면 위의 "환경 무관 산출물"이 다시 성립하지 않는다.
 #
 #   ★ 아래 VITE_* 는 <런타임 값이 없을 때의 기본값>으로만 남는다(개발·컨테이너 경로 보존).
-#       VITE_API_BASE_URL : 웹 서버(httpd)가 /api 를 backend 로 프록시하므로 '/api/v1'.
+#       VITE_BASE_PATH    : 앱이 열리는 경로. 현장은 '/label-studio/'.
+#       VITE_API_BASE_URL : 웹 httpd 가 /label-studio/api/ 를 프록시하므로 '/label-studio/api/v1'.
 #       VITE_TOKEN_INGRESS: 토큰 인계 채널 기본값(localStorage).
 #                           'url'/'both'/'all' 은 JWT 를 URL 쿼리에 싣는 채널을 열어
 #                           접근 로그·리퍼러·히스토리에 토큰이 잔존한다(CWE-598).
@@ -70,7 +71,14 @@ require_cmd node npm
 ensure_dir "${OUT}"
 
 # 빌드 시점 주입 변수(필요 시 환경변수로 override 가능)
-export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api/v1}"
+# ★ 앱이 열리는 경로 (2026-09-04 현장 확정: https://www.aicctv.go.kr/label-studio/)
+#   자산 base 와 라우터 basename 이 <이 값 하나에서> 나온다(vite base → import.meta.env.BASE_URL).
+#   ⚠ 끝 슬래시가 의미를 가진다. ⚠ 빌드 시점에 박히므로 바꾸려면 재빌드해야 한다.
+export VITE_BASE_PATH="${VITE_BASE_PATH:-/label-studio/}"
+# ★ API base — 웹 httpd 가 /label-studio/api/ 를 label-cluster 로 프록시한다.
+#   ⚠ 이 값은 <런타임으로도> 덮을 수 있다(/etc/klid/frontend.env → klid-config.js).
+#     여기 값은 그 생성물이 없을 때의 폴백이다.
+export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/label-studio/api/v1}"
 export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
 # 온프렘 번들은 dev 라우트(/dev/login·/dev/upload)를 dist 에 포함하되,
 # 실제 게이팅은 BE DEV_LOGIN_ENABLED / DEV_UPLOAD_ENABLED 런타임 토글이 결정한다
@@ -81,7 +89,7 @@ export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
 # 없을 때의 폴백으로만 쓰인다. 대상 서버의 정본은 /etc/klid/frontend.env 다.
 export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
 export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
-info "[frontend] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
+info "[frontend] VITE_BASE_PATH=${VITE_BASE_PATH} VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
 info "[frontend] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
 info "[frontend] 의존성 설치 (npm ci)..."

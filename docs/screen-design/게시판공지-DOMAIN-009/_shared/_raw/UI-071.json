@@ -16,13 +16,13 @@
         "radio"
       ],
       "category": "input",
-      "description": "증강 요청 화면에서 처리 종류 하나를 고르는 라디오 카드. WINTER/NIGHT/RAIN(외부 위탁 증강) 및 RESOLUTION(해상도 변경, 저작도구 내부 수행) 4종 중 하나를 선택하면 아이콘·제목·설명과 선택 표시(체크)가 뜬다. 부모가 role=radiogroup으로 감싸고 카드 각각은 role=radio + aria-checked로 단일 선택 상태를 표현하며, 로빙 tabIndex(선택된 카드만 0)와 화살표 키 이동(onKeyDown)으로 키보드만으로 탐색·선택할 수 있다. disabled는 제출 처리 중일 때뿐 아니라, 대상 영상이 이미 파생영상(원본이 아닌 증강/해상도 결과물)이라 증강 요청 자체가 영구히 허용되지 않는 경우에도 쓰인다 — 파생 깊이를 1로 고정하는 정책상 재시도 여지가 없는 조건이며, 이때는 요청 진입 자체가 막히고 사유가 툴팁으로 안내된다.",
+      "description": "증강 요청 화면에서 처리 종류 하나를 고르는 라디오 카드. AUGMENT(증강 AI, 외부 위탁 증강)와 RESOLUTION(해상도 변경, 저작도구 내부 수행) 중 하나를 선택하면 아이콘·제목·설명과 선택 표시(체크)가 뜬다. 증강 종류 코드는 단일값 AUGMENT 이며 생성 조건에서 파생하지 않는다 — 무엇으로 바꿀지는 생성 조건이 정한다. 겨울·야간·우천은 처리 종류 카드가 아니라 생성 조건 프리셋으로 제시한다(ADR-059). 부모가 role=radiogroup으로 감싸고 카드 각각은 role=radio + aria-checked로 단일 선택 상태를 표현하며, 로빙 tabIndex(선택된 카드만 0)와 화살표 키 이동(onKeyDown)으로 키보드만으로 탐색·선택할 수 있다. disabled는 제출 처리 중일 때뿐 아니라, 대상 영상이 이미 파생영상(원본이 아닌 증강/해상도 결과물)이라 증강 요청 자체가 영구히 허용되지 않는 경우에도 쓰인다 — 파생 깊이를 1로 고정하는 정책상 재시도 여지가 없는 조건이며, 이때는 요청 진입 자체가 막히고 사유가 툴팁으로 안내된다.",
       "props_schema": [
         {
           "name": "kind",
           "type": "ProcessKind",
           "required": true,
-          "description": "카드가 나타내는 처리 종류 — WINTER/NIGHT/RAIN(증강) 또는 RESOLUTION(해상도 변경)."
+          "description": "카드가 나타내는 처리 종류 — AUGMENT(증강 AI) 또는 RESOLUTION(해상도 변경)."
         },
         {
           "name": "selected",
@@ -55,7 +55,8 @@
           "description": "부모 radiogroup의 화살표 키 탐색 핸들러."
         }
       ],
-      "usage_example": "증강 요청 화면에서 처리 종류 4개 카드를 role=radiogroup 컨테이너 안에 그리드로 배치해 단일 선택을 받는다. 선택 후 유형에 따라 증강 생성 조건 입력 폼 또는 해상도 선택 폼이 이어서 나타난다.",
+      "usage_example": "증강 요청 화면에서 증강 AI 와 해상도 변경 처리 종류 카드를 role=radiogroup 컨테이너 안에 그리드로 배치해 단일 선택을 받는다. 선택 후 유형에 따라 증강 생성 조건 입력 폼 또는 해상도 선택 폼이 이어서 나타난다.",
+      "attached_files": [],
       "design_system_id": "DS-001",
       "accessibility_notes": "role=radio + aria-checked, 부모 role=radiogroup(WCAG 4.1.2). 로빙 tabIndex로 그룹 내 Tab 이동은 1스톱, 화살표 키로 카드 간 이동. 포커스 링 적용. 선택 상태는 체크 아이콘 + 배경색 변화로 함께 표시(색상 단독 아님).",
       "referenced_by_screen_ids": [
@@ -64,12 +65,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "코드 대응물 없이 카탈로그에만 있던 AugmentTypeCard를 실제 구현체(ProcessKindCard)로 개명 — role=radio/radiogroup 기반 단일 선택 시맨틱과 로빙 tabIndex a11y를 사양에 반영하고, disabled의 의미에 파생영상(깊이 1 고정) 요청 차단 조건을 명시.",
+    "change_summary": "처리 종류 카드를 증강 AI·해상도 변경 축으로 정정 — 증강 종류 코드는 단일값 AUGMENT 이며 겨울·야간·우천은 생성 조건 프리셋으로 옮겨간다(ADR-059). 구 WINTER/NIGHT/RAIN 열거는 SCREEN-022 v47 사양과 어긋나 폐기.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T19:15:22.954Z",
+    "last_updated_at": "2026-09-02T08:16:16.110Z",
     "created_at": "2026-06-02T13:15:57.369Z"
   }
 }
