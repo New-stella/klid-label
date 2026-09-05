@@ -98,13 +98,36 @@ if [[ "${WITH_BACKEND_JAR:-0}" == "1" ]]; then
 fi
 
 # ---- WAR 수집 (외부 WAS 반입용 — 반입 정본) ----
-#   ★ 파일 이름이 곧 웹 컨텍스트다. 이름을 바꾸면 프론트엔드와 관제의 호출 주소가
-#     전부 어긋나므로 빌드가 정한 이름을 그대로 옮긴다(rename 금지).
+#   ⚠ 구 서술 폐기(2026-09-05): "파일 이름이 곧 웹 컨텍스트다".
+#     대상 WAS(JBoss EAP)에서는 WAR 안 WEB-INF/jboss-web.xml 이 컨텍스트를 정하므로
+#     이름과 컨텍스트가 분리된다. 그래도 이름은 그대로 옮긴다 — 반입 문서·설치·런북이
+#     api.war 라는 이름으로 산출물을 찾기 때문이다(주소가 아니라 절차의 문제).
 war_src="${BE_SRC}/build/libs/api.war"
 if [[ -f "${war_src}" ]]; then
   rm -f "${OUT}"/*.war
   install -m 0644 "${war_src}" "${OUT}/api.war"
   ok "[backend] WAR 수집: ${OUT}/api.war  ($(du -h "${OUT}/api.war" | cut -f1))"
+  # ★ 어떤 향으로 만든 WAR 인지 <산출물에서 읽어> 기록한다 — 나중에 매체만 보고도 알 수 있어야 한다.
+  _ctx="$(unzip -p "${OUT}/api.war" WEB-INF/jboss-web.xml 2>/dev/null \
+          | tr -d '\r' | grep -o '<context-root>[^<]*</context-root>' \
+          | head -n1 | sed 's|.*<context-root>||; s|</context-root>.*||')"
+  case "${_ctx}" in
+    /label-studio/api) _flavor="passthrough (웹이 /api 를 그대로 넘기는 형상)" ;;
+    /label-studio)     _flavor="strip (웹이 /api 를 걷어내는 형상)" ;;
+    "")                _flavor="읽지 못함 — jboss-web.xml 이 없다면 컨텍스트가 파일명을 따라간다" ;;
+    *)                 _flavor="아는 두 향 중 어느 쪽도 아님 — 의도한 값인지 확인" ;;
+  esac
+  {
+    echo "# klid-label backend 빌드 기록"
+    echo "#   웹 컨텍스트는 두 향 중 하나다. 어느 쪽인지는 현장 httpd 설정이 정한다."
+    echo "#   다른 향으로 만들려면: ./gradlew bootWar -PklidWebContext=<값>"
+    echo "built_at=$(date '+%Y-%m-%d %H:%M:%S%z')"
+    echo "git_commit=$(cd "${BE_SRC}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    echo "web_context=${_ctx:-unknown}"
+    echo "web_context_flavor=${_flavor}"
+    echo "browser_api_base=/label-studio/api/v1   # 두 향에서 같다 — 프론트는 재빌드 대상이 아니다"
+  } > "${OUT}/BUILD-INFO.txt"
+  ok "[backend] 웹 컨텍스트 = ${_ctx:-?}  (${_flavor})"
 else
   die "[backend] WAR 산출물을 찾을 수 없습니다: ${war_src} — build.gradle 의 bootWar 설정을 확인하세요."
 fi

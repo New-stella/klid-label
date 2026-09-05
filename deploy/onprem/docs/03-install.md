@@ -194,6 +194,52 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 `sudo /opt/klid/bin/klid-frontend-config` 실행 후 `install.sh` 를 다시 돌리면 이어진다.
 설치 후 값 변경은 재빌드·재설치 없이 그 명령 한 줄이다 — `04-configuration.md` C-1 절.
 
+## 웹 컨텍스트 — 두 향 중 하나를 고른다 (2026-09-05)
+
+현장 웹(httpd)이 `/label-studio/api/` 로 들어온 요청을 WAS 로 넘길 때 **그 대상 경로에 `/api` 를
+남기느냐 걷어내느냐**에 따라 WAS 가 받는 경로가 갈린다. **브라우저가 부르는 주소는 두 향에서
+똑같다**(`/label-studio/api/v1`) — 다른 것은 httpd 가 넘기는 모양뿐이다.
+
+| 향 | 현장 httpd | WAS 가 받는 경로 | WAR 컨텍스트 |
+|---|---|---|---|
+| **passthrough** | `→ balancer://…/label-studio/api/` | `/label-studio/api/v1` | `/label-studio/api` |
+| **strip** | `→ balancer://…/label-studio/` | `/label-studio/v1` | `/label-studio` |
+
+### 고르는 법 — 빌드 인자 하나
+
+```bash
+./gradlew bootWar                                   # 기본값(passthrough)
+./gradlew bootWar -PklidWebContext=/label-studio    # strip 향
+KLID_WEB_CONTEXT=/label-studio ./gradlew bootWar    # 같음
+```
+
+잘못된 값은 **빌드가 시작 전에 거부**한다(`/` 로 시작·`/` 로 끝나지 않음·경로 문자만).
+만들어진 향은 `artifacts/backend/BUILD-INFO.txt` 의 `web_context` 에 기록된다.
+
+### 어느 향인지 판정 — 브라우저 한 줄
+
+```
+https://<사이트>/label-studio/api/actuator/health/liveness
+```
+
+이 경로는 **인증 없이 열려 있다**(`permitAll`). JSON 이 나오면 지금 배포된 향이 맞고, **404 면 다른 향**이다.
+
+⚠ **틀린 향을 올려도 아무 신호가 없다.** WAS 는 정상 기동하고 배포도 성공이며 로그도 조용하고
+**화면까지 뜬다**(정적 자산은 `/label-studio/` 에서 따로 받아 온다). **API 만 전건 404** 다.
+그래서 설치(`17-deploy-jboss.sh` · `site-install.sh`)가 배포할 WAR 에서 컨텍스트를 **읽어** 확인한다 — 추측하지 않는다.
+
+### 바꿀 때 교체할 것 — WAR 하나뿐이다
+
+- **프론트는 재빌드하지 않는다** — 브라우저가 부르는 주소가 두 향에서 같다.
+- **httpd 설정은 건드리지 않는다** — 현장 공용 설정이다.
+- **`/etc/klid/frontend.env` 도 그대로다** — `VITE_API_BASE_URL=/label-studio/api/v1`.
+
+즉 다른 향으로 WAR 을 다시 만들어 배포 디렉터리의 파일만 갈아 끼우면 된다.
+
+⚠ 현장 httpd conf **원본이 우리 저장소에 없다** — 위 ProxyPass 는 2026-09-04 에 사람이 옮겨 적은
+한 줄이 유일한 근거다. 그래서 한쪽으로 못박지 않았다. 원본을 확인하면 그때 기본값을 확정한다.
+
+
 ## 단계별 동작
 
 | 단계 | 역할 | 스크립트 | 동작 |

@@ -291,6 +291,32 @@ logback 설정이 무시된 채 돌아 **민감정보 마스킹이 사라진다*
 해결: CIDR 오타(`203.0.113.0/33`)·구분자 오타(`;`)·호스트명은 부팅 차단된다(DEV_FIX N-4).
 IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` 을 명시.
 
+## 화면은 뜨는데 API 가 전부 실패한다 (웹 컨텍스트 향 불일치)
+
+**증상**: 화면은 정상적으로 뜨는데 데이터가 하나도 안 나온다. WAS 는 정상 기동하고 배포도 성공이며
+`server.log` 도 조용하다. 정적 자산은 `/label-studio/` 에서 따로 받아 오므로 **화면이 뜨는 것은
+API 가 된다는 근거가 아니다.**
+
+**원인**: WAR 의 웹 컨텍스트 향이 현장 httpd 형상과 어긋났다.
+
+**판정** — 브라우저로(인증 불필요):
+```
+https://<사이트>/label-studio/api/actuator/health/liveness
+```
+JSON 이면 향이 맞고, **404 면 어긋난 것**이다. WAS 장비에서 직접 볼 수도 있다:
+```bash
+CTX=$(unzip -p <JBOSS_HOME>/standalone/deployments/api.war WEB-INF/jboss-web.xml \
+      | grep -o '<context-root>[^<]*</context-root>' | sed 's|.*>\(.*\)<.*|\1|')
+curl -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8080${CTX}/actuator/health/liveness"
+```
+이것이 200 인데 웹 경유가 404 면 **향이 어긋난 것이 확정**이다(WAS 는 멀쩡하고 경로만 안 맞는다).
+
+**조치** — 다른 향으로 WAR 만 다시 만들어 교체한다. 프론트·httpd·`frontend.env` 는 그대로 둔다.
+```bash
+./gradlew bootWar -PklidWebContext=/label-studio     # 또는 /label-studio/api
+```
+상세는 `03-install.md` 「웹 컨텍스트 — 두 향 중 하나를 고른다」.
+
 ## PostgreSQL — 현장 제공 (우리가 설치하지 않는다)
 
 ⚠ **구 절 폐기(2026-09-05)** — *"PostgreSQL 번들 설치 (오프라인) — 번들 PG16

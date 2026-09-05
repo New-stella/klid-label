@@ -35,7 +35,7 @@ set -euo pipefail
 #       --restart             배선 후 WAS 를 재기동한다
 #       --check               아무것도 바꾸지 않고 현재 상태만 본다
 #
-#   ⚠ 컨텍스트 경로는 WAR 안 WEB-INF/jboss-web.xml 이 /api 로 고정한다.
+#   ⚠ 컨텍스트 경로는 WAR 안 WEB-INF/jboss-web.xml 이 정한다(빌드 때 고른 향의 값).
 #     그래서 <파일명이 무엇이든 상관없다> — 옛 규칙 "rename 금지"는 폐기됐다.
 # ============================================================================
 
@@ -46,9 +46,24 @@ require_root
 
 ONPREM="$(onprem_root)"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
-# ★ 웹 컨텍스트 — WAR 안 jboss-web.xml 이 정하는 값과 같아야 한다(현장: /label-studio).
-#   여기서 갈리면 헬스체크가 404 를 받고 <설치가 실패한 것처럼> 보인다.
-APP_CONTEXT="${APP_CONTEXT:-/label-studio}"
+# ★★ 웹 컨텍스트는 <추측하지 않는다> — 배포할 WAR 에서 읽는다 (2026-09-05)
+#   두 향이 있고 어느 쪽인지는 현장 httpd 설정이 정한다:
+#     passthrough : httpd 가 /api 를 그대로 넘김 → WAR 컨텍스트 /label-studio/api
+#     strip       : httpd 가 /api 를 걷어냄     → WAR 컨텍스트 /label-studio
+#   ⚠ 틀린 향을 올려도 <아무 신호가 없다> — WAS 는 정상 기동하고 화면도 뜨며 API 만 전건 404 다.
+#     그래서 값을 여기 박아 두지 않고 WAR 에서 읽어, 아래 헬스체크가 그 값으로 확인한다.
+#   ⚠ 브라우저가 부르는 주소는 두 향에서 <같다>(/label-studio/api/v1). 다른 것은 WAS 가 받는 모양뿐이다.
+#   ⚠ 환경변수로 덮을 수 있으나(APP_CONTEXT=...) 권장하지 않는다 — WAR 과 갈리면 그 순간 진단이 거짓이 된다.
+APP_CONTEXT="${APP_CONTEXT:-}"
+
+# klid_read_war_context <war> — WAR 안 jboss-web.xml 의 context-root 를 출력한다(없으면 빈 문자열).
+klid_read_war_context() {
+  local w="$1"
+  [[ -f "${w}" ]] || return 0
+  unzip -p "${w}" WEB-INF/jboss-web.xml 2>/dev/null \
+    | tr -d '\r' | grep -o '<context-root>[^<]*</context-root>' \
+    | head -n1 | sed 's|.*<context-root>||; s|</context-root>.*||'
+}
 
 KLID_PREFIX="${KLID_PREFIX:-/opt/klid}"
 KLID_DATA="${KLID_DATA:-/var/lib/klid}"
@@ -192,7 +207,7 @@ fi
 # 0-3) 배포 파일명 결정
 #      이미 배포돼 있는 우리 WAR 가 있으면 <그 이름을 그대로 쓴다>.
 #      ★ 이름을 바꾸면 같은 애플리케이션이 두 벌 배포돼 컨텍스트가 충돌한다.
-#      ★ 컨텍스트는 WAR 안 jboss-web.xml 이 /api 로 고정하므로 이름은 무엇이든 된다.
+#      ★ 컨텍스트는 WAR 안 jboss-web.xml 이 정하므로 이름은 무엇이든 된다.
 # ---------------------------------------------------------------------------
 WAR_SRC="${ONPREM}/artifacts/backend/api.war"
 [[ -f "${WAR_SRC}" ]] || die "반입 WAR 없음: ${WAR_SRC}"
@@ -229,7 +244,7 @@ detect_war_name() {
   if [[ "${#found[@]}" -eq 1 ]]; then printf '%s\n' "${found[0]}"; return 0; fi
   if [[ "${#found[@]}" -gt 1 ]]; then
     warn "[jboss] 저작도구 WAR 로 보이는 배포본이 여럿입니다: ${found[*]}"
-    warn "        같은 컨텍스트(/api)를 두 벌이 잡으면 충돌합니다. --war-name= 으로 하나를 고르고"
+    warn "        같은 컨텍스트를 두 벌이 잡으면 충돌합니다. --war-name= 으로 하나를 고르고"
     warn "        나머지는 배포 디렉터리에서 <직접 치우세요>(이 스크립트는 지우지 않습니다)."
     printf '%s\n' "${found[0]}"; return 0
   fi
@@ -237,7 +252,22 @@ detect_war_name() {
 }
 WAR_NAME="$(detect_war_name)"
 WAR_DST="${DEPLOY_DIR}/${WAR_NAME}"
-info "[jboss] 배포 파일명 = ${WAR_NAME}  (컨텍스트 /api 는 WAR 안 jboss-web.xml 이 고정)"
+# ★ 컨텍스트를 <반입 WAR 에서> 읽어 확정한다 — 배포 뒤 헬스체크가 이 값을 쓴다.
+if [[ -z "${APP_CONTEXT}" ]]; then
+  APP_CONTEXT="$(klid_read_war_context "${WAR_SRC}")"
+fi
+if [[ -z "${APP_CONTEXT}" ]]; then
+  APP_CONTEXT="/label-studio/api"
+  warn "[jboss] WAR 에서 컨텍스트를 읽지 못해 기본값 ${APP_CONTEXT} 로 진단합니다."
+  warn "        (jboss-web.xml 이 없으면 컨텍스트는 <파일명>을 따라갑니다 — 위 경고 참조)"
+fi
+case "${APP_CONTEXT}" in
+  /label-studio/api) _ctx_flavor="passthrough — 웹이 /api 를 그대로 넘기는 형상" ;;
+  /label-studio)     _ctx_flavor="strip — 웹이 /api 를 걷어내는 형상" ;;
+  *)                 _ctx_flavor="아는 두 향 중 어느 쪽도 아님 — 의도한 값인지 확인하세요" ;;
+esac
+info "[jboss] 배포 파일명 = ${WAR_NAME}"
+info "[jboss] 웹 컨텍스트 = ${APP_CONTEXT}  (${_ctx_flavor}) — WAR 안 jboss-web.xml 에서 읽었다"
 
 # ---------------------------------------------------------------------------
 # check 모드 — 여기까지의 관측만 보여 주고 끝낸다
@@ -488,5 +518,11 @@ info "  3) undertow/io 설정 — 별도 스크립트가 있습니다(기동 중
 info "       sudo ./scripts/install/18-jboss-settings.sh --check     # 먼저 현재 값을 본다"
 info "       sudo ./scripts/install/18-jboss-settings.sh --apply"
 info "  4) 살아 있는지"
-info "       curl -i http://127.0.0.1:8080${APP_CONTEXT}/api/actuator/health/liveness"
+info "       # WAS 직접 — 컨텍스트는 방금 배포한 WAR 의 값이다"
+info "       curl -i http://127.0.0.1:8080${APP_CONTEXT}/actuator/health/liveness"
+info "       # 웹 경유 — 이 주소는 두 향에서 <같다>. 브라우저가 부르는 주소다"
+info "       curl -i http://<웹 장비>/label-studio/api/actuator/health/liveness"
+info "  ★ 둘 중 <웹 경유만> 404 면 향이 어긋난 것이다 — WAS 는 뜨고 화면도 뜨는데 API 만 전부 죽는다."
+info "     지금 배포한 향: ${APP_CONTEXT} (${_ctx_flavor})"
+info "     다른 향으로 다시 만들려면:  ./gradlew bootWar -PklidWebContext=$( [[ "${APP_CONTEXT}" == "/label-studio/api" ]] && echo '/label-studio' || echo '/label-studio/api' )"
 echo
