@@ -158,6 +158,10 @@ class Project:
     db_save: int = 0
     #: 백그라운드 산출 진행 상태(PENDING→RUNNING→SUCCEEDED|FAILED). 완료 보고의 두 번째 축이다.
     production_state: str = PRODUCTION_PENDING
+    #: 실제 비식별 엔진이 낸 데이터셋별 검출 요약 — ``retrieve_report`` 의 얼굴/번호판 수 원천.
+    #: 산출 순서(= 데이터셋 등록 순서)대로 담기며, 엔진이 돌지 않은(모델 부재 → 워터마크 폴백)
+    #: 산출물은 <b>여기 들어오지 않아</b> 목록이 비고, 그때 리포트는 기존 mock 카운트로 돌아간다.
+    deid_summaries: list = field(default_factory=list)
     # Phase 2/3 확장용 — 데이터셋 식별자 목록, 임의 메타데이터
     dataset_ids: list[int] = field(default_factory=list)
     meta: dict[str, Any] = field(default_factory=dict)
@@ -336,6 +340,15 @@ class InMemoryStore:
             created, time.monotonic(), get_settings().sim_speed_factor
         )
         return combined_progress(elapsed, production)
+
+    def set_deid_summaries(self, prj_id: int, summaries: list) -> bool:
+        """실제 비식별 엔진의 검출 요약을 프로젝트에 기록한다. 없으면 False(삭제됨)."""
+        with self._lock:
+            project = self._projects.get(prj_id)
+            if project is None:
+                return False
+            project.deid_summaries = list(summaries)
+            return True
 
     def set_production_state(self, prj_id: int, state: str) -> bool:
         """백그라운드 산출 상태를 기록한다. 대상 프로젝트가 없으면 False(삭제됨)."""
