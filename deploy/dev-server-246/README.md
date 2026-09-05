@@ -71,10 +71,47 @@ nt ssh cudo_246 "docker restart klid-authoring-jboss; sleep 20; \
     ⚠ 이 명시 JDBC URL 이 `CONTROL_DB_NAME=klid_system`(잔여값)보다 **우선**한다 — 실제 접속 DB 는 `klid`.
   - `ADMIN_CLAIM_PASSWORD_HASH` = **BCrypt('admin')** (관리자 부트스트랩 기본 비밀번호 `admin`, 전 환경 공통).
   - `SPRING_PROFILES_ACTIVE=dev`.
-  - `authoring.control-notify.*` = **미설정 → 완료/수정 통지 off**. 관제로 실제 통지하려면
-    `url`·`token`(관제 SPI 기대값, `x-access-token` 헤더로 감)·`enabled=true` 설정.
+  - `authoring.control-notify.*` = **246 에 적용됨(ON)** — §3.1 참조. dev/stg/prd 는 코드 기본 ON
+    (`application-{dev,stg,prd}.yml`), url·token 은 환경변수로 주입.
 - Flyway 는 기동 시 `klid_at` 스키마에 적용된다(현재 V32). 마이그레이션 확인:
   `docker logs klid-authoring-jboss | grep -i flyway`.
+
+### 3.1 관제 완료/수정 통지(control-notify) 연동
+
+저작도구 → 관제 **아웃바운드** 통지(TASK_COMPLETED/TASK_MODIFIED). 검수 승인·수정 시 관제 SPI 로 push.
+
+- **엔드포인트**: `POST {url}/api/data-set/v2/jobs/{jobId}/notify-completed` · `.../notify-updated`.
+- **인증 헤더**: `x-access-token`. 관제가 **공유 시크릿 서명 JWT** 로 검증한다(정적키→401, 서명+만료 검증).
+- **설정 키**(env):
+  - `CONTROL_NOTIFY_ENABLED=true`
+  - `CONTROL_NOTIFY_URL=http://apache` (JBoss→apache 컨테이너, apache 가 `/api/data-set/` 를 관제로 프록시. 호스트IP `http://192.168.102.246:8088` 도 가능)
+  - `CONTROL_NOTIFY_TOKEN=<장수명 서비스 JWT>` — 아래 토큰 정책.
+- **★토큰 정책 (2026-09-05 사용자 확정)**: **관제팀이 발급한 값을 우선** 쓰되, 없으면 **우리가 동일 규칙으로 발급**한다.
+  - 통지는 **백그라운드(디바운서·재시도 잡·복구기)** 에서 나가므로 **사용자 런타임 토큰(localStorage)을 실을 수 없다**(요청 컨텍스트 없음 + 만료). 따라서 **정적 서비스 토큰**을 쓴다.
+  - 현재 246 은 **우리가 공유 시크릿으로 발급한 장수명 JWT**(HS512, exp 2046)를 `CONTROL_NOTIFY_TOKEN` 에 설정(관제 인증 통과 검증완료 — 422 업무검증 단계 도달). **관제팀 토큰이 오면 그 값으로 교체.**
+  - ⚠ 토큰은 **credential** — 레포/로그 노출 금지. env-file 에만 둔다.
+- ⚠ **env 추가는 컨테이너 재생성 필요**(`docker restart` 는 `--env-file` 재독 안 함). §3.2 절차로 재생성.
+- **검증**: 설정 토큰으로 `POST {url}/api/data-set/v2/jobs/TEST/notify-completed` (x-access-token) → **401 이 아니면 인증 통과**(9필드 업무검증 422 가 정상). 기동 로그에 `[ControlNotifyDebounce] flush scheduler started` 확인.
+
+### 3.2 JBoss 컨테이너 재생성 (env 변경 시)
+
+`--env-file` 은 생성 시점에만 읽히므로 env 추가/변경은 재생성한다. **현재 유효 env 를 덤프**해 손실 0 으로:
+
+```bash
+# 1) 현재 컨테이너 유효 env 덤프 + 통지 키 추가 (HOSTNAME 제외, 토큰은 값 미출력)
+#    (prepenv.py 예시: docker inspect .Config.Env → env-file, JWT_SECRET 로 장수명 JWT 발급)
+# 2) 재생성 (mounts·networks·ports·entrypoint·cmd 동일)
+docker rm -f klid-authoring-jboss
+docker run -d --name klid-authoring-jboss --restart no --network klidnet \
+  --env-file /data/klid/closed-net/klid-authoring/jboss-effective.env \
+  -v /data/klid/nas-storage:/nas-storage \
+  -v /data/klid/genai-out:/app/genai-out \
+  -v /data/klid/closed-net/klid-authoring/jboss-eap-8:/opt/jboss-eap-8 \
+  -v /data/klid/storage:/app/storage \
+  -p 38090:18080 --entrypoint /__cacert_entrypoint.sh \
+  eclipse-temurin:17-jdk /opt/jboss-eap-8/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
+docker network connect klid-net klid-authoring-jboss   # 2번째 네트워크
+```
 
 ## 4. 프론트엔드(정적) 배포
 
