@@ -46,6 +46,9 @@ webhook:
 #   ★ 여기는 환경변수 플레이스홀더(${DEV_LOGIN_ENABLED:...})를 쓰지 않는다 — stg 는 켤 수 있으면
 #     안 되는 값이고, DevToggleProfileGuard 가 prd/stg 에서 활성 시 부팅을 거부한다(H-3).
 authoring:
+  # 관제 통지 기본 ON (dev/stg/prd) — 2026-09-05 사용자 확정. url·token 은 환경변수로 주입.
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:true}
   dev:
     login:
       enabled: false

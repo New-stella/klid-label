@@ -61,6 +61,9 @@ spring:
 #       VLM allowlist · trusted-proxy-cidrs)은 ADR-062 <대상이 아니라> 여전히 기동을 막는다 —
 #       낱말로 훑어 함께 고치지 말 것.
 authoring:
+  # 관제 통지 기본 ON (dev/stg/prd) — 2026-09-05 사용자 확정. url·token 은 환경변수로 주입.
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:true}
   # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-008 로 운영에서도 켠다.
   #   왜 기본값을 뒤집나: 외부에서 받은 영상을 운영자가 직접 올려야 하는 동선이 실제로 있고,
   #   그 입구가 이 경로다. FE 는 이미 노출돼 있었는데(온프렘 빌드가 VITE_DEV_UPLOAD_ENABLED 기본 true)

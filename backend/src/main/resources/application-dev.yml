@@ -18,6 +18,9 @@ spring:
 #   환경변수로 끌 수 있어야 한다. 리터럴 true 로 박으면 내릴 수단이 없다.
 #   (공통 application.yml 은 ${DEV_LOGIN_ENABLED:false} fail-closed — 기본값만 프로파일에서 뒤집는다)
 authoring:
+  # 관제 통지 기본 ON (dev/stg/prd) — 2026-09-05 사용자 확정. url·token 은 환경변수로 주입.
+  control-notify:
+    enabled: ${CONTROL_NOTIFY_ENABLED:true}
   dev:
     login:
       enabled: ${DEV_LOGIN_ENABLED:true}
