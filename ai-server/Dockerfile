@@ -24,9 +24,31 @@ RUN apt-get update \
 
 # torch/torchvision 은 베이스 이미지에 포함 — requirements 에서 제외하고 나머지만 설치.
 # numpy 는 requirements lock(numpy==2.4.6)이 관리한다 (base torch 가 numpy 2.x 호환).
+#
+# ★ sam-2 는 <b>--no-deps 로 따로</b> 설치한다 (2026-09-05 실측 사고).
+#   그냥 두면 sam-2 의 `torch>=2.5.1` 요구가 <b>베이스 torch 를 최신으로 끌어올린다</b>.
+#   그렇게 들어온 판이 CUDA 13 빌드(2.13.0+cu130)라 CUDA 12 계열 드라이버에서
+#   `torch.cuda.is_available()` 이 False 가 되고 — GPU 가 장착된 장비에서도 SAM2 가
+#   CPU 로 떨어진다. 게다가 베이스에 남은 torchaudio(cu121)와 판이 갈려 ABI 가 어긋난다
+#   (이 저장소가 RT-DETRv2 백엔드를 제거한 것과 같은 계열의 문제다).
+#   sam-2 의 나머지 의존(hydra-core·iopath·omegaconf·portalocker)은 lock 에 이미 있으므로
+#   --no-deps 로 설치해도 빠지는 것이 없다.
 COPY requirements.txt ./requirements.txt
 RUN grep -ivE '^(torch|torchvision)\b' requirements.txt > requirements.runtime.txt \
-    && pip install --no-cache-dir -r requirements.runtime.txt
+    && grep -v '^sam-2 @' requirements.runtime.txt > requirements.nosam.txt \
+    && pip install --no-cache-dir -r requirements.nosam.txt \
+    && pip install --no-cache-dir --no-deps "$(grep '^sam-2 @' requirements.txt)"
+
+# ── GPU 추론 (선택) ─────────────────────────────────────────────────────────
+# ⚠ <b>기본값은 CPU 다</b> — 온프렘 반입은 CPU 전용으로 확정돼 있고(deploy/onprem 문서),
+#   이 인자를 켜지 않는 한 조달물이 달라지지 않는다. dev 에서 GPU 를 쓸 때만 true 로 빌드한다.
+#   판 선택 근거는 deploy/onprem/docs/11-gpu-migration.md — 드라이버가 쓸 수 있는 CUDA
+#   상한이 먼저이고 그 이하의 빌드만 쓸 수 있다. 이 베이스는 CUDA 12.1 + cuDNN 9 이므로
+#   CUDA 12 계열 onnxruntime-gpu 를 쓴다(1.27 은 CUDA 13 을 요구해 맞지 않는다).
+ARG AI_GPU=false
+RUN if [ "$AI_GPU" = "true" ]; then \
+      pip install --no-cache-dir --force-reinstall onnxruntime-gpu==1.19.2 ; \
+    fi
 
 COPY app ./app
 
