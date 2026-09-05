@@ -627,11 +627,20 @@ authoring:
   control-notify:
     enabled: ${CONTROL_NOTIFY_ENABLED:false}
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
-    # D-ISSUE-62 — 관제 inbound SPI 인증 토큰(헤더 x-access-token). 관제 계약(API-251/API-285) 요구.
-    #   반드시 환경변수 CONTROL_NOTIFY_TOKEN 으로 주입한다 — 평문 커밋 절대 금지(CWE-798).
-    #   비어 있으면 헤더를 붙이지 않는다(인증을 요구하지 않는 local 목 서버 연동 유지). enabled=true 인데
-    #   비어 있으면 기동 시 WARN 으로 드러난다. 로그에 값은 출력되지 않는다(CWE-532).
+    # ADR-063 ⑥ — 관제 inbound SPI 인증 토큰(헤더 x-access-token). 관제 계약(API-251/API-285) 요구.
+    #   ★ 기본은 발송 시점 동적 발급이다 — 아래 token 이 비어 있으면 ControlNotifyTokenProvider 가 매 통지마다
+    #     HS256 서비스 토큰을 새로 발급한다(iss=token-issuer · exp=now+token-ttl-seconds · JWT_SECRET HMAC).
+    #   token 은 하위호환 override — 관제팀이 별도 토큰을 주는 경우에만 환경변수 CONTROL_NOTIFY_TOKEN 으로
+    #     주입한다(평문 커밋 절대 금지, CWE-798). 그 값이 있으면 발급기 대신 그 값을 그대로 싣는다.
+    #   token 도 없고 JWT_SECRET 도 없으면 헤더 미부착 fail-safe(통지는 죽지 않고 폴백 큐가 회수). 로그에 값
+    #     출력 금지(CWE-532).
     token: ${CONTROL_NOTIFY_TOKEN:}
+    # 동적 발급 서비스 토큰 규칙(발송 시점 발급). 관제 발급 토큰과 형식 정합(HS256).
+    #   - token-ttl-seconds: 발급 토큰 수명(초). 발송 즉시 사용이라 짧게 둔다(기본 300, 상한 3600 clamp).
+    #   - token-issuer/token-subject: iss/sub 클레임. sub 는 사용자가 아니라 서비스 신원이다(역할 미포함).
+    token-ttl-seconds: ${CONTROL_NOTIFY_TOKEN_TTL_SECONDS:300}
+    token-issuer: ${CONTROL_NOTIFY_TOKEN_ISSUER:klid-auth}
+    token-subject: ${CONTROL_NOTIFY_TOKEN_SUBJECT:klid-authoring-notify}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
     # Phase 9-C — 디바운스 윈도우는 DB(LS_MON_NOTI_ACML)에 영속화되어 2노드가 공유한다.

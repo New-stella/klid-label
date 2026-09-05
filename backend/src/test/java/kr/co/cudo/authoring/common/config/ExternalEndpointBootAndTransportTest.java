@@ -154,7 +154,7 @@ class ExternalEndpointBootAndTransportTest {
     }
 
     private WebClient controlNotify(String url) {
-        return cfg.controlNotifyWebClient(url, "", false, null);
+        return cfg.controlNotifyWebClient(url, "", false, null, null);
     }
 
     @Test

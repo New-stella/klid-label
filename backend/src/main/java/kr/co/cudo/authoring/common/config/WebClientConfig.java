@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.common.config;
 
+import kr.co.cudo.authoring.common.client.ControlNotifyTokenProvider;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
@@ -9,9 +10,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.codec.ClientCodecConfigurer;
+import org.springframework.web.reactive.function.client.ClientRequest;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 외부 연동 {@code WebClient} 구성.
@@ -202,13 +207,23 @@ public class WebClientConfig {
      * <p><b>미설정 경고</b>: 통지가 활성({@code enabled=true})인데 토큰이 비어 있으면 실환경 401 이 확실하므로
      * 기동 WARN 으로 드러낸다(기동 차단은 하지 않는다 — 목 서버 연동/헤더 미요구 환경이 실재하고, 통지
      * 실패는 폴백 큐로 회수되므로 fail-closed 로 앱 전체를 세울 사안이 아니다).
+     *
+     * <h3>★ x-access-token 은 발송 시점 동적 발급이다 (ADR-063 ⑥)</h3>
+     * <p>임시로 쓰던 <b>20년 고정 정적 토큰</b>(CWE-798)을 대체한다. 정적 {@code authoring.control-notify.token}
+     * 설정값이 <b>있으면 그 값을 우선</b>(관제팀이 별도 토큰을 주는 경우)하고, 없으면
+     * {@link ControlNotifyTokenProvider} 로 <b>매 통지마다 HS256 서비스 토큰을 새로 발급</b>한다
+     * (iss=klid-auth · exp=now+ttl · 공유 시크릿 HMAC). 정적·시크릿 둘 다 없으면 헤더 미부착 fail-safe 다
+     * (통지는 죽지 않고 폴백 큐가 회수). 발급 값은 로그에 절대 출력하지 않는다(CWE-532).
+     *
+     * @design ADR-063
      */
     @Bean(name = "controlNotifyWebClient")
     public WebClient controlNotifyWebClient(
             @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl,
             @Value("${authoring.control-notify.token:}") String token,
             @Value("${authoring.control-notify.enabled:false}") boolean enabled,
-            IntegrationEndpointResolver endpointResolver) {
+            IntegrationEndpointResolver endpointResolver,
+            ControlNotifyTokenProvider tokenProvider) {
         // ★ 주소가 어떤 상태여도 기동한다 — 미설정·파싱 불가면 빈 base 로 낮추고 전송 시점에 실패한다.
         //   이 축에도 주소 정책은 없으므로 형식만 본다(무엇을 막는지는 그대로).
         ExternalEndpointAddress address = ExternalEndpointAddress
@@ -222,8 +237,10 @@ public class WebClientConfig {
                         IntegrationEndpoint.CONTROL_NOTIFY, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
                         IntegrationEndpoint.CONTROL_NOTIFY, base));
+        boolean cleartext = base.toLowerCase(Locale.ROOT).startsWith("http://");
         if (token != null && !token.isBlank()) {
-            if (base.toLowerCase(java.util.Locale.ROOT).startsWith("http://")) {
+            // ── 하위호환 override — 관제팀이 별도 토큰을 준 경우 그 값을 그대로 우선한다(발급기 미호출).
+            if (cleartext) {
                 // 평문 http 에 인증 토큰이 실리면 네트워크에 그대로 노출된다(CWE-319) — 값 미출력.
                 log.warn("[ControlNotify] 평문 http 엔드포인트에 인증 토큰이 설정되어 있습니다 — "
                         + "토큰이 네트워크에 평문 노출됩니다(CWE-319). 운영에서는 HTTPS 필수. tokenLength={}",
@@ -233,12 +250,47 @@ public class WebClientConfig {
             // 주소를 바꾸면 이 토큰이 새 호스트로 따라간다 — 호스트가 달라지면 떼어낸다(CWE-522).
             builder.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
                     IntegrationEndpoint.CONTROL_NOTIFY, base, CONTROL_NOTIFY_TOKEN_HEADER));
+        } else if (tokenProvider != null && tokenProvider.canIssue()) {
+            // ── 발송 시점 동적 발급 — 매 통지마다 새 HS256 토큰을 x-access-token 에 싣는다(ADR-063 ⑥).
+            if (cleartext) {
+                log.warn("[ControlNotify] 평문 http 엔드포인트로 동적 x-access-token 이 나갑니다 — "
+                        + "네트워크에 평문 노출됩니다(CWE-319). 운영에서는 HTTPS 필수.");
+            }
+            builder.filter(dynamicAccessTokenFilter(tokenProvider, enabled));
         } else if (enabled) {
-            log.warn("[ControlNotify] 통지가 활성화됐으나 인증 토큰(authoring.control-notify.token)이 "
-                    + "비어 있습니다 — 관제 SPI 가 {} 를 요구하면 전 통지가 401 로 거부됩니다.",
-                    CONTROL_NOTIFY_TOKEN_HEADER);
+            // 정적 토큰도 없고 시크릿(발급기)도 없다 — 실환경 401 이 확실하므로 드러낸다(기동 차단은 안 함).
+            log.warn("[ControlNotify] 통지가 활성화됐으나 인증 토큰이 없고 서비스 토큰 발급도 불가합니다 "
+                    + "(authoring.control-notify.token 미설정 + JWT_SECRET 미설정) — 관제 SPI 가 {} 를 "
+                    + "요구하면 전 통지가 401 로 거부됩니다.", CONTROL_NOTIFY_TOKEN_HEADER);
         }
         return builder.build();
+    }
+
+    /**
+     * 발송 시점 x-access-token 을 붙이는 필터.
+     *
+     * <p>매 요청마다 {@link ControlNotifyTokenProvider#issue()} 로 새 토큰을 발급해 헤더에 싣는다.
+     * 발급이 {@code null}(발급 실패)이면 헤더 없이 그대로 보낸다(fail-safe — 통지를 죽이지 않고 폴백
+     * 큐가 회수). WARN 은 로그 폭주를 막기 위해 1회만 남기고, 토큰 값은 절대 출력하지 않는다(CWE-532).
+     */
+    private static ExchangeFilterFunction dynamicAccessTokenFilter(
+            ControlNotifyTokenProvider provider, boolean enabled) {
+        AtomicBoolean warned = new AtomicBoolean(false);
+        return (request, next) -> {
+            String issued = provider.issue();
+            if (issued == null || issued.isBlank()) {
+                if (enabled && warned.compareAndSet(false, true)) {
+                    log.warn("[ControlNotify] 동적 x-access-token 발급 실패 — 헤더 없이 전송합니다. "
+                            + "관제 SPI 가 {} 를 요구하면 401 이 예상됩니다(폴백 큐가 재시도).",
+                            CONTROL_NOTIFY_TOKEN_HEADER);
+                }
+                return next.exchange(request);
+            }
+            ClientRequest mutated = ClientRequest.from(request)
+                    .headers(h -> h.set(CONTROL_NOTIFY_TOKEN_HEADER, issued))
+                    .build();
+            return next.exchange(mutated);
+        };
     }
 
 }
