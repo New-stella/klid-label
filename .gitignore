@@ -147,3 +147,6 @@ deploy/*.tgz.part*
 deploy/반입/*
 !deploy/반입/README.md
 !deploy/반입/SHA256SUMS
+
+# 패치 회차 매체 (조립 산출물 — 재생성 가능)
+deploy/klid-at-patch-*/
