@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-011
 type: class_diagram
-version: 16
+version: 20
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:38.886Z
+synced_at: 2026-09-06T06:29:44.348Z
 status: CHANGED
-prev_version: 13
-content_hash: abd42f9edc50974ba9fdb40c76a26bee2deb8fa0a9865d468fbd00a0df2e13e5
+prev_version: 16
+content_hash: 21b1610469a36361adc99c4bbe801a61d2455f4e68ff1bd9ca472c9fe581efff
 stale: true
 raw: ./_raw/CDIAG-011.json
 links:
@@ -457,6 +457,546 @@ _(empty)_
 
 _(empty)_
 
+### PortalUserMeta
+
+- **kind**: aggregate_root
+
+**methods**:
+
+#### isOwnedBy
+
+**params**:
+
+- portalUserNo: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: boolean
+
+#### isFrameScoped
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 프레임 축인지 판정한다. 프레임 참조가 채워져 있으면 프레임 축, 비어 있으면 영상 축이다.
+- **is_abstract**: false
+- **return_type**: boolean
+
+**attributes**:
+
+#### userMetaSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### portalUserNo
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 본인 데이터만 조회·수정하도록 가르는 소유자 식별자.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### srcRawSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 대상 데이터마트 영상. 원본은 수정하지 않고 참조만 한다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### srcDataSrcSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 축을 가르는 값. 프레임 축 메타일 때만 채우고 영상 축 메타는 비운다 — 지어내면 없는 프레임을 가리킨다. 개인정보 판정 세 키가 두 축에 같은 이름으로 있어, 이 값을 함께 보지 않으면 소비자가 영상 값과 프레임 값을 섞는다. 그래서 행을 식별하는 것은 메타 키 단독이 아니라 축과 메타 키의 쌍이다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### metaKey
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 메타 키. 시계열 메타는 메타 원장의 키를 그대로 쓰고, 원장의 컬럼에서 온 축(촬영환경·프레임 설명·개인정보 판정)은 조회 시점에 정해진 키로 바꿔 내린다. 접두는 의미 분류일 뿐 축이 아니다 — 축은 프레임 참조가 가른다. 키 어휘는 데이터 계층이 소유한다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### metaVl
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 메타 값. 대응하는 원본이 더 좁으면 저장 검증은 좁은 쪽을 기준으로 한다 — 넓은 쪽을 허용하면 사용자가 자기 데이터를 내려받을 때 원본과 같은 자리에 들어가지 못하는 값이 생긴다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### mdfcnDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 포털 사용자가 데이터마트 영상에서 확인·수정·추가한 메타 값의 단방향 오버레이. 촬영환경·프레임 설명·개인정보 판정·시계열 메타 네 축을 키/값으로 담으며 원본 메타와 동결 스냅샷을 수정하지 않는다 — 저장은 이 오버레이에만 쌓인다. 영상 축과 프레임 축을 함께 담고 축을 가르는 것은 프레임 참조다. 원장의 컬럼에서 온 축은 조회 시점에 키/값 모양으로 바꿔 내리고 저장 시점에 되돌리며, 그 변환 규칙은 한 곳이 소유해 읽기·쓰기가 같은 규칙을 쓴다. 저장소 구성은 데이터 계층이 소유한다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### PortalUserEvntAnno
+
+- **kind**: aggregate_root
+
+**methods**:
+
+#### isOwnedBy
+
+**params**:
+
+- portalUserNo: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: boolean
+
+**attributes**:
+
+#### userEvntAnnoSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### portalUserNo
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 본인 데이터만 조회·수정하도록 가르는 소유자 식별자.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### srcRawSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 대상 데이터마트 영상. 영상 축 오버레이라 영상 하나에 사용자별로 한 벌만 둔다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### annoCn
+
+- **type**: JsonNode
+- **is_static**: false
+- **visibility**: private
+- **description**: 이벤트 어노테이션 본문. 내부 원장과 같은 구조체를 통째로 담는다 — 항목별 컬럼으로 펴지 않는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### mdfcnDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 포털 사용자가 확인·수정·추가한 이벤트 어노테이션의 단방향 오버레이. 원본 어노테이션과 승인 시점 동결본을 수정하지 않는다. 본문은 내부 원장과 같은 구조체를 통째로 담고 키/값으로 펴지 않는다 — 펴면 산출 문서와 모양이 갈려 내보낼 때마다 재조립이 필요하고 중첩 구조가 키 이름으로 들어가 무너진다. 영상 축이라 프레임 참조를 두지 않는다. ★메타 오버레이와 한 벌로 합치지 않는다 — 키/값 축과 구조체 축은 성격이 달라 한 벌에 섞으면 본문 폭과 조회 모양이 서로를 제약한다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
 ## description
 
 포털 도메인은 서로 다른 두 저장모델을 갖는다.
@@ -464,13 +1004,17 @@ _(empty)_
 [경로 A — 데이터마트 영상 라벨 작업] 포털 회원이 관제 제공 데이터마트 영상을 선택해 기존 라벨을 확인·수정·저장하되 원본(LS_DATA_LBL)을 수정하지 않고 사용자 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재한다. PORTAL_USER_NO 를 IDOR 차단 키로 본인 데이터만 접근한다. ERD-018 기반.
 
 [★경로 B — 본인 자산 업로드 (ADR-013 예외, 2026-07-17 — 이전에 미등재)] 포털 사용자가 직접 올린 자산은 채널 전용 테이블을 따로 두지 않고 공용 원장에 함께 앉는다(ADR-058) — 업로드 마스터는 영상 원장(LS_DATA_RAW), 추출 프레임은 프레임 원장(LS_DATA_SRC), 수동 라벨(BBOX/POLYGON 만)은 라벨 원장(LS_DATA_LBL), 재개 업로드 세션은 공용 업로드 세션 원장(LS_TUS_UPLOAD)이 담는다. 흡수 전 전용 테이블군과의 대응은 ERD-028 이 갖는다. 원장을 공유해도 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View 와 섞이지 않는다. ⚠ 다만 그 근거가 더는 「테이블이 다르다」가 아니다 — 근거는 셋이다. ① 출처·소유자로 가른다: 영상 원장의 출처 유형이 PORTAL_ULD 이고 소유자는 PORTAL_USER_NO 다. ② 배치가 발동하지 않는다: 배치는 데이터베이스 트리거가 아니라 앱 이벤트로 시작하는데 포털은 관제 인입과 별개인 자기 이벤트를 쓰므로 같은 원장에 앉아도 파이프라인이 집어가지 않는다. ③ 데이터마트 View 에 도달하지 않는다: 그 뷰의 드라이버는 검수 승인 시점에만 생기는 동결 메타인데 포털 경로에는 검수가 없어, 필터로 막는 것이 아니라 구조적으로 도달 불가다. 흡수 대상은 이 경로의 네 저장소뿐이며 경로 A 의 오버레이 저장소(LS_PORTAL_USER_LABEL)는 흡수하지 않는다 — 그 저장소의 존재 이유가 「저장해도 원본과 데이터마트를 고치지 않는다」는 단방향 보장이라, 라벨 원장에 합치면 소유자 구분을 한 번 놓치는 순간 남의 오버레이가 정본 라벨로 읽힌다. 업로드 상태는 UPLOADED→PROCESSING→READY|FAILED.
-★신규 접수는 영상뿐이다 — 이미지 자산의 신규 접수 경로는 닫혔고 이 모델로 새 이미지 자산이 들어오는 입구는 없다(ADR-013). ★자산 종류의 값역에서 이미지 값을 없애지 않는다 — 없애면 이미 적재된 이미지 자산의 행이 판독 불가가 되기 때문이며, 기존 이미지 자산의 조회·다운로드·삭제는 그대로 유지된다. 값역을 소유하는 것은 업로드 마스터 축이라 이 다이어그램에 그 열거를 두지 않으나 같은 이유가 여기에도 적용된다 — 이 모델을 근거로 값역을 정리하지 말 것.
+★신규 접수는 영상뿐이다 — 이미지 자산의 신규 접수 경로는 닫혔고 이 모델로 새 이미지 자산이 들어오는 입구는 없다(ADR-013). ★자산 종류의 값역에서 이미지 값을 없애지 않는다 — 없애면 이미 적재된 이미지 자산의 행이 판독 불가가 되기 때문이다. 남기는 것은 값역뿐이며 이미지 축을 화면·사양에 두라는 뜻이 아니다. 값역을 소유하는 것은 업로드 마스터 축이라 이 다이어그램에 그 열거를 두지 않으나 같은 이유가 여기에도 적용된다 — 이 모델을 근거로 값역을 정리하지 말 것.
 
 [경계] 두 경로는 서로 참조하지 않는다.
 ★두 경로 모두 제공하지 않는 것 — 오토라벨링(YOLO)·SAM2 인터랙티브 분할·SAM2 자동추적·키포인트·트랙 번호 변경/병합·검수·버전관리, 그리고 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다(ADR-013). SAM2·키포인트 미제공은 2026-08-03 보안 판정으로 서버에서 제거된 축이라 그대로다.
-[★제공 범위 확대 (ADR-013 v10, 2026-08-26 확정·구속)] 「미제공」의 축은 외부 서버 연동이지 화면 표시·사용자 수정까지 막는 것이 아니다. 데이터마트 로드분의 메타(촬영환경·프레임 설명·개인정보 판정·시계열 메타)와 이벤트 어노테이션은 포털 작업 화면에 표시하고 포털 사용자가 직접 수정·추가할 수 있으며, 그 결과는 포털 전용 저장소에만 적재되고 데이터마트·원본 동결본을 수정하지 않는다(단방향). 업로드 영상(경로 B)에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다(증강 요청·현황 조회·결과 확인 창구는 저작도구가 갖고, 파생물은 공용 영상 원장에 새 행으로 앉고 부모 참조가 요청 대상 영상을 가리키며 출처 유형과 소유자는 업로드 자산 것을 그대로 쓴다). ⚠ 구 서술 폐기 — 「VLM·메타 포함 전면 미제공」은 VLM 축을 너무 넓게 적은 것이라 폐기한다(그 서술을 근거로 화면 기능을 막지 말 것). 현재 코드에는 포털 메타·어노테이션 API 가 아직 없다(화면 미구현).
-라벨 편집은 두 경로 모두 수동 라벨링(BBOX/POLYGON)만이며, 서버 allowlist(경로 A = PortalLabelService.validateAndNormalizeType, 경로 B = PortalUploadLabelService)가 그 외 도형을 400 으로 거부한다.
+[★제공 범위 확대 (ADR-013 v10, 2026-08-26 확정·구속)] 「미제공」의 축은 외부 서버 연동이지 화면 표시·사용자 수정까지 막는 것이 아니다. 데이터마트 로드분의 메타(촬영환경·프레임 설명·개인정보 판정·시계열 메타)와 이벤트 어노테이션은 포털 작업 화면에 표시하고 포털 사용자가 직접 수정·추가할 수 있으며, 그 결과는 포털 전용 저장소에만 적재되고 데이터마트·원본 동결본을 수정하지 않는다(단방향). 업로드 영상(경로 B)에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다(증강 요청·현황 조회·결과 확인 창구는 저작도구가 갖고, 파생물은 공용 영상 원장에 새 행으로 앉고 부모 참조가 요청 대상 영상을 가리키며 출처 유형과 소유자는 업로드 자산 것을 그대로 쓴다). ⚠ 구 서술 폐기 — 「VLM·메타 포함 전면 미제공」은 VLM 축을 너무 넓게 적은 것이라 폐기한다(그 서술을 근거로 화면 기능을 막지 말 것).
+라벨 편집은 두 경로 모두 수동 라벨링(BBOX/POLYGON)만이며, 두 경로가 각자 두는 서버 허용목록이 그 외 도형을 400 으로 거부한다.
 경로 B 는 추가로 비식별을 적용하지 않고 고정 간격 프레임 추출만 한다.
+
+[★포털 전용 오버레이는 세 벌이다 (2026-09-02 확정)] 경로 A 의 전용 저장소는 라벨 한 벌이 아니라 라벨·메타·이벤트 어노테이션 세 벌이다. 메타 오버레이(PortalUserMeta)는 촬영환경·프레임 설명·개인정보 판정·시계열 메타 네 축을 키/값으로 담고 영상 축과 프레임 축을 함께 담으며, 이벤트 어노테이션 오버레이(PortalUserEvntAnno)는 내부 원장과 같은 구조체를 통째로 담는다. 셋 다 단방향이다 — 저장해도 원본과 동결본을 수정하지 않고, 원천 영상이 지워지거나 보존기간이 지나면 셋이 함께 지워진다. 셋을 남기는 기준은 그대로다 — 「원본을 덮어쓰지 않는 것이 존재 이유인 단방향 오버레이인가」이며, 바뀐 것은 그 기준에 해당하는 것의 개수다. 그래서 위 경로 B 문단이 흡수 제외로 든 것도 라벨 한 벌이 아니라 이 세 벌이다. 셋은 서로를 참조하지 않는다. 컬럼 구성·타입·인덱스는 데이터 계층(ERD-018)이 소유하며 이 다이어그램은 모델 구성만 담는다.
+
+[★목록 모집단 — 이 세 벌이 무엇을 정하는가 (2026-09-06 확정)] 영상을 고르는 데이터마트 목록 화면은 Host(포털)가 소유한다 — 위 경로 A 의 「데이터마트 영상을 선택해」를 그 목록까지 저작도구가 그린다는 뜻으로 읽지 말 것이며, 이 모델에는 그 목록을 담는 저장소가 없다. 저작도구가 소유하는 것은 「내 작업」 목록이고 거기 실리는 것은 두 축이다 — 경로 B 의 본인 업로드 자산은 작업 여부와 무관하게 전부 실리고, 경로 A 의 데이터마트 영상은 본인 저작물이 있는 것만 실린다. 그 「본인 저작물이 있다」를 정하는 조달처가 바로 이 세 오버레이다 — 라벨·메타·이벤트 어노테이션 가운데 어느 하나라도 그 영상에 대한 본인 행을 보유하면 실린다. ⚠ 셋은 서로를 참조하지 않으므로 세 저장소를 각각 봐야 한다 — 라벨 저장소만 보면 라벨 없이 메타나 이벤트 어노테이션만 고친 영상이 목록에서 통째로 빠진다. ⚠ 업로드 자산 축은 이 오버레이들과 무관하다 — 그 자산의 라벨은 공용 원장에 앉으므로 오버레이 보유 여부를 묻지 않으며, 본인 자산이면 그대로 실린다. 판정을 실제로 수행하는 자리와 목록 화면의 구성·표시 규칙은 화면·창구 축이 소유하므로 여기에 옮겨 적지 않는다 — 이 모델은 그 판정이 어느 저장소에서 답을 얻는지만 밝힌다.
 
 ## module_name
 
