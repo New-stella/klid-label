@@ -81,8 +81,13 @@ export PGPASSWORD="${DB_APP_PASSWORD}"
 
 # 멱등 가드: 대상 스키마에 이미 BASE TABLE 이 있으면 로드하지 않는다(중복 로드/덮어쓰기 방지).
 #   스키마가 아직 없으면 count=0 이 되어 정상적으로 로드가 진행된다(schema.sql 이 CREATE SCHEMA 포함).
+# ★ 설치 도구가 소유한 표는 세지 않는다 (2026-09-06 신설)
+#   apply-migrations.sh 가 만드는 적용 이력 표(ls_schm_aplcn_hstry)는 schema.sql 에 없다 —
+#   Flyway 마이그레이션이 아니라 설치 도구의 메타 표이고 앱은 읽지 않는다.
+#   그대로 세면 <기대 +1> 이 되어 아래 판정이 매번 "기대와 다릅니다"로 갈라진다.
+#   ⚠ 이것은 진짜 불일치를 가리는 예외가 아니다 — 이 이름 하나만 뺀다.
 existing="$(psql -tAX -U "${DB_APP_USER}" -d "${CONTROL_DB_NAME}" \
-  -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE';" \
+  -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE' AND table_name <> 'ls_schm_aplcn_hstry';" \
   2>/dev/null || echo "ERR")"
 
 if [[ "${existing}" == "ERR" ]]; then
