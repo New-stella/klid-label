@@ -52,6 +52,8 @@ import java.util.Map;
  *   <li>정보 유출 (CWE-209): 외부 API 원문 에러 본문/스택트레이스를 예외/로그에 노출하지 않는다.
  *       상태 코드와 예외 클래스명만 기록한다.</li>
  * </ul>
+ *
+ * @design ADR-062
  */
 @Slf4j
 @Component

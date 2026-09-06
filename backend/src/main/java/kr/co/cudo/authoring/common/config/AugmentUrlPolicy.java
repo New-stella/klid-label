@@ -57,6 +57,8 @@ import java.net.InetAddress;
  * <p>⚠ <b>인지·수용한 위험</b> — 이 커넥션으로 나가는 본문에는 공유 저장소의 비식별 프레임 절대경로가
  * 다수 실려 유출 표면이 시계열보다 넓다. 그럼에도 대역 차단을 두지 않는 근거는 <b>대역 차단으로 막히는
  * 위험이 아니기 때문</b>이다(공인망 주소로 바꾸면 그만이다) — 확정 정책의 본래 근거와 같다.
+ *
+ * @design ADR-062
  */
 @Component
 public class AugmentUrlPolicy {

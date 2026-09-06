@@ -63,6 +63,8 @@ import java.time.Duration;
  * ({@code application.yml: ${KPST_DEID_ENABLED:true}} — 비식별 단일 경로가 KPST 폴링이라 기본 활성이며
  * 필드는 킬스위치로 유지). ca.crt 미보유 환경은 {@code KPST_DEID_ENABLED=false} 로 끄거나 내부망 평문
  * http base-url 을 사용한다. (구 주석 "기본 false" 는 yml 실값과 어긋난 드리프트라 정정)
+ *
+ * @design ADR-062
  */
 @Slf4j
 @Configuration
