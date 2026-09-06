@@ -6,14 +6,18 @@
  * 데이터마트에서 불러온 영상의 프레임과, 본인이 올린 영상에서 추출된 프레임이다. 업로드 자산
  * 전용 라벨링 화면은 폐기됐고 그 목적지도 없어졌다.
  *
- * ★**그런데 지금 두 출처의 식별자 체계는 아직 하나가 아니다.** 확정 사양은 「업로드 자산의
- *   프레임도 데이터마트 자산의 프레임과 같은 원장에 앉아 식별자 체계가 같다」고 적지만, 그
- *   원장 통합은 **아직 이뤄지지 않았다** — 지금은 업로드 프레임과 데이터마트 프레임이 서로
- *   다른 표에 앉아 있고 조회·저장 창구도 갈려 있다. 두 식별자는 **숫자 공간이 겹치므로**
- *   경로의 `:id` 숫자만으로는 어느 출처인지 판정할 수 없다.
+ * ★**두 출처는 조회·저장 창구가 갈려 있다.** 업로드 자산의 프레임 라벨은 자산 축 창구
+ *   (`/portal/uploads/frames/...`)로, 데이터마트 프레임은 프레임 축 창구(`/portal/frames/...`)로
+ *   오간다. 그리고 경로의 `:id` 가 가리키는 것도 출처마다 다르다(아래 ⚠) — **숫자만으로는 어느
+ *   출처인지 판정할 수 없다.**
+ *
+ * ⚠ 구 서술 폐기 — *"업로드 프레임과 데이터마트 프레임이 서로 다른 표에 앉아 있다"*.
+ *   실측상 **업로드 자산은 공용 원장에 앉아 있고 자산 식별자가 곧 영상 식별자**다(`ADR-058`).
+ *   그렇다고 **주소 규약을 바꾸지 않는다** — 갈라야 하는 것은 표가 아니라 위의 **창구**이고,
+ *   그 축은 그대로다.
  *
  * ⇒ 그래서 출처를 **주소에 명시**한다. 이 파일이 그 표기의 유일한 지점이다.
- *   원장이 실제로 합쳐지면 이 표기를 걷어내고 `:id` 하나로 여는 것이 최종 모습이며,
+ *   창구가 실제로 합쳐지면 이 표기를 걷어내고 `:id` 하나로 여는 것이 최종 모습이며,
  *   그때 고쳐야 할 자리가 **여기 한 곳**이 되도록 화면·목록에 문자열을 흩지 않는다.
  *
  * <h3>주소 규약</h3>
@@ -31,10 +35,13 @@
  * ⚠ 표기가 없거나 아는 값이 아니면 **데이터마트로 판정**한다(fail-closed) — 지금까지의 동작이
  *   그것이라, 모르는 값에서 업로드 경로로 새면 있지도 않은 자산을 조회하게 된다.
  *
+ * @design SCREEN-028
  * @design SCREEN-029
  * @design SCREEN-034
  * @design NAV-002
  */
+
+import type { PortalWorkAssetSource } from './api';
 
 /** 자산 출처를 나르는 조회 문자열 키. */
 export const PORTAL_LABEL_SOURCE_PARAM = 'source';
@@ -86,4 +93,46 @@ export function buildPortalUploadLabelPath(uldSn: number, uldFrmeSn?: number): s
     search.set(PORTAL_LABEL_FRAME_PARAM, String(uldFrmeSn));
   }
   return `/portal/label/${uldSn}?${search.toString()}`;
+}
+
+/**
+ * 데이터마트 자산 라벨링 진입 주소 — 표기 없는 그대로의 경로.
+ *
+ * ★ 이 문자열이 화면에 흩어져 있으면 위의 주소 규약이 **선언만 남고 실제로는 두 곳**이 된다.
+ *   실제로 목록 화면이 이 경로를 직접 조립하고 있었고, 그래서 업로드 축 행도 같은 경로로
+ *   보내는 결함이 났다.
+ */
+export function buildPortalDatamartLabelPath(srcSn: number): string {
+  return `/portal/label/${srcSn}`;
+}
+
+/**
+ * 「내 작업」 목록 한 행의 **이어서 작업 진입 주소** — 출처에 따라 갈린다. @design SCREEN-028
+ *
+ * <ul>
+ *   <li>데이터마트: 프레임 식별자로 연다 → {@link buildPortalDatamartLabelPath}</li>
+ *   <li>업로드 자산: **자산 식별자로 열고** 프레임은 표기가 나른다 → {@link buildPortalUploadLabelPath}</li>
+ * </ul>
+ *
+ * ★ **진입 대상 프레임이 없으면 `null` 을 돌려준다** — 두 축 모두 들어갈 자리가 없다. 「첫 프레임으로
+ *   대신 연다」로 때우지 않는다(그 판정은 서버가 이미 했고, 서버가 `null` 을 준 것은 프레임이 0건이라
+ *   여는 것 자체가 성립하지 않는다는 뜻이다). 호출측은 `null` 을 받으면 그 행의 이어서 작업을
+ *   **누를 수 없게** 하고 사유를 보여 준다.
+ *
+ * ⚠ 반환 타입에 `null` 을 둔 것이 그 처리를 **강제하는 장치**다 — 문자열만 돌려주면 호출측이
+ *   빠뜨려도 컴파일이 통과해 `/portal/label/null` 같은 주소가 나간다.
+ *
+ * @param assetSource 자산 출처(BE `assetSource` 값 그대로)
+ * @param rawSn       대상 영상 식별자. 업로드 축에서는 자산 식별자와 같은 값이다
+ * @param entrySrcSn  진입 대상 프레임. 프레임이 0건이면 `null`
+ */
+export function buildPortalWorkLabelPath(
+  assetSource: PortalWorkAssetSource,
+  rawSn: number,
+  entrySrcSn: number | null,
+): string | null {
+  if (entrySrcSn === null || entrySrcSn === undefined) return null;
+  return assetSource === 'PORTAL_UPLOAD'
+    ? buildPortalUploadLabelPath(rawSn, entrySrcSn)
+    : buildPortalDatamartLabelPath(entrySrcSn);
 }

@@ -42,6 +42,7 @@ import { ToolType as Tool } from '@/features/label/types';
 import { PORTAL_LABEL_FRAME_PARAM, readPortalLabelFrameSn } from '@/features/portal/labelingEntry';
 import { getUpload } from '@/features/portal/uploads/api';
 import { PortalUploadStatus } from '@/features/portal/uploads/types';
+import { PortalWorkMetaTab } from '@/features/portal/work/components/PortalWorkMetaTab';
 import { useUploadFrameImage } from '@/features/portal/uploads/hooks/useUploadFrameImage';
 import { useUploadFrameLabels } from '@/features/portal/uploads/hooks/useUploadFrameLabels';
 import { useSaveUploadLabels } from '@/features/portal/uploads/hooks/useSaveUploadLabels';
@@ -395,6 +396,19 @@ export function PortalUploadLabelingView({ uldSn: uldSnNum }: PortalUploadLabeli
             <Spinner size="lg" label="이미지 로딩 중" />
           </div>
         )}
+      </div>
+
+      {/*
+        메타·이벤트 어노테이션 — ★<b>데이터마트 갈래와 같은 창구·같은 순서</b>다. 이 다섯 축은
+        자산 출처를 가리지 않으며(본인이 올린 영상에도 촬영환경과 프레임 설명을 붙일 수 있어야
+        한다), 저장처는 화면이 가르지 않고 서버가 자산 출처로 판정한다.
+        ⚠ 업로드 자산의 프레임·자산 식별자는 <b>공용 원장의 프레임 PK·영상 PK 그 자체</b>다
+          (창구·화면의 이름만 업로드 어휘로 남아 있다) — 그래서 같은 창구에 그대로 넘긴다.
+        ⚠ 비식별 누락 신고 게이트는 이 갈래의 대상이 아니다 — 내부 파이프라인의 비식별
+          라이프사이클이 없어 그 구간 자체가 존재하지 않는다(판정은 서버가 한다).
+      */}
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <PortalWorkMetaTab srcSn={uldFrmeSn} rawSn={detail.uldSn} />
       </div>
 
       {/* 프레임 네비게이션 — 프레임이 2건 이상일 때만 그린다. */}

@@ -2,7 +2,8 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.WorkGroup;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository.RetentionAxis;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
@@ -40,18 +41,18 @@ import static org.mockito.Mockito.when;
  */
 class PortalRetentionSweepTxServiceTest {
 
-    private LsPortalUserLabelRepository userLabelRepository;
+    private PortalUserWorkRepository userWorkRepository;
     private PortalUploadAssetRepository assetRepository;
     private SystemConfigService systemConfigService;
     private PortalRetentionSweepTxService txService;
 
     @BeforeEach
     void setUp() {
-        userLabelRepository = mock(LsPortalUserLabelRepository.class);
+        userWorkRepository = mock(PortalUserWorkRepository.class);
         assetRepository = mock(PortalUploadAssetRepository.class);
         systemConfigService = mock(SystemConfigService.class);
         txService = new PortalRetentionSweepTxService(
-                userLabelRepository, assetRepository,
+                userWorkRepository, assetRepository,
                 new PortalRetentionPolicy(systemConfigService));
     }
 
@@ -62,11 +63,11 @@ class PortalRetentionSweepTxServiceTest {
     void datamartSweepSkippedWhenSettingAbsent() {
         settingAbsent(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS);
 
-        int deleted = txService.sweepDatamartLabels();
+        int deleted = txService.sweepDatamartWorks();
 
         assertThat(deleted).isZero();
         // 상수 폴백이 생기면 여기서 후보 조회·삭제가 일어난다 — 폴백 금지의 실효 지점.
-        verifyNoInteractions(userLabelRepository);
+        verifyNoInteractions(userWorkRepository);
     }
 
     @Test
@@ -106,11 +107,11 @@ class PortalRetentionSweepTxServiceTest {
         // given: 0 을 그대로 적용하면 커트라인 = now 라 «방금 저장한 라벨까지» 전량이 삭제 대상이 된다.
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(0);
 
-        int deleted = txService.sweepDatamartLabels();
+        int deleted = txService.sweepDatamartWorks();
 
         assertThat(deleted).isZero();
-        // 후보 조회조차 하지 않는다 — 가드가 사라지면 여기서 findExpiredLabelGroups 가 호출된다.
-        verifyNoInteractions(userLabelRepository);
+        // 후보 조회조차 하지 않는다 — 가드가 사라지면 여기서 findExpiredWorkGroups 가 호출된다.
+        verifyNoInteractions(userWorkRepository);
     }
 
     @Test
@@ -119,8 +120,8 @@ class PortalRetentionSweepTxServiceTest {
         // given: 음수면 커트라인이 «미래»가 되어 0 보다도 넓게 전량이 걸린다.
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(-1);
 
-        assertThat(txService.sweepDatamartLabels()).isZero();
-        verifyNoInteractions(userLabelRepository);
+        assertThat(txService.sweepDatamartWorks()).isZero();
+        verifyNoInteractions(userWorkRepository);
     }
 
     @Test
@@ -146,27 +147,50 @@ class PortalRetentionSweepTxServiceTest {
     @DisplayName("만료_그룹마다_조건부_삭제를_호출하고_실제로_지워진_그룹만_센다")
     void datamartSweepCountsOnlyActuallyDeletedGroups() {
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
-        when(userLabelRepository.findExpiredLabelGroups(any(LocalDateTime.class)))
-                .thenReturn(List.of(new Object[]{"alice", 11L}, new Object[]{"bob", 22L}));
+        when(userWorkRepository.findExpiredWorkGroups(any(LocalDateTime.class)))
+                .thenReturn(List.of(new WorkGroup("alice", 11L), new WorkGroup("bob", 22L)));
         // alice 는 이 노드가 삭제(3행), bob 은 타 노드 선점 또는 재작업으로 만료 해제(0행).
-        when(userLabelRepository.deleteExpiredLabelGroup(eq("alice"), eq(11L), any(LocalDateTime.class)))
+        when(userWorkRepository.deleteExpiredWorkGroup(eq("alice"), eq(11L), any(LocalDateTime.class)))
                 .thenReturn(3);
-        when(userLabelRepository.deleteExpiredLabelGroup(eq("bob"), eq(22L), any(LocalDateTime.class)))
+        when(userWorkRepository.deleteExpiredWorkGroup(eq("bob"), eq(22L), any(LocalDateTime.class)))
                 .thenReturn(0);
 
-        assertThat(txService.sweepDatamartLabels()).isEqualTo(1);
+        assertThat(txService.sweepDatamartWorks()).isEqualTo(1);
+    }
+
+    /**
+     * ★ 후보 조회와 삭제가 <b>같은 커트라인</b>을 쓴다 — 갈리면 후보로 잡힌 그룹이 삭제문에서
+     * 다시 걸러져 매 회차 후보로만 잡히고 영영 지워지지 않는다.
+     */
+    @Test
+    @DisplayName("★후보_조회와_삭제문이_한_회차의_같은_커트라인을_쓴다")
+    void candidateScanAndDeleteShareTheSameCutoff() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
+        when(userWorkRepository.findExpiredWorkGroups(any(LocalDateTime.class)))
+                .thenReturn(List.of(new WorkGroup("alice", 11L)));
+        when(userWorkRepository.deleteExpiredWorkGroup(eq("alice"), eq(11L), any(LocalDateTime.class)))
+                .thenReturn(1);
+
+        txService.sweepDatamartWorks();
+
+        ArgumentCaptor<LocalDateTime> scanned = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> deleted = ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.Mockito.verify(userWorkRepository).findExpiredWorkGroups(scanned.capture());
+        org.mockito.Mockito.verify(userWorkRepository)
+                .deleteExpiredWorkGroup(eq("alice"), eq(11L), deleted.capture());
+        assertThat(deleted.getValue()).isEqualTo(scanned.getValue());
     }
 
     @Test
     @DisplayName("데이터마트_커트라인은_설정_일수만큼_과거다")
     void datamartCutoffIsRetentionDaysAgo() {
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
-        when(userLabelRepository.findExpiredLabelGroups(any(LocalDateTime.class))).thenReturn(List.of());
+        when(userWorkRepository.findExpiredWorkGroups(any(LocalDateTime.class))).thenReturn(List.of());
 
-        txService.sweepDatamartLabels();
+        txService.sweepDatamartWorks();
 
         ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
-        org.mockito.Mockito.verify(userLabelRepository).findExpiredLabelGroups(cutoff.capture());
+        org.mockito.Mockito.verify(userWorkRepository).findExpiredWorkGroups(cutoff.capture());
         assertThat(Duration.between(cutoff.getValue(), LocalDateTime.now()).toHours())
                 .isBetween(167L, 169L);
     }

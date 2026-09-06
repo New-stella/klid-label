@@ -21,6 +21,7 @@ import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.FrameImageService;
@@ -102,6 +103,12 @@ public class PortalLabelService {
      */
     private final LsLabelRepository labelMasterRepository;
 
+    /**
+     * 데이터마트 채널 <b>세 저작물</b>(저장 라벨·메타 오버레이·이벤트 어노테이션 오버레이)의 단일
+     * 창구 — 만료 예정 시각의 기산점이 여기서 온다. @design DFEAT-055, AC-1068
+     */
+    private final PortalUserWorkRepository userWorkRepository;
+
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
 
@@ -174,15 +181,18 @@ public class PortalLabelService {
      * 목록에서 제외한다(MED 방어). firstSrcSn / frameCount 는 N+1 회피 batch lookup 으로 enrich.
      *
      * <p>N+1 회피: 페이지 rawSn 집합에 대해 firstSrcSn / frameCount / lastUpdatedAt /
-     * 본인 저장 라벨 최초 저장일을 각 1회 IN 쿼리로 조회한다.
+     * 본인 저작 최초 저장일을 IN 쿼리로 조회한다(저작 축은 표가 셋이라 표당 1회).
      *
-     * <p>{@code myLabelExpiresAt} 은 본인 저장 라벨의 보존기간 만료 예정 시각으로,
+     * <p>{@code myLabelExpiresAt} 은 본인 저작물(저장 라벨·메타 오버레이·이벤트 어노테이션
+     * 오버레이)의 보존기간 만료 예정 시각으로,
      * <b>저장되지 않는 조회 시점 파생값</b>이다(AC-1068). 보존기간 설정을 바꾸면 이미 저장된 라벨의
      * 만료 예정도 다음 조회부터 즉시 달라진다 — 판정은 {@link PortalRetentionPolicy} 한 곳에서 하고
      * 설정은 페이지당 1회만 읽는다({@code datamartExpiry()} 스냅샷).
      *
-     * <p>기준점은 <b>최초</b> 저장일이라 저장을 반복해도 만료 예정이 뒤로 밀리지 않는다
-     * (DFEAT-055 — 포털 확정 회신 2026-09-03). @design DFEAT-055, AC-1068
+     * <p>기준점은 <b>세 저작물을 통틀어 가장 이른</b> 저장일이라 저장을 반복해도 만료 예정이 뒤로
+     * 밀리지 않고, 라벨 없이 메타만 고친 영상에도 고지가 선다(DFEAT-055 — 포털 확정 회신
+     * 2026-09-03). ⚠ 필드 이름의 「Label」은 계약이라 유지하며 <b>축은 세 저작물</b>이다.
+     * @design DFEAT-055, AC-1068
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<DatamartVideoResponse> listDatamartVideos(TokenClaims actor, Pageable pageable) {
@@ -200,7 +210,7 @@ public class PortalLabelService {
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rawSns);
         Map<Long, Long> frameCountByVideo = lookupFrameCountByVideo(rawSns);
         Map<Long, LocalDateTime> lastUpdatedAtByVideo = lookupLastUpdatedAtByVideo(rawSns);
-        Map<Long, LocalDateTime> myFirstLabelSavedAt = lookupMyFirstLabelSavedAt(actor.sub(), rawSns);
+        Map<Long, LocalDateTime> myFirstAuthoredAt = lookupMyFirstAuthoredAt(actor.sub(), rawSns);
         PortalRetentionPolicy.DatamartExpiry expiry = retentionPolicy.datamartExpiry();
 
         // 프레임 0건(=firstSrcSn 부재) 영상은 진입 불가하므로 제외 (MED 방어).
@@ -213,7 +223,7 @@ public class PortalLabelService {
                         frameCountByVideo.getOrDefault(r.getRawSn(), 0L),
                         firstSrcSnByVideo.get(r.getRawSn()),
                         lastUpdatedAtByVideo.get(r.getRawSn()),
-                        expiry.expiresAt(myFirstLabelSavedAt.get(r.getRawSn()))))
+                        expiry.expiresAt(myFirstAuthoredAt.get(r.getRawSn()))))
                 .toList();
 
         // 제외로 인해 페이지 size 보다 적어질 수 있으나 totalElements 는 원본(게이트 후) 기준 유지.
@@ -230,22 +240,22 @@ public class PortalLabelService {
     }
 
     /**
-     * 영상별 <b>본인</b> 저장 라벨의 <b>최초</b> 저장일 — 만료 예정 시각의 기준점.
-     * @design DFEAT-055, AC-1068
+     * 영상별 <b>본인의 저작 최초 저장일</b> — 만료 예정 시각의 기준점. @design DFEAT-055, AC-1068
      *
-     * <p>단일 집계 쿼리 1회(N+1 회피). 저장 라벨이 없는 영상은 <b>키가 없어</b> null 로 읽히고,
-     * 그러면 {@link PortalRetentionPolicy.DatamartExpiry} 가 만료 예정 시각을 만들지 않는다.
+     * <p>★ <b>저장 라벨만 보지 않는다.</b> 세 저작물(저장 라벨·메타 오버레이·이벤트 어노테이션
+     * 오버레이)을 통틀어 가장 이른 저장 시각이다 — 라벨만 보면 메타를 먼저 고친 사용자의 기산점이
+     * 실제보다 늦어지고, 라벨 없이 메타만 고친 영상은 <b>삭제 대상인데 고지가 비어</b> 예고 없이
+     * 사라진다. 판정은 {@code PortalUserWorkRepository} 한 곳이 소유한다.
      *
-     * <p>삭제 배치가 후보를 고르는 쿼리와 <b>같은 집계 함수</b>({@code MIN})를 써야 화면이 고지한
+     * <p>세 저작물을 하나도 갖지 않은 영상은 <b>키가 없어</b> null 로 읽히고, 그러면
+     * {@link PortalRetentionPolicy.DatamartExpiry} 가 만료 예정 시각을 만들지 않는다 — 고지가
+     * 비는 것은 그 경우뿐이다.
+     *
+     * <p>삭제 배치가 후보를 고르는 축과 <b>같은 축</b>(가장 이른 저장 시각)이어야 화면이 고지한
      * 만료일과 실제 삭제일이 어긋나지 않는다 — 한쪽만 바꾸지 말 것.
      */
-    private Map<Long, LocalDateTime> lookupMyFirstLabelSavedAt(String portalUserNo, List<Long> rawSns) {
-        Map<Long, LocalDateTime> map = new HashMap<>();
-        for (Object[] row : userLabelRepository.findMinRegDtGroupedBySrcRawSn(portalUserNo, rawSns)) {
-            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
-            map.put(((Number) row[0]).longValue(), (LocalDateTime) row[1]);
-        }
-        return map;
+    private Map<Long, LocalDateTime> lookupMyFirstAuthoredAt(String portalUserNo, List<Long> rawSns) {
+        return userWorkRepository.findEarliestAuthoredAtByVideo(portalUserNo, rawSns);
     }
 
     private Map<Long, Long> lookupFrameCountByVideo(List<Long> rawSns) {

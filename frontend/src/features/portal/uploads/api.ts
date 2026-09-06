@@ -120,15 +120,29 @@ export function replaceUploadFrameLabels(
  * 보안: apiClient(blob) 경유 — Authorization 헤더 자동 첨부. `<a href>` 직링크는 토큰이
  * 미첨부되어 401 이므로 사용 금지. 파일명은 BE Content-Disposition(서버 생성 고정명) 신뢰.
  *
- * ★ 형제 경로(원본 파일)와 달리 **전용 제한시간도 취소도 두지 않는다** — 라벨 JSON 은 작아서
- *   공용 기본값 안에 끝나고, 취소 버튼이 뜨기도 전에 완료된다(사양). 두면 «작아서 두지 않는다» 는
- *   판단이 코드에서 지워지고, 실제로는 아무도 쓰지 않는 조작만 늘어난다.
+ * ★ 형제 경로(원본 파일)와 달리 **전용 제한시간은 두지 않는다** — 라벨 JSON 은 작아서 공용
+ *   기본값 안에 끝난다.
+ *
+ * ★★ **중단 신호는 받는다**(2026-09-06 신설). 「내 작업」 목록은 한 목록에서 두 출처의 내려받기를
+ *   함께 다루는데, 데이터마트 축에는 취소가 있고 업로드 축에는 없으면 **행에 따라 취소가 되기도
+ *   안 되기도 한다.** 그건 사용자가 예측할 수 없는 화면이라 사양(SCREEN-028)이 「같은 자리에서
+ *   전송을 멈출 수 있어야 한다」를 행 구분 없이 요구한다.
+ *   ⚠ 구 서술 폐기 — *"취소도 두지 않는다 … 아무도 쓰지 않는 조작만 늘어난다"*. 그 판단은 업로드
+ *     목록 화면(SCREEN-033)에서 **라벨 JSON 만 내려받던** 때의 것이고, 그쪽 호출부는 신호를 넘기지
+ *     않으므로 **지금도 그대로 취소 없이 동작한다**(선택 인자라 기존 동작 불변).
+ *   ⚠ 중단되면 응답이 없어 일반 실패와 같은 모양으로 올라온다 — **사용자 취소인지의 판정은 신호를
+ *     쥔 호출측(화면)이** 한다(형제 경로와 같은 규약).
  */
-export function downloadUploadExport(uldSn: number, fallbackName = `upload-${uldSn}.json`): Promise<void> {
+export function downloadUploadExport(
+  uldSn: number,
+  fallbackName = `upload-${uldSn}.json`,
+  signal?: AbortSignal,
+): Promise<void> {
   return apiClient
     .get(`/portal/uploads/${uldSn}/export`, {
       responseType: 'blob',
       transformResponse: (raw) => raw,
+      signal,
     })
     .then((res) => {
       const fileName =

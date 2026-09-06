@@ -87,6 +87,23 @@ public class PortalLabelBodySizeFilter extends OncePerRequestFilter {
             parse("/v1/portal/user-labels"),
             parse("/v1/portal/user-labels/"));
 
+    /**
+     * 포털 작업 화면의 <b>메타·이벤트 어노테이션 저장</b> 경로 패턴 — 둘 다 PUT 매핑이다
+     * ({@code PortalWorkMetaController} · {@code PortalWorkEventAnnotationController}).
+     *
+     * <p>라벨과 같은 클래스의 pre-parse DoS(CWE-770)를 갖는다 — 메타는 값 2000자 × 100건, 이벤트
+     * 어노테이션은 <b>구조를 강제하지 않는 자유 객체</b>라 상한이 서비스 검증에만 있고 그 검증은
+     * 본문을 전량 역직렬화한 뒤에야 돈다. 후행 슬래시 변형은 위와 같은 이유로 함께 잡는다
+     * (덜 매칭하면 취약, 더 매칭하면 무해).
+     *
+     * @design API-235, API-237
+     */
+    private static final List<PathPattern> WORK_SAVE_PATTERNS = List.of(
+            parse("/v1/portal/frames/{srcSn}/meta"),
+            parse("/v1/portal/frames/{srcSn}/meta/"),
+            parse("/v1/portal/videos/{rawSn}/event-annotation"),
+            parse("/v1/portal/videos/{rawSn}/event-annotation/"));
+
     private static PathPattern parse(String pattern) {
         return PathPatternParser.defaultInstance.parse(pattern);
     }
@@ -116,6 +133,10 @@ public class PortalLabelBodySizeFilter extends OncePerRequestFilter {
         }
         // 라벨 전체교체는 PUT 전용 매핑이라 메서드까지 좁힌다(POST 는 핸들러가 없다).
         if (isPut && matchesAny(LABEL_PUT_PATTERNS, path)) {
+            return false;
+        }
+        // 포털 작업 화면의 메타·이벤트 어노테이션 저장도 같은 클래스의 pre-parse DoS 를 갖는다.
+        if (matchesAny(WORK_SAVE_PATTERNS, path)) {
             return false;
         }
         // 사용자 라벨 저장은 POST 매핑이지만, 메서드 오지정이 상한 우회가 되지 않도록 PUT 도 함께 잡는다

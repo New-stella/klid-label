@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -58,6 +59,7 @@ class PortalDatamartVideosServiceTest {
     @Mock LsDataLblRepository lblRepository;
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsPortalUserLabelRepository userLabelRepository;
+    @Mock PortalUserWorkRepository userWorkRepository;
     @Mock LsRawDataStatusRepository rawDataStatusRepository;
     @Mock VideoRepository videoRepository;
     @Mock SystemConfigService systemConfigService;
@@ -75,7 +77,8 @@ class PortalDatamartVideosServiceTest {
                 kr.co.cudo.authoring.label.service.LabelAccessGuard.class);
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
                 rawDataStatusRepository, videoRepository, deidentGate,
-                new PortalRetentionPolicy(systemConfigService), new ObjectMapper(), null);
+                new PortalRetentionPolicy(systemConfigService), new ObjectMapper(), null,
+                userWorkRepository);
     }
 
     private LsDataRaw raw(Long rawSn, String clipId, String evnt) {
@@ -184,12 +187,12 @@ class PortalDatamartVideosServiceTest {
     }
 
     @Test
-    @DisplayName("포털_데이터마트_목록_본인_저장_라벨_최초저장일_기준으로_만료예정시각이_계산된다")
+    @DisplayName("포털_데이터마트_목록_본인_저작_최초저장일_기준으로_만료예정시각이_계산된다")
     void myLabelExpiresAtFromFirstSavedAt() {
         // given: 본인 저장 라벨 최초 저장일(MIN) + 보존기간 7일 — 마지막 저장일이 아니다(DFEAT-055)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
-                .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
+        when(userWorkRepository.findEarliestAuthoredAtByVideo(eq("alice"), anyCollection()))
+                .thenReturn(java.util.Map.of(10L, SAVED_AT));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
         // when / then
@@ -197,12 +200,12 @@ class PortalDatamartVideosServiceTest {
     }
 
     @Test
-    @DisplayName("포털_데이터마트_목록_본인_저장_라벨이_없으면_만료예정시각은_null")
+    @DisplayName("포털_데이터마트_목록_세_저작물이_하나도_없으면_만료예정시각은_null")
     void myLabelExpiresAtNullWhenNoSavedLabel() {
         // given: 그 영상에 본인 저장 라벨이 없다(집계 결과 행 자체가 없음)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
-                .thenReturn(List.of());
+        when(userWorkRepository.findEarliestAuthoredAtByVideo(eq("alice"), anyCollection()))
+                .thenReturn(java.util.Map.of());
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
         // when / then: 기준점이 없으면 값을 지어내지 않는다
@@ -214,8 +217,8 @@ class PortalDatamartVideosServiceTest {
     void myLabelExpiresAtRecomputedOnSettingChange() {
         // given: 7일로 한 번 조회
         givenOneApprovedVideo();
-        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
-                .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
+        when(userWorkRepository.findEarliestAuthoredAtByVideo(eq("alice"), anyCollection()))
+                .thenReturn(java.util.Map.of(10L, SAVED_AT));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
         assertThat(firstRow().myLabelExpiresAt()).isEqualTo(SAVED_AT.plusDays(7));
 
@@ -231,8 +234,8 @@ class PortalDatamartVideosServiceTest {
     void missingRetentionConfigNullsOnlyTheField() {
         // given: 설정 행 부재 — getInt 가 예외를 던진다(이 키는 폴백하지 않는다)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
-                .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
+        when(userWorkRepository.findEarliestAuthoredAtByVideo(eq("alice"), anyCollection()))
+                .thenReturn(java.util.Map.of(10L, SAVED_AT));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS))
                 .thenThrow(new CustomException(
                         kr.co.cudo.authoring.common.exception.ErrorCode.NOT_FOUND, "설정 없음"));
@@ -246,7 +249,7 @@ class PortalDatamartVideosServiceTest {
     }
 
     @Test
-    @DisplayName("포털_데이터마트_목록_라벨_집계쿼리와_설정조회는_페이지당_각_1회다_N플러스1_부재")
+    @DisplayName("포털_데이터마트_목록_저작_기산점_조회와_설정조회는_페이지당_각_1회다_N플러스1_부재")
     void expiryLookupsAreBatchedPerPage() {
         // given: APPROVED 영상 2건
         Pageable pageable = PageRequest.of(0, 20);
@@ -259,8 +262,8 @@ class PortalDatamartVideosServiceTest {
                 .thenReturn(List.<Object[]>of(new Object[]{10L, 3L}, new Object[]{20L, 4L}));
         when(rawDataStatusRepository.findAllById(anyCollection()))
                 .thenReturn(List.of(approved(10L), approved(20L)));
-        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
-                .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
+        when(userWorkRepository.findEarliestAuthoredAtByVideo(eq("alice"), anyCollection()))
+                .thenReturn(java.util.Map.of(10L, SAVED_AT));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
         // when
@@ -270,7 +273,7 @@ class PortalDatamartVideosServiceTest {
         assertThat(result.getContent()).hasSize(2);
         assertThat(result.getContent().get(0).myLabelExpiresAt()).isEqualTo(SAVED_AT.plusDays(7));
         assertThat(result.getContent().get(1).myLabelExpiresAt()).isNull();
-        verify(userLabelRepository, times(1)).findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection());
+        verify(userWorkRepository, times(1)).findEarliestAuthoredAtByVideo(eq("alice"), anyCollection());
         verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS);
     }
 

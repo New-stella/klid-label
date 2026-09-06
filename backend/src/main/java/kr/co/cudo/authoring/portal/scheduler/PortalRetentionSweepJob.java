@@ -16,8 +16,9 @@ import java.nio.file.Files;
  * 포털 보존기간 만료 자동 삭제 잡 (2축). @design DFEAT-055, AC-1068, AC-036, AC-037
  *
  * <ul>
- *   <li><b>축 A — 데이터마트 라벨</b>: 그 (사용자, 영상) 그룹 저장 라벨의 {@code MIN(REG_DT)}
- *       (= 그 사용자의 저작 <b>최초</b> 저장 시각)가 커트라인보다 이르면 그 그룹의 라벨을 삭제한다.
+ *   <li><b>축 A — 데이터마트 저작물</b>: 그 (사용자, 영상)의 <b>저작 최초 저장 시각</b>
+ *       (저장 라벨·메타 오버레이·이벤트 어노테이션 오버레이 <b>셋을 통틀어</b> 가장 이른 저장)이
+ *       커트라인보다 이르면 그 그룹의 <b>세 저작물을 한 벌로</b> 삭제한다.
  *       파일이 없어 DB 한 문장으로 끝난다. ★재작업으로 다시 저장해도 만료가 밀리지 않으므로
  *       <b>작업 중이라도</b> 삭제 대상이 된다(DFEAT-055 — 포털 확정 회신 2026-09-03).</li>
  *   <li><b>축 B — 업로드 자산</b>: {@code UPLOADED}(마킹 대기 — <b>등록일</b> 기준) ·
@@ -77,10 +78,10 @@ public class PortalRetentionSweepJob {
                initialDelayString = "${portal.retention.sweep.initial-delay-ms:900000}")
     public void run() {
         try {
-            int labelGroups = sweepDatamartLabels();
+            int workGroups = sweepDatamartWorks();
             int uploads = sweepExpiredUploads();
-            if (labelGroups > 0 || uploads > 0) {
-                log.info("[PortalRetention] datamartLabelGroups={} uploads={}", labelGroups, uploads);
+            if (workGroups > 0 || uploads > 0) {
+                log.info("[PortalRetention] datamartWorkGroups={} uploads={}", workGroups, uploads);
             }
         } catch (RuntimeException e) {
             // 한 회차 실패가 잡 자체를 죽이지 않게 한다(다음 회차에 재시도).
@@ -88,9 +89,14 @@ public class PortalRetentionSweepJob {
         }
     }
 
-    /** 축 A — 데이터마트 저장 라벨 만료 삭제. @design DFEAT-055, AC-1068 */
-    public int sweepDatamartLabels() {
-        return txService.sweepDatamartLabels();
+    /**
+     * 축 A — 데이터마트 저작물 만료 삭제. @design DFEAT-055, AC-1068
+     *
+     * <p>★ 지우는 것은 저장 라벨만이 아니다 — 같은 (사용자, 영상)의 <b>메타 오버레이·이벤트
+     * 어노테이션 오버레이도 한 벌로</b> 지운다. 이름이 「라벨」이던 시절의 뜻으로 읽지 말 것.
+     */
+    public int sweepDatamartWorks() {
+        return txService.sweepDatamartWorks();
     }
 
     /**

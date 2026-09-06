@@ -138,8 +138,13 @@ public class MetaService {
      *
      * <p>{@code video.*} 는 이 술어의 대상이 아니다 — 그 판정의 소유자는 {@link VideoMetaService} 이며
      * 여기서 재해석하지 않는다.
+     *
+     * <p><b>가시성이 {@code public} 인 이유(동작 변경 아님)</b>: 포털 채널의 메타 창구
+     * ({@code PortalMetaKeyPolicy})가 <b>같은 판정을 재사용</b>해야 한다. 그쪽에 목록을 새로 만들면
+     * 두 번째 진실원이 되어 이 서비스가 키를 늘리는 날 포털만 조용히 뒤처진다 — {@code video.*}
+     * 판정에서 실제로 겪은 문제다. 판정의 <b>소유자는 여전히 이 서비스</b>이며 밖에서는 부르기만 한다.
      */
-    private static boolean isReadOnlyKey(String metaKey) {
+    public static boolean isReadOnlyKey(String metaKey) {
         return metaKey != null
                 && metaKey.startsWith(VLM_KEY_PREFIX)
                 && !EDITABLE_VLM_KEYS.contains(metaKey);
@@ -161,8 +166,11 @@ public class MetaService {
      *
      * <p>이관으로 들어오지 않은 영상(대다수)에서는 이 술어에 걸리는 키가 하나도 없어 목록이 비지만,
      * 그 경우에도 {@code null} 이 아니라 <b>빈 배열</b>로 내려간다(화면이 분기 없이 그린다).
+     *
+     * <p><b>가시성이 {@code public} 인 이유</b>는 {@link #isReadOnlyKey} 와 같다 — 포털 채널이
+     * 같은 판정을 재사용하기 위함이고, 소유자는 여전히 이 서비스다.
      */
-    private static boolean isImportedKey(String metaKey) {
+    public static boolean isImportedKey(String metaKey) {
         return metaKey != null && metaKey.startsWith(ImportMetaKeys.PREFIX);
     }
 

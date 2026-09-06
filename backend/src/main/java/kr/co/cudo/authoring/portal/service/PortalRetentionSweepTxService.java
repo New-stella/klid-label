@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.portal.service;
 
-import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,27 +43,36 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PortalRetentionSweepTxService {
 
-    private final LsPortalUserLabelRepository userLabelRepository;
+    private final PortalUserWorkRepository userWorkRepository;
     private final PortalUploadAssetRepository assetRepository;
     private final PortalRetentionPolicy retentionPolicy;
 
-    // ======================== 축 A — 데이터마트 라벨 ========================
+    // ==================== 축 A — 데이터마트 저작물(라벨·메타·어노테이션) ====================
 
     /**
-     * 데이터마트 저장 라벨 축 스윕. @design DFEAT-055, AC-1068
+     * 데이터마트 채널 저작물 스윕. @design DFEAT-055, AC-1068
      *
-     * <p>커트라인은 「그룹의 <b>최초</b> 저장 시각 + 보존일수」다(DFEAT-055 — 포털 확정 회신
-     * 2026-09-03). 후보 조회와 조건부 삭제가 <b>같은 축</b>({@code MIN(REG_DT)})을 쓰며, 그 축은
-     * 조회 경로가 화면에 고지하는 만료 예정 시각과도 같다 — 갈리면 고지한 날과 실제 삭제일이
-     * 어긋난다. ⚠ 업로드 축(아래)은 여전히 「늦은 쪽」이라 <b>두 축을 통일하지 않는다</b>.
+     * <p>★ <b>지우는 것은 저장 라벨만이 아니다</b> — 같은 (사용자, 영상)의 <b>메타 오버레이와
+     * 이벤트 어노테이션 오버레이도 한 벌로 함께</b> 지운다. 라벨만 지우면 그 사용자가 고친 메타와
+     * 어노테이션이 영원히 남는다. 후보를 찾는 축도 같은 폭이라 <b>라벨 없이 메타만 고친 (사용자,
+     * 영상)</b>도 후보가 된다 — 삭제 대상만 넓히고 찾는 축을 라벨에 두면 그 구멍이 닫히지 않는다.
+     *
+     * <p>커트라인은 「그룹의 <b>최초</b> 저장 시각 + 보존일수」이며 그 최초는 <b>세 저작물을
+     * 통틀어</b> 가장 이른 저장 시각이다(DFEAT-055 — 포털 확정 회신 2026-09-03). 후보 조회와
+     * 조건부 삭제가 <b>같은 축</b>을 쓰며, 그 축은 조회 경로가 화면에 고지하는 만료 예정 시각과도
+     * 같다 — 갈리면 고지한 날과 실제 삭제일이 어긋난다. ⚠ 업로드 축(아래)은 여전히 「늦은 쪽」이라
+     * <b>두 축을 통일하지 않는다</b>.
      *
      * <p>파일이 없으므로 클레임 단계가 필요 없다 — (사용자, 영상) 그룹마다 <b>조건부 DELETE 1회</b>로
      * 끝난다. 2노드 Active-Active 에서 중복 실행돼도 두 번째 노드는 0행이 되어 멱등하다.
      *
-     * @return 실제로 라벨이 삭제된 그룹 수(설정 부재로 건너뛰면 0)
+     * <p>⚠ <b>연쇄 삭제와 다른 축이다</b> — 원천 영상이 지워질 때 세 표가 함께 정리되는 것은 외래키가
+     * 이미 하고 있다. 여기서 닫는 것은 <b>영상은 남아 있고 보존기간만 지난</b> 경우다.
+     *
+     * @return 실제로 저작물이 삭제된 그룹 수(설정 부재로 건너뛰면 0)
      */
     @Transactional("controlTransactionManager")
-    public int sweepDatamartLabels() {
+    public int sweepDatamartWorks() {
         Optional<LocalDateTime> maybeCutoff = retentionPolicy.datamartCutoff();
         if (maybeCutoff.isEmpty()) {
             // 폴백하지 않는다 — 위 클래스 주석 참조. 지우지 않는 쪽이 항상 안전하다.
@@ -73,13 +82,10 @@ public class PortalRetentionSweepTxService {
         }
         LocalDateTime cutoff = maybeCutoff.get();
         int deletedGroups = 0;
-        for (Object[] row : userLabelRepository.findExpiredLabelGroups(cutoff)) {
-            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
-                continue;
-            }
-            String portalUserNo = (String) row[0];
-            Long srcRawSn = ((Number) row[1]).longValue();
-            int removed = userLabelRepository.deleteExpiredLabelGroup(portalUserNo, srcRawSn, cutoff);
+        for (PortalUserWorkRepository.WorkGroup group
+                : userWorkRepository.findExpiredWorkGroups(cutoff)) {
+            int removed = userWorkRepository.deleteExpiredWorkGroup(
+                    group.portalUserNo(), group.srcRawSn(), cutoff);
             if (removed > 0) {
                 deletedGroups++;
             }

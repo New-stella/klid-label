@@ -204,6 +204,7 @@ class FlywaySquashBaselineIT {
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
                         "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32",
+                        "33",
                         "9001", "9002");
     }
 
@@ -245,6 +246,7 @@ class FlywaySquashBaselineIT {
                         "V30__relax_ls_data_lbl_label_name_not_null.sql",
                         "V31__add_ls_eblc_uld_job.sql",
                         "V32__ls_acnt_user_no_seq_and_user_id_unique.sql",
+                        "V33__add_portal_user_meta_and_evnt_anno_overlay.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",

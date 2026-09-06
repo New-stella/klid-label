@@ -29,6 +29,7 @@ import { Checkbox } from '@/components/common/Checkbox';
 
 import type { YnFlag } from '../api/framePrivacyMeta';
 import { useFramePrivacyMeta, useUpdateFramePrivacyMeta } from '../hooks/useFramePrivacyMeta';
+import { isUserDeterminedMetaValue } from '../utils/metaPromotion';
 
 import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
 
@@ -83,9 +84,13 @@ function boolToYn(v: boolean): 'Y' | 'N' {
  * 추적으로 판단한다: 사용자가 실제 토글한(현재값≠원본 프리필값) 필드만 Y/N 을 전송하고,
  * 손대지 않은 필드는 null 로 보내 BE 가 파생 프리필을 유지하게 한다.
  * (후속 여지: BE 가 *Source 를 내려주면 EnvironmentMetaPanel 과 동일한 source 기반 판정으로 강화 가능.)
+ *
+ * ★판정 자체는 {@link isUserDeterminedMetaValue} 가 <b>단독 소유</b>한다. 이 창구만 출처를 받지
+ *   못하므로 `null` 을 넘기며, 그 경우 판정은 «손댔는가» 한 축으로 줄어든다 — 지금 동작 그대로다.
+ *   BE 가 출처를 내려주기 시작하면 이 인자만 바꾸면 된다(판정식을 다시 쓰지 않는다).
  */
 function resolveField(current: boolean, original: boolean): YnFlag {
-  return current !== original ? boolToYn(current) : null;
+  return isUserDeterminedMetaValue(current, original, null) ? boolToYn(current) : null;
 }
 
 export function FramePrivacyMetaPanel({

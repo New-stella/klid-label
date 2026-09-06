@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +150,35 @@ public class PortalUploadAssetRepository {
         q.setParameter("rawSn", uldSn);
         List<?> rows = q.getResultList();
         return rows.isEmpty() ? Optional.empty() : Optional.of(toAsset((Object[]) rows.get(0)));
+    }
+
+    /**
+     * 소유자 자산 <b>일괄</b> 조회 — 목록 한 페이지의 자산을 단일 쿼리 1회로 모은다.
+     *
+     * <p>「내 작업」 목록이 두 축(업로드·데이터마트)을 합쳐 페이징한 뒤, 그 페이지에 섞인 업로드
+     * 행에만 상태·등록일·상태변경일을 채우기 위해 쓴다. 행마다 {@link #findByOwner} 를 부르면 N+1 이다.
+     *
+     * <p>★ 조립식({@link #SELECT_ASSET}·{@link #FROM_ASSET})과 소유자 스코프({@link #OWNER_SCOPE})를
+     * <b>그대로 재사용</b>한다 — 상태 판정({@link #STATUS_EXPR})을 새 자리에 베껴 쓰면 「행이 없으면
+     * 업로드됨」 규칙이 두 벌이 되고, 한쪽만 고쳐지는 순간 목록의 만료 고지가 조용히 어긋난다.
+     *
+     * @return 자산 식별자 → 읽기 모델. 타인 자산·비포털 영상은 <b>키 자체가 없다</b>(IDOR)
+     */
+    public Map<Long, PortalUploadAsset> findByOwnerIn(String portalUserNo, Collection<Long> rawSns) {
+        Map<Long, PortalUploadAsset> result = new LinkedHashMap<>();
+        if (portalUserNo == null || rawSns == null || rawSns.isEmpty()) {
+            return result;
+        }
+        Query q = em.createNativeQuery(SELECT_ASSET + FROM_ASSET + OWNER_SCOPE + " AND r.raw_sn IN (:rawSns)");
+        bindMetaKeys(q);
+        q.setParameter("srcType", PortalUploadLedger.SRC_TYPE);
+        q.setParameter("owner", portalUserNo);
+        q.setParameter("rawSns", rawSns);
+        for (Object row : q.getResultList()) {
+            PortalUploadAsset asset = toAsset((Object[]) row);
+            result.put(asset.uldSn(), asset);
+        }
+        return result;
     }
 
     /** 소유권 미검증 단건 — 내부 파이프라인(프레임 추출 러너) 전용. 사용자 요청 진입점에서 쓰지 말 것. */
@@ -352,12 +382,185 @@ public class PortalUploadAssetRepository {
                 .executeUpdate();
     }
 
+    /**
+     * <b>소유자 스코프</b> 메타 upsert — 포털 사용자가 자기 자산의 메타를 저장하는 경로 전용.
+     *
+     * <p>{@link #upsertMeta} 와 두 가지가 다르다.
+     * <ol>
+     *   <li><b>판별자를 문장 자체에 건다</b> — 출처 유형과 소유자가 맞는 행에서만 삽입이 성립한다.
+     *       호출부의 출처 판정이 잘못돼도 <b>관제 영상에 구조적으로 닿지 않는다</b>(관제 행에는
+     *       소유자가 없다). 후보 조회에만 조건을 걸고 실행문을 비워 두면 그 보호가 사라진다.</li>
+     *   <li><b>값이 {@code null} 이어도 실행한다</b> — 그쪽의 「null 이면 아무것도 하지 않는다」는
+     *       파이프라인이 <b>모르는 값을 지어내지 않기</b> 위한 규약이고, 여기서 {@code null} 은
+     *       사용자가 <b>값을 비운 것</b>이라 뜻이 정반대다. 삼키면 지운 값이 되살아난다.</li>
+     * </ol>
+     *
+     * @return 반영된 행 수. 0 이면 그 영상이 이 사용자의 포털 자산이 아니다
+     * @design API-235
+     */
+    public int upsertOwnedMeta(Long rawSn, String portalUserNo, String metaKey, String metaVl) {
+        return em.createNativeQuery("""
+                INSERT INTO ls_data_meta (raw_sn, meta_key, meta_vl, reg_dt, mdfcn_dt)
+                SELECT r.raw_sn, :metaKey, CAST(:metaVl AS varchar), now(), now()
+                  FROM ls_data_raw r
+                 WHERE r.raw_sn = :rawSn
+                   AND r.src_type = :srcType
+                   AND r.portal_user_no = :owner
+                ON CONFLICT (raw_sn, meta_key)
+                DO UPDATE SET meta_vl = EXCLUDED.meta_vl, mdfcn_dt = now()
+                """)
+                .setParameter("metaKey", metaKey)
+                .setParameter("metaVl", metaVl)
+                .setParameter("rawSn", rawSn)
+                .setParameter("srcType", PortalUploadLedger.SRC_TYPE)
+                .setParameter("owner", portalUserNo)
+                .executeUpdate();
+    }
+
     /** 메타 한 칸을 지운다 — 「값이 없다」를 빈 문자열이 아니라 행 부재로 표현한다. */
     public void deleteMeta(Long rawSn, String metaKey) {
         em.createNativeQuery("DELETE FROM ls_data_meta WHERE raw_sn = :rawSn AND meta_key = :metaKey")
                 .setParameter("rawSn", rawSn)
                 .setParameter("metaKey", metaKey)
                 .executeUpdate();
+    }
+
+    /**
+     * <b>소유자 스코프</b> 이벤트 어노테이션 upsert — 포털 사용자가 자기 자산의 어노테이션을 저장하는
+     * 경로 전용. 본인 자산에는 가려야 할 남의 원본이 없으므로 오버레이가 아니라 그 자산의 원장에
+     * 그대로 앉는다.
+     *
+     * <p>{@link #upsertOwnedMeta} 와 같은 규약이다 — 출처 유형과 소유자를 <b>문장 자체에</b> 걸어
+     * 관제 영상에 구조적으로 닿지 않게 한다. 관제 영상의 어노테이션은 검수·산출·통지 축이 소유하며
+     * 포털 창구가 그것을 덮으면 <b>확정된 학습데이터가 조용히 바뀐다</b>.
+     *
+     * <p>검토행({@code LS_EVNT_ANNO_REVIEW})은 만들지 않는다 — 포털에는 검수가 없고, 만들면 검수 큐와
+     * 데이터마트 뷰에 포털 값이 흘러든다.
+     *
+     * @return 반영된 행 수. 0 이면 그 영상이 이 사용자의 포털 자산이 아니다
+     * @design API-237
+     */
+    public int upsertOwnedEventAnnotation(Long rawSn, String portalUserNo, String annoCnJson) {
+        return em.createNativeQuery("""
+                INSERT INTO ls_evnt_anno (raw_sn, anno_cn, reg_dt, mdfcn_dt)
+                SELECT r.raw_sn, CAST(:annoCn AS jsonb), now(), now()
+                  FROM ls_data_raw r
+                 WHERE r.raw_sn = :rawSn
+                   AND r.src_type = :srcType
+                   AND r.portal_user_no = :owner
+                ON CONFLICT (raw_sn)
+                DO UPDATE SET anno_cn = EXCLUDED.anno_cn, mdfcn_dt = now()
+                """)
+                .setParameter("annoCn", annoCnJson)
+                .setParameter("rawSn", rawSn)
+                .setParameter("srcType", PortalUploadLedger.SRC_TYPE)
+                .setParameter("owner", portalUserNo)
+                .executeUpdate();
+    }
+
+    /**
+     * <b>소유자 스코프</b> 영상 행 컬럼 갱신 — 촬영환경 셋과 영상 축 개인정보 판정 셋이 여기 앉는다.
+     *
+     * <h3>왜 내부 저장 창구를 부르지 않는가</h3>
+     * <p>같은 컬럼을 고치는 내부 창구({@code EnvironmentMetaService}·{@code VideoPrivacyMetaService})는
+     * 저장하면서 <b>재검토 표시를 세우고 관제 통지를 발행하고 승인 동결본을 다시 굳힌다</b>. 포털
+     * 경로에서 그것이 일어나면 안 되므로 저장 동작은 재사용하지 않고 이 문장이 직접 쓴다(읽기와
+     * 규칙은 재사용한다 — {@code PortalColumnMetaField}).
+     *
+     * <h3>★ 판별자를 문장 자체에 건다</h3>
+     * <p>흡수 이후 이 원장은 <b>관제 영상과 포털 자산이 나란히 앉는 표</b>다. 출처 유형과 소유자를
+     * 조회에만 걸고 실행문을 비워 두면 호출부의 출처 판정이 한 번 틀리는 순간 <b>확정된 학습데이터의
+     * 개인정보 선언이 조용히 바뀐다</b>. 관제 행에는 소유자가 없어 이 문장은 구조적으로 닿지 못한다.
+     *
+     * <h3>★ 컬럼 이름을 문자열로 이어 붙이지 않는다</h3>
+     * <p>어느 칸을 고칠지는 바인딩된 {@code :field} 가 고르고 나머지 칸은 <b>자기 값을 그대로</b>
+     * 다시 쓴다. 컬럼명을 조립하면 그 순간 SQL 조립 경로가 생긴다(CWE-89).
+     * ⚠ 대상이 이 표가 아닌 칸을 넘기면 어느 가지에도 걸리지 않아 <b>0칸을 고치고도 성공으로 보인다</b>.
+     * 그래서 호출 전에 대상 표를 Java 에서 단언한다.
+     *
+     * <p>실행 뒤 1차 캐시를 비운다 — 네이티브 갱신이라 이미 로드된 엔티티가 <b>옛 값을 그대로 들고
+     * 있고</b>, 저장 직후 재조회가 그 옛 값을 응답으로 내보낸다.
+     *
+     * @param field {@link PortalColumnMetaField} 상수 이름. 값이 아니라 <b>고를 칸</b>을 가리킨다
+     * @return 반영된 행 수. 0 이면 그 영상이 이 사용자의 포털 자산이 아니다
+     * @design API-235
+     * @design ERD-018
+     */
+    public int updateOwnedVideoColumn(Long rawSn, String portalUserNo, String field, String value) {
+        return em.createNativeQuery("""
+                UPDATE ls_data_raw
+                   SET wthr_nm       = CASE WHEN :field = 'ENV_WEATHER'
+                                            THEN CAST(:value AS varchar) ELSE wthr_nm END,
+                       day_ngt_cd    = CASE WHEN :field = 'ENV_TIME_OF_DAY'
+                                            THEN CAST(:value AS varchar) ELSE day_ngt_cd END,
+                       sesn_cd       = CASE WHEN :field = 'ENV_SEASON'
+                                            THEN CAST(:value AS varchar) ELSE sesn_cd END,
+                       anony_incl_yn = CASE WHEN :field = 'VIDEO_ANONYMITY'
+                                            THEN CAST(:value AS varchar) ELSE anony_incl_yn END,
+                       psdo_incl_yn  = CASE WHEN :field = 'VIDEO_PSEUDONYMITY'
+                                            THEN CAST(:value AS varchar) ELSE psdo_incl_yn END,
+                       prvc_incl_yn  = CASE WHEN :field = 'VIDEO_PRIVACY_INCLUDED'
+                                            THEN CAST(:value AS varchar) ELSE prvc_incl_yn END,
+                       mdfcn_dt      = now()
+                 WHERE raw_sn = :rawSn
+                   AND src_type = :srcType
+                   AND portal_user_no = :owner
+                """)
+                .setParameter("field", field)
+                .setParameter("value", value)
+                .setParameter("rawSn", rawSn)
+                .setParameter("srcType", PortalUploadLedger.SRC_TYPE)
+                .setParameter("owner", portalUserNo)
+                .executeUpdate();
+    }
+
+    /**
+     * <b>소유자 스코프</b> 프레임 행 컬럼 갱신 — 프레임 설명과 프레임 축 개인정보 판정이 여기 앉는다.
+     *
+     * <p>규약은 {@link #updateOwnedVideoColumn} 과 같다. 소유자는 프레임 행이 아니라 <b>그 프레임의
+     * 영상 행</b>이 갖고 있으므로 존재 검사로 이어 붙인다 — 조인 형태로 두면 같은 술어를 다른 문장에
+     * 옮겨 쓸 수 없다.
+     *
+     * @return 반영된 행 수. 0 이면 그 프레임이 이 사용자의 포털 자산에 속하지 않는다
+     * @design API-235
+     * @design ERD-018
+     */
+    public int updateOwnedFrameColumn(Long srcSn, String portalUserNo, String field, String value) {
+        return em.createNativeQuery("""
+                UPDATE ls_data_src
+                   SET frm_expln     = CASE WHEN :field = 'FRAME_DESCRIPTION'
+                                            THEN CAST(:value AS varchar) ELSE frm_expln END,
+                       anony_incl_yn = CASE WHEN :field = 'FRAME_ANONYMITY'
+                                            THEN CAST(:value AS varchar) ELSE anony_incl_yn END,
+                       psdo_incl_yn  = CASE WHEN :field = 'FRAME_PSEUDONYMITY'
+                                            THEN CAST(:value AS varchar) ELSE psdo_incl_yn END,
+                       prvc_incl_yn  = CASE WHEN :field = 'FRAME_PRIVACY_INCLUDED'
+                                            THEN CAST(:value AS varchar) ELSE prvc_incl_yn END,
+                       upd_dt        = now()
+                 WHERE src_sn = :srcSn
+                   AND EXISTS (SELECT 1 FROM ls_data_raw r
+                                WHERE r.raw_sn = ls_data_src.raw_sn
+                                  AND r.src_type = :srcType
+                                  AND r.portal_user_no = :owner)
+                """)
+                .setParameter("field", field)
+                .setParameter("value", value)
+                .setParameter("srcSn", srcSn)
+                .setParameter("srcType", PortalUploadLedger.SRC_TYPE)
+                .setParameter("owner", portalUserNo)
+                .executeUpdate();
+    }
+
+    /**
+     * 네이티브 갱신 뒤 1차 캐시를 비운다.
+     *
+     * <p>손으로 쓴 UPDATE 는 영속성 문맥을 갱신하지 않으므로 <b>이미 로드된 엔티티가 옛 값을 그대로
+     * 들고 있다</b>. 저장 직후 같은 트랜잭션에서 재조회하는 창구는 그 옛 값을 응답으로 내보낸다 —
+     * 오류가 없어 어떤 시험에도 걸리지 않는다. Spring Data 의
+     * {@code @Modifying(clearAutomatically = true)} 가 하는 일과 같은 것을 손으로 한다.
+     */
+    public void clearPersistenceContext() {
+        em.clear();
     }
 
     /** 영상 길이 확정 — 초는 반올림 정수, 밀리초 정밀도는 별도 칸이 보존한다(ERD-028). */

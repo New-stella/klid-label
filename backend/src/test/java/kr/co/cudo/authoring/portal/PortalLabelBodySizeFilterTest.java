@@ -330,6 +330,72 @@ class PortalLabelBodySizeFilterTest {
         }
     }
 
+    // ─── 포털 작업 화면 저장(PUT) 본문 상한 — 메타·이벤트 어노테이션 ───
+    //   라벨과 같은 클래스의 pre-parse DoS 를 갖는다. 특히 이벤트 어노테이션은 <구조를 강제하지
+    //   않는 자유 객체>라 상한이 서비스 검증에만 있고 그 검증은 본문을 전량 역직렬화한 뒤에야 돈다.
+
+    @Test
+    @DisplayName("작업화면_메타_저장_요청도_본문상한이_적용된다")
+    void workMetaSaveIsCapped() throws Exception {
+        MockHttpServletRequest r = rawReq("PUT", "/v1/portal/frames/500/meta", oversized());
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(r, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    @DisplayName("작업화면_이벤트어노테이션_저장_요청도_본문상한이_적용된다")
+    void workEventAnnotationSaveIsCapped() throws Exception {
+        MockHttpServletRequest r =
+                rawReq("PUT", "/v1/portal/videos/500/event-annotation", oversized());
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(r, res, chain);
+
+        assertThat(res.getStatus()).isEqualTo(413);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    @DisplayName("작업화면_저장_인코딩_trailing_slash_변형에서도_상한이_적용된다")
+    void workSaveVariantsCapped() throws Exception {
+        List<String> capped = List.of(
+                "/v1/portal/frames/500/%6Deta",              // 퍼센트 인코딩
+                "/v1/portal/frames/500/meta/",               // trailing slash
+                "/v1/portal/frames/500/meta;v=1",            // matrix parameter
+                "/v1/portal/videos/500/event-annotation/",
+                "/v1/portal/videos/500/event-annotation;v=1");
+
+        for (String uri : capped) {
+            MockHttpServletRequest r = rawReq("PUT", uri, oversized());
+            MockHttpServletResponse res = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(r, res, chain);
+
+            assertThat(res.getStatus()).as("상한 적용: %s", uri).isEqualTo(413);
+            assertThat(chain.getRequest()).as("체인 미진행: %s", uri).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("작업화면_메타_조회는_상한_대상이_아니다")
+    void workMetaLoadIsNotCapped() throws Exception {
+        MockHttpServletRequest r = rawReq("GET", "/v1/portal/frames/500/meta", oversized());
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(r, res, chain);
+
+        assertThat(chain.getRequest()).as("본문을 갖지 않는 조회는 대상이 아니다").isNotNull();
+        assertThat(res.getStatus()).isEqualTo(200);
+    }
+
     @Test
     @DisplayName("본인라벨_저장_정상_크기_본문은_통과한다")
     void userLabelSaveWithinLimitPasses() throws Exception {

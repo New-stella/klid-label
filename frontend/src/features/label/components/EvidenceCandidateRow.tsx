@@ -14,23 +14,30 @@ export interface EvidenceCandidateRowProps {
   /** 현재 프레임 SRC_SN — 정의됐을 때만 '현재 프레임' 추가 버튼 노출. */
   currentSrcSn?: number;
   /** 캔버스에 선택된 라벨이 있는지 — false 면 '선택 객체 추가' 버튼 비활성. */
-  hasSelectedObject: boolean;
+  hasSelectedObject?: boolean;
   onRemove: (key: string) => void;
   onFieldChange: (
     key: string,
     field: 'evidenceText' | 'frameId' | 'objId' | 'objBbox' | 'objLabel',
     value: string,
   ) => void;
-  onAppendCurrentFrame: (key: string) => void;
-  /** 캔버스 선택 라벨의 obj_* 값을 이 행에 append. */
-  onAppendSelectedObject: (key: string) => void;
+  /** 현재 프레임 번호를 frame_id 에 append. `currentSrcSn` 과 함께 있을 때만 버튼이 선다. */
+  onAppendCurrentFrame?: (key: string) => void;
+  /**
+   * 캔버스 선택 라벨의 obj_* 값을 이 행에 append.
+   *
+   * ★<b>선택</b>이다 — 캔버스 선택과 이어지지 않는 화면(포털 채널)에서는 넘기지 않으며, 그때는
+   * 버튼을 <b>비활성으로 두지 않고 렌더 자체를 하지 않는다</b>. 눌리는 모양인데 영원히 반응이
+   * 없으면 사용자가 고장으로 읽는다(같은 이유로 '현재 프레임' 버튼도 조건부다).
+   */
+  onAppendSelectedObject?: (key: string) => void;
 }
 
 /** 근거 후보 1건(evidence_text + frame_id/obj_id/obj_bbox/obj_label) 입력 행. */
 export function EvidenceCandidateRow({
   row,
   currentSrcSn,
-  hasSelectedObject,
+  hasSelectedObject = false,
   onRemove,
   onFieldChange,
   onAppendCurrentFrame,
@@ -70,7 +77,7 @@ export function EvidenceCandidateRow({
           placeholder="frame_id (콤마 구분, 정수)"
           className={INPUT_CLASS}
         />
-        {currentSrcSn !== undefined && (
+        {currentSrcSn !== undefined && onAppendCurrentFrame !== undefined && (
           <button
             type="button"
             data-testid={`ea-evidence-frameid-current-${row.key}`}
@@ -81,17 +88,20 @@ export function EvidenceCandidateRow({
           </button>
         )}
       </div>
-      {/* 캔버스 선택 객체를 obj_id/obj_label/obj_bbox/frame_id 에 자동 append. 선택 없으면 비활성. */}
-      <button
-        type="button"
-        data-testid={`ea-evidence-add-selected-${row.key}`}
-        onClick={() => onAppendSelectedObject(row.key)}
-        disabled={!hasSelectedObject}
-        aria-label={`선택 객체를 근거 후보 ${row.key} 에 추가`}
-        className="text-[11px] text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:text-gray-400"
-      >
-        + 선택 객체 추가
-      </button>
+      {/* 캔버스 선택 객체를 obj_id/obj_label/obj_bbox/frame_id 에 자동 append. 선택 없으면 비활성.
+          캔버스 선택과 이어지지 않는 화면에서는 핸들러가 없어 버튼 자체를 두지 않는다. */}
+      {onAppendSelectedObject !== undefined && (
+        <button
+          type="button"
+          data-testid={`ea-evidence-add-selected-${row.key}`}
+          onClick={() => onAppendSelectedObject(row.key)}
+          disabled={!hasSelectedObject}
+          aria-label={`선택 객체를 근거 후보 ${row.key} 에 추가`}
+          className="text-[11px] text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:text-gray-400"
+        >
+          + 선택 객체 추가
+        </button>
+      )}
       <input
         type="text"
         data-testid={`ea-evidence-objid-${row.key}`}

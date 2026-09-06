@@ -3,7 +3,10 @@ package kr.co.cudo.authoring.portal;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
+import kr.co.cudo.authoring.portal.repository.LsPortalUserEvntAnnoRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.repository.LsPortalUserMetaRepository;
+import kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository;
 import kr.co.cudo.authoring.portal.scheduler.PortalRetentionSweepJob;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
@@ -79,6 +82,9 @@ class PortalRetentionSweepIT {
     @Autowired private PortalRetentionSweepJob job;
     @Autowired private PortalRetentionPolicy retentionPolicy;
     @Autowired private LsPortalUserLabelRepository userLabelRepository;
+    @Autowired private LsPortalUserMetaRepository userMetaRepository;
+    @Autowired private LsPortalUserEvntAnnoRepository userAnnoRepository;
+    @Autowired private PortalUserWorkRepository workRepository;
     @Autowired private PortalUploadAssetRepository assetRepository;
     @Autowired private PortalUploadFrameRepository frmeRepository;
     @Autowired private PortalUploadLabelRepository lblRepository;
@@ -108,7 +114,7 @@ class PortalRetentionSweepIT {
             saveUserLabel(user, freshRawSn, daysAgo(1));
         });
 
-        job.sweepDatamartLabels();
+        job.sweepDatamartWorks();
 
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, expiredRawSn))
                 .as("최초 저장일이 보존기간을 넘긴 그룹은 삭제된다")
@@ -136,7 +142,7 @@ class PortalRetentionSweepIT {
             saveUserLabel(user, rawSn, daysAgo(1));    // 재작업으로 방금 다시 저장
         });
 
-        job.sweepDatamartLabels();
+        job.sweepDatamartWorks();
 
         // 기준점은 MIN(REG_DT) 라 재저장이 만료를 밀지 못한다. MAX 로 되돌리면 이 단언이 깨진다.
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
@@ -157,7 +163,7 @@ class PortalRetentionSweepIT {
         });
 
         int removed = txTemplate.execute(s ->
-                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+                workRepository.deleteExpiredWorkGroup(user, rawSn, cutoff));
 
         assertThat(removed).as("삭제문 자체에 만료 조건이 걸려 있어야 0행이다").isZero();
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
@@ -181,7 +187,7 @@ class PortalRetentionSweepIT {
         });
 
         int removed = txTemplate.execute(s ->
-                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+                workRepository.deleteExpiredWorkGroup(user, rawSn, cutoff));
 
         assertThat(removed).as("구 MAX 축 조건으로 되돌리면 0행이 되어 영영 지워지지 않는다").isEqualTo(2);
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
@@ -197,12 +203,92 @@ class PortalRetentionSweepIT {
         txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(30)));
 
         int first = txTemplate.execute(s ->
-                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+                workRepository.deleteExpiredWorkGroup(user, rawSn, cutoff));
         int second = txTemplate.execute(s ->
-                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+                workRepository.deleteExpiredWorkGroup(user, rawSn, cutoff));
 
         assertThat(first).isPositive();
         assertThat(second).as("남은 행이 없으면 조건이 거짓이 되어 두 번째 노드는 0행이다").isZero();
+    }
+
+    /**
+     * ★ 잡 <b>전체 경로</b>에서 세 저작물이 한 벌로 지워지는지. @design DFEAT-055, AC-1068
+     *
+     * <p>라벨만 지우면 그 사용자가 고친 메타·어노테이션이 <b>영원히 남는다</b> — 원천 영상이
+     * 살아 있으므로 외래키 연쇄도 돌지 않는다(그 축과 혼동하지 말 것).
+     */
+    @Test
+    @DisplayName("★데이터마트_만료_그룹은_라벨과_메타_오버레이와_어노테이션_오버레이가_함께_삭제된다")
+    void datamartSweepDeletesAllThreeArtifacts() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(30)));
+        saveUserMeta(user, rawSn, "weather", daysAgo(30));
+        saveUserAnno(user, rawSn, daysAgo(30));
+
+        job.sweepDatamartWorks();
+
+        assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
+                .isEmpty();
+        assertThat(userMetaRepository
+                .findByPortalUserNoAndSrcRawSnAndSrcDataSrcSnIsNull(user, rawSn))
+                .as("★라벨만 지우면 여기가 영원히 남는다").isEmpty();
+        assertThat(userAnnoRepository.findByPortalUserNoAndSrcRawSn(user, rawSn))
+                .as("★라벨만 지우면 여기가 영원히 남는다").isEmpty();
+    }
+
+    /**
+     * ★★ 후보 탐색 축이 라벨에 묶여 있으면 이 그룹은 <b>어느 회차에도 잡히지 않는다</b> —
+     * 삭제 대상만 넓히고 찾는 축을 그대로 두면 구멍이 닫히지 않는다는 것의 실효 지점이다.
+     */
+    @Test
+    @DisplayName("★★라벨_없이_메타만_고친_그룹도_후보로_잡혀_삭제된다_후보_탐색_축")
+    void datamartSweepFindsGroupsWithoutAnyLabel() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        saveUserMeta(user, rawSn, "weather", daysAgo(30));   // 저장 라벨은 한 건도 없다
+
+        job.sweepDatamartWorks();
+
+        assertThat(userMetaRepository
+                .findByPortalUserNoAndSrcRawSnAndSrcDataSrcSnIsNull(user, rawSn))
+                .as("★후보 탐색이 저장 라벨 기준이면 이 행은 영구히 남는다").isEmpty();
+    }
+
+    /** 어노테이션 오버레이만 가진 그룹도 같은 축이다(축이 셋이라 하나씩 확인한다). */
+    @Test
+    @DisplayName("★라벨_없이_어노테이션만_고친_그룹도_후보로_잡혀_삭제된다")
+    void datamartSweepFindsGroupsWithOnlyAnnotation() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        saveUserAnno(user, rawSn, daysAgo(30));
+
+        job.sweepDatamartWorks();
+
+        assertThat(userAnnoRepository.findByPortalUserNoAndSrcRawSn(user, rawSn)).isEmpty();
+    }
+
+    /** 보존기간 안의 그룹은 세 저작물 어느 것도 건드리지 않는다(스윕이 과하게 넓지 않다). */
+    @Test
+    @DisplayName("보존기간_안의_그룹은_세_저작물_어느_것도_지워지지_않는다")
+    void datamartSweepKeepsFreshGroupEntirely() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(1)));
+        saveUserMeta(user, rawSn, "weather", daysAgo(1));
+        saveUserAnno(user, rawSn, daysAgo(1));
+
+        job.sweepDatamartWorks();
+
+        assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
+                .hasSize(1);
+        assertThat(userMetaRepository
+                .findByPortalUserNoAndSrcRawSnAndSrcDataSrcSnIsNull(user, rawSn)).hasSize(1);
+        assertThat(userAnnoRepository.findByPortalUserNoAndSrcRawSn(user, rawSn)).isPresent();
     }
 
     // ==================================================== 축 B — 업로드 자산 (AC-036 / AC-037)
@@ -554,10 +640,10 @@ class PortalRetentionSweepIT {
         long rawSn = newVideoRawSn();
         txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(30)));
 
-        job.sweepDatamartLabels();
+        job.sweepDatamartWorks();
         job.sweepExpiredUploads();
         // 2노드 Active-Active 모사 — 같은 후보를 다른 노드가 한 번 더 처리한다.
-        job.sweepDatamartLabels();
+        job.sweepDatamartWorks();
         job.sweepExpiredUploads();
 
         assertThat(assetRepository.findPortalAsset(uldSn)).isEmpty();
@@ -607,6 +693,24 @@ class PortalRetentionSweepIT {
     private Long saveFrame(Long uldSn, Path file) {
         return txTemplate.execute(s ->
                 frmeRepository.save(LsDataSrc.create(uldSn, 0L, file.toString(), null)).getSrcSn());
+    }
+
+    /** 메타 오버레이 1칸(영상 축) — REG_DT 를 시나리오 시각으로 고정한다. */
+    private void saveUserMeta(String portalUserNo, long rawSn, String metaKey, LocalDateTime regDt) {
+        txTemplate.executeWithoutResult(s ->
+                userMetaRepository.upsertVideoScoped(portalUserNo, rawSn, metaKey, "v"));
+        jdbc.update("UPDATE ls_portal_user_meta SET reg_dt = ?"
+                        + " WHERE portal_user_no = ? AND src_raw_sn = ? AND meta_key = ?",
+                Timestamp.valueOf(regDt), portalUserNo, rawSn, metaKey);
+    }
+
+    /** 이벤트 어노테이션 오버레이 한 벌 — (사용자, 영상)당 1건. */
+    private void saveUserAnno(String portalUserNo, long rawSn, LocalDateTime regDt) {
+        txTemplate.executeWithoutResult(s ->
+                userAnnoRepository.upsertAnnotation(portalUserNo, rawSn, "{\"a\":1}"));
+        jdbc.update("UPDATE ls_portal_user_evnt_anno SET reg_dt = ?"
+                        + " WHERE portal_user_no = ? AND src_raw_sn = ?",
+                Timestamp.valueOf(regDt), portalUserNo, rawSn);
     }
 
     private void saveUserLabel(String portalUserNo, long rawSn, LocalDateTime regDt) {
