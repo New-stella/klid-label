@@ -107,7 +107,11 @@ describe('PortalMetaPanel', () => {
     expect(within(frameRow).getByRole('combobox')).toHaveTextContent('아니오');
   });
 
-  it('두_표시는_서로_다른_것을_말한다_덮음과_원본_출처가_함께_선다', async () => {
+  /**
+   * ★「내가 고침」은 <b>남는다</b> — 포털에만 있는 세 겹(원본·자동 계산값·내 오버레이) 구조가
+   * 실제로 요구하는 표시다. 함께 지우지 말 것.
+   */
+  it('본인이_덮었다는_표시는_그대로_선다', async () => {
     mock.onGet(`/portal/frames/${SRC_SN}/meta`).reply(
       200,
       metaPayload({
@@ -126,11 +130,50 @@ describe('PortalMetaPanel', () => {
     // ★이 케이스는 픽스처를 좁혀 두었으므로 공용 대기(프레임 설명 행)를 쓰지 않는다.
     renderWithProviders(<PortalMetaPanel srcSn={SRC_SN} />);
 
-    const badges = await screen.findByTestId(
-      `portal-meta-badges-video:${PORTAL_META_KEYS.ENV_SEASON}`,
-    );
-    expect(badges).toHaveTextContent('내가 고침');
-    expect(badges).toHaveTextContent('자동으로 계산된 값');
+    expect(
+      await screen.findByTestId(`portal-meta-overridden-video:${PORTAL_META_KEYS.ENV_SEASON}`),
+    ).toHaveTextContent('내가 고침');
+  });
+
+  /**
+   * ★★원본 쪽 값의 <b>출처</b>는 화면에 그리지 않는다 — 내부 화면도 같은 값을 표시하지 않고 전송
+   * 판정에만 쓴다. ⚠ 그렇다고 그 필드가 죽은 것이 아니다(바로 아래 승격 방지 케이스가 그 필드를
+   * 읽는 판정을 지킨다).
+   *
+   * ★픽스처는 <b>네 갈래(MANUAL·DERIVED·STORED·NONE) × 덮음 여부 두 상태</b>를 모두 흘린다.
+   *   덮음 표시는 덮지 않은 행에서 <b>아예 렌더되지 않으므로</b>, 덮은 행이 하나도 없는 픽스처로는
+   *   그 자리에 출처 문구가 되살아나도 초록이다(실측 — 출처 배지를 되살리는 변이가 살아남았다).
+   */
+  it('원본_값의_출처_문구는_화면_어디에도_그리지_않는다', async () => {
+    const sourceMatrix: PortalMetaItem[] = [
+      // 덮은 행 — 배지 자리가 실제로 렌더되는 경로.
+      meta({ metaKey: PORTAL_META_KEYS.ENV_WEATHER, scope: 'video', metaVl: '맑음', overridden: true, source: 'MANUAL' }),
+      meta({ metaKey: PORTAL_META_KEYS.ENV_TIME_OF_DAY, scope: 'video', metaVl: 'DAY', overridden: true, source: 'DERIVED' }),
+      meta({ metaKey: PORTAL_META_KEYS.ENV_SEASON, scope: 'video', metaVl: 'WINTER', overridden: true, source: 'NONE' }),
+      meta({ metaKey: PORTAL_META_KEYS.FRAME_DESCRIPTION, scope: 'frame', metaVl: '설명', overridden: true, source: 'STORED' }),
+      meta({ metaKey: 'vlm.description', scope: 'video', metaVl: '서술', overridden: true, source: 'DERIVED' }),
+      // 덮지 않은 행 — 배지가 서지 않는 경로.
+      meta({ metaKey: PORTAL_META_KEYS.PRIVACY_ANONYMITY, scope: 'video', metaVl: 'Y', source: 'MANUAL' }),
+      meta({ metaKey: PORTAL_META_KEYS.PRIVACY_ANONYMITY, scope: 'frame', metaVl: 'N', source: 'DERIVED' }),
+      meta({ metaKey: PORTAL_META_KEYS.PRIVACY_PSEUDONYMITY, scope: 'video', metaVl: null, source: 'NONE' }),
+      meta({ metaKey: PORTAL_META_KEYS.PRIVACY_PRIVACY_INCLUDED, scope: 'video', metaVl: 'N', source: 'STORED' }),
+    ];
+    mock.onGet(`/portal/frames/${SRC_SN}/meta`).reply(200, metaPayload({ items: sourceMatrix }));
+    const user = userEvent.setup();
+    await renderPanel();
+    // 접힌 두 섹션(참고 정보·영상 기술 정보)까지 펼쳐 본문을 전부 드러낸 뒤 센다.
+    await user.click(screen.getByRole('button', { name: '참고 정보(수정 불가)' }));
+    await user.click(screen.getByRole('button', { name: '영상 기술 정보(수정 불가)' }));
+
+    // 덮음 표시는 실제로 서 있다 — 「출처 문구가 없다」가 «아무것도 안 그렸다»로 통과하지 않게.
+    expect(
+      screen.getByTestId(`portal-meta-overridden-video:${PORTAL_META_KEYS.ENV_TIME_OF_DAY}`),
+    ).toHaveTextContent('내가 고침');
+
+    const panel = screen.getByTestId('portal-meta-panel');
+    for (const phrase of ['직접 지정한 값', '자동으로 계산된 값', '원래: 값 없음', '원래:']) {
+      expect(panel).not.toHaveTextContent(phrase);
+    }
   });
 
   it('손대지_않은_자동_계산값은_전송_payload_에_담기지_않는다', async () => {

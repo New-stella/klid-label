@@ -6,6 +6,7 @@
 //   GET  /v1/portal/frames/{srcSn}/image   → 프레임 비식별 이미지 바이너리 (PORTAL_USER 전용)
 //   GET  /v1/portal/datamart/labels        → 데이터마트 원본 라벨 Load (rawSn)
 //   GET  /v1/portal/datamart/videos/{rawSn}/download → 본인 작업 데이터 묶음 파일 다운로드
+//   GET  /v1/portal/user-works             → 「내 작업」 목록 (본인 업로드 자산 + 본인 저작물 보유 데이터마트 영상)
 //   GET  /v1/portal/user-labels            → 본인 작업 라벨 조회 (rawSn)
 //   POST /v1/portal/user-labels            → 본인 작업 라벨 저장 (원본 미수정 — LS_PORTAL_USER_LABEL)
 //
@@ -23,38 +24,77 @@ import { normalizeLabel as normalizeLabelShared } from '@/features/label/api';
 import type { LabelsResponse, SiblingFrame } from '@/features/label/types';
 
 /**
- * Phase B — 포털 홈 데이터마트 영상 목록 1행 (BE DatamartVideoResponse 와 1:1).
+ * 「내 작업」 목록 1행의 **자산 출처**. BE `PortalWorkAssetSource` 와 값이 한 글자도 다르지 않다.
  *
- * 데이터마트 노출(검수 완료=APPROVED) 영상만 포함. firstSrcSn 은 라벨링 진입
- * (/portal/label/{firstSrcSn}) 용 첫 프레임 SRC_SN — BE 가 프레임 0건 영상을 제외하므로 항상 존재.
+ * ★ 이 값이 화면의 **이어서 작업 진입 자리**와 **내려받기 창구**를 가른다. 두 축은 성질이 다른
+ *   자산을 한 목록에 섞어 내리므로, 출처를 모르면 행마다 동선을 정할 수 없다.
  *
- * MED-3: lastUpdatedAt 은 LS_RAW_DATA_STATUS.UPD_DT(마지막 상태 변경 일시)이다. 정확한 승인 시각
- * 컬럼이 없어 'approvedAt' 으로 명명하면 재승인 전 상태 전이 시 오해를 일으키므로 의미에 맞춰 명명.
+ * @design API-225
  */
-export interface DatamartVideo {
+export type PortalWorkAssetSource = 'DATAMART' | 'PORTAL_UPLOAD';
+
+/**
+ * 「내 작업」 목록 1행 (BE `PortalUserWorkResponse` 와 1:1). @design API-225, SCREEN-028
+ *
+ * <h3>★ 이 목록은 데이터마트 카탈로그가 아니다</h3>
+ * 데이터마트 영상 **전체**를 훑어보는 목록은 포털(Host)이 자기 화면에서 제공한다. 여기 실리는 것은
+ * 두 축이며 **축마다 싣는 기준이 다르다** — 본인 업로드 자산은 **저작 여부와 무관하게 전부**,
+ * 데이터마트 영상은 **본인 저작물(저장 라벨·메타 오버레이·이벤트 어노테이션 오버레이 중 하나라도)이
+ * 있는 것만**.
+ *
+ * ⚠ **`labelCount` 가 0 인 행이 정상으로 존재한다** — 라벨 없이 메타나 이벤트 어노테이션만 고친
+ *   데이터마트 행, 아직 아무 저작물도 없는 업로드 행이 그렇다. 화면이 그 행을 빼거나 빈 상태로
+ *   취급하면 **보존기간 삭제 대상인 작업물을 사용자가 볼 수조차 없게 된다.**
+ */
+export interface PortalUserWork {
+  /** 대상 영상 식별자. **업로드 축에서는 이것이 곧 자산 식별자(uldSn)** 다. */
   rawSn: number;
-  title: string;
-  eventName: string | null;
-  frameCount: number;
-  firstSrcSn: number;
-  lastUpdatedAt: string | null;
+  /** 자산 출처 — 이어서 작업 진입 자리와 내려받기 창구를 가르는 축. */
+  assetSource: PortalWorkAssetSource;
+  /** 목록 표시용 이름. */
+  videoName: string;
   /**
-   * 본인 저장 라벨의 보존기간 만료 예정 시각. 저장 라벨이 없으면 `null`.
+   * 본인이 저장한 라벨 건수. **0 이 정상 값이다**(위 ⚠ 참조).
    *
-   * ★ 서버가 **조회 시점에 계산하는 파생값**이다(저장되지 않는다). 보존기간 설정이 바뀌면 다음
-   * 조회부터 값이 달라지므로 화면이 따로 보관해 두고 쓰지 않는다 — 받은 값을 그대로 표시한다.
+   * ⚠ **「저작물이 있는가」의 판정에 쓰지 말 것** — 라벨 없이 메타만 고쳐도 저작물이다.
+   *   그 판정은 {@link lastSavedAt} 이 소유한다.
    */
-  myLabelExpiresAt: string | null;
+  labelCount: number;
+  /**
+   * 마지막 저장 시각. 아직 아무 저작물도 없는 업로드 행은 `null`.
+   *
+   * ★ **「저작물을 가졌는가」의 단일 판정 필드다** — 내려받을 것이 있는지가 이 값으로 갈린다.
+   */
+  lastSavedAt: string | null;
+  /**
+   * **이어서 작업하러 들어갈 대상 프레임.** 세 갈래로 정해진다 — ①마지막으로 저장한 프레임이
+   * 있으면 그것 ②없으면 **첫 프레임** ③프레임이 0건이면 `null`(그 행은 진입할 수 없다).
+   *
+   * ⚠ **「저장 이력이 있는가」의 판정에 쓰지 말 것** — 저작물이 0건인 행에도 첫 프레임이 실리므로
+   *   정반대 판정이 된다. 그 판정은 {@link lastSavedAt} 이 한다.
+   */
+  entrySrcSn: number | null;
+  /**
+   * 보존기간 만료 **예정일**(`yyyy-MM-dd`). 만료 판정이 서지 않거나 보존기간 설정이 없으면 `null`.
+   *
+   * ★ 서버가 **조회 시점에 계산하는 파생값**이다(저장되지 않는다) — 화면이 따로 보관해 두고 쓰지
+   *   않는다. 축마다 기산점이 다르므로 화면이 {@link lastSavedAt} 에서 다시 계산하지도 않는다.
+   */
+  expiresOn: string | null;
 }
 
 /**
- * Phase B — 데이터마트 영상 목록 조회.
- * BE: GET /v1/portal/datamart/videos?page=&size=  (PORTAL_USER 전용, APPROVED 게이트는 BE 책임)
+ * 「내 작업」 목록 조회. @design API-225
+ * BE: GET /v1/portal/user-works?page=&size=&sort=  (PORTAL_USER 전용 · 본인 데이터 격리는 BE 책임)
+ *
+ * 정렬 기본값은 서버가 갖는다(마지막 저장 시각 내림차순). 화면이 정렬 키를 실어 보내지 않는 이유는
+ * 서버 allowlist 밖 키가 400 이기 때문이며, 기본값을 화면이 복제하면 두 번째 진실원이 된다.
+ *
  * 보안: page/size 는 axios params 로만 전달 — 문자열 직접 연결 금지.
  */
-export function listDatamartVideos(params: { page?: number; size?: number } = {}) {
+export function listUserWorks(params: { page?: number; size?: number } = {}) {
   return apiClient
-    .get<PageResponse<DatamartVideo>>('/portal/datamart/videos', { params })
+    .get<PageResponse<PortalUserWork>>('/portal/user-works', { params })
     .then((r) => r.data);
 }
 

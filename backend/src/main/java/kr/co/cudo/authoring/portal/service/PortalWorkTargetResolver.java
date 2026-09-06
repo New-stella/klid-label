@@ -12,6 +12,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * 포털 작업 대상의 <b>자산 출처를 가르는 단일 판정 지점</b>.
  *
@@ -132,9 +137,40 @@ public class PortalWorkTargetResolver {
 
     /** 데이터마트 노출 조건 — 검수 완료(APPROVED) 영상만 true. 행 부재·타 상태는 false. */
     private boolean isExposedToDatamart(Long rawSn) {
-        return rawDataStatusRepository.findById(rawSn)
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
+        // 단건도 <일괄 판정>에 위임한다 — 판정 리터럴이 두 곳에 있으면 한쪽만 고쳐진다.
+        // ★ 「비어 있지 않다」가 아니라 <그 식별자를 담고 있는가>를 묻는다. 전자로 두면 안전성이
+        //   조회 계약(요청한 것만 돌려준다)에만 기대게 되어, 일괄 창구가 다른 식별자를 섞어 돌려주는
+        //   순간 <남의 영상이 승인이라는 이유로> 이 진입이 열린다 — 목록 경로에서만 드러나고
+        //   단건 403 축은 조용히 통과한다.
+        return exposedToDatamart(List.of(rawSn)).contains(rawSn);
+    }
+
+    /**
+     * 데이터마트 노출 조건 <b>일괄 판정</b> — 목록이 행마다 진입 가능 여부를 물을 때 쓴다.
+     * @design API-225
+     *
+     * <p>「내 작업」 목록은 검수 승인 상태를 <b>등재 조건으로 걸지 않는다</b>(걸면 삭제 예고가 함께
+     * 사라진다). 대신 <b>진입 대상 프레임을 비워</b> 화면이 미리 막게 하는데, 그 판정을 목록이
+     * 스스로 유도하면 이 클래스와 갈린다 — 그래서 같은 창구를 일괄로 연다.
+     *
+     * <p>⚠ 이 창구는 <b>화면이 미리 막게 하려는 것</b>이고 {@link #resolveByFrame}·
+     * {@link #resolveByVideo} 의 진입 가드를 <b>대신하지 않는다</b>. 가드를 걷어내면 주소를 직접
+     * 쳐서 들어갈 수 있다.
+     *
+     * @return 노출 조건을 만족하는 영상 식별자만. 부재·타 상태는 <b>결과에 없다</b>(fail-closed)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Set<Long> exposedToDatamart(Collection<Long> rawSns) {
+        if (rawSns == null || rawSns.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> exposed = new LinkedHashSet<>();
+        for (LsRawDataStatus status : rawDataStatusRepository.findAllById(rawSns)) {
+            if (LsRawDataStatus.STTS_APPROVED.equals(status.getDataSttsCd())) {
+                exposed.add(status.getRawDataId());
+            }
+        }
+        return exposed;
     }
 
     private static void requireOwner(String portalUserNo) {

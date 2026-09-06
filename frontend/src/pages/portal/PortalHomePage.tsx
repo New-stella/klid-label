@@ -1,29 +1,90 @@
-// SCR-PORTAL-001 — 포털 메인 페이지 (V1.x mock 시각 정합).
-// ADR-013: 포털은 데이터마트 영상 선택·간편 라벨링 전용. 오토라벨링·업로드(TUS) 미제공.
-// Phase B: 데이터마트 노출(검수 완료=APPROVED) 영상 목록 + 선택 → 라벨링 진입 동선.
-// - hero 섹션 (orange gradient)
-// - KPI 2개 (영상 수 · 라벨링 완료 수)
-// - 영상 목록 (카드/리스트, 반응형) → 카드 선택 시 /portal/label/{firstSrcSn} 이동
-// - 라벨링 카드 "시작하기" → 첫 영상 진입 (영상 0건이면 aria-disabled)
-// - 영상 카드에 본인 저장 라벨의 만료 예정일 병기 + 작업 데이터 다운로드 버튼. @design SCREEN-028
-//   ★ 다운로드는 카드 클릭(라벨링 진입) 영역과 분리한다.
-//   ★ 만료 표기와 다운로드 가부는 **서로 다른 근거로 판정한다** — 아래 DatamartVideoCard 주석 참조.
-//   ★ 구 V1.5 "포털 다운로드는 포털 자체 책임" 정책은 폐기됐다(저작도구가 제공한다).
+// 포털 채널 진입 화면 — **내 저장 작업 목록**. [@design SCREEN-028] [@design API-225] [@design API-203]
+//
+// ★★ **이 화면은 데이터마트 카탈로그가 아니다.** 데이터마트 영상 전체를 훑어보고 고르는 목록은
+//   포털(Host)이 자기 화면에서 제공한다. 저작도구가 그리는 것은 「내가 저장한 작업」이며, 거기에
+//   본인이 올린 업로드 자산이 함께 실린다.
+//   ⚠ 구 동작 폐기 — 이 화면은 승인 영상을 **거르지 않고 전부** 그리고 있었다(`useDatamartVideos`).
+//     그래서 ①같은 목록이 Host 와 여기 두 번 보이고 ②작업하지 않은 영상에도 내려받기가 있었고
+//     ③진입이 언제나 첫 프레임이라 **이어쓰기가 되지 않았다**. 되살리지 말 것.
+//
+// ★ **모집단은 두 축이고 싣는 기준이 다르다**(서버가 판정한다 — 화면은 거르지 않는다):
+//   업로드 자산은 **저작 여부와 무관하게 전부**, 데이터마트 영상은 **본인 저작물이 있는 것만**.
+//   그래서 `labelCount` 가 0 인 행이 정상으로 존재한다(라벨 없이 메타·이벤트 어노테이션만 고친 행,
+//   아직 아무것도 저장하지 않은 업로드 행). **그 행을 빼거나 빈 상태로 취급하지 않는다** — 빼면
+//   보존기간 삭제 대상인 작업물을 사용자가 볼 수조차 없다.
+//
+// ★ **머리 영역·좌측 주 메뉴를 그리지 않는다** — Host 가 둘 다 소유한다(SHELL-002). 목적지 이동은
+//   본문 상단 탭(`PortalContentTabs`, 레이아웃이 그린다)이 맡으므로 이 화면은 자기 제목 밴드도 두지
+//   않는다(서비스 제목은 Host 머리 영역이, 화면 이름은 활성 탭이 이미 말한다).
+//
+// ⚠ 행 마크업을 별도 컴포넌트로 빼지 않는다 — 표 표면 관례 가드가 `<table>` ~ `</table>` **구간의
+//   소스 문자열**로 행 hover 토큰을 판정해서, 행을 다른 함수로 옮기면 그 축이 구조적으로 검사
+//   밖이 된다(형제 화면 `PortalAugmentPage` 도 같은 이유로 행을 인라인으로 둔다).
+//
+// 보안: 사용자·서버가 준 이름은 JSX 텍스트 노드로만 렌더한다(자동 escape). 본인 데이터 격리는
+//   서버가 토큰 주체로 강제한다(CWE-639).
 
 import { useRef, useState } from 'react';
-import { ChevronRight, Download, Play, Upload, X } from 'lucide-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Download, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 
-import { KpiCard } from '@/components/common/KpiCard';
+import { Badge } from '@/components/common/Badge';
 import { Pagination } from '@/components/common/Pagination';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { cn } from '@/lib/cn';
-import { downloadDatamartVideoData, type DatamartVideo } from '@/features/portal/api';
+import {
+  downloadDatamartVideoData,
+  type PortalUserWork,
+  type PortalWorkAssetSource,
+} from '@/features/portal/api';
 import { datamartDownloadErrorMessage } from '@/features/portal/downloadError';
 import { formatExpiryDate } from '@/features/portal/expiry';
-import { useDatamartVideos } from '@/features/portal/hooks/useDatamartVideos';
+import { buildPortalWorkLabelPath } from '@/features/portal/labelingEntry';
+import { downloadUploadExport } from '@/features/portal/uploads/api';
+import { useUserWorks } from '@/features/portal/hooks/useUserWorks';
+import { formatDateTime } from '@/features/review/formatDateTime';
 
 const PAGE_SIZE = 20;
+
+/** 표 헤더 셀 — 표 표면 관례(14px/600 토큰 + 대문자화). `<th>` 에 직접 건다. */
+const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
+
+const ACTION_BUTTON_CLASS =
+  'inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50';
+
+const CONTINUE_BUTTON_CLASS =
+  'inline-flex shrink-0 items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors';
+
+/** 자산 출처 표기 — 두 축이 한 목록에 섞이므로 행마다 어느 축인지 읽혀야 한다(사양 SCREEN-028). */
+const SOURCE_LABEL: Record<PortalWorkAssetSource, string> = {
+  DATAMART: '데이터마트',
+  PORTAL_UPLOAD: '내 업로드',
+};
+
+/**
+ * 이어서 작업할 수 없는 행의 안내 문구.
+ *
+ * ★ **그 행을 목록에서 빼지 않는다** — 빼면 삭제 대상인 작업물이 화면에서 사라져, 이 화면이
+ *   고치려는 바로 그 실패를 되살린다. 대신 버튼만 누를 수 없게 하고 **누를 수 없다는 사실**을 보여 준다.
+ *
+ * ★★ **원인을 단정하지 않는다 — 사유가 둘인데 창구는 값 하나로만 말한다.**
+ *   진입 자리(`entrySrcSn`)가 비는 사유는 ①열 프레임이 없다(업로드인데 마킹·추출 전)
+ *   ②진입이 허용되지 않는다(데이터마트 영상이 노출 조건을 잃었다) 둘이고, **응답은 그 둘을 구분해
+ *   주지 않는다**(인지·수용한 대가로 창구 사양·응답 필드 설명·서비스 주석 세 자리에 명시돼 있다).
+ *   그래서 **두 사유 모두에 참인 표현**만 쓴다.
+ *   ⚠ 구 문구 폐기 — *"열 수 있는 프레임이 없어 …"*. ②에서는 **프레임이 멀쩡히 있는데** 없다고
+ *     말하게 되어, 사용자가 프레임이 사라진 줄 알고 엉뚱한 회복 경로로 간다.
+ *   ⚠ 구 근거도 폐기 — *"화면이 아는 사실은 「열 프레임이 없다」 하나뿐이다"*. **경고 자체는 여전히
+ *     옳고**(확인하지 않은 원인을 단정하면 안 된다) 바뀐 것은 그 전제다 — 지금은 화면이 아는 것이
+ *     「지금 열 수 없다」뿐이고 그 이유는 아예 알 수 없다.
+ *
+ * ⚠ **잠정 문구다** — 시안이 이 문구와 그 자리를 아직 확정하지 않았다(사양 SCREEN-028 이 그렇게
+ *   적는다). 확정 전까지 **최소한의 평이한 표기**로 둔다. 꾸미지 말 것.
+ */
+const NO_ENTRY_REASON = '지금은 이어서 작업할 수 없습니다.';
+
+/** 내려받을 저작물이 없는 행의 사유 문구. */
+const NO_DOWNLOAD_REASON = '아직 저장한 작업이 없어 내려받을 것이 없습니다.';
 
 /**
  * 주소의 page 값(0부터)을 읽는다. 사용자가 주소를 직접 고칠 수 있으므로 음수·소수·비수치는
@@ -35,20 +96,30 @@ function parsePageParam(raw: string | null): number {
   return Math.floor(n);
 }
 
+/**
+ * 이 행에 **본인 저작물이 있는가** — 내려받기 가부의 단일 판정.
+ *
+ * ★★ **`labelCount` 로 판정하지 않는다.** 라벨을 하나도 만들지 않고 메타나 이벤트 어노테이션만
+ *   고쳐도 그것은 저작물이고 묶음에 담겨 나간다. `labelCount` 로 가르면 **그런 행의 내려받기가
+ *   통째로 막힌다**(그 행은 목록에 정상적으로 실리는데도). 저장 이력을 나르는 필드는
+ *   `lastSavedAt` 이며, 서버가 「아직 아무 저작물도 없다」를 그 값의 `null` 로 표현한다.
+ */
+function hasAuthoredWork(work: PortalUserWork): boolean {
+  return work.lastSavedAt !== null;
+}
+
 export function PortalHomePage() {
-  const navigate = useNavigate();
   /*
-   * 페이지는 주소에 둔다 — 뒤로가기·북마크가 동작해야 하고, 내부 목록 화면(공지 등)이
-   * 이미 같은 방식이다. 기본값(첫 페이지)일 때는 키를 넣지 않는다(공지 목록과 같은 관례).
+   * 페이지는 주소에 둔다 — 뒤로가기·북마크가 동작해야 하고, 내부 목록 화면(공지 등)이 이미 같은
+   * 방식이다. 기본값(첫 페이지)일 때는 키를 넣지 않는다(공지 목록과 같은 관례).
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePageParam(searchParams.get('page'));
 
-  const { data, isLoading } = useDatamartVideos({ page, size: PAGE_SIZE });
+  const { data, isLoading } = useUserWorks({ page, size: PAGE_SIZE });
 
-  const videos: DatamartVideo[] = data?.content ?? [];
-  const totalVideos = data?.totalElements ?? 0;
-  const hasVideos = videos.length > 0;
+  const works: PortalUserWork[] = data?.content ?? [];
+  const totalElements = data?.totalElements ?? 0;
   const totalPages = data?.totalPages ?? 0;
 
   const handlePageChange = (next: number) => {
@@ -58,60 +129,50 @@ export function PortalHomePage() {
     setSearchParams(sp, { replace: false });
   };
 
-  // BE 가 프레임 0건 영상을 제외하므로 firstSrcSn 은 항상 존재. 첫 영상으로 진입.
-  const firstEntry = videos[0]?.firstSrcSn;
-
-  const goToLabel = (srcSn: number) => {
-    navigate(`/portal/label/${srcSn}`);
-  };
-
-  const onStart = (e: React.MouseEvent) => {
-    if (!hasVideos || firstEntry === undefined) {
-      e.preventDefault();
-      return;
-    }
-    goToLabel(firstEntry);
-  };
-
   /*
-   * 작업 데이터 다운로드 — 인증이 필요한 응답이라 직링크가 불가하다(형제 경로인 업로드 자산
-   * 다운로드와 동일하게 apiClient 로 받아 브라우저 다운로드를 트리거한다).
-   * 실패 사유는 뭉뚱그리지 않고 갈라 안내한다(요청량 초과 / 비식별 재처리 / 저장 라벨 없음 / 권한 /
-   * 전송 중단). 특히 마지막 하나는 서버가 거부한 것이 아니라 **받다가 끊긴 것**이라 "잠시 후 다시"가
-   * 답이 아니다 — 같은 문구로 합치면 사용자는 GB 급 전송을 반복해 유발하게 된다.
+   * 작업 데이터 내려받기 — 인증이 필요한 응답이라 직링크가 불가하다(apiClient 로 받아 브라우저
+   * 다운로드를 트리거한다).
    *
-   * 진행 표시는 버튼 하나로 끝낸다 — 누른 버튼은 '내려받는 중…' 으로 바뀌고 그 사이 다른 영상의
-   * 버튼도 함께 잠긴다(동시 실행 방지). 별도 진행률 UI 는 사양(SCREEN-028)에 없으므로 두지 않는다.
+   * ★ **창구가 출처마다 다르다** — 데이터마트 축은 작업 데이터 묶음 창구, 업로드 축은 그 자산의
+   *   내보내기 창구다. 담기는 것도 다르다(본인 업로드 자산에는 비식별 영상이 없다). 그것은 정상이며
+   *   화면이 두 축을 한 창구로 합치려 하지 않는다.
    *
-   * ★ 취소 — 이 요청은 GB 급이라 한 번 시작하면 오래 붙잡힌다. 진행 중에만 취소 조작을 띄우고,
-   *   누르면 전송을 실제로 중단한다(중단 신호를 요청에 실어 보낸다).
+   * ★ **취소는 두 축 모두에서 동작해야 한다.** 행에 따라 취소가 되기도 안 되기도 하면 사용자가
+   *   예측할 수 없다 — 그래서 업로드 내보내기 창구에도 중단 신호를 싣는다(그쪽 함수에 선택 인자를
+   *   더했다). 사양(SCREEN-028)이 「같은 자리에서 전송을 멈출 수 있어야 한다」를 행 구분 없이 요구한다.
    *
-   * ★★ **사용자 취소는 오류가 아니라 정상 종료다 — 안내를 띄우지 않는다.**
-   *   중단하면 응답이 오지 않아 `ApiError(status 0)` 으로 올라오는데, 그 자리는 «전송이 끊겼습니다 …
-   *   연결이 안정적인 환경에서 다시» 를 안내하는 분기다(`datamartDownloadErrorMessage`). 갈라 놓지
-   *   않으면 스스로 멈춘 사용자에게 회선을 탓하는 거짓 안내가 뜨고, «다시» 라는 권유까지 붙는다.
+   * ★★ **사용자 취소는 오류가 아니라 정상 종료다 — 안내를 띄우지 않는다.** 중단하면 응답이 오지
+   *   않아 `ApiError(status 0)` 으로 올라오는데, 그 자리는 «전송이 끊겼습니다 … 연결이 안정적인
+   *   환경에서 다시» 를 안내하는 분기다. 갈라 놓지 않으면 스스로 멈춘 사용자에게 회선을 탓하는 거짓
+   *   안내가 뜨고 «다시» 라는 권유까지 붙는다.
+   *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 취소 표식을 남기지 않아 오류만
+   *     봐서는 취소와 회선 단절이 **구분되지 않는다**. 반면 화면은 자기가 중단을 걸었는지 알고
+   *     있으므로 그 사실(`controller.signal.aborted`)로 판정한다.
    *   ⚠ 그렇다고 «응답 없는 실패» 통합(중단·네트워크 단절·제한시간 초과를 한 문구로 묶은 것)을
    *     뒤집지 않는다 — 그건 «사용자가 할 일이 같다» 는 의도된 결정이다(downloadError.ts 머리말).
-   *     여기서는 **사용자 취소만** 그 판정보다 **앞에서** 갈라낸다.
-   *   ⚠ 판정 근거로 오류 객체를 쓰지 않는 이유 — 공용 클라이언트가 `ApiError` 로 감싸며 취소 표식을
-   *     남기지 않아, 오류만 봐서는 취소와 회선 단절이 **구분되지 않는다**. 반면 화면은 자기가 중단을
-   *     걸었는지 알고 있으므로 그 사실(`controller.signal.aborted`)로 판정한다. 공용 오류 타입을
-   *     넓히지 않으므로 다른 호출부에 영향이 없다.
    */
   const [downloadingRawSn, setDownloadingRawSn] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   // 진행 중인 요청의 중단 컨트롤러. 취소 버튼이 이것을 통해 전송을 끊는다.
   const downloadAbortRef = useRef<AbortController | null>(null);
 
-  const onDownload = (rawSn: number) => {
+  const onDownload = (work: PortalUserWork) => {
     if (downloadingRawSn !== null) return;
     const controller = new AbortController();
     downloadAbortRef.current = controller;
-    setDownloadingRawSn(rawSn);
+    setDownloadingRawSn(work.rawSn);
     setDownloadError(null);
-    // ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 다운로드가 ref 를 덮어써도 이 catch 는 자기
-    // 요청의 중단 여부를 본다(ref 를 읽으면 뒤늦게 도착한 실패가 엉뚱한 판정을 받는다).
-    void downloadDatamartVideoData(rawSn, controller.signal)
+    /*
+     * 업로드 축에서 `rawSn` 이 곧 자산 식별자다(공용 원장에 앉아 있다 — ADR-058).
+     * ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 다운로드가 ref 를 덮어써도 이 catch 는 자기
+     * 요청의 중단 여부를 본다(ref 를 읽으면 뒤늦게 도착한 실패가 엉뚱한 판정을 받는다).
+     */
+    const request =
+      work.assetSource === 'PORTAL_UPLOAD'
+        ? downloadUploadExport(work.rawSn, undefined, controller.signal)
+        : downloadDatamartVideoData(work.rawSn, controller.signal);
+
+    void request
       .catch((e: unknown) => {
         if (controller.signal.aborted) return; // 사용자가 스스로 멈춘 것 — 정상 종료
         setDownloadError(datamartDownloadErrorMessage(e));
@@ -126,214 +187,228 @@ export function PortalHomePage() {
     downloadAbortRef.current?.abort();
   };
 
+  const isEmpty = !isLoading && works.length === 0;
+
   return (
-    <div className="flex flex-col">
-      {/* Hero 섹션 — KRDS Don't(그라데이션·brand 대면적 금지) 준수: 단색 neutral 배경 */}
-      <section className="border-b border-gray-200 bg-gray-100 px-6 py-10">
-        <div className="mx-auto max-w-4xl">
-          <h1 className="mb-2 text-page-title text-gray-900">AI 학습데이터 작성 포털</h1>
-          <p className="text-body text-gray-600">데이터마트 영상 선택, 간편 라벨링</p>
-          <Link
-            to="/portal/uploads"
-            className={`mt-4 inline-flex items-center gap-1.5 rounded-lg border border-primary-300 bg-white px-3 py-2 text-sub font-medium text-primary-700 transition-colors hover:bg-primary-50 ${KRDS_FOCUS}`}
-          >
-            <Upload className="h-4 w-4" aria-hidden />
-            내 업로드
-          </Link>
-        </div>
-      </section>
-
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-        {/* KPI 2개 */}
-        <section aria-label="요약" className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <KpiCard label="영상 수" value={totalVideos} unit="건" />
-          <KpiCard label="라벨링 완료" value={0} unit="건" />
-        </section>
-
-        {/* 라벨링 카드 */}
-        <section aria-label="이용 방법" className="flex flex-col gap-3">
-          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">이용 방법</h2>
-          <article className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
-            <h2 className="text-section-title text-gray-800">라벨링</h2>
-            <p className="text-sub text-gray-500">선택한 영상에 라벨을 추가하세요</p>
-            <p className="text-body text-gray-600">
-              라벨링 가능{' '}
-              <span className="font-semibold text-primary-700">{totalVideos}건</span>
-            </p>
-            {/* WCAG 2.1.1 키보드 접근성: 영상이 없으면 진입 대상이 없어 비활성이지만, native
-                `disabled` 는 Tab 순서에서 제거된다(R5 지적). `aria-disabled` 로 포커스 순서는 유지하되
-                활성화만 차단한다. 영상이 있으면 첫 영상으로 진입. */}
-            <button
-              type="button"
-              aria-disabled={!hasVideos || undefined}
-              onClick={onStart}
-              className={
-                'mt-auto flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sub font-medium text-white transition-colors hover:bg-primary-700 ' +
-                (!hasVideos
-                  ? 'cursor-not-allowed opacity-50 aria-disabled:hover:bg-primary-600'
-                  : '')
-              }
-            >
-              <Play className="h-3.5 w-3.5" aria-hidden />
-              시작하기
-              {/* 진행 방향 표식 — 장식이라 aria-hidden. 버튼 이름은 "시작하기" 텍스트가 정한다. */}
-              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </article>
-        </section>
-
-        {/* 영상 목록 — 데이터마트 노출(검수 완료) 영상. 카드 선택 시 라벨링 진입. */}
-        <section aria-label="데이터마트 영상" className="flex flex-col gap-3">
-          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
-            데이터마트 영상
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <section aria-labelledby="portal-my-works" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="portal-my-works" className="text-section-title text-gray-800">
+            내 저장 작업
           </h2>
-          {downloadError !== null && (
-            <p role="alert" data-testid="datamart-download-error" className="text-sub text-danger">
-              {downloadError}
-            </p>
+          {!isLoading && (
+            <span data-testid="portal-work-count" className="text-sub text-gray-600">
+              {totalElements}건
+            </span>
           )}
-          {isLoading ? (
-            <p className="text-sub text-gray-600">영상 목록을 불러오는 중…</p>
-          ) : !hasVideos ? (
-            <p className="text-sub text-gray-600">선택 가능한 영상이 없습니다.</p>
-          ) : (
-            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {videos.map((v) => (
-                <DatamartVideoCard
-                  key={v.rawSn}
-                  video={v}
-                  onOpen={() => goToLabel(v.firstSrcSn)}
-                  onDownload={() => onDownload(v.rawSn)}
-                  onCancelDownload={onCancelDownload}
-                  downloading={downloadingRawSn === v.rawSn}
-                  downloadBlocked={downloadingRawSn !== null && downloadingRawSn !== v.rawSn}
-                />
-              ))}
-            </ul>
-          )}
-          {/* 전체가 한 페이지에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
-          {totalPages > 1 && (
-            <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
-          )}
-        </section>
+        </div>
+
+        {downloadError !== null && (
+          <p role="alert" data-testid="portal-work-download-error" className="text-sub text-danger">
+            {downloadError}
+          </p>
+        )}
+
+        {isLoading ? (
+          <p role="status" className="text-sub text-gray-600">
+            저장한 작업을 불러오는 중입니다.
+          </p>
+        ) : isEmpty ? (
+          /* 행이 하나도 없을 때만 나온다 — 라벨 건수가 0인 행은 작업물을 가진 정상 행이라
+             이 안내로 대신하지 않는다(사양 SCREEN-028). */
+          <p role="status" data-testid="portal-work-empty" className="text-sub text-gray-600">
+            저장한 작업이 없습니다.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+            <table className="w-full text-body-md" data-testid="portal-work-table">
+              <caption className="sr-only">
+                본인이 저장한 작업 목록. 대상 영상, 저장 시각, 만료 예정일, 작업 순서로 이루어집니다.
+              </caption>
+              <thead>
+                {/* 배경은 헤더 행에, 타이포·색은 각 <th> 에 직접 건다 — <tr>/<thead> 에만 걸면
+                    브라우저 UA 기본 `th { font-weight: bold }` 가 상속값을 이긴다. */}
+                <tr className="border-b border-gray-200 bg-secondary-50">
+                  <th scope="col" className={TH_CLASS}>
+                    대상 영상
+                  </th>
+                  <th scope="col" className={TH_CLASS}>
+                    저장 시각
+                  </th>
+                  <th scope="col" className={TH_CLASS}>
+                    만료 예정일
+                  </th>
+                  <th scope="col" className={TH_CLASS}>
+                    작업
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {works.map((work) => {
+                  /*
+                   * ★ 진입 주소 조립은 화면이 문자열로 하지 않는다 — 단일 진실원
+                   *   `buildPortalWorkLabelPath` 가 출처별로 가른다. 화면이 직접 조립하다
+                   *   업로드 축 행까지 데이터마트 경로로 보낸 결함이 실제로 있었다.
+                   * ★ **진입 가부와 내려받기 가부는 서로 다른 축이라 함께 막지 않는다.**
+                   *   진입은 「열 프레임이 있는가」(`entrySrcSn`), 내려받기는 「본인 저작물이
+                   *   있는가」(`lastSavedAt`)로 갈린다. 들어갈 수 없는 행에도 내려받을 것이 있을
+                   *   수 있고 그 행의 만료 예정일도 그대로 보인다 — 그것이 그 행을 목록에 남기는
+                   *   이유다(삭제 대상인데 화면에서 사라지면 안 된다).
+                   */
+                  const entryPath = buildPortalWorkLabelPath(
+                    work.assetSource,
+                    work.rawSn,
+                    work.entrySrcSn,
+                  );
+                  const canDownload = hasAuthoredWork(work);
+                  const expiresOn = formatExpiryDate(work.expiresOn);
+                  const downloading = downloadingRawSn === work.rawSn;
+                  const downloadBlocked = downloadingRawSn !== null && !downloading;
+                  const entryReasonId = `portal-work-no-entry-${work.rawSn}`;
+                  const downloadReasonId = `portal-work-no-download-${work.rawSn}`;
+
+                  return (
+                    <tr
+                      key={work.rawSn}
+                      data-testid={`portal-work-row-${work.rawSn}`}
+                      className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-rowHover"
+                    >
+                      <td className="px-3 py-3">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* 서버가 준 이름 — 텍스트 노드(자동 escape). */}
+                            <span className="truncate font-medium text-gray-800">
+                              {work.videoName}
+                            </span>
+                            <Badge
+                              variant={work.assetSource === 'PORTAL_UPLOAD' ? 'info' : 'neutral'}
+                              label={SOURCE_LABEL[work.assetSource]}
+                              data-testid={`portal-work-source-${work.rawSn}`}
+                            />
+                          </div>
+                          <span className="text-caption text-gray-500">#{work.rawSn}</span>
+                        </div>
+                      </td>
+                      {/*
+                       * 저장 이력이 없으면 **자리를 비운다** — 정렬에는 자산이 생긴 시각이 대신
+                       * 쓰이지만 그 대체값을 표시로 끌어오지 않는다(표시 값과 정렬 값이 다른 것이
+                       * 의도다 — 사양 SCREEN-028). `-`·`없음` 을 지어내면 값이 정해졌는데 표기만
+                       * 빠진 것으로 읽힌다.
+                       */}
+                      <td className="px-3 py-3">
+                        <span
+                          data-testid={`portal-work-saved-${work.rawSn}`}
+                          className="text-sub text-gray-600"
+                        >
+                          {work.lastSavedAt !== null ? formatDateTime(work.lastSavedAt) : ''}
+                        </span>
+                      </td>
+                      {/* 만료도 값이 없으면 자리를 비운다. 만료가 가까운 행을 색·아이콘으로
+                          강조하지 않는다(사양이 명시 거부). */}
+                      <td className="px-3 py-3">
+                        <span
+                          data-testid={`portal-work-expiry-${work.rawSn}`}
+                          className="text-sub text-gray-500"
+                        >
+                          {expiresOn !== null ? `만료: ${expiresOn}` : ''}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {entryPath !== null ? (
+                            <Link
+                              to={entryPath}
+                              data-testid={`portal-work-continue-${work.rawSn}`}
+                              className={cn(
+                                CONTINUE_BUTTON_CLASS,
+                                'hover:bg-primary-700',
+                                KRDS_FOCUS,
+                              )}
+                            >
+                              이어서 작업
+                            </Link>
+                          ) : (
+                            /* WCAG 2.1.1 — native `disabled` 는 Tab 순서에서 제거되어 왜 못 누르는지
+                               알 길이 사라진다. `aria-disabled` 로 포커스 순서는 유지하되 활성화만
+                               막고, 사유를 `aria-describedby` 로 이어 보조기술에도 읽히게 한다. */
+                            <button
+                              type="button"
+                              aria-disabled="true"
+                              aria-describedby={entryReasonId}
+                              data-testid={`portal-work-continue-${work.rawSn}`}
+                              onClick={(e) => e.preventDefault()}
+                              className={cn(
+                                CONTINUE_BUTTON_CLASS,
+                                'cursor-not-allowed opacity-50',
+                                KRDS_FOCUS,
+                              )}
+                            >
+                              이어서 작업
+                            </button>
+                          )}
+                          {entryPath === null && (
+                            <span id={entryReasonId} className="text-sub text-gray-600">
+                              {NO_ENTRY_REASON}
+                            </span>
+                          )}
+
+                          {/* 취소는 **진행 중일 때만** 나타난다. 멈출 것이 없는데 떠 있으면 무엇을
+                              멈추는지 알 수 없다. 진행 중 상호 비활성 대상에서 제외된다 — 취소는
+                              눌러야 동작한다. */}
+                          {downloading && (
+                            <button
+                              type="button"
+                              data-testid={`portal-work-download-cancel-${work.rawSn}`}
+                              aria-label={`${work.videoName} 작업 데이터 다운로드 취소`}
+                              onClick={onCancelDownload}
+                              className={cn(ACTION_BUTTON_CLASS, KRDS_FOCUS)}
+                            >
+                              <X className="h-3.5 w-3.5" aria-hidden />
+                              취소
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            data-testid={`portal-work-download-${work.rawSn}`}
+                            aria-label={`${work.videoName} 작업 데이터 내려받기`}
+                            /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은
+                               보조기술에 읽히지 않는다. 이 요청은 GB 급일 수 있어 진행 중이라는
+                               사실만은 전달해야 한다. */
+                            aria-busy={downloading || undefined}
+                            aria-describedby={canDownload ? undefined : downloadReasonId}
+                            disabled={downloading || downloadBlocked || !canDownload}
+                            onClick={() => onDownload(work)}
+                            className={cn(ACTION_BUTTON_CLASS, KRDS_FOCUS)}
+                          >
+                            <Download className="h-3.5 w-3.5" aria-hidden />
+                            {downloading ? '내려받는 중…' : '내려받기'}
+                          </button>
+                          {!canDownload && (
+                            <span id={downloadReasonId} className="text-sub text-gray-600">
+                              {NO_DOWNLOAD_REASON}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
+        {totalPages > 1 && (
+          <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
+        )}
 
         <p className="text-sub text-gray-600">
-          ※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 저장한 작업 데이터는 보존기간이 지나면
-          삭제됩니다.
+          ※ 저장한 작업 데이터는 보존기간이 지나면 저장 행과 파일이 함께 삭제됩니다. 만료 예정일은
+          조회 시점 설정으로 계산되어 응답에 실려 옵니다.
         </p>
-      </div>
+      </section>
     </div>
-  );
-}
-
-interface DatamartVideoCardProps {
-  video: DatamartVideo;
-  /** 카드 본문 선택 — 라벨링 진입. */
-  onOpen: () => void;
-  /** 작업 데이터 다운로드. */
-  onDownload: () => void;
-  /** 진행 중인 다운로드 취소 — 전송을 실제로 중단한다. */
-  onCancelDownload: () => void;
-  /** 이 영상을 내려받는 중. */
-  downloading: boolean;
-  /** 다른 영상을 내려받는 중 — 동시 실행을 막는다. */
-  downloadBlocked: boolean;
-}
-
-/**
- * 데이터마트 영상 카드 — 라벨링 진입(카드 본문)과 작업 데이터 다운로드(별도 버튼)를 함께 둔다.
- *
- * ★ 다운로드 버튼은 **카드 클릭 영역 밖**에 둔다. 카드 안에 넣으면 ①버튼 안의 버튼이라 마크업이
- *   성립하지 않고 ②클릭이 위로 전파돼 내려받으려던 사용자가 라벨링 화면으로 끌려간다.
- *   그래서 형제 요소로 두고 클릭 전파도 함께 끊는다(감싸는 컨테이너가 생겨도 새지 않게).
- *
- * ★ 만료 예정일은 서버가 준 값이 있을 때만 그린다. 만료가 없으면 **없는 것**이지 미정이 아니므로
- *   `-` 같은 문구를 지어내지 않고 자리를 비운다.
- *
- * ★ **만료 표기와 다운로드 가부는 근거가 다르다 — 만료 부재를 "저장 라벨 없음" 으로 단정하지 않는다.**
- *   서버가 만료를 비우는 이유는 둘이다(`PortalRetentionPolicy`): ①본인 저장 라벨이 없다
- *   ②보존기간 설정이 없거나 비정상값이라 만료를 **판정할 수 없다**. ②는 저장 라벨이 멀쩡히 있는
- *   상태이고 서버도 정상 응답을 준다 — 그런데 만료만 보고 버튼을 막으면 **화면이 정상 다운로드를
- *   먼저 차단하고 거짓 사유("저장된 라벨이 없습니다")까지 댄다.**
- *   저장 라벨 유무를 알려주는 필드는 목록 응답(`DatamartVideoResponse`)에 **없고** 화면이 그것을
- *   추정할 근거도 없다. 반면 서버는 저장 라벨 0건을 **410 으로 따로 구분해** 돌려주므로, 막지 않고
- *   눌렀을 때 그 판정을 그대로 안내한다(`DOWNLOAD_ERROR_NO_LABEL`). 비활성은 **동시 실행 방지**
- *   라는, 화면이 실제로 아는 사실에만 쓴다.
- */
-function DatamartVideoCard({
-  video,
-  onOpen,
-  onDownload,
-  onCancelDownload,
-  downloading,
-  downloadBlocked,
-}: DatamartVideoCardProps) {
-  const expiresOn = formatExpiryDate(video.myLabelExpiresAt);
-  const disabled = downloading || downloadBlocked;
-
-  return (
-    <li className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <button
-        type="button"
-        data-testid="datamart-video-item"
-        onClick={onOpen}
-        className={`flex w-full flex-col gap-1 rounded-lg text-left ${KRDS_FOCUS}`}
-      >
-        <span className="text-section-title text-gray-800">{video.title}</span>
-        <span className="text-sub text-gray-600">
-          {video.eventName ?? '-'} · 프레임 {video.frameCount}건
-        </span>
-      </button>
-      <div className="flex items-center justify-between gap-2">
-        {/* 만료가 없는 상태에서는 자리를 비운다(빈 span 으로 정렬만 유지). */}
-        <span data-testid="datamart-video-expiry" className="text-sub text-gray-500">
-          {expiresOn !== null ? `만료: ${expiresOn}` : ''}
-        </span>
-        {/* 취소는 **진행 중일 때만** 나타난다. 멈출 것이 없는데 떠 있으면 무엇을 멈추는지 알 수 없다.
-            다운로드 버튼 바로 옆(진행 표시가 일어나는 자리)에 두고, 카드 클릭 영역 밖이라는 성질은
-            다운로드 버튼과 동일하다(이 행 전체가 카드 버튼의 형제다). */}
-        {downloading && (
-          <button
-            type="button"
-            data-testid="datamart-download-cancel"
-            aria-label={`${video.title} 작업 데이터 다운로드 취소`}
-            onClick={(e) => {
-              // 카드(라벨링 진입) 로 전파되지 않게 한다 — 멈추려던 사용자가 화면을 떠나면 안 된다.
-              e.stopPropagation();
-              onCancelDownload();
-            }}
-            className={cn(
-              'ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50',
-              KRDS_FOCUS,
-            )}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-            취소
-          </button>
-        )}
-        <button
-          type="button"
-          data-testid="datamart-download-button"
-          aria-label={`${video.title} 작업 데이터 다운로드`}
-          /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은 보조기술에 읽히지
-             않는다. 이 요청은 GB 급이라 오래 걸릴 수 있어 진행 중이라는 사실만은 전달해야 한다. */
-          aria-busy={downloading || undefined}
-          disabled={disabled}
-          onClick={(e) => {
-            // 카드(라벨링 진입) 로 전파되지 않게 한다.
-            e.stopPropagation();
-            onDownload();
-          }}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50',
-            KRDS_FOCUS,
-          )}
-        >
-          <Download className="h-3.5 w-3.5" aria-hidden />
-          {downloading ? '내려받는 중…' : '다운로드'}
-        </button>
-      </div>
-    </li>
   );
 }

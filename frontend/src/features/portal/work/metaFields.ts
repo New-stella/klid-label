@@ -170,35 +170,24 @@ export function splitEditableItems(items: PortalMetaItem[]): {
 }
 
 /**
- * 「내가 덮었는가」 표시.
+ * 「내가 덮었는가」 표시. <b>메타 패널이 그리는 배지는 이것 하나뿐이다.</b>
  *
- * ★★{@link sourceBadge} 와 <b>합치지 말 것</b> — 이쪽은 «내 값이 덮었는가»이고 그쪽은 «덮인 쪽이
- * 무엇이었는가»다. 합치면 「자동으로 채워져 있던 값을 내가 바꿨다」를 표현하지 못한다.
+ * <h3>★★ 표시가 하나로 줄었다고 두 축이 하나가 된 것은 아니다</h3>
+ * 이쪽은 «내 값이 덮었는가»이고, {@link PortalMetaItem.source}(원본 쪽 값의 출처)는 «덮인 쪽이
+ * 무엇이었는가»다. 여전히 서로 다른 것을 말한다 — 다만 <b>출처는 화면에 표시하지 않고 전송
+ * 판정에만</b> 쓴다(`metaSavePayload.buildMetaSavePayload` → `isUserDeterminedMetaValue`).
+ * 내부 화면도 같은 값을 표시하지 않고 전송 판정에만 쓰므로 포털만 다르게 할 근거가 없다.
  *
- * ⚠ 표시 방식(문구·배지 모양)은 <b>확정된 시안이 없다</b>. 내부 화면도 출처를 화면에 보여주지
- *   않고 전송 판정에만 쓰므로 따라 쓸 전례가 없다. 최소한의 평이한 표기이며 시안 확정 전 잠정이다.
+ * ⚠ <b>화면에 안 쓴다는 이유로 {@link PortalMetaItem.source} 를 죽은 필드로 보고 응답 타입·파싱·
+ *   저장 판정에서 걷어내지 말 것</b> — 사람이 손대지 않은 자동 계산값이 그대로 되돌아가 <b>사람의
+ *   판정으로 승격</b>되는 것을 막는 방어가 통째로 사라진다. 그런데 화면상 증상은 없다(저장은 200
+ *   이고 값도 그대로 보인다) — 오염은 조용히 쌓인다.
+ *
+ * ⚠ 표시 방식(문구·배지 모양)은 <b>확정된 시안이 없다</b>. 최소한의 평이한 표기이며 시안 확정 전
+ *   잠정이다.
  */
 export function overriddenBadge(item: PortalMetaItem): string | null {
   return item.overridden ? '내가 고침' : null;
-}
-
-/**
- * 「원본 쪽 값이 무엇이었는가」 표시. ⚠ 문구는 시안 확정 전 잠정이다({@link overriddenBadge} 참조).
- *
- * `STORED` 는 출처 구분이 없는 축의 저장값이라 덧붙일 말이 없어 표기하지 않는다 — 없는 구분을
- * 있는 것처럼 보이게 하지 않는다.
- */
-export function sourceBadge(item: PortalMetaItem): string | null {
-  switch (item.source) {
-    case 'MANUAL':
-      return '원래: 직접 지정한 값';
-    case 'DERIVED':
-      return '원래: 자동으로 계산된 값';
-    case 'NONE':
-      return '원래: 값 없음';
-    default:
-      return null;
-  }
 }
 
 /**

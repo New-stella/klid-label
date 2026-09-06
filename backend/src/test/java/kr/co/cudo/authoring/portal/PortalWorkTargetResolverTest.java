@@ -15,10 +15,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -71,9 +73,25 @@ class PortalWorkTargetResolverTest {
      */
     private void givenApproved(boolean approved) {
         LsRawDataStatus status = mock(LsRawDataStatus.class);
+        when(status.getRawDataId()).thenReturn(RAW_SN);
         when(status.getDataSttsCd())
                 .thenReturn(approved ? LsRawDataStatus.STTS_APPROVED : LsRawDataStatus.STTS_PENDING);
-        when(statusRepository.findById(RAW_SN)).thenReturn(Optional.of(status));
+        // 단건 판정도 <일괄 판정>에 위임하므로 일괄 조회를 세운다 — 판정 리터럴이 한 곳에만 있게
+        // 하려고 단건이 일괄을 부르도록 합쳤고(API-225 목록이 같은 규칙을 물어야 한다), 그 결과
+        // 이 시험이 보는 조회 창구가 바뀌었다. 판정 내용은 그대로다.
+        //
+        // ★ 인자와 무관하게 같은 값을 돌려주지 <않는다>. 그렇게 두면 판정기가 <엉뚱한 식별자>로
+        //   물어도 시험이 통과해, 「요청한 것을 묻는가」가 검증되지 않는다. 요청 집합에 그 식별자가
+        //   있을 때만 행을 돌려주도록 해 그 축을 시험이 실제로 물게 한다.
+        when(statusRepository.findAllById(any())).thenAnswer(inv -> {
+            Iterable<Long> requested = inv.getArgument(0);
+            for (Long id : requested) {
+                if (id != null && id == RAW_SN) {
+                    return List.of(status);
+                }
+            }
+            return List.of();
+        });
     }
 
     // ---------------- 자산 출처 ----------------
@@ -161,11 +179,39 @@ class PortalWorkTargetResolverTest {
     @DisplayName("작업_상태_행이_없는_영상도_403이다_fail_closed")
     void missingStatusRowIsForbidden() {
         givenFrame(datamartVideo());
-        when(statusRepository.findById(RAW_SN)).thenReturn(Optional.empty());
+        when(statusRepository.findAllById(any())).thenReturn(List.of());
 
         assertThatThrownBy(() -> resolver.resolveByFrame(SRC_SN, ALICE))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    // ---------------- 진입 허용 일괄 판정 ----------------
+
+    /**
+     * ★ 일괄 창구가 <b>요청한 식별자에 대해서만</b> 답한다.
+     *
+     * <p>돌려받은 것을 그대로 「노출됨」으로 읽으면, 조회가 다른 행을 섞어 주는 순간 <b>남의 영상이
+     * 승인이라는 이유로</b> 진입이 열린다. 목록은 이 집합으로 「이어서 작업」 링크를 그리므로 그 결과가
+     * 화면까지 간다.
+     */
+    @Test
+    @DisplayName("★일괄_판정은_요청하지_않은_식별자를_노출됨으로_돌려주지_않는다")
+    void batchExposureAnswersOnlyForRequestedIds() {
+        givenApproved(true);   // RAW_SN 만 승인 상태다
+
+        assertThat(resolver.exposedToDatamart(List.of(RAW_SN)))
+                .as("요청한 것은 그대로 답한다").containsExactly(RAW_SN);
+        assertThat(resolver.exposedToDatamart(List.of(RAW_SN + 1)))
+                .as("★요청하지 않은 식별자는 결과에 없다").isEmpty();
+    }
+
+    /** 빈 요청에는 조회를 태우지 않는다(빈 IN 절 회피) — 결과는 빈 집합이다. */
+    @Test
+    @DisplayName("빈_요청은_빈_집합이다")
+    void emptyRequestYieldsEmptySet() {
+        assertThat(resolver.exposedToDatamart(List.of())).isEmpty();
+        assertThat(resolver.exposedToDatamart(null)).isEmpty();
     }
 
     // ---------------- 404 축 ----------------

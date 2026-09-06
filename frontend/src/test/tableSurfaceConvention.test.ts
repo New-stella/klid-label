@@ -125,6 +125,10 @@ const TABLES: TableCase[] = [
     label: 'PortalAugmentPage(포털 증강 — 요청 현황)',
     file: 'src/pages/portal/PortalAugmentPage.tsx',
   },
+  {
+    label: 'PortalHomePage(포털 내 작업 — 내 저장 작업 목록)',
+    file: 'src/pages/portal/PortalHomePage.tsx',
+  },
 ];
 
 /**

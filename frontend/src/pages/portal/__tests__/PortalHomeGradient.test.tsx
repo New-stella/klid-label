@@ -6,21 +6,21 @@ import { cleanup } from '@testing-library/react';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
 
-const useDatamartVideosMock = vi.fn();
-vi.mock('@/features/portal/hooks/useDatamartVideos', () => ({
-  useDatamartVideos: (params: { page?: number; size?: number }) => useDatamartVideosMock(params),
+const useUserWorksMock = vi.fn();
+vi.mock('@/features/portal/hooks/useUserWorks', () => ({
+  useUserWorks: (params: { page?: number; size?: number }) => useUserWorksMock(params),
 }));
 
 import { PortalHomePage } from '../PortalHomePage';
 
 describe('PortalHome_그라데이션_클래스_없음', () => {
   afterEach(() => {
-    useDatamartVideosMock.mockReset();
+    useUserWorksMock.mockReset();
     cleanup();
   });
 
   it('Hero_및_UI_크롬에_bg_gradient_클래스가_없다', () => {
-    useDatamartVideosMock.mockReturnValue({
+    useUserWorksMock.mockReturnValue({
       data: { content: [], totalElements: 0, totalPages: 1, number: 0, size: 20 },
       isLoading: false,
       isError: false,

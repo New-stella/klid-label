@@ -135,8 +135,17 @@ export const PORTAL_KEYS = {
   uploadDetail: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-detail', uldSn] as const,
   uploadFrameLabels: (uldFrmeSn: number) =>
     [...PORTAL_KEYS.all, 'upload-frame-labels', uldFrmeSn] as const,
-  datamartVideos: (params: Record<string, unknown>) =>
-    [...PORTAL_KEYS.all, 'datamart-videos', params] as const,
+  /**
+   * 포털 「내 작업」 목록(API-225).
+   *
+   * 페이징 파라미터는 **조건 축**이라 키에 넣는다 — 넣지 않으면 2쪽으로 옮겨도 1쪽 캐시가 그대로
+   * 나온다(같은 목록을 이어 붙이는 축이 아니라 쪽을 갈아 끼우는 축이다).
+   *
+   * ⚠ 구 `datamartVideos` 키를 대체한다 — 데이터마트 카탈로그는 Host 소유가 되어 저작도구가
+   *   그리지 않는다.
+   */
+  userWorks: (params: Record<string, unknown>) =>
+    [...PORTAL_KEYS.all, 'user-works', params] as const,
   /**
    * 업로드 영상 재생용 단기 서명 주소(API-239).
    *

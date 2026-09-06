@@ -3,6 +3,7 @@
 // @design SCREEN-029
 // @design API-234
 // @design API-235
+// @design AC-1068
 //
 // <h3>★ 포털 전용 창구만 부른다</h3>
 // 같은 값을 고치는 내부 창구를 부르면 원장 컬럼 쓰기·재검토 표시·관제 통지·동결본 재동결이 함께
@@ -45,7 +46,6 @@ import {
   META_VALUE_MAX_LENGTH,
   overriddenBadge,
   readOnlyMetaLabel,
-  sourceBadge,
   splitEditableItems,
   type PortalMetaControl,
   type PortalMetaFieldDef,
@@ -75,19 +75,24 @@ function controlIdOf(scope: string, metaKey: string): string {
 }
 
 /**
- * 값의 두 표시 — 「내가 덮었는가」와 「덮인 쪽이 무엇이었는가」.
+ * 「내가 덮었는가」 표시. <b>이 패널이 그리는 배지는 이것 하나뿐이다.</b>
  *
- * ★★두 배지를 하나로 합치지 말 것(서로 다른 것을 말한다). 덮었고 그 아래가 자동 계산값이면
- * 두 배지가 함께 서서 「자동으로 채워져 있던 값을 내가 바꿨다」가 된다.
+ * ★★{@code item.source}(원본 쪽 값의 출처)는 <b>화면에 그리지 않는다</b> — 내부 화면도 같은 값을
+ * 표시하지 않고 전송 판정에만 쓰므로 포털만 다르게 할 근거가 없다. 그렇다고 두 축이 하나가 된 것은
+ * 아니다: 이 배지는 «내 값이 덮었는가»이고 출처는 «덮인 쪽이 무엇이었는가»라 여전히 다른 것을
+ * 말한다. 출처는 {@code buildMetaSavePayload} 가 「사용자가 실제로 정한 값인가」를 가리는 데 쓰며,
+ * 표시하지 않는다는 이유로 그 필드를 걷어내면 자동 계산값이 사람의 판정으로 승격되는 것을 막는
+ * 방어가 사라진다(화면상 증상은 없다).
  */
-function MetaBadges({ item }: { item: PortalMetaItem }) {
+function OverriddenBadge({ item }: { item: PortalMetaItem }) {
   const mine = overriddenBadge(item);
-  const origin = sourceBadge(item);
-  if (mine === null && origin === null) return null;
+  if (mine === null) return null;
   return (
-    <span className="ml-1 inline-flex gap-1" data-testid={`portal-meta-badges-${axisKeyOfItem(item)}`}>
-      {mine !== null && <span className={BADGE_CLASS}>{mine}</span>}
-      {origin !== null && <span className={BADGE_CLASS}>{origin}</span>}
+    <span
+      className={`ml-1 ${BADGE_CLASS}`}
+      data-testid={`portal-meta-overridden-${axisKeyOfItem(item)}`}
+    >
+      {mine}
     </span>
   );
 }
@@ -167,7 +172,7 @@ function EditableRow({
     <div data-testid={`portal-meta-row-${axisKeyOf(field.scope, field.metaKey)}`}>
       <label htmlFor={id} className={FIELD_LABEL_CLASS}>
         {field.label}
-        <MetaBadges item={item} />
+        <OverriddenBadge item={item} />
       </label>
       <MetaValueControl
         id={id}
@@ -304,7 +309,7 @@ export function PortalMetaPanel({ srcSn }: PortalMetaPanelProps) {
               <div key={axisKeyOfItem(item)} data-testid={`portal-meta-row-${axisKeyOfItem(item)}`}>
                 <label htmlFor={id} className={FIELD_LABEL_CLASS}>
                   {label}
-                  <MetaBadges item={item} />
+                  <OverriddenBadge item={item} />
                 </label>
                 <MetaValueControl
                   id={id}

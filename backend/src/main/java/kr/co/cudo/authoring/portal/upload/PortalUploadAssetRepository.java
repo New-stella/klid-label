@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +150,35 @@ public class PortalUploadAssetRepository {
         q.setParameter("rawSn", uldSn);
         List<?> rows = q.getResultList();
         return rows.isEmpty() ? Optional.empty() : Optional.of(toAsset((Object[]) rows.get(0)));
+    }
+
+    /**
+     * 소유자 자산 <b>일괄</b> 조회 — 목록 한 페이지의 자산을 단일 쿼리 1회로 모은다.
+     *
+     * <p>「내 작업」 목록이 두 축(업로드·데이터마트)을 합쳐 페이징한 뒤, 그 페이지에 섞인 업로드
+     * 행에만 상태·등록일·상태변경일을 채우기 위해 쓴다. 행마다 {@link #findByOwner} 를 부르면 N+1 이다.
+     *
+     * <p>★ 조립식({@link #SELECT_ASSET}·{@link #FROM_ASSET})과 소유자 스코프({@link #OWNER_SCOPE})를
+     * <b>그대로 재사용</b>한다 — 상태 판정({@link #STATUS_EXPR})을 새 자리에 베껴 쓰면 「행이 없으면
+     * 업로드됨」 규칙이 두 벌이 되고, 한쪽만 고쳐지는 순간 목록의 만료 고지가 조용히 어긋난다.
+     *
+     * @return 자산 식별자 → 읽기 모델. 타인 자산·비포털 영상은 <b>키 자체가 없다</b>(IDOR)
+     */
+    public Map<Long, PortalUploadAsset> findByOwnerIn(String portalUserNo, Collection<Long> rawSns) {
+        Map<Long, PortalUploadAsset> result = new LinkedHashMap<>();
+        if (portalUserNo == null || rawSns == null || rawSns.isEmpty()) {
+            return result;
+        }
+        Query q = em.createNativeQuery(SELECT_ASSET + FROM_ASSET + OWNER_SCOPE + " AND r.raw_sn IN (:rawSns)");
+        bindMetaKeys(q);
+        q.setParameter("srcType", PortalUploadLedger.SRC_TYPE);
+        q.setParameter("owner", portalUserNo);
+        q.setParameter("rawSns", rawSns);
+        for (Object row : q.getResultList()) {
+            PortalUploadAsset asset = toAsset((Object[]) row);
+            result.put(asset.uldSn(), asset);
+        }
+        return result;
     }
 
     /** 소유권 미검증 단건 — 내부 파이프라인(프레임 추출 러너) 전용. 사용자 요청 진입점에서 쓰지 말 것. */
