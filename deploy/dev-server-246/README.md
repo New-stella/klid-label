@@ -203,10 +203,18 @@ nt ssh cudo_246 "docker restart apache"    # 마운트를 현재 호스트 inode
 ## 7. 검증
 
 ```bash
-# apache 경유
-nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'FE=%{http_code}\n'  http://localhost:8088/label-studio/"
-nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'API=%{http_code}\n' http://localhost:8088/label-studio/api/actuator/health"   # 200
-nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'me=%{http_code}\n'  http://localhost:8088/label-studio/api/v1/me"             # 401(무토큰) = 앱 도달
+# ★ apache 는 <컨테이너 안에서 80> 을 듣고 호스트 8088 로 매핑돼 있다(`0.0.0.0:8088->80/tcp`).
+#   컨테이너 안에서 8088 을 부르면 <전건 000> 이 나와 배포 실패로 오판한다(2026-09-06 실측).
+#   그래서 부르는 자리마다 포트가 다르다.
+
+# 컨테이너 안에서 (:80)
+nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'FE=%{http_code}\n'  http://localhost/label-studio/"
+nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'API=%{http_code}\n' http://localhost/label-studio/api/actuator/health"   # 200
+nt ssh cudo_246 "docker exec apache curl -s -o /dev/null -w 'me=%{http_code}\n'  http://localhost/label-studio/api/v1/me"             # 401(무토큰) = 앱 도달
+
+# 호스트에서 (:8088)
+nt ssh cudo_246 "curl -s -o /dev/null -w 'FE=%{http_code}\n'  http://localhost:8088/label-studio/"
+nt ssh cudo_246 "curl -s -o /dev/null -w 'API=%{http_code}\n' http://localhost:8088/label-studio/api/actuator/health"   # 200
 ```
 
 - 브라우저: `http://192.168.102.246:8088/label-studio/`
