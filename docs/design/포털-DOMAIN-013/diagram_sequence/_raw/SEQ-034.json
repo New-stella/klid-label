@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "인증 인계와 채널·역할 인가 — 채널마다 인계 수단이 다르고 인가는 보관한 역할로 한다",
-      "source": "sequenceDiagram\n    actor user as 내부 사용자\n    actor portalUser as 포털 회원(PORTAL_USER)\n    participant control as 관제서버\n    participant portal as 포털 서버\n    participant fe as 저작도구 프론트엔드\n    participant ingress as tokenIngress (프론트엔드 인계 모듈)\n    participant filter as JwtAuthenticationFilter\n    participant security as SecurityConfig\n    participant hierarchy as RoleHierarchy\n    participant userSvc as AutoWorkerRegisterTxService\n    participant db as LS_USER_ROLE · LS_ACNT_USER\n\n    alt 관제 채널로 들어오거나 / 포털 채널로 들어오거나\n        control->>fe: 관제 채널 — 동일 도메인 운영이라 브라우저 저장소 공유로 토큰을 인계한다\n        portal-)fe: 포털 채널 — Host 가 주입한 인계 창구로 토큰을 건넨다\n    end\n    Note over fe: 두 채널 모두 주소 질의 문자열로 토큰을 싣지 않는다. 포털 채널의 접근 토큰은 Host 메모리에만 두고 브라우저 저장소를 쓰지 않는다\n    loop 보호된 창구를 부를 때마다 — 토큰을 그때그때 다시 얻는다\n        user->>fe: 보호된 창구를 부른다\n        fe->>ingress: 그 호출 시점에 채널에 맞는 방식으로 토큰을 얻는다 — 호출마다 다시 얻는다\n        ingress-->>fe: 그 시점의 접근 토큰\n        Note over ingress: 인계 계층을 창구 뒤로 감춰 두 Host 를 호출부 분기 없이 지원한다. 토큰은 매 호출 시점에 창구로 취득하며 자체 캐시도 자체 스토어 폴백도 두지 않는다 — 갱신 주체가 Host 라 저장 위치와 무관하게 캐시하면 갱신 이후의 죽은 토큰을 붙잡는다. 저장소를 직접 읽지 않는 것만으로는 모자라다\n        fe->>filter: 그 호출에서 얻은 토큰을 요청에 실어 보낸다\n    end\n    filter->>filter: 토큰의 발급처(iss)를 검증한다 — iss 클레임이 없는 경우를 통과시킨다. iss 가 있는데 허용목록 밖이면 여전히 거부한다. 시크릿 서명검증과 exp(만료) 필수는 그대로 유지한다\n    Note over filter: [대안] 발급처(iss)가 있는데 허용목록 밖이거나 토큰이 없거나 만료됐으면 인증 실패로 거부한다 — iss 클레임이 없는 경우는 통과시킨다. 자원의 존재 여부가 드러나지 않는다\n    filter->>filter: 토큰의 채널 표식으로 내부와 포털을 가른다 — 표식이 없으면 내부로 본다\n    filter->>filter: 내부 채널이면 userId 클레임으로 저작도구 마스터 LS_ACNT_USER.USER_ID 로 조회한다 — 다중 매칭이거나 0건 매칭이면 닫힌 채로 무권한 처리한다. 기존 숫자 sub(USER_NO) 식별 경로는 그대로 공존한다\n    filter->>userSvc: 저작도구가 보관한 역할을 조회한다\n    userSvc->>db: LS_USER_ROLE 조회\n    db-->>userSvc: 보관된 역할\n    Note over userSvc: 토큰에 다른 체계의 역할만 실려 있어도 인가는 저작도구가 보관한 값으로 한다\n    opt 역할이 없는 내부 진입자일 때\n        userSvc->>db: 역할이 없는 내부 진입자를 조건부 갱신으로 작업자 등록\n        db-->>userSvc: 등록 결과\n        Note over userSvc: 이미 부여된 역할은 덮지 않는다. 조건부 갱신이라 사용자당 사실상 한 번만 일어나며 매 요청마다 쓰지 않는다\n        Note over userSvc: 개발용 로그인이 발급하는 표준 계정은 이 자동 등록 대상이 아니다 — 역할 없는 상태로 남아 최초 관리자 등록 창구로 유도된다\n    end\n    userSvc-->>filter: 해석된 역할\n    filter->>security: 채널과 역할을 인가 문맥에 세운다\n    security->>hierarchy: 관리자가 검수자 자리를 물려받는지 판정\n    hierarchy-->>security: 관리자에서 검수자로 한 단계만\n    Note over hierarchy: 계층은 관리자에서 검수자 한 단계뿐이다. 작업자를 넣으면 작업자 전용으로 열린 자리에 관리자와 검수자가 흘러들고, 포털 회원을 넣으면 외부 채널 사용자가 내부 권한을 얻는다\n    security->>security: 순서 있는 매처로 각 창구의 접근을 판정한다\n    security-->>user: 허용된 창구의 응답\n    Note over user: [대안] 내부 채널인데 보관된 역할이 없거나 허용 목록 밖 값이면 보호된 창구에서 거부된다\n    opt 역할이 없어도 도달하는 두 창구\n        user->>security: 자기 정보 조회\n        security-->>user: 200 OK — 역할이 없어도 도달한다\n        user->>security: 관리자 등록\n        security-->>user: 200 OK — 역할이 없어도 도달한다\n        Note over user: 그 둘까지 막으면 아무도 처음 들어올 수 없다. 라벨 마스터 읽기 같은 내부 조회에서는 그대로 거부된다\n    end\n    opt 채널이 어긋난 요청\n        portalUser->>security: 포털 토큰으로 내부 창구를 부른다\n        security-->>portalUser: 403 권한 없음\n        user->>security: 내부 토큰으로 포털 창구를 부른다\n        security-->>user: 403 권한 없음\n        Note over security: 채널 격리는 역할로 뚫리지 않는다. 관리자에게 검수자 권한을 물려주는 계층도 이 격리를 열지 않으며, 채널 판정과 역할 판정은 서로 다른 축이라 한쪽을 통과했다고 다른 쪽이 열리지 않는다\n    end\n    user->>fe: 세션이 만료되면 각 상위 시스템의 로그인 화면으로 되돌아간다\n",
+      "source": "sequenceDiagram\n    actor user as 내부 사용자\n    actor portalUser as 포털 회원(PORTAL_USER)\n    participant control as 관제서버\n    participant portal as 포털 서버\n    participant fe as 저작도구 프론트엔드\n    participant ingress as tokenIngress (프론트엔드 인계 모듈)\n    participant filter as JwtAuthenticationFilter\n    participant security as SecurityConfig\n    participant hierarchy as RoleHierarchy\n    participant userSvc as AutoWorkerRegisterTxService\n    participant db as LS_USER_ROLE · LS_ACNT_USER\n\n    alt 관제 채널로 들어오거나 / 포털 채널로 들어오거나\n        control->>fe: 관제 채널 — 동일 도메인 운영이라 브라우저 저장소 공유로 토큰을 인계한다\n        portal-)fe: 포털 채널 — Host 가 주입한 인계 창구로 토큰을 건넨다\n    end\n    Note over fe: 두 채널 모두 주소 질의 문자열로 토큰을 싣지 않는다. 포털 채널의 접근 토큰은 Host 메모리에만 두고 브라우저 저장소를 쓰지 않는다\n    loop 보호된 창구를 부를 때마다 — 토큰을 그때그때 다시 얻는다\n        user->>fe: 보호된 창구를 부른다\n        fe->>ingress: 그 호출 시점에 채널에 맞는 방식으로 토큰을 얻는다 — 호출마다 다시 얻는다\n        ingress-->>fe: 그 시점의 접근 토큰\n        Note over ingress: 인계 계층을 창구 뒤로 감춰 두 Host 를 호출부 분기 없이 지원한다. 토큰은 매 호출 시점에 창구로 취득하며 자체 캐시도 자체 스토어 폴백도 두지 않는다 — 갱신 주체가 Host 라 저장 위치와 무관하게 캐시하면 갱신 이후의 죽은 토큰을 붙잡는다. 저장소를 직접 읽지 않는 것만으로는 모자라다\n        fe->>filter: 그 호출에서 얻은 토큰을 요청에 실어 보낸다\n    end\n    filter->>filter: 토큰의 발급처(iss)를 검증한다 — iss 클레임이 없는 경우를 통과시킨다. iss 가 있는데 허용목록 밖이면 여전히 거부한다. 시크릿 서명검증과 exp(만료) 필수는 그대로 유지한다\n    Note over filter: [대안] 발급처(iss)가 있는데 허용목록 밖이거나 토큰이 없거나 만료됐으면 인증 실패로 거부한다 — iss 클레임이 없는 경우는 통과시킨다. 자원의 존재 여부가 드러나지 않는다\n    filter->>filter: 토큰의 채널 표식으로 내부와 포털을 가른다 — 표식이 없으면 내부로 본다\n    filter->>filter: 내부 채널이면 userId 클레임으로 저작도구 마스터 LS_ACNT_USER.USER_ID 로 조회한다 — 다중 매칭이면 닫힌 채로 무권한 처리하고, 0건 매칭이면 다음 단계로 이어진다(자동발급). 기존 숫자 sub(USER_NO) 식별 경로는 그대로 공존한다\n    filter->>filter: userId 조회 0건이면 로컬 userNo 를 시퀀스로 발급하고 USER_ID 안정키로 원자 등록한다(role 미부여). 발급 userNo 로 principal 정규화가 이어진다\n    filter->>userSvc: 저작도구가 보관한 역할을 조회한다\n    userSvc->>db: LS_USER_ROLE 조회\n    db-->>userSvc: 보관된 역할\n    Note over userSvc: 토큰에 다른 체계의 역할만 실려 있어도 인가는 저작도구가 보관한 값으로 한다\n    opt 역할이 없는 내부 진입자일 때\n        userSvc->>db: 역할이 없는 내부 진입자를 조건부 갱신으로 작업자 등록\n        db-->>userSvc: 등록 결과\n        Note over userSvc: 이미 부여된 역할은 덮지 않는다. 조건부 갱신이라 사용자당 사실상 한 번만 일어나며 매 요청마다 쓰지 않는다\n        Note over userSvc: 개발용 로그인이 발급하는 표준 계정은 이 자동 등록 대상이 아니다 — 역할 없는 상태로 남아 최초 관리자 등록 창구로 유도된다\n    end\n    userSvc-->>filter: 해석된 역할\n    filter->>security: 채널과 역할을 인가 문맥에 세운다\n    security->>hierarchy: 관리자가 검수자 자리를 물려받는지 판정\n    hierarchy-->>security: 관리자에서 검수자로 한 단계만\n    Note over hierarchy: 계층은 관리자에서 검수자 한 단계뿐이다. 작업자를 넣으면 작업자 전용으로 열린 자리에 관리자와 검수자가 흘러들고, 포털 회원을 넣으면 외부 채널 사용자가 내부 권한을 얻는다\n    security->>security: 순서 있는 매처로 각 창구의 접근을 판정한다\n    security-->>user: 허용된 창구의 응답\n    Note over user: [대안] 내부 채널인데 보관된 역할이 없거나 허용 목록 밖 값이면 보호된 창구에서 거부된다\n    opt 역할이 없어도 도달하는 두 창구\n        user->>security: 자기 정보 조회\n        security-->>user: 200 OK — 역할이 없어도 도달한다\n        user->>security: 관리자 등록\n        security-->>user: 200 OK — 역할이 없어도 도달한다\n        Note over user: 그 둘까지 막으면 아무도 처음 들어올 수 없다. 라벨 마스터 읽기 같은 내부 조회에서는 그대로 거부된다\n    end\n    opt 채널이 어긋난 요청\n        portalUser->>security: 포털 토큰으로 내부 창구를 부른다\n        security-->>portalUser: 403 권한 없음\n        user->>security: 내부 토큰으로 포털 창구를 부른다\n        security-->>user: 403 권한 없음\n        Note over security: 채널 격리는 역할로 뚫리지 않는다. 관리자에게 검수자 권한을 물려주는 계층도 이 격리를 열지 않으며, 채널 판정과 역할 판정은 서로 다른 축이라 한쪽을 통과했다고 다른 쪽이 열리지 않는다\n    end\n    user->>fe: 세션이 만료되면 각 상위 시스템의 로그인 화면으로 되돌아간다\n",
       "messages": [
         {
           "to": "fe",
@@ -82,7 +82,13 @@
           "to": "filter",
           "from": "filter",
           "kind": "self",
-          "label": "내부 채널이면 userId 클레임으로 저작도구 마스터 LS_ACNT_USER.USER_ID 로 조회한다 — 다중 매칭이거나 0건 매칭이면 닫힌 채로 무권한 처리한다. 기존 숫자 sub(USER_NO) 식별 경로는 그대로 공존한다"
+          "label": "내부 채널이면 userId 클레임으로 저작도구 마스터 LS_ACNT_USER.USER_ID 로 조회한다 — 다중 매칭이면 닫힌 채로 무권한 처리하고, 0건 매칭이면 다음 단계로 이어진다(자동발급). 기존 숫자 sub(USER_NO) 식별 경로는 그대로 공존한다"
+        },
+        {
+          "to": "filter",
+          "from": "filter",
+          "kind": "self",
+          "label": "userId 조회 0건이면 로컬 userNo 를 시퀀스로 발급하고 USER_ID 안정키로 원자 등록한다(role 미부여). 발급 userNo 로 principal 정규화가 이어진다"
         },
         {
           "to": "userSvc",
@@ -265,20 +271,20 @@
         {
           "kind": "opt",
           "label": "역할이 없는 내부 진입자일 때",
-          "end_index": 19,
-          "start_index": 16
+          "end_index": 20,
+          "start_index": 17
         },
         {
           "kind": "opt",
           "label": "역할이 없어도 도달하는 두 창구",
-          "end_index": 32,
-          "start_index": 28
+          "end_index": 33,
+          "start_index": 29
         },
         {
           "kind": "opt",
           "label": "채널이 어긋난 요청",
-          "end_index": 37,
-          "start_index": 33
+          "end_index": 38,
+          "start_index": 34
         }
       ],
       "brownfield": {
@@ -357,11 +363,12 @@
       "scenario_type": "happy_path",
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-05T07:36:15.653Z",
         "module_paths": []
       },
       "publishes_events": [],
@@ -380,12 +387,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
-    "stale": true,
-    "stale_reason": "AC-1016의 2개 필드 변경 — verifies",
-    "change_summary": "ADR-063/UC-041 v9 정합 — 발급처 게이트: iss 부재 통과·iss 있고 허용목록 밖만 거부(시크릿 서명검증·exp 유지). 식별: userId 클레임으로 LS_ACNT_USER.USER_ID 조회(다중/0건 fail-closed)+숫자 sub(USER_NO) 공존. source·messages 두 층을 같은 문구로 함께 교체. 노드·화살표 구조 무변경, 권한 매핑 미포함.",
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "관제 인계 미등록 진입자 userNo 자동발급 흐름 구현 — JwtAuthenticationFilter→ControlUserProvisioner(+TxService)→LS_ACNT_USER 원자 upsert. @design 태그 부착.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-04T11:17:58.613Z",
+    "last_updated_at": "2026-09-05T07:36:15.653Z",
     "created_at": "2026-09-03T06:52:04.823Z"
   }
 }

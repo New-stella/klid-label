@@ -1035,7 +1035,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 201 | implemented 101 / in_progress 1 / planned 68 / (미기재) 31 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 23 / in_progress 2 / planned 47 / (미기재) 15 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 118 | implemented 36 / in_progress 2 / planned 59 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 127 | implemented 38 / in_progress 3 / planned 71 / (미기재) 15 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 127 | implemented 42 / in_progress 3 / planned 67 / (미기재) 15 — **2026-09-06 SYNC(변경 26 · 유실 0)** + PR #195 IMPREC 8건(`IMPREC-394`~`401`) 반영 | CONST 상수값, FEAT 상위 기능 |
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 130 | implemented 55 / in_progress 1 / planned 56 / (미기재) 18 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 73 | implemented 20 / planned 48 / (미기재) 5 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 93 | implemented 26 / in_progress 2 / planned 51 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |

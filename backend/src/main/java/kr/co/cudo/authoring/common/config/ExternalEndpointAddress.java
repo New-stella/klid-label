@@ -39,6 +39,8 @@ import java.net.URI;
  *
  * <p>⚠ <b>빈값은 사고가 아니다</b> — "아직 안 정해짐" 이므로 ERROR 가 아니라 INFO 로 남긴다.
  * 미연동이 정상인 배포가 실재한다(벤더 주소 확정 전 · 그 연동을 쓰지 않는 채널).
+ *
+ * @design ADR-062
  */
 @Slf4j
 public final class ExternalEndpointAddress {

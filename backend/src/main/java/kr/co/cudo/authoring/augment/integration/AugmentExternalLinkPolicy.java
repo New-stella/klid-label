@@ -27,6 +27,8 @@ import org.springframework.util.StringUtils;
  * 생명주기다. 동적 override(설정 화면·DB 기반 토글)를 여기에 얹지 말 것. 얹는 순간 "판정은 연동인데
  * 클라이언트가 보는 주소는 비었다" 같은 어긋남이 다시 열린다. ⚠ 증강은 아직
  * {@code IntegrationEndpoint} 에 등록돼 있지 않아 <b>운영 화면 주소 override 대상이 아니다</b>.
+ *
+ * @design ADR-062
  */
 @Component
 public class AugmentExternalLinkPolicy {

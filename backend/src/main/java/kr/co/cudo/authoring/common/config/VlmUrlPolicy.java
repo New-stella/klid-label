@@ -38,6 +38,8 @@ import java.net.InetAddress;
  *
  * <p>⚠ 증강({@code AugmentUrlPolicy})은 같은 확정 정책의 대상이지만 <b>아직 프로파일 게이팅에 남아
  * 있다</b>(이번 정합 범위 밖). 이 클래스를 근거로 그쪽을 임의로 바꾸지 말 것 — 별도 결정이 필요하다.
+ *
+ * @design ADR-062
  */
 @Component
 public class VlmUrlPolicy {

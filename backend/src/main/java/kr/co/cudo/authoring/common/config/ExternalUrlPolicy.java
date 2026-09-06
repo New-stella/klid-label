@@ -59,6 +59,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *       사용자 입력이 아니라 <b>배포 설정값</b>이라 현 설계가 방어 대상으로 선언하지 않은 범위다.
  *       구조 변경(요청 시점 재검증/고정 IP 커넥션)은 별도 이슈에서 다룬다.</li>
  * </ul>
+ *
+ * @design ADR-062
  */
 @Slf4j
 public final class ExternalUrlPolicy {

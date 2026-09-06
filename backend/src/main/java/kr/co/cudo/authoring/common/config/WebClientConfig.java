@@ -43,6 +43,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 나가려는 순간 {@code IntegrationEndpointTransportGuards#requireUsableAddress} 가 막는다.
  * <b>검증 규칙은 그대로이고 적용 시점만 옮겼다</b> — 한 연동의 설정 실수로 저작 업무 전체가 멈추는
  * 편이, 배포 시점에 빨리 아는 것보다 훨씬 비싸기 때문이다.
+ *
+ * @design ADR-062
  */
 @Configuration
 public class WebClientConfig {
