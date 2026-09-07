@@ -43,9 +43,15 @@ import static org.mockito.Mockito.when;
  *       바쁜 장비가 가장 한가한 장비로 보여 요청을 통째로 빨아들인다).</li>
  *   <li>시계열 축의 부하 원천은 <b>우리 위탁 원장</b>이다(그 축은 폴러가 관측하지 않는다).</li>
  *   <li>영상 고정은 <b>이 축의 성질이 아니다</b>(고정하면 죽은 장비에 묶인 영상이 영영 못 옮겨간다).</li>
- *   <li><b>원장 식별자 형식</b>을 어긴 장비는 후보에서 빠지고, 그래서 쓸 수 있는 장비가 하나도 남지
- *       않으면 <b>폴백이 아니라 거부</b>다(폴백하면 이 판정이 막으려던 일이 그대로 일어난다).
- *       그리고 그 판정은 <b>고를 때마다</b> 새로 한다 — 원장은 런타임에 바뀐다. [@design ADR-062]</li>
+ *   <li><b>원장 식별자 형식</b>을 어긴 장비는 후보에서 빠지고, 그 판정은 <b>고를 때마다</b> 새로 한다 —
+ *       원장은 런타임에 바뀐다. [@design ADR-062]</li>
+ *   <li>★★<b>쓸 수 있는 후보가 0이면 사유를 가리지 않고 거부</b>다 — 형식 위반이든, 보낼 수 없는
+ *       주소든, 주소 정책 탈락이든, <b>상태점검 실패로 그 유형이 전부 이용불가</b>든, <b>그 유형의 행이
+ *       0건</b>이든 같다. 어느 주소로도 폴백하지 않는다. ⚠ 구 동작은 「형식 위반이 하나라도 섞였을 때만
+ *       거부」였고, 그 좁힘이 <b>두 장비가 함께 죽은 실제 장애를 폴백으로 감췄다</b>(2026-09-07 현장).
+ *       [@design AC-1093] [@design AC-1092]</li>
+ *   <li>{@code empty} 는 <b>「원장을 못 읽었다」</b>일 때만 남는다(조회 실패 — 분산만 포기). 「후보가 0」과
+ *       「못 읽었다」를 섞으면 DB 순단이 전 위탁을 죽이거나 fail-closed 가 조용히 열린다.</li>
  * </ol>
  */
 class AiSrvrSelectorTest {
@@ -193,14 +199,50 @@ class AiSrvrSelectorTest {
                 .map(LsAiSrvr::getSrvrId).contains("infer1");
     }
 
+    /**
+     * ★★ <b>그 유형의 행이 0건이어도 거부다</b> — 배포 기본 주소로 폴백하지 않는다.
+     * [@design AC-1093] [@design AC-1092]
+     *
+     * <p>⚠ <b>구 동작 폐기(2026-09-07)</b> — 여기 「가용 장비가 없으면 예외가 아니라 고르지 못했다를
+     * 돌려준다」가 있었고 호출자가 <b>배포 기본 주소로 그대로</b> 나갔다. 배포 설정값은 그 유형의 첫 행을
+     * 심는 <b>씨앗</b>일 뿐이며, 원장에 행이 없을 때 그 값으로 대신 호출하면 <b>진실원이 둘</b>이 된다.
+     * 씨앗값이 없어 아무것도 심기지 않은 상태는 <b>미연동이 정상인 배포</b>라 사용 시점 거부가 맞다.
+     *
+     * <p>⚠⚠ 「그 유형의 행이 0건이면 폴백」 예외를 만들지 말 것 — 그 구분은 설계에 없다.
+     */
     @Test
-    @DisplayName("★가용_장비가_없으면_예외가_아니라_고르지_못했다를_돌려준다")
-    void 가용_장비가_없으면_고르지_못했다를_돌려준다() {
-        // given — 시계열 노드를 등록하기 전의 현재 형상(부트스트랩은 추론 노드만 세운다).
+    @DisplayName("★★그_유형의_행이_0건이어도_폴백하지_않고_거부한다")
+    void 그_유형의_행이_0건이어도_거부한다() {
+        // given — 시계열 노드를 등록하기 전의 형상(부트스트랩은 추론 노드만 세운다). 형식 위반은 0건이다.
         available(node("infer1", LsAiSrvr.SrvrType.INFERENCE));
 
-        // when / then — 여기서 던지면 「분산을 못 한다」가 「연동이 끊긴다」로 격상된다.
-        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH)).isEmpty();
+        // when / then
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("empty 를 돌려주면 호출자가 배포 기본 주소로 폴백해 진실원이 둘이 된다")
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /**
+     * ★★ <b>상태점검 실패로 그 유형이 전부 이용불가가 되어도 같은 거부다</b> — 형식 위반은 0건이다.
+     * [@design AC-1093] [@design AC-1094]
+     *
+     * <p>이것이 <b>2026-09-07 현장 결함의 사용 측면</b>이다. 두 장비가 함께 죽어 전부 이용불가가 되면
+     * 형식 위반은 하나도 없으므로, 「형식 위반이 하나라도 걸러졌을 때만 거부」로 좁혀 두면 위탁이
+     * <b>조용히 배포 기본 주소로 나가 실제 장애를 감춘다</b>. 거부의 주어는 사유가 아니라
+     * <b>「쓸 수 있는 후보가 0」</b>이다.
+     *
+     * <p>선택기는 가용 장비만 본다({@code registry.findAvailable}) — 전부 이용불가면 그 유형이 목록에서
+     * 통째로 사라지므로, 여기서는 그 상태를 「그 유형의 가용 행이 없음」으로 재현한다.
+     */
+    @Test
+    @DisplayName("★★상태점검_실패로_전부_이용불가여도_거부한다 — 형식 위반이 0건이어도 같다")
+    void 상태점검_실패로_전부_이용불가여도_거부한다() {
+        // given — 식별자는 전부 형식 규약을 지킨다. 다만 그 유형이 가용 목록에 하나도 없다.
+        available(node("ts01", LsAiSrvr.SrvrType.INFERENCE), node("ts02", LsAiSrvr.SrvrType.INFERENCE));
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("형식 위반을 게이트로 삼으면 이 경로가 폴백으로 새어 실제 장애가 감춰진다")
+                .isInstanceOf(NonRetryableExternalException.class);
     }
 
     @Test
@@ -270,14 +312,19 @@ class AiSrvrSelectorTest {
                 .contains("ok");
     }
 
+    /**
+     * ★ 보낼 수 없는 주소만 남아도 <b>거부</b>다 — 형식 위반이 0건이어도 같다. [@design AC-1093]
+     *
+     * <p>⚠ 구 동작은 여기서 {@code empty} 를 돌려주었고 호출자가 배포 기본 주소로 나갔다. 그러면
+     * 「원장에 쓸 수 없는 장비만 있다」는 사실이 아무 데도 드러나지 않는다.
+     */
     @Test
-    @DisplayName("★보낼_수_있는_장비가_하나도_없으면_고르지_못했다로_답한다 — 예외가 아니다")
-    void 보낼_수_있는_장비가_없으면_고르지_못했다() {
+    @DisplayName("★보낼_수_있는_장비가_하나도_없으면_폴백하지_않고_거부한다")
+    void 보낼_수_있는_장비가_없으면_거부한다() {
         available(nodeWithAddr("blank", ""), nodeWithAddr("noscheme", "ts02:9500"));
 
-        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
-                .as("여기서 예외로 만들면 「분산을 못 한다」가 「연동이 끊긴다」로 격상된다")
-                .isEmpty();
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class);
     }
 
     /**
@@ -362,18 +409,21 @@ class AiSrvrSelectorTest {
     }
 
     /**
-     * ★ <b>정책 판정이 던지는 예외는 「그 장비 제외」이지 「위탁 실패」가 아니다</b>.
+     * ★ <b>정책 판정이 던지는 예외는 「그 장비 제외」이지 「그 자리에서 배치를 죽이는 것」이 아니다</b>.
      *
-     * <p>장비 하나의 주소 오타가 예외로 올라가면 배치 전체가 FAILED 로 마감된다 — 노드 분산 도입 전에는
-     * 없던 실패 모드다. 후보가 하나도 안 남는 극단에서도 결과는 <b>「고르지 못했다」</b> 여야 하고,
-     * 그때 호출자는 배포 기본 주소로 그대로 위탁한다.
+     * <p>장비 하나의 주소 오타가 정책 예외 그대로 올라가면 <b>후보가 남아 있어도</b> 배치 전체가
+     * FAILED 로 마감된다 — 그 성질은 그대로 유지된다(바로 위 시험이 그것을 고정한다).
+     *
+     * <p>다만 그렇게 걸러 낸 결과 <b>후보가 0이 되면</b> 결과는 「고르지 못했다」가 아니라 <b>거부</b>다.
+     * ⚠ 구 동작은 여기서 {@code empty} 를 돌려주어 호출자가 배포 기본 주소로 나갔다. [@design AC-1093]
      */
     @Test
-    @DisplayName("★정책이_전부_거부해도_예외가_아니라_고르지_못했다로_답한다")
-    void 정책이_전부_거부해도_예외가_아니다() {
+    @DisplayName("★정책이_전부_거부하면_폴백이_아니라_거부다")
+    void 정책이_전부_거부하면_거부다() {
         available(nodeWithAddr("x", "ftp://ts-ftp:9500"), nodeWithAddr("y", "http://changeme:9500"));
 
-        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH)).isEmpty();
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -428,10 +478,11 @@ class AiSrvrSelectorTest {
     }
 
     /**
-     * ★ 다른 사유로 빠진 장비가 섞여 있어도, <b>위반이 하나라도 있었으면</b> 거부다.
+     * ★ 사유가 섞여 있어도 <b>후보가 0이면</b> 거부다 — 사유를 세지 않는다. [@design AC-1093]
      *
-     * <p>남은 후보가 0이라는 사실은 같은데 원인이 다르다 — 「없다」면 폴백이 맞고 「있는데 못 쓴다」면
-     * 폴백이 곧 사고다. 둘을 같은 값으로 뭉개면 그 구분이 사라진다.
+     * <p>⚠ 구 서술 폐기: 「위반이 하나라도 있었으면 거부」. 그 게이트가 상태점검으로 전부 이용불가가 된
+     * 원장을 폴백으로 흘려보냈다. 좁히려면 「그 걸러짐이 없었다면 후보가 남았을까」라는 반사실 판정이
+     * 필요한데, 그 답은 필터 순서에 따라 달라져 같은 원장이 경로마다 다르게 판정된다.
      */
     @Test
     @DisplayName("★형식_위반과_보낼_수_없는_주소가_섞여_전부_빠져도_거부한다")

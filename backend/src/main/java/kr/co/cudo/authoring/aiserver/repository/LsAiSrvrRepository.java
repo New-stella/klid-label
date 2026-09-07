@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.aiserver.repository;
 
+import kr.co.cudo.authoring.aiserver.entity.AiSrvrStatus;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,6 +21,17 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
 
     /**
      * 가용 노드를 <b>강등</b>한다 — 단, 그것이 마지막 가용 노드면 아무것도 하지 않는다.
+     *
+     * <h3>⚠ 운영 경로에서 이 메서드를 부르는 곳은 <b>없다</b> — 다시 배선하지 말 것</h3>
+     * <p>관리 창구는 유형별 형제({@link #demoteIfNotLastAvailableOfType})를 쓰고, <b>상태점검 배치는
+     * {@link #demoteByHealthCheck} 를 쓴다</b>. 배치가 한때 이것을 불렀는데, 그 보호가 관측까지 막아
+     * <b>죽은 장비가 「가용」으로 남아</b> 운영자가 화면에서 「한 대는 살아 있다」로 읽는 동안 AI 기능이
+     * 이미 멈춰 있는 상태가 됐다(2026-09-07 실측 — gpu01·gpu02 가 같은 시각에 둘 다 응답하지 않는데
+     * gpu01 만 가용). 그 보호는 <b>사람의 조작</b>에만 거는 것이다. [@design AC-1091] [@design AC-1093]
+     *
+     * <p>남겨 두는 이유는 잠금 CTE + 조건부 UPDATE 라는 <b>동시성 골격</b>과 그 근거(아래 두 절)를
+     * 보존하기 위해서다 — 유형별 형제가 같은 골격을 쓴다. 지우려면 그 지식이 형제 쪽에 온전히
+     * 남아 있는지 먼저 확인할 것.
      *
      * <h3>왜 조회 후 UPDATE 가 아닌가</h3>
      * <p>가용 노드가 0이 되면 AI 기능 전체가 멈춘다. "세어 보고 1보다 크면 내린다"로 만들면 두
@@ -52,6 +64,50 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
                AND (SELECT count(*) FROM available) > 1
             """, nativeQuery = true)
     int demoteIfNotLastAvailable(@Param("srvrId") String srvrId, @Param("next") String next);
+
+    /**
+     * <b>상태점검 배치 전용</b> — 가용 노드를 강등한다. <b>마지막 하나라도 내린다</b>.
+     * [@design ADR-057] [@design AC-1093] [@design AC-1091]
+     *
+     * <h3>왜 마지막 노드 보호를 걸지 않는가</h3>
+     * <p>그 보호는 <b>사람이 관리 화면에서 내리는 조작</b>에 거는 것이다. 상태점검이 내리는 이용불가는
+     * 조작이 아니라 <b>관측</b>이며, 실제 장애를 소프트웨어로 부정할 수 없다. 막으면 죽은 장비가
+     * 「가용」으로 남아 그리로 계속 보내게 되고, 화면은 「한 대는 살아 있다」고 거짓을 말한다.
+     *
+     * <p>가용이 0이 되는 것 자체를 이 쿼리가 막지 않는다. 다만 <b>그 뒤에 무슨 일이 일어나는지는 축마다
+     * 다르다</b> — 정확한 비대칭은 {@code AiSrvrHealthTxService.warnIfTypeExhausted} javadoc 의 표가
+     * 소유한다(여기 복제하지 않는다). 어느 쪽이든 「내려도 갈 곳이 없다」는 옛 근거는 강등을 막을
+     * 이유가 되지 못한다 — <b>시계열</b>은 후보가 0이면 위탁이 <b>폴백 없이 거부</b>되므로 죽은 장비를
+     * 가용으로 남겨 둘 이유가 없고, <b>추론</b>은 아직 원장으로 장비를 고르지 않아 강등 여부가 목적지를
+     * 바꾸지 않는다(바뀌는 것은 화면이 말하는 사실뿐이다).
+     *
+     * <p>⚠ 그래서 <b>「후보가 0이면 폴백 없이 거부된다」를 두 축에 함께 쓰지 말 것</b> — 추론 축에서는
+     * 거짓이다. [@design AC-1093]
+     *
+     * <h3>그래도 조건부 UPDATE 인 이유</h3>
+     * <p>출발 상태를 {@code AVAILABLE} 로 못 박아 <b>금지 전이</b>(정비중→이용불가 · 비활성→이용불가)를
+     * SQL 한 줄이 함께 막고, 두 WAS 가 같은 틱에 겹쳐도 한쪽만 실제로 갱신한다. 잠금 CTE 는 필요 없다 —
+     * 세는 대상이 없으므로 다른 행의 상태가 이 판정에 끼어들지 않는다.
+     *
+     * @return 영향 행수. 0 이면 그 사이 상태가 바뀐 것이다(정상 — 조용히 넘어간다)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR
+               SET SRVR_STTS_CD = :next
+             WHERE SRVR_ID = :srvrId
+               AND SRVR_STTS_CD = 'AVAILABLE'
+            """, nativeQuery = true)
+    int demoteByHealthCheck(@Param("srvrId") String srvrId, @Param("next") String next);
+
+    /**
+     * 그 유형의 <b>가용 장비 수</b> — 상태점검이 마지막 하나를 내린 뒤 「이 유형이 통째로 멈췄다」를
+     * 알리기 위한 축이다. [@design ADR-057] [@design AC-1093]
+     *
+     * <p>운영자에게 알려야 할 사실은 「한 대가 내려갔다」가 아니라 <b>「이 유형으로 나갈 길이 없어졌다」</b>
+     * 다 — 그 순간부터 그 유형의 위탁은 폴백 없이 거부되기 때문이다.
+     */
+    long countBySrvrTypeCdAndSrvrSttsCd(LsAiSrvr.SrvrType srvrTypeCd, AiSrvrStatus srvrSttsCd);
 
     /**
      * 이용불가 노드를 <b>가용으로 되돌린다</b> — 연속 성공이 복귀 임계에 닿았을 때만 호출한다.

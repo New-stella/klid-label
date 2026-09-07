@@ -271,6 +271,61 @@ class AiSrvrTypeScopedGuardIT {
                 .isEqualTo(AiSrvrStatus.UNAVAILABLE.name());
     }
 
+    /**
+     * ★★ <b>2026-09-07 현장 결함의 그대로 재현</b> — 같은 유형의 <b>마지막</b> 가용 장비도 상태점검
+     * 실패로 내려간다. [@design AC-1093] [@design ADR-057]
+     *
+     * <h3>구 동작에서 무슨 일이 있었나</h3>
+     * <p>배치가 <b>전체 축</b> 보호({@code demoteIfNotLastAvailable})를 탔다. gpu02 가 먼저 내려갈
+     * 때는 가용이 둘이라 통과하고, 이어서 gpu01 이 내려갈 차례에는 가용이 하나뿐이라 <b>거부</b>된다.
+     * 그래서 <b>둘 다 같은 시각에 응답하지 않는데 gpu01 만 「가용」</b>으로 남고, 관리자 화면을 본
+     * 운영자는 「한 대는 살아 있다」로 읽는다 — 실제로는 AI 기능이 이미 멈춰 있다.
+     *
+     * <p>바로 위 시험({@code 상태점검의_자동_이용불가_전이는_유형별_보호에_걸리지_않는다})은 이 회귀를
+     * <b>잡지 못한다</b> — 거기서는 다른 유형(시계열)의 장비가 하나 더 있어 <b>전체 축</b> 가용 수가
+     * 2라 구 쿼리도 통과하기 때문이다. 그래서 <b>같은 유형 둘만</b> 심는 이 시험이 따로 필요하다.
+     */
+    @Test
+    @DisplayName("★★같은_유형의_마지막_가용_장비도_상태점검_실패로_내려간다")
+    void 같은_유형의_마지막_가용_장비도_상태점검_실패로_내려간다() {
+        // given — 같은 유형 둘뿐. 원장 전체로 세어도 가용은 2다(다른 유형 장비가 없다).
+        repository.saveAndFlush(node("gpu01", LsAiSrvr.SrvrType.INFERENCE));
+        repository.saveAndFlush(node("gpu02", LsAiSrvr.SrvrType.INFERENCE));
+
+        // when — 둘 다 같은 시각에 응답하지 않는다(현장 그대로).
+        for (int i = 0; i < failThreshold; i++) {
+            healthTxService.applyHealth("gpu02", false, LocalDateTime.now());
+            healthTxService.applyHealth("gpu01", false, LocalDateTime.now());
+        }
+
+        // then — ★둘 다 이용불가여야 한다. 하나라도 「가용」으로 남으면 화면이 거짓을 말한다.
+        assertThat(statusOf("gpu02")).isEqualTo(AiSrvrStatus.UNAVAILABLE.name());
+        assertThat(statusOf("gpu01"))
+                .as("마지막 가용 노드 보호는 사람의 조작 축이다 — 관측에까지 얹으면 죽은 장비가 가용으로 남는다")
+                .isEqualTo(AiSrvrStatus.UNAVAILABLE.name());
+        assertThat(countAvailableOfType(LsAiSrvr.SrvrType.INFERENCE))
+                .as("가용이 0이 되는 것을 막지 않는다 — 후보가 0이면 위탁은 폴백 없이 거부된다")
+                .isZero();
+    }
+
+    /**
+     * ★ 그 <b>반대쪽</b>은 그대로 막힌다 — <b>사람이</b> 내리는 마지막 가용 장비는 여전히 거부된다.
+     * [@design AC-1091] [@design API-229]
+     *
+     * <p>위 시험과 짝으로 두어야 「헬스는 내리고 사람은 막는다」가 시험으로 갈린다. 하나만 두면 다음
+     * 사람이 「일관성」을 이유로 두 경로를 합친다.
+     */
+    @Test
+    @DisplayName("★사람이_내리는_그_유형의_마지막_가용_장비는_여전히_거부된다")
+    void 사람이_내리는_마지막_가용_장비는_여전히_거부된다() {
+        repository.saveAndFlush(node("gpu01", LsAiSrvr.SrvrType.INFERENCE));
+
+        assertThat(demoteOfType("gpu01", LsAiSrvr.SrvrType.INFERENCE, AiSrvrStatus.UNAVAILABLE))
+                .as("사람의 조작은 관측이 아니라 결정이다 — 이 축까지 함께 열지 않았다")
+                .isZero();
+        assertThat(statusOf("gpu01")).isEqualTo(AiSrvrStatus.AVAILABLE.name());
+    }
+
     // ---------------------------------------------------------------------------------------
 
     private int demoteOfType(String srvrId, LsAiSrvr.SrvrType type, AiSrvrStatus next) {

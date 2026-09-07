@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
+import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -18,6 +19,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -83,6 +85,11 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
     @Autowired private LsDeidentProcLogRepository deidentProcLogRepository;
     @Autowired private LsDataMetaRepository metaRepository;
     @Autowired private WebhookIdempotencyLedger ledger;
+    @Autowired private kr.co.cudo.authoring.aiserver.repository.LsAiSrvrRepository aiSrvrRepository;
+    @Autowired private kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry aiSrvrRegistry;
+
+    /** 이 시험이 심는 시계열 노드 — 다른 시험과 겹치지 않도록 고유 식별자를 쓴다. */
+    private static final String SEEDED_TIMESERIES_SRVR_ID = "vlmtx01";
 
     /** 외부 VLM 호출만 mock — 나머지 경로(프록시/tx/DB/콜백)는 실제. */
     @MockBean private VlmClient vlmClient;
@@ -124,6 +131,37 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         deidentProcLogRepository.save(log);
     }
 
+    /**
+     * 심어 둔 시계열 노드를 거둔다 — 공유 Testcontainers DB 라 <b>남기면 다른 시험의 건수 단언</b>
+     * (빈 원장을 전제로 세는 장비 원장 시험들)이 흔들린다. 우리가 심은 행만 지운다.
+     */
+    @AfterEach
+    void removeSeededTimeseriesNode() {
+        aiSrvrRepository.deleteById(SEEDED_TIMESERIES_SRVR_ID);
+        aiSrvrRegistry.invalidate();
+    }
+
+    /**
+     * ★ 시계열 장비 원장에 노드 한 건을 심는다 — <b>2026-09-07 이후 필수 사전 조건</b>이다.
+     *
+     * <p>그 유형에 <b>쓸 수 있는 후보가 0이면 위탁이 폴백 없이 거부</b>된다(구 동작은 배포 기본 주소로
+     * 조용히 나갔다). 시험 프로파일은 {@code vlm.client.url} 을 비워 두어 기동 씨앗이 시계열 노드를
+     * 세우지 않으므로, 「연동이 구성된 배포」를 재현하려면 여기서 직접 심어야 한다.
+     *
+     * <p>공유 Testcontainers DB 라 다른 시험이 원장을 비우거나 채울 수 있어 <b>있으면 그대로 두고
+     * 없을 때만</b> 심는다(기동 씨앗과 같은 규칙 — 덮어쓰지 않는다).
+     */
+    private void seedTimeseriesNodeIfAbsent() {
+        if (aiSrvrRepository.findBySrvrTypeCdOrderBySrvrIdAsc(LsAiSrvr.SrvrType.TIMESERIES).isEmpty()) {
+            aiSrvrRepository.save(LsAiSrvr.register(
+                    SEEDED_TIMESERIES_SRVR_ID, null, "http://klid-mock-server:9400",
+                    LsAiSrvr.SrvrType.TIMESERIES, LocalDateTime.now()));
+        }
+        // 원장 스냅샷 캐시(TTL 5s)를 비운다 — 관리 창구가 원장을 바꿀 때 하는 것과 같은 조치다.
+        // 비우지 않으면 방금 심은 노드가 최대 5초 동안 보이지 않아 위탁이 거부된다.
+        aiSrvrRegistry.invalidate();
+    }
+
     private LsMarking seedMarkingPending(Long rawSn) {
         return markingRepository.save(LsMarking.createAuto(
                 rawSn, 5,
@@ -149,6 +187,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // given — 영상 + 비식별 성공 로그 + PENDING 마킹 시드, 외부 VLM 은 accepted 로 stub
         Long rawSn = seedVideo();
         seedDeidentSuccess(rawSn);
+        seedTimeseriesNodeIfAbsent();
         Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
 
         when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any())).thenAnswer(inv -> {
@@ -212,6 +251,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // given — PENDING 마킹 + (request_id → rawSn) 상관키만 선커밋된 상태(제출 직후, ACK 이전)
         Long rawSn = seedVideo();
         seedDeidentSuccess(rawSn);
+        seedTimeseriesNodeIfAbsent();
         Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
         assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
                 .isEqualTo(LsMarking.STATUS_PENDING);
@@ -243,6 +283,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // given — 영상 + 비식별 성공 로그 + 이미 VLM_COMPLETED 로 durable 전이된 마킹 시드
         Long rawSn = seedVideo();
         seedDeidentSuccess(rawSn);
+        seedTimeseriesNodeIfAbsent();
         LsMarking seeded = seedMarkingPending(rawSn);
         seeded.markVlmRequested();
         seeded.markVlmCompleted();

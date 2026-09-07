@@ -65,7 +65,7 @@ class AiSrvrHealthTxServiceTest {
 
         // then
         assertThat(node.getChckFailNocs()).isEqualTo(2);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -73,31 +73,104 @@ class AiSrvrHealthTxServiceTest {
     void 연속_세번_실패하면_노드가_이용불가로_바뀐다() {
         LsAiSrvr node = available("gpu01");
         given(repository.findById("gpu01")).willReturn(Optional.of(node));
-        given(repository.demoteIfNotLastAvailable(anyString(), anyString())).willReturn(1);
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
         for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        verify(repository).demoteIfNotLastAvailable("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
     }
 
+    /**
+     * ★★ <b>이 라운드의 핵심</b> — 상태점검 강등은 <b>마지막 가용 노드 보호를 타지 않는다</b>.
+     * [@design AC-1093] [@design AC-1091]
+     *
+     * <p>구 코드는 {@code demoteIfNotLastAvailable} 을 불렀고, 그 쿼리는 가용이 하나뿐이면 강등을
+     * 거부한다. 그래서 두 장비가 <b>같은 시각에 둘 다 죽으면</b> 나중 쪽이 「가용」으로 남아
+     * <b>화면이 「한 대는 살아 있다」고 거짓을 말한다</b>(현장 실측: gpu01 연속 실패 3회인데 가용).
+     *
+     * <p>그 보호는 <b>사람의 조작</b>({@code demoteIfNotLastAvailableOfType})에 거는 것이고, 상태점검이
+     * 내리는 이용불가는 <b>관측</b>이다. 그래서 두 보호 쿼리 어느 쪽도 부르지 않는 것까지 못 박는다 —
+     * 「일관성」을 이유로 다시 배선하면 이 단언이 죽는다.
+     */
     @Test
-    @DisplayName("강등은_마지막_가용노드_보호_쿼리를_거친다")
-    void 강등은_마지막_가용노드_보호_쿼리를_거친다() {
-        // given — 마지막 가용 노드라 보호 쿼리가 0행을 돌려준다
+    @DisplayName("★★상태점검_강등은_마지막_가용노드_보호_쿼리를_타지_않는다")
+    void 상태점검_강등은_마지막_가용노드_보호_쿼리를_타지_않는다() {
         LsAiSrvr node = available("gpu01");
         given(repository.findById("gpu01")).willReturn(Optional.of(node));
-        given(repository.demoteIfNotLastAvailable(anyString(), anyString())).willReturn(0);
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
-        // when
         for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        // then — ★상태를 직접 UPDATE 하지 않는다. 보호 판정은 그 쿼리 하나가 소유한다.
-        verify(repository).demoteIfNotLastAvailable("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never())
+                .demoteIfNotLastAvailableOfType(anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    /**
+     * ★ 강등이 실제로 일어났을 때만 <b>그 유형의 가용이 0이 되었는지</b> 확인한다.
+     *
+     * <p>운영자가 알아야 할 것은 「한 대가 내려갔다」가 아니라 <b>「이 유형으로 나갈 길이 없어졌다」</b>
+     * 다 — 그 순간부터 그 유형의 위탁은 폴백 없이 거부되기 때문이다. [@design AC-1093]
+     */
+    @Test
+    @DisplayName("★강등이_일어나면_그_유형의_가용이_0인지_확인한다")
+    void 강등이_일어나면_그_유형의_가용이_0인지_확인한다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
+        given(repository.countBySrvrTypeCdAndSrvrSttsCd(any(), any())).willReturn(0L);
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).countBySrvrTypeCdAndSrvrSttsCd(
+                LsAiSrvr.SrvrType.INFERENCE, AiSrvrStatus.AVAILABLE);
+    }
+
+    /**
+     * ★ <b>알림이 실패해도 강등은 유지된다</b> — 알림은 부수 효과이고, 여기서 예외가 올라가면 이미
+     * 옳게 내린 상태 전이가 트랜잭션과 함께 롤백된다.
+     */
+    @Test
+    @DisplayName("★가용_수_확인이_실패해도_강등이_롤백되지_않는다")
+    void 가용_수_확인이_실패해도_강등이_롤백되지_않는다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
+        given(repository.countBySrvrTypeCdAndSrvrSttsCd(any(), any()))
+                .willThrow(new org.springframework.dao.QueryTimeoutException("pool exhausted"));
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+    }
+
+    /**
+     * 조건부 UPDATE 가 0행을 돌려주는 것은 <b>그 사이 누가 상태를 바꿨다</b>는 뜻이다(정상).
+     * 상태를 직접 UPDATE 해 그것을 덮어쓰지 않는다.
+     */
+    @Test
+    @DisplayName("강등이_0행이면_상태를_직접_고쳐_덮어쓰지_않는다")
+    void 강등이_0행이면_상태를_직접_고쳐_덮어쓰지_않는다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(0);
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
         verify(repository, never()).promoteIfUnavailable(anyString());
+        verify(repository, never()).countBySrvrTypeCdAndSrvrSttsCd(any(), any());
         assertThat(node.getSrvrSttsCd()).isEqualTo(AiSrvrStatus.AVAILABLE);
     }
 
@@ -113,7 +186,7 @@ class AiSrvrHealthTxServiceTest {
         service.applyHealth("gpu01", false, NOW);
 
         assertThat(node.getChckFailNocs()).isEqualTo(1);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -162,7 +235,7 @@ class AiSrvrHealthTxServiceTest {
         assertThat(node.getSrvrSttsCd()).isEqualTo(AiSrvrStatus.DRAINING);
         assertThat(node.getChckFailNocs()).isEqualTo(5);
         assertThat(node.getChckDt()).isEqualTo(NOW);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -186,7 +259,7 @@ class AiSrvrHealthTxServiceTest {
 
         service.applyHealth("gone", false, NOW);
 
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
