@@ -72,12 +72,30 @@ sudo ./scripts/site/klid-web
 
 ---
 
-## 계정을 만들면 안 되는 현장
+## 실행 계정 — **`klid` 를 만들지 않는다**
 
-설치 스크립트가 없는 계정을 만들지 않게 하려면:
+설치는 계정·그룹을 **만들지 않는다**(2026-09-07 확정). 이미 있는 계정을 쓴다.
+
+| 역할 | 계정 |
+|---|---|
+| WAS | **`jboss`** — WAS 가 그 계정으로 돈다 |
+| 웹 | **`apache`** — httpd 가 그 계정으로 돈다 |
+
+**손으로 지정하지 않아도 된다** — 그 장비에서 실제로 도는 프로세스의 소유자를 보고 정한다.
+못 찾으면 관례 이름(`jboss`·`apache`)을 쓰고, 그것도 없으면 **사유를 말하고 멈춘다**
+(반쯤 설치된 상태로 끝나지 않는다).
+
+명시하고 싶으면:
 
 ```bash
-sudo env KLID_NO_USER_CREATE=1 KLID_USER=apache KLID_GROUP=apache ./scripts/install-web.sh ...
+sudo env KLID_USER=apache KLID_GROUP=apache ./scripts/install-web.sh ...
+sudo env KLID_USER=jboss  KLID_GROUP=jboss  ./scripts/install.sh --role=was ...
 ```
 
-없는 계정을 지정하면 **그 자리에서 사유를 말하고 멈춘다**(반쯤 설치된 상태로 끝나지 않는다).
+계정을 만들어도 되는 환경(그린필드)에서만 `KLID_ALLOW_USER_CREATE=1` 을 명시한다. 기본은 꺼져 있다.
+
+### 소유자
+
+**root 로 돌려도 만들어진 파일·폴더의 소유자는 서비스 계정**이다.
+소유가 root 로 남으면 그 순간에는 오류가 없고, 나중에 WAS 가 로그를 못 쓰거나 httpd 가
+정적자산을 못 읽는 형태로 **다른 자리에서** 터진다. 그래서 만든 직후에 넘긴다.

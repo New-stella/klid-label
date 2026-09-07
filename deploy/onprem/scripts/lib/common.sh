@@ -666,6 +666,39 @@ klid_role_has() {
 }
 
 # ----------------------------------------------------------------------------
+# 실행 계정 판정 — <이 장비에서 실제로 서비스를 돌리는 계정>을 쓴다 (2026-09-07 확정, 구속)
+#
+#   ★ klid 계정을 만들지 않는다. 현장 보안 정책상 계정 생성은 계정 담당의 일이고,
+#     설치 도구가 만들면 정책 위반이다. 대신 이미 있는 계정을 쓴다:
+#       was → jboss    (WAS 가 그 계정으로 돈다 — 설정·산출물 권한이 저절로 맞는다)
+#       web → apache   (httpd 가 그 계정으로 돈다 — 정적자산을 읽어야 한다)
+#     그 자리에서 <실제로 도는 프로세스의 소유자>를 먼저 보고, 못 찾으면 관례 이름을 쓴다.
+#     파일에 적힌 값보다 도는 프로세스를 신뢰하는 이유는 JBOSS_HOME 탐지와 같다.
+#
+#   ⚠ ai 역할은 klid 를 그대로 쓴다 — 그 장비에는 이미 그 계정으로 유닛이 돌고 있다.
+#     없으면 만들지 않고 멈춘다(설치가 사유를 말한다).
+#
+#   klid_default_run_user  → 계정명(stdout). 못 정하면 빈 문자열.
+# ----------------------------------------------------------------------------
+klid_default_run_user() {
+  local u=""
+  if klid_role_has was; then
+    # ⚠ 대괄호로 끊지 않으면 <grep 자신의 명령줄>이 잡혀 엉뚱한 계정이 나온다(실측).
+    u="$(ps -eo user=,args= 2>/dev/null | grep -m1 -- '-Djboss[.]home[.]dir=' | awk '{print $1}' || true)"
+    [[ -n "${u}" && "${u}" != "root" ]] || u="jboss"
+    id "${u}" >/dev/null 2>&1 && { printf '%s\n' "${u}"; return 0; }
+    id jboss >/dev/null 2>&1 && { printf 'jboss\n'; return 0; }
+  fi
+  if klid_role_has web; then
+    u="$(ps -eo user=,comm= 2>/dev/null | awk '$2=="httpd"||$2=="apache2"{print $1}' \
+         | grep -v '^root$' | head -1 || true)"
+    [[ -n "${u}" ]] || u="apache"
+    id "${u}" >/dev/null 2>&1 && { printf '%s\n' "${u}"; return 0; }
+  fi
+  return 1
+}
+
+# ----------------------------------------------------------------------------
 # DB 접속 정규화 — 현장 값을 libpq 가 이해하는 모양으로 바꾼다 (2026-09-07 신설)
 #
 #   ★ 왜 필요한가. 현장 application.properties 의 CONTROL_DB_HOST 는 <JDBC 다중 호스트
@@ -746,7 +779,8 @@ klid_detect_jboss_home() {
   local arg="${1:-}" h=""
   if [[ -n "${arg}" ]]; then printf '%s\n' "${arg}"; return 0; fi
 
-  h="$(ps -eo args= 2>/dev/null | tr ' ' '\n' | grep -m1 -- '-Djboss.home.dir=' | cut -d= -f2- || true)"
+  # ⚠ 대괄호로 끊는다 — 안 그러면 grep 자신의 인자가 먼저 잡힌다.
+  h="$(ps -eo args= 2>/dev/null | tr ' ' '\n' | grep -m1 -- '-Djboss[.]home[.]dir=' | cut -d= -f2- || true)"
   [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
 
   if [[ -f "${KLID_ETC}/was.env" ]]; then

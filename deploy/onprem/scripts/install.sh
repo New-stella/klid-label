@@ -194,41 +194,72 @@ if [[ "${_list_only}" -eq 1 ]]; then
   exit 0
 fi
 
-# ---- 서비스 사용자/그룹 + 기본 디렉토리 생성 ----
-#   ★ KLID_NO_USER_CREATE=1 이면 <만들지 않는다> (2026-09-07 신설).
-#     현장 보안 정책상 계정 신규 생성이 금지된 곳이 있다. 그런 곳에서는 이미 있는 계정을
-#     KLID_USER/KLID_GROUP 으로 지정해 쓰면 되고(예: apache·jboss), 그때 이 블록이
-#     조용히 새 계정을 만들면 정책 위반이 된다.
-#   ★ 없는 계정을 지정한 채 이 토글을 켜면 <즉시 멈춘다> — 뒤에서 chown 이 실패하며
-#     반쯤 설치된 상태로 끝나는 것보다, 여기서 사유를 말하고 서는 편이 낫다.
-if [[ "${KLID_NO_USER_CREATE:-0}" == "1" ]]; then
-  getent group "${KLID_GROUP}" >/dev/null 2>&1 \
-    || die "그룹이 없습니다: ${KLID_GROUP} (KLID_NO_USER_CREATE=1 — 만들지 않습니다)
-     이미 있는 그룹을 KLID_GROUP 으로 지정하세요. 예: KLID_GROUP=apache"
-  id "${KLID_USER}" >/dev/null 2>&1 \
-    || die "사용자가 없습니다: ${KLID_USER} (KLID_NO_USER_CREATE=1 — 만들지 않습니다)
-     이미 있는 계정을 KLID_USER 로 지정하세요. 예: KLID_USER=apache"
-  info "계정 생성 생략(KLID_NO_USER_CREATE=1) — 기존 계정 사용: ${KLID_USER}:${KLID_GROUP}"
-else
-  if ! getent group "${KLID_GROUP}" >/dev/null 2>&1; then
-    groupadd --system "${KLID_GROUP}"
-    ok "그룹 생성: ${KLID_GROUP}"
+# ---- 서비스 사용자/그룹 확인 ----
+#   ★★ 설치는 계정을 <만들지 않는다> (2026-09-07 확정, 구속).
+#     현장 보안 정책상 계정 생성은 계정 담당의 일이고, 설치 도구가 조용히 만들면 정책 위반이다.
+#     이미 있는 계정을 KLID_USER/KLID_GROUP 으로 지정해 쓴다 — 웹은 apache, WAS 는 jboss 처럼
+#     그 자리에서 실제로 서비스를 돌리는 계정이 맞다. 그래야 설정·저장소 권한도 저절로 맞는다.
+#   ⚠ 구 동작 폐기: 없으면 groupadd/useradd 로 <말없이 만들던 것>.
+#     2026-09-07 현장에서 klid 계정이 그렇게 생길 뻔했다.
+#   ★ 없는 계정을 지정하면 여기서 선다. 뒤에서 chown 이 실패하며 반쯤 설치된 상태로
+#     끝나는 것보다, 사유를 말하고 멈추는 편이 낫다.
+#   ★ 그린필드(계정을 우리가 만들어도 되는 환경)에서만 KLID_ALLOW_USER_CREATE=1 로 켠다.
+# ★ 지정한 계정이 없으면 <만들지 말고> 이 장비에서 실제로 서비스를 돌리는 계정으로 바꾼다.
+#   was 는 jboss, web 은 apache 다. 운영자가 매번 KLID_USER= 를 손으로 붙이지 않아도 된다.
+#   ⚠ 명시 지정이 있으면 그것이 이긴다 — 아래는 <기본값 klid 가 없을 때>만 돈다.
+if [[ "${KLID_USER}" == "klid" ]] && ! id "${KLID_USER}" >/dev/null 2>&1; then
+  _auto="$(klid_default_run_user || true)"
+  if [[ -n "${_auto}" ]]; then
+    KLID_USER="${_auto}"
+    KLID_GROUP="$(id -gn "${_auto}" 2>/dev/null || printf '%s' "${_auto}")"
+    export KLID_USER KLID_GROUP
+    info "실행 계정을 이 장비의 서비스 계정으로 정합니다: ${KLID_USER}:${KLID_GROUP}"
+    info "  (klid 계정은 만들지 않습니다 — 2026-09-07 확정)"
   fi
-  if ! id "${KLID_USER}" >/dev/null 2>&1; then
+fi
+
+if ! getent group "${KLID_GROUP}" >/dev/null 2>&1; then
+  if [[ "${KLID_ALLOW_USER_CREATE:-0}" == "1" ]]; then
+    groupadd --system "${KLID_GROUP}"
+    ok "그룹 생성: ${KLID_GROUP}  (KLID_ALLOW_USER_CREATE=1)"
+  else
+    die "그룹이 없습니다: ${KLID_GROUP}
+     설치는 계정·그룹을 만들지 않습니다. 이미 있는 것을 지정하세요:
+       sudo env KLID_USER=apache KLID_GROUP=apache ./scripts/install-web.sh ...
+     계정을 만들어도 되는 환경이면 KLID_ALLOW_USER_CREATE=1 을 명시하세요."
+  fi
+fi
+if ! id "${KLID_USER}" >/dev/null 2>&1; then
+  if [[ "${KLID_ALLOW_USER_CREATE:-0}" == "1" ]]; then
     useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
             --shell /usr/sbin/nologin "${KLID_USER}" 2>/dev/null \
       || useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
                  --shell /bin/false "${KLID_USER}"
-    ok "사용자 생성: ${KLID_USER}"
+    ok "사용자 생성: ${KLID_USER}  (KLID_ALLOW_USER_CREATE=1)"
+  else
+    die "사용자가 없습니다: ${KLID_USER}
+     설치는 계정·그룹을 만들지 않습니다. 이미 있는 것을 지정하세요:
+       sudo env KLID_USER=apache KLID_GROUP=apache ./scripts/install-web.sh ...
+       sudo env KLID_USER=jboss  KLID_GROUP=jboss  ./scripts/install.sh --role=was ...
+     계정을 만들어도 되는 환경이면 KLID_ALLOW_USER_CREATE=1 을 명시하세요."
   fi
 fi
+info "실행 계정: ${KLID_USER}:${KLID_GROUP}  (설치가 만들지 않습니다)"
 
 ensure_dir "${KLID_PREFIX}" "${KLID_PREFIX}/runtime" \
            "${KLID_ETC}" \
            "${KLID_DATA}" \
            "${KLID_LOG}"
-chown -R "${KLID_USER}:${KLID_GROUP}" "${KLID_DATA}" "${KLID_LOG}"
+# ★★ root 로 돌려도 <만들어진 것의 소유자는 서비스 계정>이어야 한다 (2026-09-07 확정, 구속).
+#   설치는 root 로 돌지만 실제로 그 파일을 읽고 쓰는 것은 jboss·apache 다. 소유가 root 로
+#   남으면 그 순간에는 아무 오류가 없고, 나중에 WAS 가 로그를 못 쓰거나 httpd 가 정적자산을
+#   못 읽는 형태로 <다른 자리에서> 터진다. 그래서 만든 직후에 전부 넘긴다.
+#   ⚠ 설정 디렉터리도 포함한다 — 비밀값이 들어 있으므로 권한은 좁게(750/640) 유지한다.
+chown -R "${KLID_USER}:${KLID_GROUP}" \
+        "${KLID_PREFIX}" "${KLID_ETC}" "${KLID_DATA}" "${KLID_LOG}"
 chmod 750 "${KLID_ETC}"
+find "${KLID_ETC}" -maxdepth 1 -type f -exec chmod 640 {} + 2>/dev/null || true
+ok "소유자 정리: ${KLID_USER}:${KLID_GROUP} — ${KLID_PREFIX} · ${KLID_ETC} · ${KLID_DATA} · ${KLID_LOG}"
 
 # ---- 영상 저장소(NAS) 검증 ----
 # 영상/프레임은 NAS 마운트(STORAGE_RAW_PATH/STORAGE_DEIDENTIFIED_PATH)에 저장된다 — 로컬 디스크 아님.
