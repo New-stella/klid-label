@@ -64,6 +64,19 @@ nt ssh cudo_246 "docker restart klid-authoring-jboss; sleep 20; \
   http://localhost:18080/label-studio/actuator/health"   # → 200
 ```
 
+> ⚠⚠ **`docker restart` 로는 `app.env` 변경이 반영되지 않는다** (2026-09-07 실측).
+> 환경변수는 컨테이너 **생성 시점**에 굳고 `restart` 는 그 값을 그대로 유지한다. `app.env` 를 고쳐도
+> `docker exec ... sh -c 'echo $VAR'` 로 보면 **옛 값**이다 — 파일만 보고 반영됐다고 오인하기 쉽다.
+> 실제로 `STORAGE_RAW_MOUNT_ROOTS` 를 고치고 재기동했는데 컨테이너는 옛 목록을 들고 있었다.
+>
+> **WAR 만 바꾸는 배포는 `restart` 로 충분하다** — 위 절차 그대로다. env 를 바꿔야 하면
+> **컨테이너 재생성**이 필요하다. ⚠ 이 컨테이너에는 compose 라벨이 없어(`docker run` 으로 만든 것으로
+> 보인다) `docker compose up -d` 로 되살릴 수 없다 — 재생성 전에 `docker inspect` 로 마운트·네트워크·
+> 포트·env 를 전부 떠 두고, 되살릴 명령을 확인한 뒤에 지울 것.
+>
+> ⚠ **바꾼 값이 안 먹은 채로 시험하면 「기능이 안 된다」로 오판한다.** env 를 건드렸으면 반영 여부를
+> 파일이 아니라 **컨테이너 안에서** 확인한다: `docker exec klid-authoring-jboss sh -c 'echo $VAR'`.
+
 - **env(app.env) 핵심값**(관제 채널):
   - `JWT_SECRET` = **관제서버와 동일 시크릿**(관제 발급 JWT 검증용). 레포에 커밋 금지, env 로만.
   - `SPRING_DATASOURCE_CONTROL_JDBC_URL` = `jdbc:postgresql://postgis-klid:5432/klid`,
