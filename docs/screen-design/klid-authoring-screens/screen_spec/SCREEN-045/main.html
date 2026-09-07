@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-045</span><span class="sep">/</span><span>포털 업로드 영상 마킹 화면</span></div>
+      <h1 style="white-space:nowrap">포털 업로드 영상 마킹 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">포털 회원이 본인이 올린 영상에서 이벤트 구간을 마킹하는 화면이다. 마킹은 프레임을 어느 지점에서 뽑을지 정하는 데 쓰인다 — 마킹을 완료하면 그 지점으로 프레임을 추출하고, 추출이 끝나면 자산이 준비 완료가 되어 라벨링으로 넘어간다. 마킹을 거치지 않은 자산은 프레임을 갖지 않는다.
+
+마킹 방식은 자동과 수동 둘을 제공하며 자동이 기본이다. 자동은 간격으로 지점을 고르고 수동은 영상을 재생하며 사용자가 지점을 찍는다. 화면에 들어와 간격을 그대로 두고 완료하면 고정 간격으로 프레임을 뽑던 것과 같은 결과가 나온다.
+
+재생 대상은 사용자가 올린 원본 영상이다 — 이 경로의 자산에는 비식별 단계가 없다. 재생 요소가 인증 헤더를 싣지 못하므로 단기 서명 주소를 먼저 받아 재생하고, 만료되면 다시 받아 이어 재… · route /portal/uploads/:uldSn/marking</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 영상 플레이어 (스트리밍·구간 탐색·배속)</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-239</span>
+        <span class="wf-badge wf-badge-primary">API-238</span>
+        <span class="wf-badge wf-badge-primary">API-140</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">원본 파일명</span><span class="wf-help">어느 자산을 마킹하는지 알리는 표시. 자산 상세에서 받는다.</span>
+        <span class="wf-muted">VideoPlayer</span><span class="wf-help">단기 서명 주소를 먼저 받아 재생 요소에 물린다. 만료로 재생이 끊기면 주소를 다시 받아 한 번 더 시도한다.</span>
+        <button class="wf-btn wf-btn-secondary">재생 / 일시정지</button>
+        <span class="wf-muted">SpeedButtons</span>
+        <span class="wf-muted">SeekBar</span>
+        <span class="wf-muted">현재 시각 / 총 길이</span>
+        <span class="wf-muted">Spinner</span><span class="wf-help">재생이 멈춘 이유를 알리고 다시 재생되면 사라진다.</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:0 0 168px;min-width:168px;max-width:168px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">좌측 레일</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 마킹 툴바 (모드·간격·초기화·완료)</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-240</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">ModeToggle</span><span class="wf-help">화면 진입 시 자동이 골라져 있다. 전환하면 그 방식에 해당하는 입력만 남는다.</span>
+            <div class="wf-field"><label class="wf-label">간격(프레임)</label><input class="wf-input" placeholder="300" /><p class="wf-help">자동 방식에서만 사용 · 1 이상 정수 · 단위는 프레임 수</p></div><span class="wf-help">자동 방식에서만 쓴다. 단위는 프레임 수이며 입력칸에 그렇게 표기한다 — 수동 지점이 이미 프레임 단위라 자동만 시간 단위로 두면 한 화면 안에서 단위가 갈린다. 기본값은 300 프레임이며 입력칸에 그 값을 안내값으로 둔다 — 내부 채널 마킹의 자동 간격 기본값과 같은 값이라 두 채널의…</span>
+            <span class="wf-muted">간격 환산 시간 · 뽑힐 프레임 수 안내</span><span class="wf-help">지금 설정으로 저장하면 몇 장이 뽑히는지와, 입력한 프레임 간격이 이 영상에서 대략 몇 초에 해당하는지를 한 줄로 함께 알린다. 저장이 곧 추출의 시작이라 되돌릴 수 없기 때문이고, 같은 프레임 수라도 초당 프레임 수가 다른 영상에서는 다른 시간 간격이 되기 때문이다. 두 값을 한자리에…</span>
+            <span class="wf-muted">수동 단축키 안내</span><span class="wf-help">수동 방식일 때만 보인다. 지점 추가·선택 지점 삭제·완료 단축키를 알린다.</span>
+            <button class="wf-btn wf-btn-secondary">초기화</button><span class="wf-help">아직 저장하지 않은 지점을 모두 지운다. 저장된 마킹에는 영향을 주지 않는다.</span>
+            <button class="wf-btn wf-btn-primary">마킹 완료</button><span class="wf-help">누르면 곧바로 저장하지 않고 확인 단계를 먼저 띄운다 — 되돌릴 수 없는 조작이기 때문이다. 수동인데 지점이 하나도 없으면 확인 단계로 넘어가지 않고 안내만 띄운다. 자동은 간격만 있으면 되므로 이 검사 대상이 아니다.</span>
+            <button class="wf-btn wf-btn-primary">마킹 완료 (다시 저장할 수 없음)</button><span class="wf-badge">disabled</span><span class="wf-help">이미 마킹을 저장해 추출이 시작됐거나 끝난 자산에서 완료 자리에 대신 놓인다. 재마킹은 제공하지 않으므로 기다린다고 풀리지 않으며, 왜 누를 수 없는지와 회복 경로를 곁들여 보여 준다.</span>
+            <div class="wf-alert wf-alert-info">다시 마킹하려면 이 자산을 지우고 다시 올려야 합니다.</div><span class="wf-help">완료 버튼이 잠긴 자산에서 사유와 함께 보인다. 문구가 두 가지다 — 추출이 진행 중이면 지금은 지울 수 없으니 끝나기를 기다려 달라고 알리고, 추출이 끝났으면 업로드 화면에서 지우고 다시 올리면 된다고 알린다.</span>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 마킹 타임라인</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-241</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">MarkingTimeline</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ 마킹 진입 차단 안내</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-140</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">자산을 불러올 수 없습니다.</div><span class="wf-help">본인 자산이 아니거나 없는 자산일 때. 두 경우를 가르지 않는다.</span>
+            <div class="wf-alert wf-alert-info">아직 다 올라오지 않은 영상입니다. 업로드가 끝나면 마킹할 수 있습니다.</div>
+            <div class="wf-alert wf-alert-info">영상 자산만 이벤트 구간을 마킹할 수 있습니다.</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:0 0 320px;min-width:320px;max-width:320px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">우측 패널</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 현재 마킹 목록</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-241</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">MarkChip</span><span class="wf-help">프레임 번호와 표시용 시각을 함께 보여 준다. 누르면 선택되고 재생 위치가 그리로 옮겨 간다.</span>
+            <span class="wf-muted">마킹이 없습니다. 재생하며 지점을 찍거나 자동 방식으로 간격을 정해 주세요.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">④ 마킹 완료 확인</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: stack</span>
+          <span class="wf-badge wf-badge-primary">API-240</span>
+          <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-dialog"><div class="wf-dialog-title">마킹을 완료하고 프레임을 추출할까요?</div></div><span class="wf-help">완료 버튼을 눌렀을 때 열린다. 배경을 눌러 닫으면 취소와 같게 다룬다.</span>
+          <div class="wf-stack"><div class="wf-row"><span class="wf-muted">확정되는 내용 (방식 · 간격 · 뽑힐 프레임 수)</span><span>···</span></div></div><span class="wf-help">자동이면 간격을 프레임 수와 환산 시간으로 함께 보여 주고, 수동이면 찍은 지점 수를 보여 준다. 뽑힐 장수는 절단을 반영한 실제 값으로 내고, 잘렸으면 요청한 수와 나란히 놓아 몇 개가 빠지는지 드러낸다. 값은 창을 열 때 다시 계산한다.</span>
+          <div class="wf-alert wf-alert-info">완료하면 되돌릴 수 없습니다. 다시 마킹하려면 이 자산을 지우고 다시 올려야 하며, 추출이 진행 중인 동안에는 지울 수 없습니다.</div><span class="wf-help">되돌릴 수 없다는 사실과 회복 경로, 그리고 그 회복에 따르는 기다림을 한자리에서 알린다.</span>
+          <button class="wf-btn wf-btn-secondary">취소</button><span class="wf-help">기본 초점이 이 버튼에 있다. 누르면 아무것도 저장하지 않고 마킹을 이어 할 수 있다.</span>
+          <button class="wf-btn wf-btn-primary">완료하고 추출 시작</button><span class="wf-badge wf-badge-primary">API-240</span><span class="wf-help">이 버튼에서만 저장 요청이 나간다. 요청이 나가는 동안 두 버튼을 함께 잠가 두 번 눌리지 않게 한다.</span>
+          <div class="wf-alert wf-alert-info">고른 지점이 추출 장수 상한을 넘어 일부만 뽑힙니다.</div><span class="wf-help">상한에 걸릴 때만 나타난다. 요청한 지점 수와 실제로 뽑히는 장수를 함께 적고 무엇이 남는지를 알린다 — 자동은 전 구간을 고르게 다시 뽑아 덮는 범위가 유지되고, 수동은 앞에서부터 상한까지 남고 뒤가 빠지므로 마지막으로 들어가는 지점이 어디인지까지 보여 준다. 저장은 되돌릴 수 없으므…</span>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 영상 플레이어 (스트리밍·구간 탐색·배속)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹할 영상을 재생하는 영역. 먼저 단기 서명 주소를 발급받아 재생 요소에 물리고 구간 요청으로 재생한다 — 재생 요소는 인증 헤더를 싣지 못해 인증이 걸린 재생 주소를 그대로 재생할 수 없다. 서명이 만료돼 재생이 끊기면 주소를 다시 받아 그 자리에서 이어 재생한다. 재생 대상은 사용자가 올린 원본 영상이며 이 경로에는 가려진 사본이 없다. 재생/일시정지, 배속(0.25배에서 4배), 구간 탐색 막대, 현재 시각과 총 길이 표시를 제공한다. 현재 재생 시각과 그 시각에 해당하는 프레임 번호를 다른 영역에 넘겨 마킹 지점의 근거로 삼는다. 원본 파일명을 함께 보여 어느 자산을 마킹하는지 알 수 있게 한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(원본 파일명)<p class="wf-help" style="margin:2px 0 0">어느 자산을 마킹하는지 알리는 표시. 자산 상세에서 받는다.</p></li><li>Custom(영상 플레이어)<p class="wf-help" style="margin:2px 0 0">단기 서명 주소를 먼저 받아 재생 요소에 물린다. 만료로 재생이 끊기면 주소를 다시 받아 한 번 더 시도한다.</p></li><li>Button(재생 / 일시정지)</li><li>Custom(배속 0.25배 ~ 4배)</li><li>Custom(구간 탐색 막대)</li><li>Text(현재 시각 / 총 길이)</li><li>Custom(버퍼링·탐색 중 표시)<p class="wf-help" style="margin:2px 0 0">재생이 멈춘 이유를 알리고 다시 재생되면 사라진다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-239</li><li>API-238</li><li>API-140</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 마킹 타임라인</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>고른 지점을 영상 길이 대비 위치로 늘어놓아 한눈에 보이게 하는 영역. 막대를 누르면 그 지점이 선택되고 재생 위치가 그리로 옮겨 간다. 화면에 다시 들어온 경우에는 저장된 지점을 받아 같은 방식으로 표시한다. 자동 방식일 때는 간격을 바꿀 때마다 뽑힐 지점이 여기 바로 반영되어, 저장하기 전에 무엇이 뽑힐지 확인할 수 있다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(타임라인 마킹 막대) · binds marks</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-241</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 마킹 툴바 (모드·간격·초기화·완료)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 방식을 고르고 저장하는 영역. 자동과 수동을 탭으로 전환하며 화면 진입 시에는 자동이 골라져 있다. 자동은 간격 입력만 받고 지점은 그 간격으로 산출한다 — 간격을 그대로 두고 완료하면 고정 간격으로 프레임을 뽑던 것과 같은 결과가 된다. 간격의 단위는 프레임 수이며 입력칸에 그렇게 표기한다. 수동으로 찍는 지점이 이미 프레임 단위라 자동만 시간 단위로 두면 한 화면 안에서 단위가 갈리기 때문이다. 다만 같은 프레임 수라도 초당 프레임 수가 다른 영상에서는 다른 시간 간격이 되므로, 지금 영상 기준으로 대략 몇 초에 해당하는지를 함께 보여 준다. 그 환산 시간은 뽑힐 프레임 수 안내와 한자리에 묶는다 — 둘 다 「지금 설정이 이 영상에서 실제로 무엇을 뜻하는가」라는 같은 물음에 답하고 같은 초당 프레임 수에서 함께 나오는 값이라, 따로 두면 사용자가 두 자리를 오가며 맞춰 봐야 한다. 기본값은 300 프레임이고 사용자가 바꿀 수 있다. 지점이 추출 장수 상한을 넘으면 거부되지 않고 잘린다. 수동은 재생하며 지점을 찍는 방식이고 단축키로 지점 추가·삭제·완료를 할 수 있다. 초기화는 아직 저장하지 않은 지점을 모두 지운다. 마킹 완료를 누르면 곧바로 저장하지 않고 확인 단계를 먼저 띄운다 — 저장이 곧 추출의 시작이고 되돌릴 수 없기 때문이다. 확인을 거쳐야 지점이 저장되고 추출이 시작된다. 수동인데 지점이 하나도 없으면 확인 단계로 넘어가지 않고 안내만 띄운다. 이미 마킹을 저장해 추출이 시작됐거나 끝난 자산에서는 완료를 누를 수 없고 그 사유를 함께 보여 준다 — 서버도 그 저장을 받지 않으므로 화면에서 먼저 막지 않으면 사용자가 지점을 다 찍은 뒤에야 거절당한다. 그 사유 안내는 재마킹이 제공되지 않는다는 사실과 회복 경로를 함께 알린다. 문구는 두 가지다 — 추출이 진행 중이면 지금은 지울 수도 없으니 끝나기를 기다려야 한다고 알리고, 추출이 끝났으면 자산을 지우고 다시 올리면 새로 마킹할 수 있다고 알리며 업로드 화면으로 이끈다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(자동 / 수동 모드)<p class="wf-help" style="margin:2px 0 0">화면 진입 시 자동이 골라져 있다. 전환하면 그 방식에 해당하는 입력만 남는다.</p></li><li>Input(간격(프레임)) · binds interval · 검증: 자동 방식에서만 사용 · 1 이상 정수 · 단위는 프레임 수<p class="wf-help" style="margin:2px 0 0">자동 방식에서만 쓴다. 단위는 프레임 수이며 입력칸에 그렇게 표기한다 — 수동 지점이 이미 프레임 단위라 자동만 시간 단위로 두면 한 화면 안에서 단위가 갈린다. 기본값은 300 프레임이며 입력칸에 그 값을 안내값으로 둔다 — 내부 채널 마킹의 자동 간격 기본값과 같은 값이라 두 채널의 자동 마킹이 같은 눈금에서 시작한다. 사용자가 바꾼 값은 그 영상의 마킹에만 쓰이고 운영 기본값을 바꾸지 않는다.</p></li><li>Text(간격 환산 시간 · 뽑힐 프레임 수 안내)<p class="wf-help" style="margin:2px 0 0">지금 설정으로 저장하면 몇 장이 뽑히는지와, 입력한 프레임 간격이 이 영상에서 대략 몇 초에 해당하는지를 한 줄로 함께 알린다. 저장이 곧 추출의 시작이라 되돌릴 수 없기 때문이고, 같은 프레임 수라도 초당 프레임 수가 다른 영상에서는 다른 시간 간격이 되기 때문이다. 두 값을 한자리에 둔 것은 같은 물음에 답하고 같은 초당 프레임 수에서 함께 나오는 값이라 따로 두면 사용자가 두 자리를 오가며 맞춰 봐야 하기 때문이다. 초당 프레임 수를 아직 모르면 환산 시간 없이 프레임 수만 알린다. 지점 수가 추출 장수 상한을 넘으면 잘린다는 사실과 실제로 뽑히는 장수를 요청한 수와 나란히 알린다 — 요청한 수만 보여 주면 사용자는 고른 것이 다 들어간 줄 안다.</p></li><li>Text(수동 단축키 안내)<p class="wf-help" style="margin:2px 0 0">수동 방식일 때만 보인다. 지점 추가·선택 지점 삭제·완료 단축키를 알린다.</p></li><li>Button(초기화)<p class="wf-help" style="margin:2px 0 0">아직 저장하지 않은 지점을 모두 지운다. 저장된 마킹에는 영향을 주지 않는다.</p></li><li>Button(마킹 완료)<p class="wf-help" style="margin:2px 0 0">누르면 곧바로 저장하지 않고 확인 단계를 먼저 띄운다 — 되돌릴 수 없는 조작이기 때문이다. 수동인데 지점이 하나도 없으면 확인 단계로 넘어가지 않고 안내만 띄운다. 자동은 간격만 있으면 되므로 이 검사 대상이 아니다.</p></li><li>Button(마킹 완료 (다시 저장할 수 없음)) · disabled<p class="wf-help" style="margin:2px 0 0">이미 마킹을 저장해 추출이 시작됐거나 끝난 자산에서 완료 자리에 대신 놓인다. 재마킹은 제공하지 않으므로 기다린다고 풀리지 않으며, 왜 누를 수 없는지와 회복 경로를 곁들여 보여 준다.</p></li><li>Alert(다시 마킹하려면 이 자산을 지우고 다시 올려야 합니다.)<p class="wf-help" style="margin:2px 0 0">완료 버튼이 잠긴 자산에서 사유와 함께 보인다. 문구가 두 가지다 — 추출이 진행 중이면 지금은 지울 수 없으니 끝나기를 기다려 달라고 알리고, 추출이 끝났으면 업로드 화면에서 지우고 다시 올리면 된다고 알린다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-240</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 마킹 완료 확인</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 완료를 눌렀을 때 저장을 보내기 전에 한 번 확인받는 단계. 이 화면에서 유일하게 되돌릴 수 없는 조작이라 곧바로 저장하지 않는다 — 저장하는 순간 그 지점으로 추출이 시작되고 재마킹은 제공하지 않으므로, 잘못 저장하면 자산을 지우고 다시 올리는 것 말고는 되돌릴 방법이 없다.
+
+확인 단계는 세 가지를 알린다. 첫째 무엇이 확정되는지 — 방식과 간격(자동이면 프레임 단위 간격과 그 환산 시간), 그리고 몇 장의 프레임이 뽑히는지. 지점이 추출 장수 상한을 넘어 잘릴 때는 잘린다는 사실과 실제 장수를 요청한 수와 나란히 알린다 — 조용히 잘리면 사용자는 고른 지점이 다 들어간 줄 알고 되돌릴 수 없는 저장을 한다. 둘째 되돌릴 수 없다는 사실. 셋째 잘못했을 때의 회복 경로 — 자산을 지우고 다시 올려야 하며, 삭제는 추출이 진행 중인 동안 거절되므로 추출이 끝나기를 기다렸다가 지워야 한다는 것까지 함께 알린다. 회복 경로를 확인 시점에 알리는 것은 그때가 사용자가 아직 취소할 수 있는 마지막 지점이기 때문이다.
+
+기본 초점은 취소에 둔다 — 되돌릴 수 없는 쪽이 기본 선택이면 무심코 누른 한 번이 그대로 확정된다. 확인을 눌러야만 저장이 나가고, 취소하면 아무것도 저장하지 않은 채 마킹을 이어 할 수 있다.
+
+브라우저 기본 확인창이 아니라 화면 안 확인 창으로 둔다. 이 저장소의 확인 창은 화면 안 창이 관례이고 브라우저 기본 확인창을 쓰는 자리는 예외적으로 하나뿐이며, 같은 포털 채널의 라벨링 화면도 화면 안 창을 쓴다. 알려야 할 것이 여러 항목이라 평문 한 덩어리로는 위계를 줄 수 없고, 기본 초점을 취소에 두는 것도 화면 안 창에서만 정할 수 있다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Dialog(마킹을 완료하고 프레임을 추출할까요?)<p class="wf-help" style="margin:2px 0 0">완료 버튼을 눌렀을 때 열린다. 배경을 눌러 닫으면 취소와 같게 다룬다.</p></li><li>KeyValue(확정되는 내용 (방식 · 간격 · 뽑힐 프레임 수))<p class="wf-help" style="margin:2px 0 0">자동이면 간격을 프레임 수와 환산 시간으로 함께 보여 주고, 수동이면 찍은 지점 수를 보여 준다. 뽑힐 장수는 절단을 반영한 실제 값으로 내고, 잘렸으면 요청한 수와 나란히 놓아 몇 개가 빠지는지 드러낸다. 값은 창을 열 때 다시 계산한다.</p></li><li>Alert(완료하면 되돌릴 수 없습니다. 다시 마킹하려면 이 자산을 지우고 다시 올려야 하며, 추출이 진행 중인 동안에는 지울 수 없습니다.)<p class="wf-help" style="margin:2px 0 0">되돌릴 수 없다는 사실과 회복 경로, 그리고 그 회복에 따르는 기다림을 한자리에서 알린다.</p></li><li>Button(취소)<p class="wf-help" style="margin:2px 0 0">기본 초점이 이 버튼에 있다. 누르면 아무것도 저장하지 않고 마킹을 이어 할 수 있다.</p></li><li>Button(완료하고 추출 시작) · → API-240<p class="wf-help" style="margin:2px 0 0">이 버튼에서만 저장 요청이 나간다. 요청이 나가는 동안 두 버튼을 함께 잠가 두 번 눌리지 않게 한다.</p></li><li>Alert(고른 지점이 추출 장수 상한을 넘어 일부만 뽑힙니다.)<p class="wf-help" style="margin:2px 0 0">상한에 걸릴 때만 나타난다. 요청한 지점 수와 실제로 뽑히는 장수를 함께 적고 무엇이 남는지를 알린다 — 자동은 전 구간을 고르게 다시 뽑아 덮는 범위가 유지되고, 수동은 앞에서부터 상한까지 남고 뒤가 빠지므로 마지막으로 들어가는 지점이 어디인지까지 보여 준다. 저장은 되돌릴 수 없으므로 여기서 취소해 간격을 넓히거나 지점을 줄일 수 있다는 것도 함께 알린다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-240</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 현재 마킹 목록</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>고른 지점을 차례로 늘어놓는 목록. 각 항목은 그 지점의 프레임 번호와 표시용 시각을 함께 보여 주고, 누르면 그 지점이 선택되면서 타임라인에서도 함께 강조된다. 선택한 항목은 목록에서 지울 수 있다. 화면에 다시 들어온 경우에는 저장된 지점이 같은 목록에 표시되며 이때는 지우거나 더할 수 없다. 지점이 하나도 없으면 무엇을 해야 하는지 알리는 안내를 대신 보여 준다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(마킹 항목) · binds marks<p class="wf-help" style="margin:2px 0 0">프레임 번호와 표시용 시각을 함께 보여 준다. 누르면 선택되고 재생 위치가 그리로 옮겨 간다.</p></li><li>Text(마킹이 없습니다. 재생하며 지점을 찍거나 자동 방식으로 간격을 정해 주세요.)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-241</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 마킹 진입 차단 안내</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 편집기를 그릴지 판정하는 영역. 자산 상세로 축을 순서대로 확인해 하나라도 걸리면 편집기(영상 플레이어·마킹 타임라인·마킹 툴바·마킹 목록)를 그리지 않고 사유 안내만 보여 준다. 첫째 소유 축 — 본인 자산이 아니거나 자산을 불러올 수 없으면 차단한다. 서버가 남의 자산과 없는 자산을 한 코드로 거절하므로 화면도 두 경우를 가르지 않고 같은 안내를 보여 준다. 둘째 업로드 축 — 파일이 아직 다 올라오지 않아 재생할 것이 없으면 차단한다. 셋째 자산 종류 축 — 이벤트 구간이라는 개념이 없는 자산 종류는 차단한다. 세 축은 차단이라는 결과가 같아도 사유와 안내 문구가 달라 하나로 합치지 않는다. 자산 상세를 아직 받는 중이면 어느 축도 차단하지 않는다 — 확정되지 않은 값으로 차단하면 불러오는 동안의 깜빡임이 정상 마킹을 막는다. 이미 마킹을 저장해 추출이 시작됐거나 끝난 자산은 이 영역이 다루지 않는다 — 저장된 지점을 확인할 수 있어야 하므로 편집기를 그대로 그리되 저장만 막는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(자산을 불러올 수 없습니다.)<p class="wf-help" style="margin:2px 0 0">본인 자산이 아니거나 없는 자산일 때. 두 경우를 가르지 않는다.</p></li><li>Alert(아직 다 올라오지 않은 영상입니다. 업로드가 끝나면 마킹할 수 있습니다.)</li><li>Alert(영상 자산만 이벤트 구간을 마킹할 수 있습니다.)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-140</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

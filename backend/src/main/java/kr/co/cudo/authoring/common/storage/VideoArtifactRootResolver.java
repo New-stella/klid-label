@@ -429,8 +429,18 @@ public class VideoArtifactRootResolver {
         if (base == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 영상 경로의 상위 디렉터리를 확인할 수 없습니다.");
         }
-        // lexical — '..' 순회는 normalize 로 접힌 뒤 allowlist 밖으로 떨어져 여기서 거부된다.
-        boolean lexicalOk = roots.stream().anyMatch(base::startsWith);
+        // 표기 기준 — '..' 순회는 normalize 로 접힌 뒤 allowlist 밖으로 떨어져 여기서 거부된다.
+        // ★허용 루트의 표기와 루트가 실제로 가리키는 자리를 <b>둘 다</b> 시작점으로 인정한다(ADR-065).
+        //  루트가 심링크인 형상에서 실경로 표기로 들어온 base 가 여기서 떨어지면, 뒤의 두 단계가
+        //  통과시킬 값인데도 가장 느슨해야 할 검사가 먼저 막는다. 넓어지는 것은 그 경우 하나뿐이며
+        //  심링크가 없으면 판정 결과가 종전과 완전히 같다.
+        //  ⚠ 이것은 첫 단계일 뿐이다 — 범위 밖을 가리키는 심링크 차단은 아래 실경로 재검사가 계속 맡는다.
+        //  ⚠ 이 단계에서도 루트 해석 실패는 fail-secure 거부로 끝난다(realOrNearest 가 FORBIDDEN 을
+        //   던진다). 종전에는 이 단계가 예외를 낼 수 없었으므로, 설정된 루트를 읽을 수 없는 상황에서
+        //   거부 <메시지>가 갈릴 수 있다 — 오류 코드(FORBIDDEN)와 입력 원문 미노출은 그대로다.
+        //   결함이 아니라 이 전환의 알려진 귀결이니 재보고하지 말 것.
+        boolean lexicalOk = AllowedRootMatcher.startsWithAnyRoot(
+                base, roots, VideoArtifactRootResolver::realOrNearest);
         if (!lexicalOk) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 원본 저장 경로입니다.");
         }

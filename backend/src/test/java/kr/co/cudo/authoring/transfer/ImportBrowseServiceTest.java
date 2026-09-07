@@ -65,8 +65,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @design DOMAIN-017
  * @design API-221
  * @design API-222
+ * @design ADR-065
  * @design AC-120
- * @design AC-048
+ * @design AC-1079
+ * @design AC-1080
  */
 class ImportBrowseServiceTest {
 
@@ -94,11 +96,20 @@ class ImportBrowseServiceTest {
      * 돌려준 실경로를 범위 밖으로 본다. 그 성질은 판정기의 것이지 이 창구의 것이 아니므로, 표본을
      * 실경로로 고정해 플랫폼 차이를 걷어낸 뒤 창구의 규칙만 본다.
      *
-     * <p>(운영에서 허용 루트를 바로가기 뒤에 두면 같은 일이 실제로 일어난다 — 판정기 소유 축이라
-     * 여기서 고치지 않고 보고한다.)
+     * <p>✅ 구 서술 폐기 — <i>"운영에서 허용 루트를 바로가기 뒤에 두면 같은 일이 실제로 일어난다 —
+     * 판정기 소유 축이라 여기서 고치지 않고 보고한다"</i>. 그 결함은 닫혔다(ADR-065). 다만 <b>여기서
+     * 실경로로 고정하는 것은 그대로 둔다</b> — 이 자리의 시험들은 창구의 담기·나누기 규칙을 보는 것이라
+     * 루트 형상을 섞으면 무엇이 무엇을 고정하는지 흐려진다. 바로가기 루트 축은 아래 전용 절이 덮는다.
      */
     private Path root;
     private Path outside;
+
+    /**
+     * 허용 루트로 <b>선언할 바로가기</b>를 놓을 자리 — 설정에 적힌 표기와 실제로 닿는 자리가 갈리는
+     * 형상을 플랫폼에 기대지 않고 직접 만든다(ADR-065).
+     */
+    @TempDir
+    Path linkHome;
 
     private ImportSourcePolicy policy;
     private ImportBrowseService service;
@@ -123,7 +134,7 @@ class ImportBrowseServiceTest {
         ImportBrowseResponse response = service.listFolders(null, null);
 
         // 검사·적재가 받아들이는 범위와 <같은 자리>에서 나온다 — 목록이 두 벌이면 한쪽만 넓어져
-        // 한 창구에서 막히는 자리가 다른 창구에서 열린다(AC-048).
+        // 한 창구에서 막히는 자리가 다른 창구에서 열린다(AC-1080).
         assertThat(response.entries()).extracting(ImportBrowseResponse.Entry::path)
                 .containsExactlyElementsOf(policy.readableRoots().stream().map(Path::toString).toList());
         // 기준 위치가 하나로 정해지지 않으므로 둘 다 비어 있다.
@@ -142,7 +153,7 @@ class ImportBrowseServiceTest {
      * 선언해 그 자리를 메운다.
      *
      * <p>순서가 축인 까닭은 이 목록이 검사·적재가 받아들이는 범위의 <b>사본</b>이기 때문이다 — 다시
-     * 정렬하면 그것이 같은 목록임을 순서까지 포함해 확인할 수 없게 된다(AC-048).
+     * 정렬하면 그것이 같은 목록임을 순서까지 포함해 확인할 수 없게 된다(AC-1080).
      */
     @Test
     @DisplayName("허용_저장소_루트가_여럿이면_선언된_순서_그대로_돌아온다")
@@ -695,7 +706,7 @@ class ImportBrowseServiceTest {
         return folder;
     }
 
-    // ------------------------------------------------------------------ 거부 (AC-048)
+    // ----------------------------------------------------------------- 거부 (AC-1080)
 
     @Test
     @DisplayName("허용_범위_밖_경로는_잘못된_입력으로_거부하고_메시지에_입력_원문을_담지_않는다")
@@ -991,6 +1002,106 @@ class ImportBrowseServiceTest {
         appender.start();
         serviceLogger().addAppender(appender);
         return appender;
+    }
+
+    // ------------------------------------------------------ 허용 루트가 바로가기인 형상 (ADR-065)
+
+    /**
+     * 허용 루트 <b>자체가 바로가기</b>인 창구를 만든다. 바로가기를 만들 수 없는 환경이면 통과가
+     * 아니라 <b>건너뜀</b>으로 답한다 — 재현되지 않는 것을 초록으로 세면 가드가 없는 것과 같다.
+     */
+    private ImportBrowseService symlinkRootService() {
+        Path link = linkHome.resolve("root-link");
+        try {
+            Files.createSymbolicLink(link, tempRoot);
+        } catch (IOException | UnsupportedOperationException | SecurityException e) {
+            Assumptions.abort("바로가기를 만들 수 없는 환경이다 — 이 축은 여기서 재현되지 않는다: "
+                    + e.getClass().getSimpleName());
+        }
+        ImportBrowseService linked = new ImportBrowseService(new ImportSourcePolicy(
+                new VideoArtifactRootResolver(link.toString(), "", link.toString(),
+                        link.toString(), link.toString(), "co-locate")));
+        ReflectionTestUtils.setField(linked, "pageSize", PAGE_SIZE);
+        ReflectionTestUtils.setField(linked, "scanLimit", SCAN_LIMIT);
+        return linked;
+    }
+
+    /**
+     * ★왕복 가드 — 이 창구가 돌려준 위치를 <b>그대로 되넣으면 통과</b>한다(API-221).
+     *
+     * <p>이 창구는 판정에 쓴 실경로를 싣고 화면은 그 값을 그대로 되돌려 보낸다. 판정의 표기 단계가
+     * 설정 원문만 인정하면 <b>서버가 자기가 내준 위치를 자기가 거부</b>해, 루트 바로 아래에서 한
+     * 걸음도 나아가지 못한다. 현장에서 그 상태가 실제로 났다.
+     */
+    @Test
+    @DisplayName("★바로가기_루트가_돌려준_위치를_그대로_되넣으면_한_단계씩_더_들어갈_수_있다")
+    void 바로가기_루트가_돌려준_위치를_그대로_되넣으면_한_단계씩_더_들어갈_수_있다() throws IOException {
+        ImportBrowseService linked = symlinkRootService();
+        handoverFixture();
+        String declaredRoot = linkHome.resolve("root-link").toString();
+
+        // 1홉 — 선언된 루트 표기로 들어간다. 돌아오는 위치는 바로가기를 따라간 실제 자리다.
+        ImportBrowseResponse first = linked.listFolders(declaredRoot, null);
+        assertThat(first.path()).isEqualTo(root.toString());
+        String handoverPath = first.entries().stream()
+                .filter(e -> "handover".equals(e.name())).findFirst().orElseThrow().path();
+
+        // 2홉 — 그 위치를 그대로 되넣는다. 여기서 거부되면 화면이 그 자리에 멈춘다.
+        ImportBrowseResponse second = linked.listFolders(handoverPath, null);
+        assertThat(second.path()).isEqualTo(handoverPath);
+
+        // 3홉 — 한 단계 더. 왕복이 한 번이 아니라 계속 닫히는지 본다.
+        String alphaPath = second.entries().stream()
+                .filter(e -> "alpha".equals(e.name())).findFirst().orElseThrow().path();
+        assertThat(linked.listFolders(alphaPath, null).path()).isEqualTo(alphaPath);
+    }
+
+    /**
+     * ★갇힘 가드 — 바로가기 루트에서 한 단계 내려간 자리의 <b>위가 비어 돌아오지 않는다</b>.
+     *
+     * <p>화면은 이 값 하나로 「상위로」의 활성 여부를 정한다. 비면 사람이 그 자리에 갇힌다.
+     */
+    @Test
+    @DisplayName("★바로가기_루트에서_한_단계_내려간_자리의_위가_비어_돌아오지_않는다")
+    void 바로가기_루트에서_한_단계_내려간_자리의_위가_비어_돌아오지_않는다() throws IOException {
+        ImportBrowseService linked = symlinkRootService();
+        Path handover = handoverFixture();
+
+        assertThat(linked.listFolders(handover.toString(), null).parent())
+                .as("여기가 비면 루트 바로 아래로 한 번만 내려가도 위로 갈 길이 사라진다")
+                .isEqualTo(root.toString());
+        // 그 값을 되넣어 실제로 한 단계 위로 올라가진다 — 값만 채워지고 쓸 수 없으면 소용이 없다.
+        assertThat(linked.listFolders(root.toString(), null).parent())
+                .as("루트에 닿으면 그때 비는 것이 정상 종료다").isNull();
+    }
+
+    /**
+     * ⚠ 완화 범위 한정 — 바로가기 루트에서도 <b>범위 밖을 가리키는 바로가기</b>와 <b>상위로 거슬러
+     * 올라가는 표기</b>는 여전히 거부된다(CWE-59 · CWE-22).
+     *
+     * <p>이 단언이 없으면 표기 단계를 넓힌 것과 세 단계를 함께 푼 것이 구분되지 않는다.
+     */
+    @Test
+    @DisplayName("바로가기_루트에서도_범위_밖_바로가기와_상위_이동_표기는_여전히_거부한다")
+    void 바로가기_루트에서도_범위_밖_바로가기와_상위_이동_표기는_여전히_거부한다() throws IOException {
+        ImportBrowseService linked = symlinkRootService();
+        Files.createDirectories(outside.resolve("secret"));
+        Files.createSymbolicLink(root.resolve("escape"), outside);
+        Path declaredRoot = linkHome.resolve("root-link");
+
+        for (String path : List.of(
+                declaredRoot.resolve("escape").toString(),          // 표기는 범위 안, 실제는 밖
+                root.resolve("escape").toString(),                  // 실경로 표기여도 마찬가지다
+                declaredRoot.resolve("../..").resolve(tempOutside.getFileName())
+                        .resolve("secret").toString())) {           // 상위로 거슬러 올라간다
+            assertThatThrownBy(() -> linked.listFolders(path, null))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(e -> {
+                        assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                        // CWE-209 — 어디를 물었는지 응답이 되풀이하지 않는다.
+                        assertThat(e.getMessage()).doesNotContain(path);
+                    });
+        }
     }
 
     // ------------------------------------------------------------------ 표본

@@ -1,18 +1,18 @@
 ---
 logicraft_item: DFEAT-008
 type: domain_feature
-version: 6
+version: 7
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:24.569Z
+synced_at: 2026-09-07T13:24:03.752Z
 status: CHANGED
 prev_version: 6
-content_hash: 6404294c8efbec5000c104547242c00757f74b35e3d21c93a840c46f1abeeebb
+content_hash: e965384e1973db8b71b2f7581266391d7ce3f01a372c2ab94be946a42c723a21
 stale: false
 raw: ./_raw/DFEAT-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
-  implements: ["[[API-191]]", "[[API-192]]"]
+  implements: ["[[API-191]]", "[[API-192]]", "[[IMPREC-352]]"]
   migrated_from: ["[[LEGACY-043]]"]
   triggers: ["[[EVT-005]]"]
   depicts_backward: ["[[CDIAG-001]]", "[[CMP-010]]"]
@@ -86,7 +86,7 @@ LEGACY-043
 
 [★2차 구조 — 적재 주체 반전(ADR-042)] 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구 주기 배치(1회/분)가 미처리 행을 폴링해 적재한다. 영상 관련 정보는 전부 이 인입 테이블에서 평면으로 받으며 관제 공유 마스터 조인은 하지 않는다. 구 방식(공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)은 폐기됐다.
 
-[동시성] 2노드 Active-Active 이므로 후보 선점을 조건부 UPDATE 로 원자 클레임하고(Quartz 클러스터링은 트리거 중복만 막는다), 클레임 후 노드가 죽어 PROCESSING 으로 고착된 행은 타임아웃 기반 좀비 회수로 되살린다. 회수는 스캔 앞에 돌아 같은 tick 에 바로 처리되게 하고, 회수 실패가 그 tick 의 정상 적재를 막지 않도록 예외를 흡수한다.
+[동시성] 4노드 Active-Active 이므로 후보 선점을 조건부 UPDATE 로 원자 클레임하고(Quartz 클러스터링은 트리거 중복만 막는다), 클레임 후 노드가 죽어 PROCESSING 으로 고착된 행은 타임아웃 기반 좀비 회수로 되살린다. 회수는 스캔 앞에 돌아 같은 tick 에 바로 처리되게 하고, 회수 실패가 그 tick 의 정상 적재를 막지 않도록 예외를 흡수한다.
 
 [멱등·격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지를 깨뜨리지 않게 하고, 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다. 식별자·파일경로가 비면 skip(WARN).
 
@@ -95,6 +95,10 @@ LEGACY-043
 (1차 baseline: 데이터송신시스템으로부터 원시 클립영상 수신, 인터페이스 KLID-AI-II-001)
 
 ## invokes_apis
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 
@@ -123,6 +127,10 @@ _(empty)_
 ### last_updated
 
 2026-08-29T01:26:19.881Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 

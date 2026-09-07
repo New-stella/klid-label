@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-002
 type: class_diagram
-version: 7
+version: 8
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:57.207Z
+synced_at: 2026-09-07T13:24:05.711Z
 status: CHANGED
-prev_version: 6
-content_hash: e3f84fb3a431e733255a7b98e184c9b96dd111642eda896669f1782da6d74fdb
-stale: false
+prev_version: 7
+content_hash: a6f2a7e6b35c2211556afb700329e6b752119a7093861839ec86fed45499985e
+stale: true
 raw: ./_raw/CDIAG-002.json
 links:
   belongs_to_domain: ["[[DOMAIN-011]]"]
@@ -712,7 +712,7 @@ _(empty)_
 
 [★대상은 비식별 영상] 비식별이 파이프라인 선두로 재배치되면서 마킹은 MARKING_READY 이후에만 열리며 작업자는 비식별본을 본다. 잔여 배치 진입은 부모의 deIdntfYn='Y' 가드를 통과해야 한다.
 
-[VLM 연계] 마킹 완료 시 VLM 시계열 위탁 요청은 frame_policy(프레임 선택 정책)와 검증이벤트유형(event_type)으로 구성된다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. frame_policy 에는 간격값(framerate)을 두지 않는다. 마킹 본문에서 프레임 인덱스를 얻으면 frame_selected 모드로 그것을 싣고, 하나도 얻지 못하면 frame_interval 모드로 내린다(빈 목록은 규격 위반이라 거부된다) — 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임). 인덱스는 정렬·중복제거 후 0 이상 최대 600건으로 제한하고 초과분은 절단한다. 위탁은 describe(CoT)와 describe-sub(VQA) 두 건으로 제출하며 각 요청에 서로 다른 요청 식별자(request_id)를 부여한다. ★위탁은 논블로킹 제출이다 — 스텝이 확정적으로 말하는 것은 '제출을 개시했다' 뿐이고 수락·결과는 비동기로 도착한다. 상태 전이는 PENDING→VLM_REQUESTED→{VLM_COMPLETED|VLM_FAILED} 이며, PENDING/VLM_REQUESTED→SKIPPED(배치 skip 종결) 로도 전이한다.
+[VLM 연계] 마킹 완료 시 VLM 시계열 위탁 요청은 frame_policy(프레임 선택 정책)와 검증이벤트유형(event_type)으로 구성된다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. frame_policy 에는 간격값(framerate)을 두지 않는다. 마킹 본문에서 프레임 인덱스를 얻으면 frame_selected 모드로 그것을 싣고, 하나도 얻지 못하면 frame_interval 모드로 내린다(빈 목록은 규격 위반이라 거부된다) — 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임). 인덱스는 정렬·중복제거 후 0 이상 최대 600건으로 제한하고 초과분은 절단한다. 위탁은 묘사(describe)와 추가 질문(custom) 두 건으로 제출하며 각 요청에 서로 다른 요청 식별자(request_id)를 부여한다. 추가 질문 창구는 이벤트 유형을 싣지 않고 질문 문구를 요청 본문(prompt, 최대 4,000자)에 직접 싣는다 — 위탁 시점에 조달해 원장에 보관하고 결과 수신 시 재조달하지 않는다. 구 추가 질문 창구(describe-sub)는 연동 대상으로 두지 않는다. ★위탁은 논블로킹 제출이다 — 스텝이 확정적으로 말하는 것은 '제출을 개시했다' 뿐이고 수락·결과는 비동기로 도착한다. 상태 전이는 PENDING→VLM_REQUESTED→{VLM_COMPLETED|VLM_FAILED} 이며, PENDING/VLM_REQUESTED→SKIPPED(배치 skip 종결) 로도 전이한다.
 
 [신고] 마킹 중 개인정보 노출을 발견하면 rawSn 기준으로 비식별 누락 신고를 접수한다(라벨링 단계의 srcSn 신고와 2채널).
 

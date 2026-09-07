@@ -371,3 +371,24 @@ backward)의 `stale_reason` 까지** 기록한다. 소실은 쓴 자리가 아�
 
 ⚠ 이 라운드에서는 **쓰기 전 하류 표식을 캡처하지 않았다** — 위 「절차 개선」이 나오기 전이다.
 따라서 위 8건은 **대상 ITEM 자신의 표식**이고, 그 옆에서 덮인 것이 더 있는지는 **알 수 없다**.
+
+---
+
+## 폐기 ID `AC-048` 참조 잔여 21건 — `transfer/` (2026-09-07 · CO-20260907-허용루트-심링크-경로판정-거부)
+
+`AC-048` 은 LogiCraft 에서 **`deprecated`** 다(2026-08-31 수용기준 전면 재번호 — `AC-1013`~`1083` 이 대체).
+그런데 코드가 그 폐기 ID 를 `@design` 태그·주석 근거로 들고 있어 **추적이 끊긴 태그**다.
+
+- **실측 21건** — main 6 · test 15 (`grep -ran "AC-048" backend/src`)
+- 주요 자리: `transfer/service/ImportService.java:45,74` · `transfer/parser/FirstAnnotationParser.java:66,74` ·
+  `transfer/controller/{Import,ImportScan,ImportBrowse}Controller.java`
+- **현행 대체 ID**: `AC-1079`(happy) · `AC-1080`(negative) · `AC-1081`(edge)
+
+⚠ 위 CO 는 **손댄 3파일만** 정정했다(전역 치환은 그 CO 범위 밖으로 명시). 나머지는 여기 남긴다 —
+조용히 두면 다음 감사가 재발견한다.
+
+⚠ **함께 볼 것**: `ImportBrowseServiceTest` 의 `@design AC-120` 도 서버 `status` 가 **`deprecated`** 다
+(제목 「이관 대상 위치 탐색」). 그 현행 대체 ID 를 확정해야 정정할 수 있다 — 확정 전에는 손대지 말 것.
+
+⚠ **일괄 치환하지 말 것** — `AC-048` 이 담던 축이 흐름 단위 기준 셋으로 **갈라졌으므로**, 자리마다
+happy·negative·edge 중 무엇을 가리키는지 보고 골라야 한다. 기계적 1:1 치환은 잘못된 추적을 만든다.

@@ -29,8 +29,9 @@
         "i_want": "원시 클립영상을 수신·적재하기를",
         "so_that": "이후 프레임 추출·라벨링의 원천 데이터를 확보한다"
       },
-      "description": "관제가 학습용으로 지정한 영상을 저작도구로 들여와 LS_DATA_RAW 에 적재한다.\n\n[★2차 구조 — 적재 주체 반전(ADR-042)] 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구 주기 배치(1회/분)가 미처리 행을 폴링해 적재한다. 영상 관련 정보는 전부 이 인입 테이블에서 평면으로 받으며 관제 공유 마스터 조인은 하지 않는다. 구 방식(공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)은 폐기됐다.\n\n[동시성] 2노드 Active-Active 이므로 후보 선점을 조건부 UPDATE 로 원자 클레임하고(Quartz 클러스터링은 트리거 중복만 막는다), 클레임 후 노드가 죽어 PROCESSING 으로 고착된 행은 타임아웃 기반 좀비 회수로 되살린다. 회수는 스캔 앞에 돌아 같은 tick 에 바로 처리되게 하고, 회수 실패가 그 tick 의 정상 적재를 막지 않도록 예외를 흡수한다.\n\n[멱등·격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지를 깨뜨리지 않게 하고, 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다. 식별자·파일경로가 비면 skip(WARN).\n\n[후속] 정상 적재 시 VideoIngestedEvent(EVT-005) 를 발행해 선두 비식별로 이어진다. 적재 상태는 PENDING → (비식별 성공) MARKING_READY.\n\n(1차 baseline: 데이터송신시스템으로부터 원시 클립영상 수신, 인터페이스 KLID-AI-II-001)",
+      "description": "관제가 학습용으로 지정한 영상을 저작도구로 들여와 LS_DATA_RAW 에 적재한다.\n\n[★2차 구조 — 적재 주체 반전(ADR-042)] 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구 주기 배치(1회/분)가 미처리 행을 폴링해 적재한다. 영상 관련 정보는 전부 이 인입 테이블에서 평면으로 받으며 관제 공유 마스터 조인은 하지 않는다. 구 방식(공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)은 폐기됐다.\n\n[동시성] 4노드 Active-Active 이므로 후보 선점을 조건부 UPDATE 로 원자 클레임하고(Quartz 클러스터링은 트리거 중복만 막는다), 클레임 후 노드가 죽어 PROCESSING 으로 고착된 행은 타임아웃 기반 좀비 회수로 되살린다. 회수는 스캔 앞에 돌아 같은 tick 에 바로 처리되게 하고, 회수 실패가 그 tick 의 정상 적재를 막지 않도록 예외를 흡수한다.\n\n[멱등·격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지를 깨뜨리지 않게 하고, 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다. 식별자·파일경로가 비면 skip(WARN).\n\n[후속] 정상 적재 시 VideoIngestedEvent(EVT-005) 를 발행해 선두 비식별로 이어진다. 적재 상태는 PENDING → (비식별 성공) MARKING_READY.\n\n(1차 baseline: 데이터송신시스템으로부터 원시 클립영상 수신, 인터페이스 KLID-AI-II-001)",
       "invokes_apis": [],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -39,7 +40,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:19.881Z"
+        "last_updated": "2026-08-29T01:26:19.881Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -54,12 +56,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "폴링 주체를 구현 클래스명이 아니라 주기 배치라는 역할과 주기로 적는다. 1회/분 폴링이라는 사양은 그대로 남는다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:19.881Z",
+    "change_summary": "노드 수 표기를 사실에 맞춘다. 저작도구 앱 서버는 실제로 네 대인데 본문이 아직 두 대로 말하고 있었다 — 인프라 항목은 이미 네 대로 고쳐져 있었고 이 문서가 따라가지 못한 상태였다. 동시성 방어 논리와 구조는 하나도 바꾸지 않았다. 여러 노드가 함께 도는 형상이라 애플리케이션 락으로는 방어되지 않아 저장소 수준 조건부 갱신으로 해결한다는 근거는 노드가 둘이든 넷이든 그대로 참이므로, 재검토가 아니라 표기 정정이다. 폐기 표기 안에 인용된 옛 서술은 그대로 두었다 — 그것을 함께 바꾸면 구 서술이 무엇이었는지가 사라져 왜 네 대인지 근거를 찾을 수 없게 된다. 둘이 동시에 부딪히는 상황을 말하는 자리도 그대로 두었다. 그 자리의 두 노드는 대수가 아니라 동시에 충돌하는 두 주체를 뜻하므로 네 대 형상에서도 참이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T03:03:28.713Z",
     "created_at": "2026-05-29T06:27:43.877Z"
   }
 }

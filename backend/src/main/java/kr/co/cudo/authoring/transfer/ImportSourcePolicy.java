@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.transfer;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.storage.AllowedRootMatcher;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -29,7 +30,8 @@ import java.util.List;
  * <ol>
  *   <li><b>형식·길이</b> — 컬럼·계약 폭을 넘는 값은 입구에서 거부한다.</li>
  *   <li><b>허용 루트(표기 기준)</b> — 상위 이동 표기({@code ..})는 정규화로 접힌 뒤 루트 밖으로
- *       떨어져 여기서 걸린다(CWE-22).</li>
+ *       떨어져 여기서 걸린다(CWE-22). 이 단계는 허용 루트의 <b>표기</b>와 그 루트가 <b>실제로
+ *       가리키는 자리</b>를 둘 다 시작점으로 인정한다({@link AllowedRootMatcher} · ADR-065).</li>
  *   <li><b>허용 루트(실경로 기준)</b> — 루트 안의 심링크가 밖을 가리키는 우회를 막는다(CWE-59).</li>
  *   <li><b>존재·종류</b> — 마지막에 본다. 앞의 두 검사보다 먼저 하면 <b>허용 범위 밖 경로가 있는지
  *       없는지를 응답이 알려주게</b> 된다(CWE-209).</li>
@@ -40,12 +42,24 @@ import java.util.List;
  * 범위 밖 파일을 읽게 만들 수 있다. 그래서 {@code toRealPath()} 로 얻은 경로를 돌려주고 호출부는
  * <b>그 경로만</b> 쓴다.
  *
+ * <h3>허용 루트가 심링크여도 왕복이 닫힌다 (ADR-065)</h3>
+ * <p>이 판정기가 돌려주는 것은 실경로인데 탐색 창구는 그 값을 응답에 싣고 화면은 그것을 그대로
+ * 되돌려 보내는 것이 계약이다(API-221). 그래서 표기 단계가 <b>설정 원문만</b> 인정하면
+ * <b>자기가 내준 경로를 자기가 거부</b>한다 — 운영 현장에서 허용 루트 바로 아래로 한 걸음도 나가지
+ * 못하고 「상위로」도 늘 비어 돌아오는 상태가 실제로 났다.
+ *
+ * <p>넓어지는 것은 <b>시작점을 읽는 방식뿐</b>이다. 상위 이동 표기는 그대로 막히고(후보가 이미
+ * 정규화된 값이라 두 표기 어느 쪽으로도 범위 밖으로 떨어진다), 허용 범위 밖을 가리키는 심링크는
+ * 뒤따르는 두 단계가 계속 막는다. <b>세 단계를 하나로 합치지 말 것</b> — 셋은 서로 다른 것을 막는다.
+ *
  * <h3>허용 루트 밖은 400 이다</h3>
- * <p>이 도메인의 검사·적재 계약이 허용 범위 밖을 <b>잘못된 입력</b>으로 규정한다(AC-048). 권한
+ * <p>이 도메인의 검사·적재 계약이 허용 범위 밖을 <b>잘못된 입력</b>으로 규정한다(AC-1080). 권한
  * 없음(403)과 코드를 갈라 두어야 응답이 "권한이 없는 것"과 "경로가 잘못된 것"을 섞지 않는다.
  *
  * @design DOMAIN-017
- * @design AC-048
+ * @design ADR-065
+ * @design AC-1079
+ * @design AC-1080
  * @design API-205
  */
 @Component
@@ -109,7 +123,9 @@ public class ImportSourcePolicy {
         }
         List<Path> roots = rootResolver.readableRoots();
         // 표기 기준 — '..' 는 정규화로 접힌 뒤 여기서 걸린다.
-        if (roots.stream().noneMatch(candidate::startsWith)) {
+        // 루트의 표기와 루트가 실제로 가리키는 자리를 둘 다 시작점으로 인정한다(ADR-065) — 규칙은
+        // 공유하되 해석기는 이 클래스 것을 넘긴다(realOrNearest javadoc 참조).
+        if (!AllowedRootMatcher.startsWithAnyRoot(candidate, roots, ImportSourcePolicy::realOrNearest)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "허용된 저장소 범위 밖의 경로입니다.");
         }
         // 실경로 기준 — 아직 없는 경로면 가장 가까운 실재 조상으로 판정한다(존재 여부를 여기서 흘리지 않는다).
@@ -134,7 +150,20 @@ public class ImportSourcePolicy {
         return real;
     }
 
-    /** 실경로(없으면 가장 가까운 실재 조상의 실경로 + 남은 표기 조각). */
+    /**
+     * 실경로(없으면 가장 가까운 실재 조상의 실경로 + 남은 표기 조각).
+     *
+     * <h3>⚠ {@code VideoArtifactRootResolver} 의 같은 이름 메서드와 <b>합치지 말 것</b></h3>
+     * <p>이름과 하는 일이 닮았지만 <b>실패 시맨틱이 의도적으로 다르다</b>.
+     * <ul>
+     *   <li>산출물 쓰기 축은 기준 경로가 실재해야 하므로 해석 실패를 <b>거부</b>로 끝낸다(fail-secure).</li>
+     *   <li>여기는 <b>존재 확인을 범위 검사보다 뒤에</b> 둔다. 해석 실패를 예외로 만들면 <b>허용 범위
+     *       밖 경로가 있는지 없는지를 응답이 알려주게</b> 된다(CWE-209). 그래서 관대하게 남은 조각을
+     *       붙여 돌려주고, 있고 없고는 뒤에서 같은 사유로 마감한다.</li>
+     * </ul>
+     * <p>그래서 <b>규칙만 공유하고({@link AllowedRootMatcher}) 해석기는 각자</b> 둔다. 하나로 합치면
+     * 둘 중 한쪽의 성질이 반드시 깨진다.
+     */
     private static Path realOrNearest(Path path) {
         Path cursor = path;
         Path suffix = null;
