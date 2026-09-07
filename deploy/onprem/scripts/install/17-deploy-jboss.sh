@@ -95,29 +95,9 @@ done
 #    ★ "돌고 있는 프로세스"를 파일보다 신뢰하는 이유 — 설치 디렉터리가 여러 벌 있을 때
 #      실제로 쓰이는 것은 하나뿐이고, 파일에 적힌 값은 낡았을 수 있다.
 # ---------------------------------------------------------------------------
-detect_jboss_home() {
-  local h=""
-  if [[ -n "${JBOSS_HOME_ARG}" ]]; then printf '%s\n' "${JBOSS_HOME_ARG}"; return 0; fi
-
-  # 프로세스에서 -Djboss.home.dir 를 읽는다
-  h="$(ps -eo args= 2>/dev/null | tr ' ' '\n' | grep -m1 -- '-Djboss.home.dir=' | cut -d= -f2- || true)"
-  [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
-
-  # was.env
-  if [[ -f "${KLID_ETC}/was.env" ]]; then
-    h="$(grep -E '^[[:space:]]*WAS_HOME=' "${KLID_ETC}/was.env" | tail -1 | cut -d= -f2- | tr -d '"'"'"' ' || true)"
-    [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
-  fi
-
-  # 흔한 경로
-  local c
-  for c in /GCLOUD/JBOSS/jboss-eap-* /opt/jboss-eap-* /opt/rh/eap*/root/usr/share/wildfly /opt/wildfly*; do
-    [[ -d "${c}/standalone" ]] && { printf '%s\n' "${c}"; return 0; }
-  done
-  return 1
-}
-
-JBOSS_HOME="$(detect_jboss_home || true)"
+# ★ 판정 본체는 lib/common.sh 의 klid_detect_jboss_home 하나다(2026-09-07 이관).
+#   여기 목록을 다시 두면 deploy-update.sh 와 갈린다 — 실제로 갈려 있었다.
+JBOSS_HOME="$(klid_detect_jboss_home "${JBOSS_HOME_ARG}" || true)"
 [[ -n "${JBOSS_HOME}" ]] || die "JBOSS_HOME 을 찾지 못했습니다.
      --jboss-home=<경로> 로 직접 주거나, WAS 가 돌고 있는지 확인하세요:
        ps -ef | grep '[j]boss' | tr ' ' '\\n' | grep jboss.home.dir"

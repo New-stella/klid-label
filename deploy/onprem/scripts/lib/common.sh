@@ -666,6 +666,97 @@ klid_role_has() {
 }
 
 # ----------------------------------------------------------------------------
+# JBOSS_HOME 탐지 — <한 곳에서만> 판정한다 (2026-09-07 이관)
+#
+#   ★ 왜 여기로 옮겼나. 같은 판정이 세 곳에 복제돼 있었고 <목록이 달랐다>:
+#       install/17-deploy-jboss.sh : /GCLOUD/JBOSS/jboss-eap-* 를 안다  (현장 실측 경로)
+#       deploy-update.sh           : 그 경로를 <모른다>                 ← 조용한 결함
+#       klid-jboss-fix.sh          : 또 다른 목록
+#     그래서 업데이트 배포가 현장에서 <현재 WAR 를 못 찾고>, 그 결과
+#     ①기존 WAR 백업이 조용히 건너뛰어지고 ②--rollback 이 되돌릴 것을 갖지 못한다.
+#     배포 자체는 17 에 위임하므로 <성공한다> — 되돌릴 수단만 사라진다. 이 조합이 위험하다.
+#
+#   우선순위: 인자 > 돌고 있는 프로세스 > was.env > 흔한 경로
+#   ★ "돌고 있는 프로세스"를 파일보다 신뢰하는 이유 — 설치 디렉터리가 여러 벌 있을 때
+#     실제로 쓰이는 것은 하나뿐이고, 파일에 적힌 값은 낡았을 수 있다.
+#
+#   klid_detect_jboss_home [<--jboss-home 으로 받은 값>]
+# ----------------------------------------------------------------------------
+klid_detect_jboss_home() {
+  local arg="${1:-}" h=""
+  if [[ -n "${arg}" ]]; then printf '%s\n' "${arg}"; return 0; fi
+
+  h="$(ps -eo args= 2>/dev/null | tr ' ' '\n' | grep -m1 -- '-Djboss.home.dir=' | cut -d= -f2- || true)"
+  [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
+
+  if [[ -f "${KLID_ETC}/was.env" ]]; then
+    h="$(grep -E '^[[:space:]]*WAS_HOME=' "${KLID_ETC}/was.env" | tail -1 | cut -d= -f2- | tr -d '"'"'"' ' || true)"
+    [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
+  fi
+
+  local c
+  for c in /GCLOUD/JBOSS/jboss-eap-* /opt/jboss-eap-* /opt/rh/eap*/root/usr/share/wildfly /opt/wildfly*; do
+    [[ -d "${c}/standalone" ]] && { printf '%s\n' "${c}"; return 0; }
+  done
+  return 1
+}
+
+# ----------------------------------------------------------------------------
+# 반입용 소스 추출 — git 이 추적하는 것만 담는다 (2026-09-05 신설)
+#
+#   ★ 왜 tar 제외 목록이 아니라 git 인가
+#     제외 목록을 손으로 유지하면 <반드시 빠뜨린다>. 실제로 그랬다 — 구 방식의 제외 목록에
+#     backend/storage 가 없어서, 소스를 담는 순간 <영상·프레임 운영 데이터 636MB 가 매체로
+#     함께 나갈> 상태였다. 테스트 로그와 .env 도 같은 이유로 빠져 있었다.
+#     git 은 .gitignore 를 이미 정본으로 갖고 있으므로, 추적된 것만 담으면 그 부류가
+#     <구조적으로> 빠진다. 목록을 늘려 대응하지 않는다.
+#
+#   ★ 기준은 HEAD 다 — 워킹트리가 아니다.
+#     반입물은 <배포된 판>과 일치해야 하고, 그것이 재현 가능해야 한다. 미커밋 변경이 있으면
+#     소스에는 들어가지 않으므로 아래에서 경고한다(산출물이 그 변경으로 빌드됐다면 어긋난다).
+#
+#   klid_export_source <하위 디렉터리> <받을 상위 경로>
+#     예: klid_export_source backend "${PAY}/src"   → ${PAY}/src/backend/
+# ----------------------------------------------------------------------------
+klid_repo_root() {
+  git -C "$(onprem_root)" rev-parse --show-toplevel 2>/dev/null
+}
+
+klid_export_source() {
+  local name="$1" dest_parent="$2"
+  local repo; repo="$(klid_repo_root)"
+  [[ -n "${repo}" ]] || die "[src] git 저장소를 찾지 못했습니다 — 소스 추출은 빌드머신(저장소 안)에서만 됩니다."
+  git -C "${repo}" rev-parse --verify -q "HEAD:${name}" >/dev/null     || die "[src] HEAD 에 '${name}' 가 없습니다 — 경로를 확인하세요."
+
+  # 미커밋 변경 경고 — 산출물이 그 변경으로 빌드됐다면 소스와 어긋난다.
+  if ! git -C "${repo}" diff --quiet HEAD -- "${name}" 2>/dev/null; then
+    warn "[src] '${name}' 에 미커밋 변경이 있습니다 — 소스는 HEAD 기준이라 그 변경이 <빠집니다>."
+    warn "      산출물을 그 변경으로 빌드했다면 매체 안 소스와 어긋납니다. 먼저 커밋하세요."
+  fi
+
+  local to="${dest_parent}/${name}"
+  rm -rf "${to}"
+  ensure_dir "${to}"
+  git -C "${repo}" archive "HEAD:${name}" | ( cd "${to}" && tar -xf - )     || die "[src] 소스 추출 실패: ${name}"
+  ok "[src] ${name} → ${to}  ($(du -sh "${to}" | cut -f1) · $(find "${to}" -type f | wc -l | tr -d ' ')개 파일)"
+}
+
+# klid_write_source_info <받을 상위 경로> — 어느 판의 소스인지 남긴다.
+klid_write_source_info() {
+  local dest_parent="$1"
+  local repo; repo="$(klid_repo_root)"
+  ensure_dir "${dest_parent}"
+  {
+    echo "# klid-label 반입 소스 기록"
+    echo "#   git 이 추적하는 파일만 담는다(.gitignore 가 정본) — 운영 데이터·로그·비밀값은 구조적으로 빠진다."
+    echo "#   기준은 HEAD 이며 워킹트리가 아니다. 재현: git archive HEAD:<디렉터리>"
+    echo "exported_at=$(date '+%Y-%m-%d %H:%M:%S%z')"
+    echo "git_commit=$(git -C "${repo}" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "git_describe=$(git -C "${repo}" describe --always --dirty 2>/dev/null || echo unknown)"
+  } > "${dest_parent}/SOURCE-INFO.txt"
+}
+
+# ----------------------------------------------------------------------------
 # ffmpeg / ffprobe — 대상 장비 전제조건 검증 (2026-08-30 신설, 서버 A 전용)
 #
 #   ★ 왜 검증이 필요한가: ffmpeg 는 <우리가 자동으로 설치하지 않는다>(관제 설치본을

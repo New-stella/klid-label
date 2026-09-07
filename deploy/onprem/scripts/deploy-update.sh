@@ -64,16 +64,14 @@ done
 # 배포 위치 탐지 — 17 과 같은 방식으로 찾는다(값을 여기 박아 두지 않는다).
 # ---------------------------------------------------------------------------
 detect_deploy_dir() {
-  local jh="${JBOSS_HOME:-}"
+  local jh=""
   # ★ "${arr[@]:-}" 는 빈 배열에서 <빈 문자열 인자 1개>를 만든다(set -u 회피용 관용구의 함정).
   #   여기서는 순회만이라 무해하지만, 아래 위임 호출에서는 그 빈 인자가 상대 스크립트의
   #   "알 수 없는 옵션" 으로 죽는다. 두 자리 모두 같은 가드를 쓴다.
   for a in ${PASS_THRU[@]+"${PASS_THRU[@]}"}; do [[ "${a}" == --jboss-home=* ]] && jh="${a#*=}"; done
-  if [[ -z "${jh}" ]]; then
-    for c in /opt/jboss-eap* /opt/EAP* /opt/rh/eap* /usr/share/jbossas /opt/jboss; do
-      [[ -d "${c}/bin" ]] && { jh="${c}"; break; }
-    done
-  fi
+  # ★ 탐지 목록을 여기 두지 않는다 — 17 과 갈리면 <현재 WAR 를 못 찾아> 백업과 롤백이
+  #   조용히 사라진다(배포는 17 에 위임하므로 성공한다). lib/common.sh 가 유일한 판정처다.
+  jh="$(klid_detect_jboss_home "${jh:-${JBOSS_HOME:-}}" || true)"
   [[ -n "${jh}" && -d "${jh}" ]] || return 1
   printf '%s\n' "${jh}/standalone/deployments"
 }
