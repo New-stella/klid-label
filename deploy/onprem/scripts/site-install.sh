@@ -493,7 +493,7 @@ if [[ -n "${TRUSTED_PROXIES}" && -f "${PROPS}" ]]; then
   set_prop WEBHOOK_TRUSTED_PROXY_CIDRS "${TRUSTED_PROXIES}"
   ok "[proxy] WEBHOOK_TRUSTED_PROXY_CIDRS = ${TRUSTED_PROXIES}"
 elif [[ -f "${PROPS}" ]]; then
-  _tp="$(grep -E '^[[:space:]]*WEBHOOK_TRUSTED_PROXY_CIDRS=' "${PROPS}" | tail -1 | cut -d= -f2-)"
+  _tp="$(grep -E '^[[:space:]]*WEBHOOK_TRUSTED_PROXY_CIDRS=' "${PROPS}" | tail -1 | cut -d= -f2- || true)"
   if [[ -z "${_tp}" ]]; then
     warn "[proxy] WEBHOOK_TRUSTED_PROXY_CIDRS 가 비어 있습니다."
     warn "        웹(httpd)이 앞에 있으면 WAS 가 보는 IP 는 전부 웹 장비 IP 입니다 —"

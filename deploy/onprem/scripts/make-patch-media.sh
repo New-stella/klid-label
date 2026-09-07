@@ -71,7 +71,7 @@ info "[patch] 기준선 ${BASE_SHORT} → 이번 판 ${HEAD_SHORT}   (id=${PATCH
 MIG_DIR="backend/src/main/resources/db/migration"
 _base_migs="$(git -C "${REPO}" ls-tree --name-only "${BASELINE}" "${MIG_DIR}/" | sed 's|.*/||' | sort)"
 _head_migs="$(git -C "${REPO}" ls-tree --name-only HEAD          "${MIG_DIR}/" | sed 's|.*/||' | sort)"
-NEW_MIGS="$(comm -13 <(printf '%s\n' "${_base_migs}") <(printf '%s\n' "${_head_migs}"))"
+NEW_MIGS="$(comm -13 <(printf '%s\n' "${_base_migs}") <(printf '%s\n' "${_head_migs}") || true)"
 _mig_vers=""
 if [[ -n "${NEW_MIGS}" ]]; then
   _mig_vers="$(printf '%s\n' "${NEW_MIGS}" | sed 's/__.*//' | paste -sd, -)"

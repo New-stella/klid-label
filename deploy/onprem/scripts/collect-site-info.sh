@@ -45,11 +45,11 @@ df -h / /opt /var /nas-storage /nas-storage1 2>/dev/null | sed 's/^/    /' | sor
 
 # ---------------------------------------------------------------------------
 sec "2. WAS (JBoss EAP)"
-_ps="$(ps -eo user=,pid=,args= 2>/dev/null | grep 'jboss-modules.jar' | grep -v grep | head -n1)"
+_ps="$(ps -eo user=,pid=,args= 2>/dev/null | grep 'jboss-modules.jar' | grep -v grep | head -n1 || true)"
 if [[ -n "${_ps}" ]]; then
   row "실행 중"      "예"
   row "실행 계정"    "$(printf '%s' "${_ps}" | awk '{print $1}')"
-  JBOSS_HOME="$(printf '%s' "${_ps}" | tr ' ' '\n' | grep -m1 -- '-Djboss.home.dir=' | cut -d= -f2-)"
+  JBOSS_HOME="$(printf '%s' "${_ps}" | tr ' ' '\n' | grep -m1 -- '-Djboss.home.dir=' | cut -d= -f2- || true)"
   row "JBOSS_HOME"   "${JBOSS_HOME}"
   row "모드"         "$(printf '%s' "${_ps}" | grep -qi 'org.jboss.as.standalone' && echo standalone || echo '★domain? — 배포 절차가 다릅니다')"
   row "server-config" "$(printf '%s' "${_ps}" | tr ' ' '\n' | grep -m1 -E '^(--server-config=|-c$)' | cut -d= -f2-)"
@@ -110,10 +110,10 @@ if [[ -f "${_props}" ]]; then
   for k in CONTROL_DB_HOST CONTROL_DB_PORT CONTROL_DB_NAME CONTROL_DB_USERNAME AI_SERVER_URL STORAGE_RAW_PATH DEIDENTIFY_API_URL; do
     row "  ${k}" "$(grep -E "^[[:space:]]*${k}=" "${_props}" | tail -1 | cut -d= -f2-)"
   done
-  _pw="$(grep -E '^[[:space:]]*CONTROL_DB_PASSWORD=' "${_props}" | tail -1 | cut -d= -f2-)"
+  _pw="$(grep -E '^[[:space:]]*CONTROL_DB_PASSWORD=' "${_props}" | tail -1 | cut -d= -f2- || true)"
   row "  CONTROL_DB_PASSWORD" "$( [[ -n "${_pw}" ]] && echo '(설정됨)' || echo '★비어 있음' )"
   # WAS 계정이 읽을 수 있는가 — 권한 표가 아니라 실제로 읽어서 판정한다
-  _wu="$(ps -eo user=,args= 2>/dev/null | grep -m1 'jboss-modules.jar' | awk '{print $1}')"
+  _wu="$(ps -eo user=,args= 2>/dev/null | grep -m1 'jboss-modules.jar' | awk '{print $1}' || true)"
   if [[ ${AM_ROOT} -eq 1 && -n "${_wu}" ]]; then
     row "  ${_wu} 읽기" "$(sudo -u "${_wu}" test -r "${_props}" && echo 'OK' || echo '★불가 — 앱만 조용히 기동 실패합니다')"
   fi
@@ -127,7 +127,7 @@ sec "6. 저장소 (NAS)"
 for p in /nas-storage /nas-storage1; do
   [[ -e "${p}" ]] || { row "${p}" "없음"; continue; }
   row "${p}" "$(stat -c '%U:%G %a' "${p}" 2>/dev/null) · $(df -h "${p}" 2>/dev/null | tail -1 | awk '{print $4" 여유"}')"
-  _wu="$(ps -eo user=,args= 2>/dev/null | grep -m1 'jboss-modules.jar' | awk '{print $1}')"
+  _wu="$(ps -eo user=,args= 2>/dev/null | grep -m1 'jboss-modules.jar' | awk '{print $1}' || true)"
   if [[ ${AM_ROOT} -eq 1 && -n "${_wu}" ]]; then
     row "  ${_wu} 쓰기" "$(sudo -u "${_wu}" test -w "${p}" && echo 'OK' || echo '★불가 — 비식별·프레임추출·산출물이 전부 실패합니다')"
   fi
@@ -138,17 +138,17 @@ mount | grep -iE 'nfs|cifs|nas' | sed 's/^/    마운트: /'
 sec "7. DB (PostgreSQL)"
 row "psql 클라이언트" "$(has psql && psql --version || echo '★없음 — 접속 시험을 못 합니다')"
 if [[ -f "${_props}" ]] && has psql; then
-  _h="$(grep -E '^[[:space:]]*CONTROL_DB_HOST=' "${_props}" | tail -1 | cut -d= -f2-)"
-  _p="$(grep -E '^[[:space:]]*CONTROL_DB_PORT=' "${_props}" | tail -1 | cut -d= -f2-)"
-  _n="$(grep -E '^[[:space:]]*CONTROL_DB_NAME=' "${_props}" | tail -1 | cut -d= -f2-)"
+  _h="$(grep -E '^[[:space:]]*CONTROL_DB_HOST=' "${_props}" | tail -1 | cut -d= -f2- || true)"
+  _p="$(grep -E '^[[:space:]]*CONTROL_DB_PORT=' "${_props}" | tail -1 | cut -d= -f2- || true)"
+  _n="$(grep -E '^[[:space:]]*CONTROL_DB_NAME=' "${_props}" | tail -1 | cut -d= -f2- || true)"
   row "설정된 대상" "${_h}:${_p}/${_n}  (접속 시험은 비밀번호가 필요해 여기서 하지 않습니다)"
 fi
 echo "  포트 도달 확인은 아래를 <직접> 돌려 보세요(주소는 현장값):"
 echo "    timeout 3 bash -c '</dev/tcp/10.177.199.148/19999' && echo OK || echo 불가"
 echo "  매체 schema.sql 기대 개수:"
 if [[ -f "${ONPREM}/db/schema.sql" ]]; then
-  _t="$(grep -c '^CREATE TABLE klid_at\.' "${ONPREM}/db/schema.sql")"
-  _v="$(grep -c '^CREATE VIEW klid_at\.'  "${ONPREM}/db/schema.sql")"
+  _t="$(grep -c '^CREATE TABLE klid_at\.' "${ONPREM}/db/schema.sql" || true)"
+  _v="$(grep -c '^CREATE VIEW klid_at\.'  "${ONPREM}/db/schema.sql" || true)"
   row "  테이블 / 뷰" "${_t} / ${_v}  → information_schema.tables 기대 $(( _t + _v ))"
 else
   row "  schema.sql" "★매체에 없음"
@@ -163,7 +163,7 @@ probe() {  # probe <라벨> <host> <port>
   row "$1" "$2:$3 — ${r}"
 }
 if [[ -f "${_props}" ]]; then
-  _ai="$(grep -E '^[[:space:]]*AI_SERVER_URL=' "${_props}" | tail -1 | cut -d= -f2- | sed 's#^https\?://##')"
+  _ai="$(grep -E '^[[:space:]]*AI_SERVER_URL=' "${_props}" | tail -1 | cut -d= -f2- | sed 's#^https\?://##' || true)"
   [[ -n "${_ai}" ]] && probe "AI 서버(설정값)" "${_ai%%:*}" "$(printf '%s' "${_ai#*:}" | cut -d/ -f1)"
 fi
 probe "AI GPU 1" 10.177.33.162 9300

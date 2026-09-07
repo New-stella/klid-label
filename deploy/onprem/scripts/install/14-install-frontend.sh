@@ -95,6 +95,31 @@ ensure_dir "$(dirname "${_TARGET}")"
 cp -R "${DIST_SRC}" "${_TARGET}"
 ok "[frontend] dist: ${WEB_DIR}/${DIST_NAME}  (원본 ${DIST_SRC})"
 
+# ---- 1-0) 이 단계 안에서 <끝을 본다> (2026-09-07 구조 정정, 구속) --------------
+#   ★★ 종전에는 런타임 설정 생성·소유권·보안 문맥이 이 아래 <세 단계 뒤>에 있었다.
+#     그 사이의 httpd 설정 배치가 실패하자 set -e 로 단계가 끝났고, 결과는:
+#       · 정적 자산은 배치됐는데 klid-config.js 가 <빌드 시점 빈 값>으로 남아 화면이 죽고
+#       · 소유자가 root 로 남아 웹 서버가 읽지 못하는 상태
+#     둘 다 오류 없이 조용했다. 부수적인 단계 하나가 필수적인 마무리를 데려간 것이다.
+#   ⇒ 배치 직후에 <반드시 되어야 하는 것>을 끝낸다. 뒤 단계가 무엇을 하든 여기까지는 성립한다.
+
+#   ① 런타임 설정 — 새 dist 에 들어 있는 같은 이름 파일은 <빈 값>이다. 옛 것이 있으면 살린다.
+#      (아래 3-1 이 ${KLID_ETC}/frontend.env 로 다시 만들지만, 그 단계에 <의존하지 않는다>.)
+if [[ -n "${_BAK:-}" && -s "${_BAK}/klid-config.js" ]]; then
+  if grep -q 'VITE_' "${_BAK}/klid-config.js" 2>/dev/null; then
+    cp -a "${_BAK}/klid-config.js" "${_TARGET}/klid-config.js"
+    ok "[frontend] klid-config.js 를 직전 배포본에서 되살렸습니다(값 보존)."
+  fi
+fi
+
+#   ② 소유자 — root 로 돌아도 <웹 서버 계정>이 소유해야 한다. 종전에는 이 줄이 아예 없어
+#      성공한 설치에서도 root 소유로 남았다(2026-09-07 현장 실측).
+chown -R "${KLID_USER}:${KLID_GROUP}" "${_TARGET}" 2>/dev/null   || warn "[frontend] 소유 변경 실패: ${_TARGET} — 웹 서버가 읽지 못할 수 있습니다."
+ok "[frontend] 소유자: ${KLID_USER}:${KLID_GROUP}"
+
+#   ③ 보안 문맥 — 아래 4단계가 다시 하지만, 거기까지 못 가도 읽히게 여기서 한 번 건다.
+command -v restorecon >/dev/null 2>&1 && restorecon -R "${_TARGET}" >/dev/null 2>&1 || true
+
 # ---- 1-1) 런타임 설정 정본 배치 + 생성기 설치 ----
 #   ★ 값의 정본은 산출물이 아니라 ${KLID_ETC}/frontend.env 다(백엔드가 DB 접속정보를 /etc/klid
 #     에서 읽는 것과 같은 관례). 예전에는 상위 로그인 주소·개발용 화면 토글이 <빌드 시점>에
@@ -205,11 +230,36 @@ fi
 #     나빠지므로, 실패 사실은 아래에서 <크게> 남긴다.
 #   ★ SELinux 문맥 부여(4단계)보다 <앞>에 둔다 — 여기서 만든 klid-config.js 도 restorecon
 #     대상에 포함되게 하기 위해서다.
+#   ★★ 생성이 <있던 값을 지우지 못하게> 한다 (2026-09-07 신설, 구속).
+#     ${KLID_ETC}/frontend.env 가 비어 있으면 생성기는 빈 설정을 만든다. 그것을 그대로
+#     덮으면 <직전까지 멀쩡히 돌던 화면>이 API 주소를 잃는다. 오류는 나지 않는다.
+#     그래서 값의 개수를 세어, 줄어들면 되돌린다. 설정 파일을 채우는 것은 사람의 일이고,
+#     그때까지 화면이 죽어 있을 이유는 없다.
+_FE_CFG="${WEB_DIR}/${DIST_NAME}/klid-config.js"
+_cfg_values() { grep -c 'VITE_' "$1" 2>/dev/null || true; }
+_FE_BEFORE="$(_cfg_values "${_FE_CFG}")"; _FE_BEFORE="${_FE_BEFORE:-0}"
+_FE_KEEP=""
+if [[ "${_FE_BEFORE}" -gt 0 ]]; then
+  _FE_KEEP="$(mktemp)"; cp -a "${_FE_CFG}" "${_FE_KEEP}"
+fi
+
 info "[frontend] 런타임 설정 생성..."
 if KLID_ETC="${KLID_ETC}" KLID_PREFIX="${KLID_PREFIX}" WEB_ROOT="${WEB_DIR}/${DIST_NAME}" \
      "${FE_CONFIG_RENDERER}"; then
-  ok "[frontend] 런타임 설정 생성 완료: ${WEB_DIR}/${DIST_NAME}/klid-config.js"
+  _FE_AFTER="$(_cfg_values "${_FE_CFG}")"; _FE_AFTER="${_FE_AFTER:-0}"
+  if [[ -n "${_FE_KEEP}" && "${_FE_AFTER}" -lt "${_FE_BEFORE}" ]]; then
+    cp -a "${_FE_KEEP}" "${_FE_CFG}"
+    warn "[frontend] ★생성 결과가 <있던 값보다 적어>(${_FE_AFTER} < ${_FE_BEFORE}) 되돌렸습니다."
+    warn "           ${FE_CONFIG_DST} 가 비어 있습니다 — 채운 뒤 다시 생성하세요."
+    warn "           지금 화면은 직전 값으로 계속 동작합니다."
+    FE_CONFIG_PENDING=1
+  else
+    ok "[frontend] 런타임 설정 생성 완료: ${_FE_CFG}  (값 ${_FE_AFTER}개)"
+  fi
+  [[ -n "${_FE_KEEP}" ]] && rm -f "${_FE_KEEP}"
 else
+  [[ -n "${_FE_KEEP}" ]] && { cp -a "${_FE_KEEP}" "${_FE_CFG}"; rm -f "${_FE_KEEP}"
+                              warn "[frontend] 생성 실패 — 직전 설정을 되돌렸습니다."; }
   FE_CONFIG_PENDING=1
   warn "----------------------------------------------------------------"
   warn "[frontend] ★런타임 설정을 아직 만들지 못했습니다 — 설치는 계속하지만 <미완성>입니다."
@@ -241,7 +291,13 @@ else
 fi
 
 # ---- 5) 설정 검사 후 기동 ----
-httpd -t || die "[frontend] httpd 설정 검사 실패 — ${CONF_DST} 를 확인하세요."
+#   ★ 우리 conf 를 만들지 않는 형상에서는 <검사 실패로 설치를 죽이지 않는다> — 현장 설정은
+#     우리 소관이 아니고, 여기서 죽으면 이미 끝난 배치까지 실패로 보인다.
+if [[ "${KLID_SKIP_HTTPD_CONF:-0}" == "1" ]]; then
+  httpd -t >/dev/null 2>&1 || warn "[frontend] httpd 설정 검사에 걸리는 항목이 있습니다(현장 설정 — 확인만 하세요)."
+else
+  httpd -t || die "[frontend] httpd 설정 검사 실패 — ${CONF_DST:-/etc/httpd/conf.d/klid-frontend.conf} 를 확인하세요."
+fi
 systemctl enable httpd >/dev/null 2>&1 || true
 systemctl restart httpd || die "[frontend] httpd 기동 실패 — journalctl -u httpd 를 확인하세요."
 ok "[frontend] httpd 기동 완료 (systemctl status httpd)"
