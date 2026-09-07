@@ -55,7 +55,9 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SELF_DIR}/lib/common.sh"
 
 ONPREM="$(onprem_root)"
-INC_DIR="${ONPREM}/db/incremental"
+# ★ db/ 폴더만 DB 서버로 옮겨 쓰는 경로가 있다(db/apply.sh). 그때는 매체 트리가 없으므로
+#   증분 위치를 밖에서 지정한다 — 기본은 종전과 같다.
+INC_DIR="${KLID_INC_DIR:-${ONPREM}/db/incremental}"
 
 MODE="apply"       # apply | status | dry-run | mark-only
 for arg in "$@"; do

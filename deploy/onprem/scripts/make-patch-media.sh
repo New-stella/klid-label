@@ -218,6 +218,18 @@ cp -R "${ONPREM}/docs"    "${MEDIA}/onprem/docs"
 cp    "${ONPREM}/db/schema.sql" "${MEDIA}/onprem/db/schema.sql"
 cp    "${ONPREM}/db/README.md"  "${MEDIA}/onprem/db/README.md"
 
+# ★ db/ 폴더 하나만 DB 서버로 옮겨도 돌게 한다 (2026-09-07 확정).
+#   DB 작업은 DB 서버에서 직접 하고, 그 장비에는 매체 전체를 두지 않는다.
+#   진실원을 복제하지 않기 위해 <같은 파일을 담는다> — 다시 쓰지 않는다.
+cp    "${ONPREM}/db/apply.sh"        "${MEDIA}/onprem/db/apply.sh"
+cp    "${ONPREM}/db/README-apply.md" "${MEDIA}/onprem/db/README-apply.md"
+chmod +x "${MEDIA}/onprem/db/apply.sh"
+ensure_dir "${MEDIA}/onprem/db/tools/lib"
+cp    "${ONPREM}/scripts/apply-migrations.sh" "${MEDIA}/onprem/db/tools/apply-migrations.sh"
+cp -R "${ONPREM}/scripts/lib/."               "${MEDIA}/onprem/db/tools/lib/"
+chmod +x "${MEDIA}/onprem/db/tools/apply-migrations.sh"
+ok "[patch] db/ 자족 묶음 구성(tools 포함) — DB 서버에 이 폴더만 옮기면 됩니다"
+
 # 증분 — 이번 회차분만 싣는다(기준선에서 기계적으로 나온 목록).
 ensure_dir "${MEDIA}/onprem/db/incremental"
 cp "${ONPREM}/db/incremental/README.md" "${MEDIA}/onprem/db/incremental/README.md"
