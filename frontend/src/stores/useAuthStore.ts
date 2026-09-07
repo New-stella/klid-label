@@ -54,9 +54,9 @@ interface AuthState {
    */
   setTokenAndClaims: (token: string) => void;
   /**
-   * 서버 인가 role 을 claims 에 주입한다(토큰 원본은 유지).
+   * 서버가 아는 <b>역할과 이름</b>을 claims 에 주입한다(토큰 원본은 유지).
    *
-   * [@design SCREEN-002] [@design ADR-021] [@design ADR-063]
+   * [@design SCREEN-002] [@design ADR-021] [@design ADR-063] [@design SHELL-001] [@design AC-1098]
    * ★인가의 진실원은 서버 LS_USER_ROLE(=GET /v1/me 응답)이지 <토큰 role 클레임>이 아니다.
    * 관제 토큰에는 우리 role 이 실리지 않아(authority 만 있고 role 클레임 없음) claims.role 이
    * 항상 null 이다. 그 상태로 두면 RoleGuard(가 claims.role 을 읽는다)가 관제 재방문 role 보유자를
@@ -67,8 +67,21 @@ interface AuthState {
    *   회귀가 없다. role=null 을 주입하면 claims.role 도 null 이 되어 가드가 /role-claim 으로
    *   보낸다(무권한 온보딩 — 의도된 동작).
    * ⚠ claims 가 아직 없으면(토큰 미적재) no-op. 토큰 원본·채널·exp 는 건드리지 않는다.
+   *
+   * <h3>★이름도 함께 받는다 — 역할만 취하고 이름을 버리지 않는다 (SHELL-001)</h3>
+   * 화면 상단(GNB)에 표시하는 이름의 <b>진실원은 서버 응답</b>이고 인계 토큰의 이름 클레임은
+   * 보조다. 관제 인계 토큰에 이름이 실려 오지 않아도 저작도구가 아는 이름이 표시돼야 하는데,
+   * 예전에는 이 함수가 role 만 주입하고 이름을 버려 헤더가 대체 표기(「사용자」)에 고착됐다
+   * (246 실측 2026-09-07 — 역할 배지는 「관리자」인데 이름만 「사용자」, 이니셜은 「사」).
+   *
+   * ⚠ <b>빈 이름으로 토큰 이름을 지우지 않는다.</b> 서버가 이름을 모를 수 있고(자동등록 직후),
+   *   그때 토큰 클레임이라는 보조 조달원까지 잃으면 <b>고칠 결함이 그대로 재발</b>한다. 그래서
+   *   비어 있지 않은 값이 왔을 때만 덮어쓴다 — 「진실원 우선, 보조 폴백」이 그 뜻이다.
+   *
+   * @param role 서버 인가 역할. `null` 이면 무권한(온보딩 대상).
+   * @param name 서버가 보관한 표시 이름. `undefined`·빈 문자열이면 기존 값을 유지한다.
    */
-  setServerRole: (role: Role | null) => void;
+  setServerRole: (role: Role | null, name?: string | null) => void;
   clear: () => void;
   hydrate: () => void;
 }
@@ -149,8 +162,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     persistToken(token);
     set({ token, claims });
   },
-  setServerRole: (role: Role | null) => {
-    set((state) => (state.claims ? { claims: { ...state.claims, role } } : {}));
+  setServerRole: (role: Role | null, name?: string | null) => {
+    set((state) => {
+      if (!state.claims) return {};
+      // 비어 있지 않은 서버 이름만 덮어쓴다 — 빈 값으로 토큰 클레임(보조 조달원)을 지우지 않는다.
+      const trimmed = typeof name === 'string' ? name.trim() : '';
+      const nextName = trimmed.length > 0 ? trimmed : state.claims.name;
+      return { claims: { ...state.claims, role, name: nextName } };
+    });
   },
   clear: () => {
     forgetPersistedToken();

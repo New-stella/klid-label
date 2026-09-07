@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.auth.service;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import kr.co.cudo.authoring.auth.dto.RoleClaimAvailabilityResponse;
 import kr.co.cudo.authoring.auth.dto.RoleClaimRequest;
 import kr.co.cudo.authoring.auth.dto.RoleClaimResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -556,5 +557,98 @@ class RoleClaimServiceTest {
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
 
         verify(userRepository, times(0)).upsertUser(anyLong(), anyString(), anyString());
+    }
+
+    // ── 개폐 조회 창구 (@design API-245 · AC-1098) ───────────────────────────────
+
+    @Test
+    @DisplayName("★관리자가_0명이면_개폐조회가_열림을_돌려준다")
+    void availabilityIsOpenWhenNoAdminExists() {
+        when(lsUserRoleRepository.countByRoleCd("ADMIN")).thenReturn(0L);
+
+        RoleClaimAvailabilityResponse res = service.availability(actor("1001", null));
+
+        assertThat(res.available()).isTrue();
+    }
+
+    @Test
+    @DisplayName("★관리자가_한_명이라도_있으면_개폐조회가_닫힘을_돌려준다")
+    void availabilityIsClosedWhenAdminExists() {
+        when(lsUserRoleRepository.countByRoleCd("ADMIN")).thenReturn(1L);
+
+        RoleClaimAvailabilityResponse res = service.availability(actor("1001", null));
+
+        assertThat(res.available()).isFalse();
+    }
+
+    @Test
+    @DisplayName("★개폐조회와_제출의_창_닫힘_판정이_같은_조회에서_나온다_두번째_진실원_금지")
+    void availabilityAndClaimShareOneJudgment() {
+        // ★두 창구가 각자 개수를 세면 조회가 "열림" 이라 답한 직후 제출이 거절되는 어긋남이 난다.
+        //   같은 상태(관리자 1명)에서 조회는 닫힘을, 제출은 409 를 내야 한다.
+        when(lsUserRoleRepository.countByRoleCd("ADMIN")).thenReturn(1L);
+
+        assertThat(service.availability(actor("1001", null)).available()).isFalse();
+        assertThatThrownBy(() -> service.claim(
+                new RoleClaimRequest(Role.ADMIN, adminPlaintext), actor("1001", null)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+
+        // 판정 근거가 ADMIN 카운트 하나임을 못박는다 — 다른 역할 코드를 세면 여기서 드러난다.
+        verify(lsUserRoleRepository, times(2)).countByRoleCd("ADMIN");
+        verify(lsUserRoleRepository, times(0)).countByRoleCd(Role.REVIEWER.name());
+    }
+
+    @Test
+    @DisplayName("★개폐조회는_응답에_관리자_인원수를_담지_않는다")
+    void availabilityResponseCarriesNoAdminCount() {
+        // ★필요한 것은 열림/닫힘 하나다. 인원수는 인가와 무관한 사용자에게 줄 정보가 아니다.
+        //   응답 레코드에 boolean 한 필드만 있으면 인원수를 실을 자리가 구조적으로 없다.
+        when(lsUserRoleRepository.countByRoleCd("ADMIN")).thenReturn(7L);
+
+        assertThat(java.util.Arrays.stream(
+                        RoleClaimAvailabilityResponse.class.getRecordComponents())
+                        .map(java.lang.reflect.RecordComponent::getName))
+                .as("개폐 조회 응답에 개수·목록 등 다른 필드가 생기면 안 된다")
+                .containsExactly("available");
+        assertThat(service.availability(actor("1001", null)).available()).isFalse();
+    }
+
+    @Test
+    @DisplayName("★개폐조회도_포털_채널은_거절한다_409_제출_창구와_같은_축")
+    void availabilityRejectsPortalChannel() {
+        // 관리자 부트스트랩은 내부 채널의 개념이라 포털 채널에는 그 개념 자체가 없다.
+        //   형제 창구(claim)의 채널 게이트와 같은 코드여야 화면이 두 갈래로 분기하지 않는다.
+        assertThatThrownBy(() -> service.availability(portalActor("1001", Role.PORTAL_USER)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+
+        verify(lsUserRoleRepository, times(0)).countByRoleCd(anyString());
+    }
+
+    @Test
+    @DisplayName("★개폐조회는_인증_주체가_없으면_401_이고_개수를_세지도_않는다")
+    void availabilityRequiresAuthenticatedSubject() {
+        assertThatThrownBy(() -> service.availability(null))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
+        assertThatThrownBy(() -> service.availability(actor("  ", null)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
+
+        verify(lsUserRoleRepository, times(0)).countByRoleCd(anyString());
+    }
+
+    @Test
+    @DisplayName("★개폐조회는_시도_쿼터를_소모하지_않는다_자격증명을_받지_않는_창구다")
+    void availabilityDoesNotConsumeRateLimitQuota() {
+        // 계정 축 상한(5회/분)을 넘겨 불러도 429 가 나지 않는다 — 추측할 자격증명이 없고
+        //   개폐는 인증된 내부 사용자에게 의도적으로 공개하는 사실이다.
+        for (int i = 0; i < 10; i++) {
+            assertThat(service.availability(actor("1001", null)).available()).isTrue();
+        }
+        // 그 뒤에도 제출 창구의 쿼터는 그대로 남아 있어야 한다(조회가 쿼터를 갉아먹지 않는다).
+        assertThat(service.claim(new RoleClaimRequest(Role.ADMIN, adminPlaintext), actor("1001", null))
+                .role()).isEqualTo("ADMIN");
     }
 }

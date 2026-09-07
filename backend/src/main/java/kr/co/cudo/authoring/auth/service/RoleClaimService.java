@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.auth.service;
 
 import io.jsonwebtoken.Jwts;
+import kr.co.cudo.authoring.auth.dto.RoleClaimAvailabilityResponse;
 import kr.co.cudo.authoring.auth.dto.RoleClaimRequest;
 import kr.co.cudo.authoring.auth.dto.RoleClaimResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -207,7 +208,7 @@ public class RoleClaimService {
         //        자동 등록이 같은 요청 앞단에서 역할을 부여하므로 <창구가 도달 불가능해진다>.
         //    ⚠ 이 확인과 아래 부여 사이에는 창이 있다. 그 창은 조건부 INSERT
         //      (upsertRoleIfNoneHasRole)가 문장 안에서 다시 닫는다 — 여기 하나만으로는 부족하다.
-        if (lsUserRoleRepository.countByRoleCd(BOOTSTRAP_ROLE.name()) > 0) {
+        if (!isBootstrapOpen()) {
             log.warn("[RoleClaim] denied userNo={} reason=bootstrap_closed", sanitize(actor.sub()));
             throw new CustomException(ErrorCode.CONFLICT,
                     "이미 관리자가 있어 자가부여가 닫혀 있습니다. 관리자에게 역할 부여를 요청하세요.");
@@ -298,6 +299,68 @@ public class RoleClaimService {
                 userNo,
                 user.getUserNm()
         );
+    }
+
+    /**
+     * 관리자 부트스트랩 창구가 <b>지금 열려 있는지</b>를 돌려준다 (읽기 전용).
+     *
+     * <p>화면이 진입 시점에 개폐를 미리 묻기 위한 창구다. 이 조회가 없으면 화면은 개폐를
+     * <b>제출 응답으로 사후에</b> 알게 되어, 관리자가 이미 있는 시스템에서도 등록 화면이
+     * "아직 관리자가 없습니다" 를 먼저 띄우고 사용자가 패스워드를 넣어 제출한 뒤에야 거절을 받는다.
+     *
+     * <h3>★ 판정 근거는 {@link #claim} 과 <b>같은 하나</b>다 ({@link #isBootstrapOpen()})</h3>
+     * <p>두 번째 판정 근거를 만들면 이 조회가 "열림" 이라 답한 직후에 제출이 거절되는 어긋남이
+     * 생겨, 화면이 안내한 것과 서버가 하는 일이 갈린다. 개수를 여기서 다시 세지 말 것.
+     *
+     * <p>★ <b>응답에 관리자 인원수를 담지 않는다.</b> 화면이 필요로 하는 것은 열림/닫힘 하나이고,
+     * 인원수는 인가와 무관한 사용자에게 줄 정보가 아니다.
+     *
+     * <p><b>인증은 요구하고 역할은 요구하지 않는다.</b> 이 창구의 주된 호출자는 아직 아무 역할도
+     * 부여받지 못한 사용자이므로, 역할을 조건으로 걸면 정작 필요한 사람이 부르지 못한다.
+     * 미인증자에게는 관리자의 존재 여부를 알리지 않는다(컨트롤러의 {@code isAuthenticated()}).
+     *
+     * <p><b>포털 채널은 거절한다</b>({@link ErrorCode#CONFLICT}) — 관리자 부트스트랩은 내부 채널의
+     * 개념이라 포털 채널에는 그 개념 자체가 없다. 형제 창구 {@link #claim} 의 채널 게이트와 같은
+     * 코드·같은 축이다(두 창구가 다른 코드를 쓰면 화면이 두 갈래로 분기해야 한다).
+     *
+     * <p>★ <b>rate limit 을 걸지 않는다</b> — 이 창구는 자격증명을 받지 않아 추측 대상이 없고,
+     * 개폐는 인증된 내부 사용자에게 <b>의도적으로 공개하는 사실</b>이다({@code claim} 의 게이트가
+     * rate limit 뒤에 있는 이유였던 "쿼터 없이 개폐를 읽는 정찰" 은 그 창구가 <b>패스워드 시도</b>
+     * 창구이기 때문이며, 여기서는 개폐를 아는 것이 곧 사양이다). ⚠ 그래서 {@code claim} 의 게이트를
+     * 이 창구가 생겼다는 이유로 앞당기지 말 것 — 그쪽 순서는 여전히 사양이다.
+     *
+     * @design API-245
+     * @design ADR-055
+     * @design AC-1098
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public RoleClaimAvailabilityResponse availability(TokenClaims actor) {
+        if (actor == null || actor.sub() == null || actor.sub().isBlank()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        if (actor.channel() != Channel.INTERNAL) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이 창구는 내부 채널에서만 사용할 수 있습니다.");
+        }
+        return new RoleClaimAvailabilityResponse(isBootstrapOpen());
+    }
+
+    /**
+     * 부트스트랩 창구 개폐 판정 — <b>단일 판정 지점</b>이다 (ADR-055).
+     *
+     * <p>창은 <b>시스템에 관리자가 한 명도 없을 때만</b> 열린다. {@link #claim} 의 ④ 게이트와
+     * {@link #availability} 가 <b>이 메서드 하나</b>를 부른다 — 개수를 각자 세면 두 번째 진실원이
+     * 되고, 조회가 "열림" 이라 답한 직후에 제출이 거절되는 어긋남이 난다.
+     *
+     * <p>⚠ 이 판정과 실제 부여 사이에는 창이 있다. 그 창은 조건부 INSERT
+     * ({@code upsertRoleIfNoneHasRole})가 문장 안에서 다시 닫는다 — 이 판정 하나로는 부족하다.
+     *
+     * @design ADR-055
+     * @design API-007
+     * @design API-245
+     */
+    boolean isBootstrapOpen() {
+        return lsUserRoleRepository.countByRoleCd(BOOTSTRAP_ROLE.name()) == 0;
     }
 
     private String issueInternalToken(Long userNo, Role role, String name) {

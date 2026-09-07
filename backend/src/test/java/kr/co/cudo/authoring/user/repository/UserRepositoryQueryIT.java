@@ -97,13 +97,22 @@ class UserRepositoryQueryIT {
                     assertThat(w.activeTaskCount()).isNotNull();
                 });
 
-        // ④ 관리 화면 검색 — 이름/아이디/이메일 LIKE 가 모두 같은 행을 찾는다
-        for (String keyword : List.of(USER_ID, USER_NM, EMAIL)) {
+        // ④ 관리 화면 검색 — 매칭 축은 <로그인ID·이름 둘>이다 (@design API-001).
+        //   ⚠ 이메일은 축이 아니다 — 구 구현은 세 축이었고 이 반복문에도 EMAIL 이 있었다.
+        //     인계 토큰에 이메일이 실려 오지 않아 그 경로로 진입한 사용자는 이메일이 영구히 비어
+        //     있고 목록도 로그인 식별자를 보여주므로, 이메일만 남으면 화면이 안내하지 않는 숨은
+        //     검색 축이 된다. 값 자체는 아래 ⑤ 처럼 그대로 실린다(축소된 것은 매칭뿐이다).
+        for (String keyword : List.of(USER_ID, USER_NM)) {
             assertThat(userRepository.searchByKeywordAndRole(keyword, null, PageRequest.of(0, 20)).getContent())
                     .as("키워드 %s 로 검색되어야 한다", keyword)
                     .extracting(LsAcntUser::getUserNo)
                     .contains(USER_NO);
         }
+        // ⑤ 이메일 축은 되살아나면 안 된다 — 되살리면 여기서 RED 다.
+        assertThat(userRepository.searchByKeywordAndRole(EMAIL, null, PageRequest.of(0, 20)).getContent())
+                .as("이메일 전문은 매칭 축이 아니다 (@design API-001)")
+                .extracting(LsAcntUser::getUserNo)
+                .doesNotContain(USER_NO);
     }
 
     @Test

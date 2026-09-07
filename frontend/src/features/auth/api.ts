@@ -59,3 +59,34 @@ export async function claimRole(body: ClaimRoleRequest): Promise<ClaimRoleRespon
   const res = await apiClient.post<ClaimRoleResponse>('/auth/role-claim', body);
   return res.data;
 }
+
+/**
+ * 관리자 부트스트랩 창구의 개폐 상태. [@design API-245]
+ *
+ * ★담기는 사실은 <b>열림/닫힘 하나</b>다 — 관리자 인원수는 오지 않는다(계약).
+ */
+export interface RoleClaimAvailability {
+  /** `true`=열림(시스템에 관리자가 한 명도 없다) / `false`=닫힘(관리자가 한 명 이상 있다). */
+  available: boolean;
+}
+
+/**
+ * 관리자 부트스트랩 창구가 <b>지금</b> 열려 있는지 묻는다. [@design API-245] [@design SCREEN-002]
+ *
+ * 이 조회가 없으면 화면은 개폐를 <b>제출 응답으로 사후에</b> 알게 된다 — 관리자가 이미 있는
+ * 시스템에서도 *"아직 관리자가 없습니다"* 를 먼저 띄우고, 사용자가 패스워드를 넣어 제출한 뒤에야
+ * 거절을 받는 막다른 길이 된다. 그것이 이 창구를 두는 이유다.
+ *
+ * ★<b>이 값은 순간의 상태다.</b> 조회와 제출 사이에 다른 사람이 최초 관리자가 되면 창은 그
+ * 사이에 닫히고 제출은 409 로 거절된다. 그래서 이 조회는 첫 화면을 사실에 맞추는 수단일 뿐이며,
+ * 호출하는 화면은 <b>제출이 창 닫힘으로 거절되는 갈래를 그대로 유지해야 한다</b>
+ * ({@link claimRole} 의 409 처리를 이 조회로 대신할 수 없다).
+ *
+ * ⚠ `skipAuthRedirect` 를 켜지 않는다 — 여기서의 401 은 «그 요청 고유의 자격 검증 실패»가 아니라
+ * <b>세션이 유효하지 않다</b>는 뜻이라, 상위 시스템 로그인으로 되돌리는 기본 동작이 정확하다.
+ * (자격증명을 받는 {@link claimRole} 과 다른 축이다.)
+ */
+export async function getRoleClaimAvailability(): Promise<RoleClaimAvailability> {
+  const res = await apiClient.get<RoleClaimAvailability>('/auth/role-claim/availability');
+  return res.data;
+}

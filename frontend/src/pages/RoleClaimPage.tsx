@@ -1,11 +1,13 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { Alert } from '@/components/common/Alert';
 import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Card, CardContent } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
+import { Spinner } from '@/components/common/Spinner';
 import { useClaimRole } from '@/features/auth/hooks/useClaimRole';
+import { useRoleClaimAvailability } from '@/features/auth/hooks/useRoleClaimAvailability';
 import { resolveHandoffUser } from '@/features/auth/tokenIngress';
 import { ApiError } from '@/lib/api/errors';
 
@@ -19,10 +21,36 @@ import { ApiError } from '@/lib/api/errors';
 const BOOTSTRAP_ROLE = 'ADMIN' as const;
 
 /**
- * 관리자 부트스트랩 화면 (`/role-claim`).
+ * 관리자 등록 화면 (`/role-claim`). [@design SCREEN-002] [@design API-245] [@design AC-1098]
  *
- * 인증은 되었으나 role 클레임이 비어 있는 사용자가 관리자 공유 패스워드로 **본인을 최초 관리자로
- * 등록**한다. 사용자 마스터 행이 없으면 이 시점에 자동등록된다(관제 인계 표시 정보 동봉).
+ * 역할이 아직 비어 있는 채로 진입한 내부 채널 사용자를 받아, **관리자 등록 창구가 열려 있는지에
+ * 따라 두 갈래로** 안내한다. 사용자 마스터 행이 없으면 이 시점에 자동등록된다(관제 인계 표시
+ * 정보 동봉).
+ *
+ * <h3>★개폐를 <b>진입 시점에 먼저 묻는다</b> — 제출해 봐야 아는 것이 아니다</h3>
+ * 진입하면 {@link useRoleClaimAvailability} 로 창구 개폐를 조회하고 그 답으로 두 모습 중 하나를
+ * **처음부터** 그린다.
+ * <ul>
+ *   <li><b>열림</b>(관리자 0명) — 안내 헤더 + 부여 권한 안내 + 패스워드 폼. *"이 시스템에는 아직
+ *       관리자가 없습니다"* 는 <b>이 상태에서만</b> 나타난다.</li>
+ *   <li><b>닫힘</b>(관리자 실재) — 권한 요청 안내만. <b>패스워드 입력칸도 등록 버튼도 두지
+ *       않는다</b> — 눌러도 409 만 돌아오는 자리는 안내가 아니라 함정이다.</li>
+ * </ul>
+ *
+ * ⚠ **구 사양 폐기(2026-09-07 · SCREEN-002 v32) — 되살리지 말 것**: *"개폐는 제출 응답으로
+ * 가른다"*. 그러면 관리자가 이미 있는 시스템에서도 *"아직 관리자가 없습니다"* 가 **무조건**
+ * 렌더되어 화면이 거짓을 말하고, 사용자는 패스워드를 넣어 제출한 뒤에야 거절을 받는다(246 실측
+ * 2026-09-07 — 관리자 9001 이 실재하는데 이 화면이 열려 있었다).
+ *
+ * <h3>★그래도 409 갈래는 남는다 — 사전 조회가 그것을 대신하지 못한다</h3>
+ * 개폐는 **순간의 상태**다. 조회와 제출 사이에 다른 사람이 최초 관리자가 되면 창은 그 사이에
+ * 닫히고 제출은 409 로 거절된다. 사전 조회는 그 갈래를 **없애는 수단이 아니라** 첫 화면이 사실과
+ * 다른 안내를 하지 않게 하는 수단이다. 409 를 받으면 화면은 권한 요청 안내로 **전환**한다.
+ *
+ * <h3>★조회가 실패하면 이 화면(열림 모습)으로 떨어지지 않는다</h3>
+ * 인증이 유효하지 않으면(401) 세션 만료를 알리고 상위 시스템 로그인으로 되돌아가며(HTTP 계층의
+ * 401 처리가 그 이동을 수행한다), 그 밖의 조회 장애는 오류로 알린다. 어느 쪽도 *"아직 관리자가
+ * 없습니다"* 로 바꾸지 않는다 — 그러면 오류가 사양으로 위장된다.
  *
  * <h3>★역할을 고르지 않는다 — 고를 것이 없다</h3>
  * 이 창구는 **관리자가 0명일 때만** 열리고 부여 역할은 관리자 고정이다. 관리자가 한 명이라도
@@ -50,10 +78,26 @@ const BOOTSTRAP_ROLE = 'ADMIN' as const;
 export function RoleClaimPage() {
   const [adminPassword, setAdminPassword] = useState('');
   const [error, setError] = useState<ClaimErrorNotice | null>(null);
+  /**
+   * 제출이 「창 닫힘」으로 거절되어 화면이 권한 요청 안내로 전환된 상태. [@design SCREEN-002]
+   *
+   * ★사전 조회가 열림이라 답한 뒤에도 이 갈래가 온다(경합). 값은 **서버가 보낸 사유**를 담는다 —
+   * 409 에는 서로 다른 두 사유가 오므로(창 닫힘 / 내부 채널 아님) 화면이 원인을 지어내지 않는다.
+   */
+  const [conflictNotice, setConflictNotice] = useState<ClaimErrorNotice | null>(null);
+
+  const availability = useRoleClaimAvailability();
 
   const mutation = useClaimRole({
     onError: (err) => {
-      setError(toUserNotice(err));
+      const notice = toUserNotice(err);
+      // ★409 = 창이 닫혔다. 폼을 남겨 두면 눌러도 거절만 돌아오는 자리가 된다 — 안내로 전환한다.
+      if (err instanceof ApiError && err.status === 409) {
+        setError(null);
+        setConflictNotice(notice);
+        return;
+      }
+      setError(notice);
     },
     onSuccess: () => {
       // 성공 시 훅 내부에서 navigate. 추가 후처리 없음.
@@ -74,6 +118,49 @@ export function RoleClaimPage() {
     mutation.mutate({ role: BOOTSTRAP_ROLE, adminPassword, ...resolveHandoffUser() });
   };
 
+  // ── 개폐 조회가 끝나기 전에는 어느 모습도 그리지 않는다 ──────────────────────────
+  //  ★열림 모습을 먼저 그려 두고 닫힘이면 지우는 방식은 쓰지 않는다. 그 한 프레임 동안 화면이
+  //    *"아직 관리자가 없습니다"* 라고 말하게 되는데, 그것이 바로 이 화면이 고치려는 결함이다.
+  if (availability.isPending) {
+    return (
+      <Shell>
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex flex-col items-center gap-3 py-6 text-center"
+        >
+          <div aria-hidden="true">
+            <Spinner size="lg" />
+          </div>
+          <p className="text-body-lg text-gray-900">등록 창구 상태를 확인하는 중</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ── 조회 실패: 인증 실패든 조회 장애든 「관리자가 없습니다」로 바꾸지 않는다 ──────────
+  if (availability.isError) {
+    const notice = toAvailabilityNotice(availability.error);
+    return (
+      <Shell>
+        <Alert variant="error" aria-live="assertive" title={notice.title}>
+          {notice.description}
+        </Alert>
+      </Shell>
+    );
+  }
+
+  // ── 닫힘: 권한 요청 안내만. 등록 수단을 두지 않는다 ────────────────────────────
+  const closed = conflictNotice !== null || availability.data?.available !== true;
+  if (closed) {
+    return (
+      <Shell>
+        <ClosedNotice notice={conflictNotice} />
+      </Shell>
+    );
+  }
+
+  // ── 열림: 최초 관리자 등록 폼 ────────────────────────────────────────────
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
       <Card className="w-full max-w-md">
@@ -148,6 +235,77 @@ export function RoleClaimPage() {
 }
 
 /**
+ * 세 모습(로딩·오류·닫힘·열림)이 공유하는 카드 껍데기.
+ *
+ * 껍데기를 공유해야 상태가 바뀔 때 화면이 통째로 튀지 않는다. 열림 모습만 이 컴포넌트를 쓰지
+ * 않는데, 그쪽은 폼까지 포함한 기존 마크업을 한 글자도 건드리지 않기 위해서다.
+ */
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <Card className="w-full max-w-md">
+        <CardContent>{children}</CardContent>
+      </Card>
+    </main>
+  );
+}
+
+/**
+ * 창구가 닫혀 있을 때 보이는 「권한 요청 안내」. [@design SCREEN-002]
+ *
+ * ★<b>패스워드 입력칸도 등록 버튼도 두지 않는다.</b> 최초 관리자 등록은 이미 성립하지 않아
+ * 제출해도 거절만 돌아오기 때문이다 — 닫힌 상태에 등록 수단을 남겨 두면 안내가 아니라 함정이다.
+ *
+ * @param notice 제출이 409 로 거절되어 이 안내로 전환된 경우의 <b>서버가 보낸 사유</b>.
+ *   진입 시점 조회로 닫힘을 안 경우에는 `null` 이며, 그때는 사유를 우리가 안다(관리자가 실재한다).
+ *   ★409 에는 서로 다른 두 사유가 오므로(창 닫힘 / 내부 채널 아님) 그 경우에는 원인을 지어내지
+ *   않고 서버 문장을 그대로 싣는다.
+ */
+function ClosedNotice({ notice }: { notice: ClaimErrorNotice | null }) {
+  const title = notice?.title ?? '이미 관리자가 있어 최초 관리자 등록 창구가 닫혀 있습니다';
+  const description =
+    notice?.description ??
+    '아직 권한이 없는 계정입니다. 관리자에게 권한을 요청하세요. 권한이 부여되면 다시 진입할 수 있습니다.';
+  return (
+    <>
+      <header className="mb-6">
+        <h1 className="text-title-lg font-bold text-gray-900">권한 요청 안내</h1>
+      </header>
+      {/* 강조 수준은 경고가 아니라 정보다 — 막는 자리가 아니라 알리는 자리다(SCREEN-002). */}
+      <Alert variant="info" aria-live="polite" title={title}>
+        {description}
+      </Alert>
+      <p className="mt-4 text-body-md text-gray-600">
+        역할 부여는 관리자가 사용자 관리 화면에서 지정합니다.
+      </p>
+    </>
+  );
+}
+
+/**
+ * 개폐 조회 실패의 사용자 안내. [@design SCREEN-002] [@design SEQ-034]
+ *
+ * ★두 갈래를 갈라야 한다 — <b>실패를 「역할 없음」으로 뭉개면 오류가 사양으로 위장된다</b>.
+ * - <b>401</b>: 세션이 유효하지 않다. HTTP 계층의 401 처리가 토큰을 비우고 상위 시스템 로그인으로
+ *   되돌린다(`lib/api/client`) — 여기서는 그 사실을 사람에게 알리기만 한다. 이동을 여기서 한 번
+ *   더 걸면 그 처리와 경쟁해 어느 쪽이 이기는지 정해지지 않는다.
+ * - <b>그 밖</b>(5xx·네트워크): 조회 장애다. 서버 문장이 있으면 그대로 싣는다.
+ */
+function toAvailabilityNotice(err: unknown): ClaimErrorNotice {
+  if (err instanceof ApiError && err.status === 401) {
+    return {
+      title: '세션이 만료되었습니다',
+      description: '상위 시스템에서 다시 접근해주세요.',
+    };
+  }
+  const serverMessage = err instanceof ApiError ? err.userMessage : '';
+  return {
+    title: '등록 창구 상태를 확인할 수 없습니다',
+    description: serverMessage || '잠시 후 다시 시도해주세요.',
+  };
+}
+
+/**
  * 오류 안내 — 분류(제목) + 상세(본문). 시안 SCREEN-002 의 `.alert-title` / `.alert-text` 짝이다.
  *
  * 제목은 "무엇이 일어났는가", 본문은 "무엇을 하면 되는가"를 말한다. 한 줄로 합쳐 두면 사용자가
@@ -192,6 +350,23 @@ function toUserNotice(err: unknown): ClaimErrorNotice {
       // ★사유를 화면이 지어내지 않는다. 이 코드에는 서로 다른 두 사유가 온다 —
       //   ①관리자가 이미 있어 창구가 닫혔다 ②내부 채널이 아니다. 상태코드만으로는 구분되지
       //   않으므로 서버가 보낸 문장을 그대로 싣는다.
+      //
+      // ⚠ ★<b>제목은 상수라 ②에서는 엄밀히 참이 아니다</b> — 그런데도 그대로 두는 이유가 있다.
+      //   ㉠ 이 문구는 `SCREEN-002` v32 사양이 소유한다. 코드가 임의로 바꾸면 사양과 갈린다.
+      //   ㉡ <b>②의 도달 경로가 두 겹으로 닫혀 있다</b>(실측):
+      //      · 진입 시 개폐 조회(`GET /v1/auth/role-claim/availability`)가 내부 채널이 아니면
+      //        **먼저 409** 로 막는다 → 이 화면은 조회 실패 모습으로 떨어져 <b>폼 자체가 그려지지
+      //        않는다</b>. 폼이 없으니 이 제출 갈래에 닿을 수 없다.
+      //      · `router/guards.tsx` 의 `RoleGuard` 도 `claims.channel === 'INTERNAL'` 일 때만
+      //        `/role-claim` 으로 보낸다.
+      //   즉 지금 형상에서 이 자리에 실제로 오는 409 는 ①뿐이라 제목이 거짓이 되지 않는다.
+      //
+      // ★<b>그 전제가 깨지면 제목이 곧바로 거짓이 된다.</b> 위 두 게이트 중 <b>하나라도</b> 열면
+      //   (개폐 조회의 채널 게이트 완화 · 가드의 채널 조건 제거 · 포털 채널에서 이 화면 노출)
+      //   채널 불일치 사용자가 폼을 보게 되고, 그때 화면은 *"자가 등록 창구가 닫혀 있습니다"* 라고
+      //   <b>원인을 지어낸다</b>(본문의 서버 문장과도 어긋난다). 게이트를 여는 사람이 이 자리를
+      //   함께 고쳐야 한다 — 제목도 서버 문장에서 받거나 사유별로 갈라야 한다.
+      //   ⚠ 그 변경은 `SCREEN-002` 사양 수정이 <b>먼저</b>다(코드가 앞서면 진실원이 무너진다).
       //   ⚠ 구 문구 폐기(2026-08-28) — *"이미 권한이 부여된 사용자입니다 / 새로고침 해주세요."*
       //     그 분기(역할 보유자 거절)는 서버에서 **제거**됐고, 지금 이 코드가 뜻하는 것은
       //     「창이 닫혔다」다. 고정 문구로 덮으면 사용자는 새로고침만 반복하게 되고 실제 사유

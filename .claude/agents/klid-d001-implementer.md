@@ -110,6 +110,48 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
 
+### permitAll 구역의 정확경로 매처는 **하위경로를 조용히 공개한다** (2026-09-07)
+
+`/v1/auth/**` 처럼 permitAll 인 구역 밑에 인증이 필요한 경로를 새로 만들 때, 컨트롤러에
+`@PreAuthorize("isAuthenticated()")` 만 달면 **미인증 응답이 401 이 아니라 403** 이 된다.
+필터가 통과시킨 뒤 메서드 보안이 던진 `AccessDeniedException` 을 전역 예외처리가 403 으로
+정규화하기 때문이다.
+
+**실측**: `SecurityConfig` 매처를 정확경로로 되돌리자 `RoleClaimAvailabilityIT` 의 미인증 시험이
+`java.lang.AssertionError: Status expected:<401> but was:<403>` 로 죽었다. 기존 정확경로 매처의
+주석은 *"permitAll 매처보다 먼저 매칭되도록"* 이라고만 적어 **401/403 차이는 드러나지 않는다.**
+
+⇒ 그래서 **정확경로 매처 옆에 하위경로를 더하는 모든 변경이 같은 부류**다. 매처 없이
+`@PreAuthorize` 만 달고 「인증을 요구했다」고 판단하지 말 것.
+⚠ **같은 부류가 한 곳 더 있다** — `/v1/portal/auth/**` 가 permitAll 인데 그 아래 매핑된 컨트롤러가
+현재 0건이다. **지금은 노출이 없으나 누가 엔드포인트를 하나 추가하는 순간 인증 없이 공개된다.**
+
+### 컨트롤러에 메서드를 자동 편집으로 추가할 때 앵커를 매핑 애노테이션으로 잡지 마라 (2026-09-07)
+
+`@PostMapping("/x")` 를 앵커로 새 메서드 블록을 앞에 삽입하면 **기존 메서드의 애노테이션 스택이
+끊긴다**(`@Operation`·`@ApiResponses` 와 `@XxxMapping` 사이에 새 블록이 끼어든다).
+**컴파일이 통과할 수 있는 형태라 조용하다.**
+⇒ 앵커는 매핑 애노테이션이 아니라 **직전 메서드의 닫는 중괄호** 또는 클래스 끝 중괄호로 잡는다.
+
+### 계약을 **좁히는** 변경은 다른 축의 시험 안에 곁다리로 든 단언을 깬다 (2026-09-07)
+
+쿼리 술어·allowlist·enum 을 좁히면 그 넓은 계약을 기대하던 기존 시험이 깨지는데, **그 단언이
+이름과 무관한 시험 안에 들어 있어 사전 grep 으로 안 걸린다.**
+
+**실측**: 검색 축을 3축 → 2축으로 좁히자 `UserRepositoryQueryIT` 의 **사용자명 표시 정합** 시험
+④번 블록이 죽었다 — `List.of(USER_ID, USER_NM, EMAIL)` 반복문으로 이메일 매칭을 단언하고 있었고,
+시험 이름·`@DisplayName` 어디에도 「검색 축」이 없었다.
+⇒ 좁힌 뒤 **그 심볼을 쓰는 시험을 전수 실행**한다. 깨진 시험은 **지우지 말고 「되살리면 RED」
+가드로 뒤집는다.**
+
+### 이 저장소는 Jackson 전역 `NON_NULL` 이 **없다** — 「값 없음」 단언법이 갈린다 (2026-09-07)
+
+`common/` 전역에 `setSerializationInclusion`·`spring.jackson.default-property-inclusion` 이 0건이라
+**null 필드도 JSON 에 실린다.** 따라서 MockMvc 에서 「값 없음」은
+`jsonPath(...).doesNotExist()` 가 아니라 **`isEmpty()`**(또는 `value(nullValue())`)다.
+⚠ **한 규칙으로 통일하지 말 것** — 필드 레벨 `@JsonInclude(NON_NULL)` 이 걸린 DTO(관제 통지
+페이로드 등)는 **반대로 `doesNotExist()` 가 맞다.**
+
 ### 인증 자리를 둘로 늘릴 때 다듬기를 대칭으로 걸면 기존 자리의 파싱 값까지 바뀐다
 `String.trim()` 은 **U+0020 이하 전 문자**를 벗긴다. 두 헤더의 판정을 통일하려고 양쪽에 같은
 정규화를 걸면, 종전에 거부되던 **여분 공백·TAB·CR·C0 제어문자 7형**이 전부 통과로 뒤집힌다.

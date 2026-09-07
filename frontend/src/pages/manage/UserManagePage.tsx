@@ -374,28 +374,34 @@ export function UserManagePage() {
       },
     },
     {
-      id: 'email',
-      header: '이메일',
+      // ★열의 축이 「이메일」에서 「로그인ID」로 바뀌었다 (2026-09-07 · @design SCREEN-024 v35).
+      //
+      //   근거: 관제 인계 토큰에 **이메일 클레임이 없다**(실측 계약 — sub·iss·role·channel·name·exp).
+      //   그래서 관제로 실제 진입한 사용자는 이메일이 **영구히 비어 있고**, 운영에서 이 열은 전 행이
+      //   빈 칸이 된다(지금 값이 보이는 행은 전부 dev 시드다). 반면 로그인ID 는 실제로 들어온다.
+      //
+      //   ⚠ 구 동작 폐기 — *"이메일이 없으면 loginId 를 「{loginId} (로그인ID)」로 대체 표기"*.
+      //     열 자체가 로그인ID 가 됐으므로 출처 캡션이 필요 없다. 되살리면 같은 값이 두 이름으로
+      //     읽힌다.
+      //   ⚠ 응답·타입의 `email` 필드는 **지우지 않는다**(계약 존치). 바뀐 것은 표시 축뿐이다.
+      id: 'loginId',
+      header: '로그인ID',
       cell: ({ row }) => {
         const u = row.original;
-        // 긴 주소는 잘라 보이되 `title` 로 전체 값을 남긴다 — 열 폭 때문에 값이 사라지지 않게.
-        if (u.email) {
+        // 긴 식별자는 잘라 보이되 `title` 로 전체 값을 남긴다 — 열 폭 때문에 값이 사라지지 않게.
+        if (u.loginId) {
           return (
-            <span title={u.email} className="block max-w-[260px] truncate text-body text-gray-700">
-              {u.email}
+            <span
+              title={u.loginId}
+              className="block max-w-[260px] truncate text-body text-gray-700"
+            >
+              {u.loginId}
             </span>
           );
         }
-        // 이메일이 없는 사용자(관제 인계 시 미제공)는 loginId 로 대체하되 **출처를 밝힌다** —
-        // 캡션이 없으면 loginId 가 이메일로 읽힌다.
-        return (
-          <span className="inline-flex max-w-[260px] items-baseline gap-1 text-body text-gray-600">
-            <span title={u.loginId} className="truncate">
-              {u.loginId}
-            </span>
-            <span className="shrink-0 text-caption text-gray-600">(로그인ID)</span>
-          </span>
-        );
+        // 값이 없을 수 있다(자동발급 경로 밖의 행). 빈 칸으로 두면 «로딩 중»과 구분되지 않으므로
+        // 「값이 없다」를 명시한다.
+        return <span className="text-body text-gray-500">—</span>;
       },
     },
     {
@@ -501,7 +507,10 @@ export function UserManagePage() {
             <Field className="min-w-0 md:col-start-1 md:row-start-1">
               <FieldLabel>검색</FieldLabel>
               <Input
-                placeholder="이름 / 이메일을 입력하세요."
+                // @design SCREEN-024 v35 — 검색 축은 이름·로그인ID 2축이다(이메일 축 제거).
+                //   화면 문구는 확정된 사용자 표현 그대로 「아이디」를 쓰고, 사양·컬럼 어휘는
+                //   「로그인ID」로 통일한다(아래 도움말).
+                placeholder="이름 / 아이디를 입력하세요."
                 value={keywordInput}
                 onChange={(e) => setKeywordInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -513,7 +522,7 @@ export function UserManagePage() {
               />
             </Field>
             <p id={SEARCH_HELP_ID} className="text-sub text-gray-500 md:col-start-1 md:row-start-2">
-              이름 또는 이메일 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.
+              이름 또는 로그인ID 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.
             </p>
             <Field className="min-w-0 md:col-start-2 md:row-start-1">
               <FieldLabel>역할</FieldLabel>
