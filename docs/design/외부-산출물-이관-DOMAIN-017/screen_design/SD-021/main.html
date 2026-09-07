@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">관리</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">비식별 신고 관리</span></li>
+      </ol>
+    </nav>
+    <h1 class="t-title-lg">비식별 신고 관리</h1>
+    <p class="page-desc t-body-sm">라벨링·마킹 중 신고된 비식별 누락 건을 확인하고 외부 수동 비식별화 완료 후 해소 처리합니다.</p>
+  </div>
+
+  
+  <div class="alert alert-warn">
+    <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+      <rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+    </svg>
+    <div class="alert-body">
+      <span class="alert-title t-title-sm">신고가 접수된 영상은 해소 전까지 잠깁니다</span>
+      <span class="alert-desc t-body-sm">그 영상의 재생·프레임 이미지·라벨 조회와 저장이 모두 막히고, 개인정보 판정도 새로 쓸 수 없습니다. 작업자가 남긴 라벨과 판정은 지워지지 않고 그대로 보존되며, 해소하면 그 결과를 이어서 씁니다.</span>
+    </div>
+  </div>
+
+  
+  <input type="radio" name="report-tab" id="tab-open" class="tabstate" checked />
+  <input type="radio" name="report-tab" id="tab-done" class="tabstate" />
+
+  <div class="tab-shell">
+    <nav class="tabbar" role="tablist" aria-label="신고 상태">
+      <label for="tab-open" role="tab" aria-selected="true" class="t-nav-link">
+        미처리 <span class="tab-count">3</span>
+      </label>
+      <label for="tab-done" role="tab" aria-selected="false" class="t-nav-link">
+        처리완료 <span class="tab-count">27</span>
+      </label>
+    </nav>
+
+    
+    <section id="panel-open" class="tab-panel" role="tabpanel" aria-label="미처리 신고 목록">
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h2 class="t-title-sm card-title">미처리 신고</h2>
+          <span class="card-count t-body-sm">3건 · 페이지당 20건</span>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table t-body-sm">
+            <caption class="sr-only">미처리 상태의 비식별 누락 신고 목록입니다. 각 행의 해소 처리 버튼으로 외부 수동 비식별화 결과를 골라 잠금을 해제합니다.</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-no">신고 번호</th>
+                <th scope="col" class="col-video">영상</th>
+                <th scope="col" class="col-worker">신고자</th>
+                <th scope="col" class="col-reason">사유</th>
+                <th scope="col" class="col-when">신고일시</th>
+                <th scope="col" class="col-stage">신고 단계</th>
+                <th scope="col" class="col-status">상태</th>
+                <th scope="col" class="col-act">처리</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <tr data-open="true">
+                <td class="cell-no">#1042</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3187</span>
+                  </div>
+                </td>
+                <td>김민수</td>
+                <td class="cell-reason">보행자 얼굴이 마스킹되지 않은 구간이 있습니다. 00:12~00:18 사이 정면으로 지나가는 사람입니다.</td>
+                <td class="cell-when">2026-08-12 14:22:07</td>
+                <td>
+                  <span class="stage-badge" data-stage="labeling" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+                    라벨링
+                    <span class="stage-tip" role="note">해소하면 프레임 이미지만 다시 뽑아 라벨링을 이어갑니다. 마킹은 그대로 두고 작업자가 찍어 둔 라벨 좌표도 보존됩니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>미처리</span></td>
+                <td class="cell-act">
+                  <a class="btn btn-primary btn-sm" href="#dialog-resolve">해소 처리</a>
+                </td>
+              </tr>
+
+              <tr data-open="true">
+                <td class="cell-no">#1041</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3164</span>
+                  </div>
+                </td>
+                <td>이서연</td>
+                <td class="cell-reason">주차된 차량 번호판 두 대가 그대로 보입니다.</td>
+                <td class="cell-when">2026-08-12 10:05:41</td>
+                <td>
+                  <span class="stage-badge" data-stage="marking" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4v16"></path><path d="M4 5h11l-2 3 2 3H4"></path></svg>
+                    마킹
+                    <span class="stage-tip" role="note">해소하면 처리 단계가 마킹 대기로 되감기고 진행 중이던 마킹이 종결됩니다. 새 비식별 결과 위에서 마킹부터 다시 합니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>미처리</span></td>
+                <td class="cell-act">
+                  <a class="btn btn-primary btn-sm" href="#dialog-resolve">해소 처리</a>
+                </td>
+              </tr>
+
+              <tr data-open="true">
+                <td class="cell-no">#1039</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3120</span>
+                  </div>
+                </td>
+                <td>박지훈</td>
+                <td class="cell-reason">정면 얼굴이 노출된 프레임이 여러 장 있습니다.</td>
+                <td class="cell-when">2026-08-11 17:48:19</td>
+                <td>
+                  <span class="stage-badge" data-stage="unknown" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7"></path><path d="M12 17h.01"></path></svg>
+                    미상
+                    <span class="stage-tip" role="note">단계 기록이 남기 전에 접수된 신고입니다. 해소하면 잠금은 풀리지만 마킹·프레임 재추출이 자동으로 이어지지 않습니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>미처리</span></td>
+                <td class="cell-act">
+                  <a class="btn btn-primary btn-sm" href="#dialog-resolve">해소 처리</a>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    
+    <section id="panel-done" class="tab-panel" role="tabpanel" aria-label="처리완료 신고 목록">
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h2 class="t-title-sm card-title">처리완료 신고</h2>
+          <span class="card-count t-body-sm">27건 중 1-20 · 페이지당 20건</span>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table t-body-sm">
+            <caption class="sr-only">해소 처리가 끝난 비식별 누락 신고 목록입니다. 처리 열에는 조작이 없고 해소 일시만 표시됩니다.</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-no">신고 번호</th>
+                <th scope="col" class="col-video">영상</th>
+                <th scope="col" class="col-worker">신고자</th>
+                <th scope="col" class="col-reason">사유</th>
+                <th scope="col" class="col-when">신고일시</th>
+                <th scope="col" class="col-stage">신고 단계</th>
+                <th scope="col" class="col-status">상태</th>
+                <th scope="col" class="col-act">처리</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <tr>
+                <td class="cell-no">#1038</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3099</span>
+                  </div>
+                </td>
+                <td>최유진</td>
+                <td class="cell-reason">건물 창문 너머 실내가 식별됩니다.</td>
+                <td class="cell-when">2026-08-10 09:12:33</td>
+                <td>
+                  <span class="stage-badge" data-stage="labeling" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+                    라벨링
+                    <span class="stage-tip" role="note">프레임 이미지를 다시 뽑아 라벨링을 이어갔습니다. 라벨 좌표는 보존됐습니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리완료</span></td>
+                <td class="cell-act"><span class="t-caption text-muted">2026-08-10 15:40</span></td>
+              </tr>
+
+              <tr>
+                <td class="cell-no">#1037</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3081</span>
+                  </div>
+                </td>
+                <td>김민수</td>
+                <td class="cell-reason">택시 번호판이 마스킹되지 않았습니다.</td>
+                <td class="cell-when">2026-08-09 16:31:58</td>
+                <td>
+                  <span class="stage-badge" data-stage="marking" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4v16"></path><path d="M4 5h11l-2 3 2 3H4"></path></svg>
+                    마킹
+                    <span class="stage-tip" role="note">처리 단계를 마킹 대기로 되감아 새 비식별 결과 위에서 마킹부터 다시 했습니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리완료</span></td>
+                <td class="cell-act"><span class="t-caption text-muted">2026-08-09 18:02</span></td>
+              </tr>
+
+              <tr>
+                <td class="cell-no">#1035</td>
+                <td>
+                  <div class="cell-video">
+                    <span class="video-key">영상 #3060</span>
+                  </div>
+                </td>
+                <td>이서연</td>
+                <td class="cell-reason">자전거 이용자 얼굴이 그대로 보입니다.</td>
+                <td class="cell-when">2026-08-08 11:04:12</td>
+                <td>
+                  <span class="stage-badge" data-stage="labeling" tabindex="0">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+                    라벨링
+                    <span class="stage-tip" role="note">프레임 이미지를 다시 뽑아 라벨링을 이어갔습니다. 라벨 좌표는 보존됐습니다.</span>
+                  </span>
+                </td>
+                <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리완료</span></td>
+                <td class="cell-act"><span class="t-caption text-muted">2026-08-08 14:27</span></td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <nav class="pagination" aria-label="처리완료 신고 목록 페이지">
+          <button type="button" class="page-btn" disabled aria-label="이전 페이지">
+            <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+          </button>
+          <button type="button" class="page-btn" aria-current="page">1</button>
+          <button type="button" class="page-btn">2</button>
+          <span class="page-ellipsis" aria-hidden="true">…</span>
+          <button type="button" class="page-btn">8</button>
+          <button type="button" class="page-btn" aria-label="다음 페이지">
+            <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+          </button>
+        </nav>
+      </div>
+    </section>
+  </div>
+
+  
+  <div class="card section-gap">
+    <div class="card-header">
+      <h2 class="t-title-sm card-title">이관으로 들어온 승인 보류 영상</h2>
+      <span class="card-count t-body-sm">2건 · 페이지당 20건</span>
+    </div>
+
+    <p class="section-note t-body-sm text-muted">외부 산출물을 원본으로 지정해 가져오면 승인 보류가 섭니다. 보류는 검수 승인만 막고 검수 착수·라벨 조회·프레임 이미지 열람은 그대로 열려 있습니다. 외부에서 비식별한 산출물을 받아 여기서 기록하면 풀립니다.</p>
+
+    <div class="table-scroll">
+      <table class="data-table t-body-sm">
+        <caption class="sr-only">이관으로 들어와 승인 보류가 선 영상 목록입니다. 각 행의 비식별 완료 기록 버튼으로 외부 비식별 산출물을 등록해 보류를 풉니다.</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-no">영상 번호</th>
+            <th scope="col" class="col-video">폴더명</th>
+            <th scope="col" class="col-when">가져온 시각</th>
+            <th scope="col" class="col-frame">프레임 수</th>
+            <th scope="col" class="col-status">보류 사유</th>
+            <th scope="col" class="col-act">처리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-open="true">
+            <td class="cell-no t-mono">10493</td>
+            <td class="cell-video">/nas/import/20260901/cam-0417</td>
+            <td class="cell-when">2026-09-01 17:42</td>
+            <td class="cell-frame num">248</td>
+            <td>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>프레임만 들어옴</span>
+              <span class="cell-reason t-caption">원본 영상이 함께 오지 않아 저작도구가 비식별을 태울 수 없습니다. 외부 산출물을 받아 기록해야 풀립니다.</span>
+            </td>
+            <td class="cell-act"><a class="btn btn-primary btn-sm" href="#dialog-record-deid">비식별 완료 기록</a></td>
+          </tr>
+          <tr data-open="true">
+            <td class="cell-no t-mono">10489</td>
+            <td class="cell-video">/nas/import/20260831/cam-0208</td>
+            <td class="cell-when">2026-08-31 11:06</td>
+            <td class="cell-frame num">176</td>
+            <td>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>프레임만 들어옴</span>
+              <span class="cell-reason t-caption">원본 영상이 함께 오지 않아 저작도구가 비식별을 태울 수 없습니다. 외부 산출물을 받아 기록해야 풀립니다.</span>
+            </td>
+            <td class="cell-act"><a class="btn btn-primary btn-sm" href="#dialog-record-deid">비식별 완료 기록</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pagination" aria-label="이관 보류 영상 목록 페이지">
+      <button type="button" class="page-btn" disabled aria-label="이전 페이지">
+        <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+      </button>
+      <button type="button" class="page-btn" aria-current="page">1</button>
+      <button type="button" class="page-btn" disabled aria-label="다음 페이지">
+        <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+      </button>
+    </nav>
+  </div>
+
+  
+  <div id="dialog-record-deid" class="overlay" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+    <a href="#panel-open" class="overlay-backdrop" aria-hidden="true"></a>
+    <div class="dialog">
+      <div class="dialog-head">
+        <div class="dialog-title-group">
+          <h2 id="rec-title" class="t-title-md dialog-title">비식별 완료 기록</h2>
+          <p class="dialog-sub t-body-sm">영상 번호 <span class="t-mono">10493</span> · 프레임 248건 — 외부에서 비식별한 산출물이 놓인 폴더를 적어 주세요.</p>
+        </div>
+        <a href="#panel-open" class="dialog-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </a>
+      </div>
+
+      <div class="field">
+        <label class="field-label t-label" for="rec-path">비식별 산출물 폴더 경로 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+        <input class="input t-mono" id="rec-path" type="text" placeholder="/nas/deid/20260901/cam-0417" aria-describedby="rec-path-help" />
+        <p id="rec-path-help" class="field-help t-caption">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부됩니다. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남습니다. 바로가기로 된 허용 저장소에서도 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있습니다.</p>
+      </div>
+
+      <div class="alert alert-warn" role="alert">
+        <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+        </svg>
+        <div class="alert-body">
+          <p class="t-title-sm">이름이 맞는 파일이 없는 프레임은 비워 둡니다</p>
+          <p class="t-body-sm">비워 둔 프레임이 남으면 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나갑니다. 기록 결과에서 그 수를 함께 알려 드립니다.</p>
+        </div>
+      </div>
+
+      <div class="dialog-foot">
+        <p class="foot-note t-caption">기록이 성공하면 승인 보류가 풀립니다.</p>
+        <a class="btn btn-secondary" href="#panel-open">취소</a>
+        <button type="button" class="btn btn-primary">기록</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="dialog-resolve" class="overlay" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <a href="#panel-open" class="overlay-backdrop" aria-hidden="true"></a>
+    <div class="dialog">
+      <div class="dialog-head">
+        <div class="dialog-title-group">
+          <h2 id="dlg-title" class="t-title-md dialog-title">비식별 산출물 선택</h2>
+          <p class="dialog-sub t-body-sm">영상 #3187 · 신고 #1042 — 외부 솔루션이 만든 산출물 중 이번에 쓸 것을 하나 고르세요.</p>
+        </div>
+        <a href="#panel-open" class="dialog-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </a>
+      </div>
+
+      <div class="alert alert-info">
+        <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>
+        </svg>
+        <div class="alert-body">
+          <span class="alert-desc t-body-sm">외부 솔루션이 같은 이름으로 덮어쓰지 않고 다른 이름으로 산출할 수 있어, 기본값을 정해 두지 않았습니다. 크기와 수정시각을 보고 이번에 새로 만들어진 것을 고르세요.</span>
+        </div>
+      </div>
+
+      <fieldset style="border:0;padding:0;margin:0">
+        <legend class="t-label" style="color:var(--n-8);margin-bottom:8px">산출물 후보 3건</legend>
+        <div class="cand-list">
+          <label class="cand-item">
+            <input type="radio" name="artifact" value="1" />
+            <span class="cand-body">
+              <span class="cand-name">3187-mask-2.mp4</span>
+              <span class="cand-meta t-caption">
+                <span class="kv"><span>크기</span><span class="v">184.2 MB</span></span>
+                <span class="kv"><span>수정</span><span class="v">2026-08-12 16:08:41</span></span>
+              </span>
+            </span>
+            <span class="cand-flag"></span>
+          </label>
+
+          <label class="cand-item">
+            <input type="radio" name="artifact" value="2" />
+            <span class="cand-body">
+              <span class="cand-name">3187-mask.mp4</span>
+              <span class="cand-meta t-caption">
+                <span class="kv"><span>크기</span><span class="v">183.7 MB</span></span>
+                <span class="kv"><span>수정</span><span class="v">2026-08-05 09:31:12</span></span>
+              </span>
+            </span>
+            <span class="cand-flag">
+              <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>현재 이력에 기록됨</span>
+            </span>
+          </label>
+
+          <label class="cand-item">
+            <input type="radio" name="artifact" value="3" />
+            <span class="cand-body">
+              <span class="cand-name">3187-mask-tmp.mp4</span>
+              <span class="cand-meta t-caption">
+                <span class="kv"><span>크기</span><span class="v">42.1 MB</span></span>
+                <span class="kv"><span>수정</span><span class="v">2026-08-12 15:55:03</span></span>
+              </span>
+            </span>
+            <span class="cand-flag"></span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="dialog-foot">
+        <p class="foot-note t-caption">저장 위치는 표시하지 않습니다. 고른 파일은 서버가 다시 확인한 뒤에만 반영됩니다.</p>
+        <a href="#panel-open" class="btn btn-secondary">취소</a>
+        <button type="button" class="btn btn-primary" disabled>해소 처리</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">위 '비식별 산출물 선택' 다이얼로그가 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 그 자리에 표시됩니다. 다이얼로그를 처음 열면 아무것도 선택돼 있지 않고, 고르기 전에는 확인 조작을 할 수 없습니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 후보를 고른 뒤 — 확인 조작이 열린다</p>
+        <div class="dialog dialog-static">
+          <div class="dialog-head">
+            <div class="dialog-title-group">
+              <h3 class="t-title-md dialog-title">비식별 산출물 선택</h3>
+              <p class="dialog-sub t-body-sm">영상 #3187 · 신고 #1042</p>
+            </div>
+          </div>
+          <div class="cand-list">
+            <label class="cand-item" style="border-color:var(--p-5);background:var(--p-0)">
+              <input type="radio" name="artifact-ref" value="1" checked />
+              <span class="cand-body">
+                <span class="cand-name">3187-mask-2.mp4</span>
+                <span class="cand-meta t-caption">
+                  <span class="kv"><span>크기</span><span class="v">184.2 MB</span></span>
+                  <span class="kv"><span>수정</span><span class="v">2026-08-12 16:08:41</span></span>
+                </span>
+              </span>
+              <span class="cand-flag"></span>
+            </label>
+            <label class="cand-item">
+              <input type="radio" name="artifact-ref" value="2" />
+              <span class="cand-body">
+                <span class="cand-name">3187-mask.mp4</span>
+                <span class="cand-meta t-caption">
+                  <span class="kv"><span>크기</span><span class="v">183.7 MB</span></span>
+                  <span class="kv"><span>수정</span><span class="v">2026-08-05 09:31:12</span></span>
+                </span>
+              </span>
+              <span class="cand-flag"><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>현재 이력에 기록됨</span></span>
+            </label>
+          </div>
+          <div class="dialog-foot">
+            <button type="button" class="btn btn-secondary btn-sm">취소</button>
+            <button type="button" class="btn btn-primary btn-sm">해소 처리</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 후보가 0건 — 확인 조작이 잠긴다</p>
+        <div class="dialog dialog-static">
+          <div class="dialog-head">
+            <div class="dialog-title-group">
+              <h3 class="t-title-md dialog-title">비식별 산출물 선택</h3>
+              <p class="dialog-sub t-body-sm">영상 #3120 · 신고 #1039</p>
+            </div>
+          </div>
+          <div class="alert alert-warn">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="alert-title t-title-sm">선택할 수 있는 비식별 산출물이 없습니다</span>
+              <span class="alert-desc t-body-sm">외부 솔루션으로 비식별을 먼저 끝낸 뒤 다시 시도해 주세요.</span>
+            </div>
+          </div>
+          <div class="dialog-foot">
+            <button type="button" class="btn btn-secondary btn-sm">취소</button>
+            <button type="button" class="btn btn-primary btn-sm" disabled>해소 처리</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">목록이 조회 상태에 따라 표시하는 대체 화면입니다 — 실제 화면에서는 위 표 자리에 이 중 하나가 대신 표시되고, 빈 상태 문구는 지금 보고 있는 탭에 따라 달라집니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 목록 로딩</p>
+        <div class="ref-box">
+          <div class="skel-row"><span class="skel" style="width:56px"></span><span class="skel" style="width:26%"></span><span class="skel" style="width:34%"></span></div>
+          <div class="skel-row"><span class="skel" style="width:56px"></span><span class="skel" style="width:32%"></span><span class="skel" style="width:24%"></span></div>
+          <div class="skel-row"><span class="skel" style="width:56px"></span><span class="skel" style="width:20%"></span><span class="skel" style="width:40%"></span></div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 신고 0건 (탭별 문구)</p>
+        <div class="ref-box">
+          <div class="empty-box" role="status">
+            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 8.5-4.1-.9-7-4.3-7-8.5V6l7-3Z"></path><path d="m9.5 12 1.8 1.8L15 10"></path>
+            </svg>
+            <p class="empty-title t-body-sm">미처리 신고가 없습니다</p>
+            <p class="t-caption">처리완료 탭에서는 '처리완료된 신고가 없습니다' 로 바뀝니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 목록 조회 실패</p>
+        <div class="ref-box">
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="alert-title t-title-sm">신고 목록을 불러올 수 없습니다</span>
+              <span class="alert-desc t-body-sm">잠시 후 다시 시도해 주세요.</span>
+            </div>
+            <div class="alert-actions">
+              <button type="button" class="btn btn-secondary btn-sm">다시 시도</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">해소 처리를 눌러도 성립하지 않는 경우입니다 — 이때 다이얼로그는 닫히지 않고 신고는 미처리로 남습니다. 화면이 미리 막을 수 없는 조건이라 서버가 요청 시점에 다시 확인합니다.</span>
+    </div>
+    <div class="reference-grid cols-1">
+      <div class="ref-box">
+        <ul class="lock-list">
+          <li class="lock-item">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+            <span class="t-body-sm">고른 파일이 요청 시점에 더 이상 후보가 아닌 경우 — 다이얼로그를 열어 둔 사이 산출 폴더가 정리됐을 수 있습니다.</span>
+          </li>
+          <li class="lock-item">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+            <span class="t-body-sm">고른 파일이 신고 시각보다 먼저 만들어진 경우 — 이번 재비식별의 결과가 아니라는 뜻입니다.</span>
+          </li>
+          <li class="lock-item">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+            <span class="t-body-sm">두 사람이 같은 신고를 동시에 해소한 경우 — 먼저 도착한 요청만 성립하고 나머지는 실패로 알립니다.</span>
+          </li>
+        </ul>
+        <p class="t-caption text-muted" style="margin-top:8px">성공한 요청만 잠금을 풀고, 고른 산출물을 비식별 처리 이력에 새 회차로 남긴 뒤 신고 단계에 맞는 재개를 수행합니다.</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

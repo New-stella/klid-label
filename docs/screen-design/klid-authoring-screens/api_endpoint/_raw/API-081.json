@@ -1,0 +1,299 @@
+{
+  "item": {
+    "id": "API-081",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/datamart/labels",
+    "slug": "get-v1portaldatamartlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/datamart/labels",
+      "tags": [
+        "portal"
+      ],
+      "method": "GET",
+      "summary": "데이터마트 라벨 Load",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "라벨명 (labelNm)"
+                    },
+                    "lblSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "라벨 PK"
+                    },
+                    "srcSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "프레임 PK (SRC_SN)"
+                    },
+                    "trackId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "트랙 ID (없으면 null)"
+                    },
+                    "lblTypeCd": {
+                      "type": "string",
+                      "description": "라벨 유형 코드 (예: BBOX, POLYGON)"
+                    },
+                    "pointsJson": {
+                      "type": "string",
+                      "description": "좌표 JSON 문자열 (pointCn)"
+                    }
+                  }
+                },
+                "description": "데이터마트 원본 라벨 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "label": "person",
+                "lblSn": 90001,
+                "srcSn": 70001,
+                "trackId": null,
+                "lblTypeCd": "BBOX",
+                "pointsJson": "[[120,80],[260,420]]"
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 List<DatamartLabelResponse>(rawSn 원본 라벨 목록, page/size 페이징)가 담긴다. PORTAL_USER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "rawSn 은 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "rawSn 누락 등 입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상 (로그인 필요). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "포털 채널 토큰이 아니거나 포털 회원 역할이 아님. 포털 경로는 채널과 역할을 함께 요구한다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 라벨 좌표가 개인정보 위치를 특정하므로 외부 채널 노출을 막는다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 포털 데이터마트 Load"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "query",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "조회 대상 영상 식별자 RAW_SN"
+        },
+        {
+          "in": "query",
+          "name": "page",
+          "schema": {
+            "type": "integer",
+            "default": 0
+          },
+          "example": 0,
+          "required": false,
+          "description": "페이지 번호 (0-based)"
+        },
+        {
+          "in": "query",
+          "name": "size",
+          "schema": {
+            "type": "integer",
+            "default": 100
+          },
+          "example": 100,
+          "required": false,
+          "description": "페이지 크기"
+        }
+      ],
+      "description": "저작도구 DB의 검수 승인(APPROVED) 자산에서 사용자가 선택한 영상의 라벨/메타를 Load한다 — 포털 DB를 읽지 않는다. ⚠ **[단일 배포 전제 — 재정합 대상]** 「저작도구 DB 의 검수 승인 자산을 Load 한다」는 저작도구가 **한 벌로 배포되던 전제**다. 2026-08-31 확정(ADR-012)으로 저작도구는 **채널별로 별도 배포**되고 각 배포본이 **자기 별도 DB 에만** 연결하므로 **포털 채널 배포본에는 관제 채널 배포본의 승인 자산이 없다.** 대체 조달은 **관제가 비식별 산출물을 포털로 전달 → 포털이 포털 채널 배포본에 알림 → 그 배포본이 배포물을 자기 DB 에 적재해 서빙**하는 방향이다. ✅ **조회 창구가 확정됐다 (2026-09-03 포털 회신)** — 구 표기 「조회 창구가 포털 회신 대기로 미확정이며 확정 전까지 이 서술을 새 설계의 근거로 쓰지 말 것」은 이 회신으로 **해소**됐다. 소재(파일) 조회 창구는 **[포털]API-132** 이며, 그 응답이 알려주는 **NAS 절대경로**로 배포물을 읽는다. 한 건의 소재는 **배포 묶음 파일 한 건과 영상 0건 이상**으로 이루어진다. ⚠ **그 창구의 응답 규격은 포털이 소유하므로 여기에 옮겨 적지 않는다** — 조달처만 가리키고 필드 구성은 [포털]API-132 를 정본으로 본다(복제하면 두 번째 진실원이 되어 한쪽만 낡는다). ⚠ **「포털 DB 를 읽지 않는다」는 그대로 유효**하다 — 우리가 읽는 것은 **NAS 파일**이지 포털 DB 가 아니며, 상호 미접근 확정으로 오히려 강화된다. PORTAL_USER 전용.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-258"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:42.709Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "2026-09-03 포털 회신으로 「대체 조달의 조회 창구가 포털 회신 대기로 미확정」 표기를 해소로 갱신했다. 소재(파일) 조회 창구는 [포털]API-132 이며 그 응답이 알려주는 NAS 절대경로로 배포물을 읽는다(한 건의 소재 = 배포 묶음 파일 한 건 + 영상 0건 이상). 응답 규격은 포털이 소유하므로 이 본문에 필드 구성을 복제하지 않고 조달처만 가리킨다. 단일 배포 전제였다는 사실과 포털 채널 배포본에 승인 자산이 없다는 사실, 구 표기 원문은 지우지 않고 해소 표기를 얹었다. 「포털 DB 를 읽지 않는다」축은 그대로 유효하며 우리가 읽는 것은 NAS 파일이지 DB 가 아님을 명시했다. 요청·응답 규격 배열과 status 는 무변경이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-04T05:35:50.941Z",
+    "created_at": "2026-05-30T07:27:30.274Z"
+  }
+}

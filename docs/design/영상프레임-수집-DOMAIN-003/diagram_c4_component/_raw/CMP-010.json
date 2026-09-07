@@ -22,7 +22,8 @@
             "modules": [],
             "records": [],
             "progress": 80,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -37,7 +38,8 @@
             "modules": [],
             "records": [],
             "progress": 80,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -51,7 +53,8 @@
             "modules": [],
             "records": [],
             "progress": 80,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -59,13 +62,14 @@
           "name": "LsDataIngestRepository",
           "arch_role": "driven_adapter",
           "technology": "Spring Data JPA",
-          "description": "★관제 공유 마스터 READ 를 대체한 인입 테이블 접근. findPendingReadyForPolling(미처리 후보 배치 조회) · 조건부 UPDATE 원자 클레임(2노드 중복 적재 방지) · reclaimStaleProcessing(타임아웃 좀비 회수).",
+          "description": "★관제 공유 마스터 READ 를 대체한 인입 테이블 접근. findPendingReadyForPolling(미처리 후보 배치 조회) · 조건부 UPDATE 원자 클레임(다중 노드 중복 적재 방지) · reclaimStaleProcessing(타임아웃 좀비 회수).",
           "implementation": {
             "status": "in_progress",
             "modules": [],
             "records": [],
             "progress": 80,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -79,11 +83,12 @@
             "modules": [],
             "records": [],
             "progress": 100,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
-      "description": "UC-018 영상 적재의 컴포넌트 구조. ★ADR-042 로 적재 주체가 반전됐다 — 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구는 그 테이블을 폴링해 적재한다. 구 구조(관제 공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)는 폐기됐고 해당 Repository 2종도 삭제됐다.\n\n[흐름] Quartz Job(ControlTrainingVideoScanJob, @DisallowConcurrentExecution, 1회/분) → ①좀비(PROCESSING 고착) 회수를 스캔 앞에 수행해 회수된 행이 같은 tick 에 바로 처리되게 한다(회수 실패는 흡수해 그 tick 의 정상 적재를 막지 않는다) ②TrainingVideoIngestService.scanAndIngest 가 미처리 행을 배치 조회(상한 100) ③행별로 TrainingVideoIngestTx(REQUIRES_NEW 독립 트랜잭션)이 원자 클레임 후 LS_DATA_RAW(PENDING) 적재 ④VideoIngestedEvent(EVT-005) 발행 → 선두 비식별 파이프라인으로 이어진다.\n\n[★2노드 Active-Active 안전장치] Quartz 클러스터링은 트리거 중복 발화만 막고 잡 내부 레이스는 막지 않는다. 그래서 후보 선점을 조건부 UPDATE 로 원자 클레임하고, 클레임 후 죽은 노드 때문에 PROCESSING 으로 고착된 행은 타임아웃 기반 회수가 되살린다.\n\n[부분 실패 격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지 tick 을 깨뜨리지 않는다. 식별자·파일경로 gap 은 skip(WARN), 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다.",
+      "description": "UC-018 영상 적재의 컴포넌트 구조. ★ADR-042 로 적재 주체가 반전됐다 — 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구는 그 테이블을 폴링해 적재한다. 구 구조(관제 공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)는 폐기됐고 해당 Repository 2종도 삭제됐다.\n\n[흐름] Quartz Job(ControlTrainingVideoScanJob, @DisallowConcurrentExecution, 1회/분) → ①좀비(PROCESSING 고착) 회수를 스캔 앞에 수행해 회수된 행이 같은 tick 에 바로 처리되게 한다(회수 실패는 흡수해 그 tick 의 정상 적재를 막지 않는다) ②TrainingVideoIngestService.scanAndIngest 가 미처리 행을 배치 조회(상한 100) ③행별로 TrainingVideoIngestTx(REQUIRES_NEW 독립 트랜잭션)이 원자 클레임 후 LS_DATA_RAW(PENDING) 적재 ④VideoIngestedEvent(EVT-005) 발행 → 선두 비식별 파이프라인으로 이어진다.\n\n[★4노드 Active-Active 안전장치] Quartz 클러스터링은 트리거 중복 발화만 막고 잡 내부 레이스는 막지 않는다. 그래서 후보 선점을 조건부 UPDATE 로 원자 클레임하고, 클레임 후 죽은 노드 때문에 PROCESSING 으로 고착된 행은 타임아웃 기반 회수가 되살린다.\n\n[부분 실패 격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지 tick 을 깨뜨리지 않는다. 식별자·파일경로 gap 은 skip(WARN), 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다.",
       "module_name": "video.ingest",
       "relationships": [
         {
@@ -125,10 +130,19 @@
           "description": "VideoIngestedEvent(EVT-005) 발행 (정상 적재 시)"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-007",
         "DFEAT-008"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -147,12 +161,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "구현 진척 상태를 적은 마지막 문단을 걷어낸다. 어느 브랜치에서 무엇이 아직 커밋되지 않았는지는 설계 사실이 아니라 그때그때의 작업 상태라, 이 다이어그램을 읽는 사람에게 참이 아니다. 컴포넌트 구성·관계·흐름 서술은 그대로 둔다.",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "API-043의 2개 필드 변경이 depicts로 2-hop 전파",
+    "change_summary": "노드 수 표기를 사실에 맞춘다. 저작도구 앱 서버는 실제로 네 대인데 본문이 아직 두 대로 말하고 있었다 — 인프라 항목은 이미 네 대로 고쳐져 있었고 이 문서가 따라가지 못한 상태였다. 동시성 방어 논리와 구조는 하나도 바꾸지 않았다. 여러 노드가 함께 도는 형상이라 애플리케이션 락으로는 방어되지 않아 저장소 수준 조건부 갱신으로 해결한다는 근거는 노드가 둘이든 넷이든 그대로 참이므로, 재검토가 아니라 표기 정정이다. 폐기 표기 안에 인용된 옛 서술은 그대로 두었다 — 그것을 함께 바꾸면 구 서술이 무엇이었는지가 사라져 왜 네 대인지 근거를 찾을 수 없게 된다. 둘이 동시에 부딪히는 상황을 말하는 자리도 그대로 두었다. 그 자리의 두 노드는 대수가 아니라 동시에 충돌하는 두 주체를 뜻하므로 네 대 형상에서도 참이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T10:01:05.195Z",
+    "last_updated_at": "2026-09-07T03:03:27.963Z",
     "created_at": "2026-06-11T01:08:39.202Z"
   }
 }

@@ -1,0 +1,255 @@
+{
+  "item": {
+    "id": "API-203",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "포털 사용자 작업 데이터 ZIP 다운로드",
+    "slug": "get-v1portaldatamartvideosrawsndownload",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/datamart/videos/{rawSn}/download",
+      "tags": [
+        "portal",
+        "portal-datamart"
+      ],
+      "title": "포털 사용자 작업 데이터 ZIP 다운로드",
+      "method": "GET",
+      "summary": "포털 사용자 작업 데이터 ZIP 다운로드",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "string",
+            "format": "binary",
+            "description": "ZIP 바이너리"
+          },
+          "description": "다운로드 성공. Content-Disposition: attachment; filename=\"portal-video-{rawSn}-{yyyyMMdd}.zip\"(서버 생성 고정명, 사용자 입력 미포함). Cache-Control: no-store(신고 게이트 대상 미디어 공통 규칙).",
+          "content_type": "application/zip"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "데이터마트에 노출되지 않은 영상입니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "데이터마트 노출(검수 완료 APPROVED) 영상이 아님. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "410": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "다운로드할 작업 데이터가 없습니다.",
+            "success": false,
+            "errorCode": "GONE"
+          },
+          "description": "본인 저작물 0건 — 저장 라벨 · 메타 오버레이 · 이벤트 어노테이션 오버레이가 모두 없음(신규 미작업, 또는 보존기간 만료로 셋이 함께 삭제됨). ErrorCode=GONE",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED",
+          "content_type": "application/json"
+        },
+        "429": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "TOO_MANY_REQUESTS"
+          },
+          "description": "사용자별 다운로드 요청량 제한 초과 — 사용자당 분당 3회. 산출물에 영상이 포함되면 한 요청의 입출력 부담이 크므로 연타를 막는다. 임계값은 설정으로 조정한다. ErrorCode=TOO_MANY_REQUESTS",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — 데이터마트 축에 실재하지 않던 다운로드 API 신설. 만료 정책(DFEAT-055)과 함께 도입.",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ]
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "다운로드할 데이터마트 영상 식별자"
+        }
+      ],
+      "description": "본인이 저장한 작업 라벨을 기준으로, 프레임 이미지 + 라벨 JSON + 비식별 영상(존재 시)을 ZIP 하나로 묶어 반환한다. 라벨 JSON은 프레임마다 본인 저장분이 있으면 그것을, 없으면 데이터마트 원본 라벨을 담는다(GET 프레임 라벨 병합 정책과 동일 축). 비식별 영상 경로가 없으면 영상 파일 없이 라벨·이미지만 담는다(원본 폴백 금지).\n\n내려받기 묶음은 포털 사용자가 이 채널에서 남긴 저작물 세 가지를 함께 담는다 — 본인이 저장한 라벨, 본인이 남긴 메타(촬영환경 · 프레임 설명 · 개인정보 판정 · 시계열 메타), 본인이 남긴 이벤트 어노테이션. 뒤의 둘은 원본과 동결본을 고치지 않고 포털 채널에만 쌓이는 오버레이이며, 내려받기는 그 값을 읽기만 한다 — 이 엔드포인트는 원본도 동결본도 데이터마트도 수정하지 않는다.\n\n셋을 함께 내보내는 근거는 셋이 함께 사라지기 때문이다. 보존기간이 지나면 세 저작물이 함께 삭제되므로(보존일수와 삭제 절차는 보존 기능이 소유하며 여기에 옮겨 적지 않는다), 내보내기가 라벨 하나만 담으면 사용자는 자기가 고친 메타와 이벤트 어노테이션을 가져갈 방법이 없는 채로 그것이 사라지는 것을 보게 된다. 「본인 작업 데이터」인데 본인이 만든 것의 일부를 못 가져가는 것이고, 삭제는 셋을 함께 하면서 내보내기만 하나만 하는 것은 앞뒤가 맞지 않는다. 그래서 라벨만 담아도 충분하다는 판단으로 되돌리지 않는다.\n\n두 오버레이는 별도 문서로 분리하지 않는다. 본인 오버레이 값이 있는 항목은 어노테이션 문서의 그 자리에 본인 값이 담기고, 오버레이가 없는 항목은 아래 조달 규칙대로 원본 값이 그대로 담긴다. 다섯 축은 모두 문서 안에 이미 자기 자리를 갖고 있으므로 필드를 새로 만들지 않는다 — 촬영환경(날씨 · 시간대 · 계절)은 영상 블록의 해당 필드, 개인정보 판정은 영상 블록과 프레임 블록에 각각 있는 세 필드, 프레임 설명은 프레임 블록의 설명 필드, 시계열 메타는 영상 블록의 묘사 필드, 이벤트 어노테이션은 문서 최상위다.\n\n별도 문서로 두는 안은 기각했다. 그렇게 두면 본 문서가 원본 값을 그대로 보여 주게 되어, 사용자가 고친 바로 그 필드에서 내려받은 것이 자기 작업을 반영하지 않는다 — 자기 작업을 받으려고 눌렀는데 자기가 고치지 않은 값이 오는 것이라 이 창구의 목적을 정면으로 어긴다.\n\n인지하고 수용한 대가가 하나 있다. 본인 값이 제자리에 들어가므로 이 문서는 모양만으로는 검수 승인 산출물과 구별되지 않는다 — 내용은 검수를 거치지 않은 본인 작업물이다. 이 성질은 본인 내려받기 축에만 해당하며, 관제와 데이터마트로 나가는 산출물은 이 경로와 무관하다. 구별 표식을 문서에 새로 넣는 것은 형식 변경이라 여기서 정하지 않는다.\n\n세 저작물이 하나도 없으면 내려받을 것이 없다 — 라벨은 없어도 메타나 이벤트 어노테이션을 남겼다면 내려받을 것이 있고, 셋을 모두 남기지 않았으면 없다. 이 판정 축은 데이터마트 축과 업로드 축에 공통이다 — 업로드 자산도 저작물을 하나도 남기지 않았으면 목록에는 실리되 내려받을 것이 없다.\n\nZIP 내부 구조: {rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg(비식별 프레임 이미지) + {rawSn}/frames/{FRM_NO 4자리 zero-pad}.json(그 프레임의 어노테이션 문서 — 이미지와 같은 자리에 이름만 다른 짝으로 둔다) + {rawSn}/video.{ext}(비식별 영상, 있을 경우만). 각 어노테이션 문서는 검수 승인 학습데이터 산출물과 같은 NIA COCO 확장 구조를 따른다 — 최상위 키는 info · dataset · licences · video · event · image · annotations · categories · type 이고, 좌표는 annotations 항목의 bbox · polygon · keypoints 로 표현한다. 영상 단위로 라벨을 한 문서에 모아 담던 자체 형태는 두지 않는다. 같은 라벨의 좌표 표현이 두 형태로 갈리면 한쪽만 갱신될 때 조용히 어긋나므로 두 형태를 병존시키지 않는다(설계 결정). 통일하는 또 하나의 근거는 학습데이터 산출 문서가 차후 데이터마트로 다시 읽혀 적재되는 왕복 자산이라는 점이다 — 구조가 다르면 그 경로에 들어갈 수 없다.\n\n어노테이션 문서의 메타 블록(개인정보 관련 필드 · 이벤트 식별자 · 상황 묘사)은 검수 승인 학습데이터 산출물과 같은 조달 규칙을 따르며, 조달처는 검수 승인 시점에 동결된 영상 메타 스냅샷이다. 조달 규칙 자체를 이 엔드포인트가 따로 정의하지 않는다 — 같은 규칙을 두 곳에 적으면 한쪽만 갱신돼 어긋나기 때문이다.\n\n어노테이션 문서 안의 식별자는 다음과 같이 조달한다. 프레임 식별자(image.id)는 데이터마트 프레임 식별자다 — 내려받는 대상이 데이터마트에 이미 존재하는 프레임이지 포털 사용자가 만든 프레임이 아니므로, 검수 승인 산출물과 같은 조달처를 쓰고 두 산출물에서 같은 프레임이 같은 값을 갖는다. 어노테이션 식별자(annotations[].id)는 그 라벨을 담고 있는 행의 식별자이며 조달처가 갈린다 — 포털 사용자가 직접 저장한 라벨이면 포털 작업 저장소의 식별자, 본인 저장분이 없어 데이터마트 원본으로 폴백된 프레임이면 데이터마트 라벨의 식별자다. 병합이 프레임 단위라 한 프레임은 본인 저장분 전량이거나 데이터마트 원본 전량이고 문서는 프레임마다 하나이므로, 한 문서 안에서는 한 저장소의 식별자 공간만 쓰인다 — 서로 다른 저장소의 값이 한 문서에서 충돌할 수 없다. 다만 문서 사이의 유일성은 보장하지 않는다. 두 저장소가 독립적으로 번호를 매기므로 같은 영상의 다른 프레임 문서가 우연히 같은 어노테이션 식별자를 가질 수 있다. 이 값은 문서 안에서 어노테이션을 가리키는 용도이지 영상 전체에서 유일한 키가 아니므로, 다시 읽어 적재하는 쪽이 영상 단위 유일 키로 다루면 안 된다.\n\n이미지는 비식별본만 담는다. 검수 승인 산출물이 원본과 비식별본을 함께 내는 것과 다르며, 포털 채널의 원본 비노출 규칙이 우선하기 때문이다. 어노테이션 문서의 image · video 블록이 참조하는 경로도 비식별 기준으로 산출하며, 원본 경로는 이 산출물에 싣지 않는다.\n\n데이터마트 노출(검수 완료 APPROVED) 영상만 대상이며, 비식별 누락 신고 구간에는 412. 본인 저작물이 한 건도 없는 경우(저장 라벨도 메타 오버레이도 이벤트 어노테이션 오버레이도 없는 경우 — 작업 시작 전, 또는 보존기간 만료로 셋이 함께 삭제된 경우)는 410. 접근 판정은 데이터마트 미노출 거부 → 비식별 신고 구간 거부 → 본인 저작물 없음 순으로 하며, 이 순서는 응답이 그 영상의 상태를 알려주는 오라클이 되지 않게 하는 장치라 바꾸지 않는다.\n\n내려받는 도중 사용자가 중단해 클라이언트가 연결을 끊으면 서버는 남은 전송을 이어가지 않고 그 시점에 멈춘다. 중단은 실패가 아니므로 서버 오류로 다루지 않으며 받다 만 산출물을 남기지도 않는다. 중단한 뒤 다시 받는 것은 새 요청이라 요청량 제한을 그대로 적용받는다. 요청 제한시간은 산출물을 끝까지 받아낼 수 있는 값이어야 한다 — 영상이 포함되면 산출물이 커지므로 일반 조회용 기본 제한시간을 그대로 쓰면 정상적인 대용량 다운로드가 구조적으로 실패한다. 이 값은 설정으로 조정하며, 요청이 지나는 경로 중 가장 작은 상한이 실제 상한이 되므로 경로 전체에서 함께 맞춘다.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-009",
+          "IMPREC-132",
+          "IMPREC-133",
+          "IMPREC-140"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-26T07:44:15.550Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalDatamartDownloadResponse.java"
+        ]
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "responses.410 설명에서 개정 이력투 문장(「상태코드 410 자체는 그대로고 나가는 조건만 넓혀진 것이다」)을 걷어냄 — 본문은 사양만 담고 개정 경위는 변경 요약이 소유한다. 사양 내용(본인 저작물 0건 = 세 저작물 모두 없음)은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T23:48:49.331Z",
+    "created_at": "2026-08-17T01:08:27.272Z"
+  }
+}

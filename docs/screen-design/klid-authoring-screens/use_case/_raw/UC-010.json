@@ -1,0 +1,138 @@
+{
+  "item": {
+    "id": "UC-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "증강 영상 활용 여부 검수",
+    "slug": "증강-영상-활용-여부-검수",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "미검수(PENDING) 증강 영상을 확인해 학습데이터 활용 여부를 승인/반려한다.",
+      "actor": "검수자(REVIEWER)",
+      "title": "증강 영상 활용 여부 검수",
+      "status": "draft",
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "GET /v1/augments 에서 미판단 증강 결과를 조회한다(요청 시 입력한 생성 조건 PROMPT_CN 이 함께 표시된다 — 중복 요청 허용 이후 결과물 구분의 유일한 축)"
+        },
+        {
+          "step": 2,
+          "action": "증강 결과(영상·복사된 라벨)를 확인한다"
+        },
+        {
+          "step": 3,
+          "action": "활용 가능 시 POST /v1/augments/{id}/accept — 판단은 LS_DATA_AUG_RVW.RVW_STTS_CD='ACCEPTED' 로 검수자(RVW_ID)·검수일시(RVW_DT)와 함께 기록된다(생성 결과 축 AUG_PROC_STTS_CD 는 건드리지 않는다)"
+        },
+        {
+          "step": 4,
+          "action": "부적합 시 POST /v1/augments/{id}/reject(사유 필수) — RVW_STTS_CD='REJECTED' + 반려사유(RJCT_RSN) 기록"
+        },
+        {
+          "step": 5,
+          "action": "시스템이 채택된 파생영상만 작업목록·배정 대상으로 등재하고(등재 게이트 = 리뷰 축) 반려된 파생은 즉시 작업 대상에서 제외한다"
+        },
+        {
+          "step": 6,
+          "action": "유예기간(설정값·기본 7일)이 지나면 배치가 폐기된 파생영상의 DB 행과 생성 파일을 정리한다(삭제 대상은 파생 영상·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다 — 관제 접근 보장 정책. 조건은 서비스뿐 아니라 최종 DELETE SQL 자체에 리터럴로 박아 검사~삭제 사이 창을 단일 문장으로 폐쇄한다)"
+        }
+      ],
+      "brownfield": {
+        "notes": "2026-07-30: 해상도 파생 통합 노출 + accept/reject 차단 명시(ADR-018). 2026-07-31: ★두 상태축 분리 반영(ADR-045) — 생성 결과 축(AUG_PROC_STTS_CD, 웹훅 소유)과 사람의 사용/폐기 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)을 분리했다. 계기: 외부 증강은 웹훅이 항상 먼저 도착해 aug 행을 ACCEPTED 로 옮기는데 상태 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409로 막혀 있었다(워크플로 자체가 도달 불가). 등재 게이트도 리뷰 축으로 판정하며, 반려 후 유예(기본 7일) 경과 시 실삭제·유예 내 복구(restore)가 함께 도입됐다.\n\n[폐기 기록] — 구 서술 'PENDING 이외 상태' 는 폐기됐다",
+        "status": "new",
+        "decided_by": "ADR-004",
+        "change_kind": [
+          "decision-record"
+        ],
+        "diff_summary": "증강 결과 검수(사용/폐기 결정)만 보유 — 생성 본체는 외부 책임"
+      },
+      "description": "REVIEWER 가 증강 결과 목록(GET /v1/augments)에서 결과를 확인하고 사용(accept) 또는 폐기(reject, 사유 필수)를 결정한다. 증강 본체는 외부 SFR-07 책임이며 저작도구는 결과 검수만 담당한다.\n\n[★두 상태축 분리 (ADR-045, 2026-07-31)] 구 본문은 accept 를 'PENDING→ACCEPTED', reject 를 'PENDING→REJECTED' 로 적었으나 그 전이 대상이었던 AUG_PROC_STTS_CD 는 **생성 결과 전용(웹훅 소유)** 이다. 검수 결정은 **LS_DATA_AUG_RVW.RVW_STTS_CD** 가 단독으로 소유하며 검수자·검수일시·반려사유를 동반한다.\n\n[★등재 게이트] '승인해야 작업목록·배정에 등재' 판정도 리뷰 축(RVW_STTS_CD='ACCEPTED')으로 한다 — 생성 결과축으로 게이팅하면 생성 성공만으로 전부 통과해 기능이 무의미해진다. ⚠ 해상도 파생(RESL_*)은 검수 대상이 아니라 리뷰 행이 영영 생기지 않으므로 통과 예외를 명시적으로 박고, 게이트 도입 이전 파생은 그랜드퍼더링한다(고아 배정 방지).\n\n[반려 후 폐기] 반려된 파생은 즉시 작업 대상에서 빠지고, 유예기간(기본 7일) 경과 후 배치가 DB 행과 파일까지 삭제한다. 삭제 대상은 파생 영상·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다(관제 접근 보장 정책) — 이미 검수 완료·통지된 건을 지우는 것은 되돌릴 수 없다. 복구는 반려 자체를 되돌려(폐기 표식 해제 + 리뷰 재오픈) 다시 채택/반려를 고를 수 있게 하며, 되돌린 이력(누가·언제·왜)을 반드시 남긴다.\n\n[해상도 파생 통합] 해상도 파생(RESL_1080P/720P/480P)은 증강 저장모델에 통합돼 이력·집계에는 함께 노출되나 accept/reject 대상에서는 제외된다(ADR-018). (R2 UC-010, RQ-SFR-07-03)",
+      "stakeholders": [],
+      "preconditions": [
+        "증강 영상이 미검수(PENDING)로 등록되어 있다(UC-002 완료)",
+        "REVIEWER로 인증되어 있다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-06-05T05:07:02.012Z",
+        "module_paths": []
+      },
+      "postconditions": [
+        "증강 결과에 대한 활용 여부 판단이 리뷰 축(LS_DATA_AUG_RVW.RVW_STTS_CD)에 ACCEPTED(활용) 또는 REJECTED(미활용)로 기록된다",
+        "채택된 파생영상만 작업목록·배정 대상으로 등재된다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "재결정 시도",
+          "steps": [
+            "409 CONFLICT 반환 — 리뷰 행의 '재결정 금지' 불변식(LsDataAugRvw.ensurePending)에 의한다. ⚠ 판정 기준은 aug 상태(AUG_PROC_STTS_CD)가 아니다"
+          ],
+          "trigger": "이미 채택/폐기 판단이 끝난 결과에 다시 요청"
+        },
+        {
+          "name": "사유 누락",
+          "steps": [
+            "400으로 거부"
+          ],
+          "trigger": "반려 사유 비어있음"
+        },
+        {
+          "name": "유예기간 내 복구",
+          "steps": [
+            "POST /v1/augments/{id}/restore 로 폐기 표식을 해제하고 리뷰를 PENDING 으로 재오픈해 다시 채택/반려를 고를 수 있게 한다(표식만 지우면 리뷰가 REJECTED 로 남아 목록에 안 보이는 반쪽 복구가 된다)",
+            "되돌린 이력(누가·언제·왜)을 반드시 남긴다. 유예 경과 후 이미 실삭제된 건은 409"
+          ],
+          "trigger": "폐기 결정을 유예기간 내에 철회"
+        },
+        {
+          "name": "해상도 파생영상",
+          "steps": [
+            "내부 생성물이므로 accept/reject 를 차단하고, 리뷰 행이 영영 생기지 않으므로 등재 게이트에 통과 예외를 명시적으로 박는다(안 박으면 해상도 파생이 작업목록에서 전부 사라진다)"
+          ],
+          "trigger": "AUG_TYPE_CD 가 RESL_1080P/720P/480P"
+        },
+        {
+          "name": "그랜드퍼더링 파생",
+          "steps": [
+            "게이트 도입 이전 파생은 매핑 컬럼(NEW_RAW_SN)도 리뷰 행도 없어 무조건 미등재로 판정되므로 신규 파생부터 게이트를 적용한다(고아 배정 방지)",
+            "NEW_RAW_SN 이 NULL 인 건은 실삭제 대상에서도 완전 제외하고 감사 로그에 '수동 정리 필요'만 남긴다"
+          ],
+          "trigger": "등재 게이트 도입 이전에 생성된 파생"
+        }
+      ],
+      "realizes_dfeats": [],
+      "related_screens": [
+        "SCREEN-023"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [
+        "FEAT-004"
+      ],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1038",
+        "AC-1039"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 17,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:05:51.391Z",
+    "created_at": "2026-06-01T06:25:50.390Z"
+  }
+}

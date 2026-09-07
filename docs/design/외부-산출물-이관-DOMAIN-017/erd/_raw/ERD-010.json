@@ -1114,7 +1114,7 @@
             "notes": "V58 신규 테이블. FK 미설정은 설계 의도(이력 보존 목적).",
             "status": "new"
           },
-          "description": "라벨 저장 이벤트 이력 — 프레임 단위 저장 1회당 1행. 종류별 건수(ADD_CNT/MDFCN_CNT/DEL_CNT)와 변경 상세 diff(CHG_DTL_CN)를 담는다. V115 재구조화로 구 '라벨 1건=1행'(LBL_SN + CHG_KIND_CD) 구조는 폐기됐다 — 한 번의 저장 행위가 라벨 수만큼 여러 행으로 흩어지던 문제를 저장 이벤트 1행으로 묶은 것이며, 구 라벨단위 행은 개발 단계라 전량 삭제 후 컬럼을 교체했다. 라벨 본문이 삭제돼도 이력이 남아야 하므로 FK 를 걸지 않는다. 데이터마트 뷰 V_COMPLETED_LABEL_CHANGE 가 이 스키마를 그대로 노출한다(관제 연동 계약). ⚠ 구 서술 '비식별 누락 신고 시 해당 영상 전체 라벨을 일괄 삭제하기 전 이력 보존(SAVE_REASON_CD=DEIDENT_REPORT 스냅샷과 함께)'은 2026-07-27 확정으로 폐기 — 신고는 라벨을 삭제하지 않고 보존하며, 신고 구간에는 조회·저장을 412 로 차단하고 resolve 시 게이트가 자동 해제돼 기존 라벨을 그대로 재사용한다. 진실원: Flyway V58 신설 → V115 재구조화.",
+          "description": "라벨 저장 이벤트 이력 — 프레임 단위 저장 1회당 1행. 종류별 건수(ADD_CNT/MDFCN_CNT/DEL_CNT)와 변경 상세 diff(CHG_DTL_CN)를 담는다. V115 재구조화로 구 '라벨 1건=1행'(LBL_SN + CHG_KIND_CD) 구조는 폐기됐다 — 한 번의 저장 행위가 라벨 수만큼 여러 행으로 흩어지던 문제를 저장 이벤트 1행으로 묶은 것이며, 구 라벨단위 행은 개발 단계라 전량 삭제 후 컬럼을 교체했다. 라벨 본문이 삭제돼도 이력이 남아야 하므로 FK 를 걸지 않는다. 데이터마트 뷰 V_COMPLETED_LABEL_CHANGE 가 이 스키마를 그대로 노출한다(관제 연동 계약). 신고 구간에는 조회·저장을 412 로 차단하고 해소 시 게이트가 자동 해제돼 기존 라벨을 그대로 재사용한다. 진실원: Flyway V58 신설 → V115 재구조화.",
           "logical_table_name": "라벨이력"
         },
         {
@@ -1148,7 +1148,7 @@
               "type": "jsonb",
               "unique": false,
               "nullable": false,
-              "description": "어노테이션 내용(JSONB). 산출 JSON 의 event 블록과 같은 구조 — event_class(필수)·question·caption(후보 c1 …, 각 후보가 caption_text 와 cot 를 갖는다)·answer·evidence. 칸별 조달(2026-08-25 확정): 질문 칸은 저작도구가 보관하는 검증 이벤트 유형별 질문 문구(마킹에서 고른 값, 없으면 그 유형의 첫 번째) · 후보 c1 의 caption_text 는 추가 질문 응답 서술 · 같은 후보 cot 의 1단계는 묘사 전문의 「상황」 라벨 줄. answer·evidence·cot 2단계 이후는 자동으로 채우지 않는다(사람이 확정할 공란). 두 창구가 후보 c1 을 공유하고 도착 순서가 보장되지 않으므로 후보를 통째로 교체하지 않고 자기 칸만 채운다. 묘사 전문 자체는 이 칸이 아니라 영상 블록으로 간다.",
+              "description": "어노테이션 내용(JSONB). 산출 JSON 의 event 블록과 같은 구조 — event_class(필수)·question·caption(후보 c1 …, 각 후보가 caption_text 와 cot 를 갖는다)·answer·evidence. 칸별 조달(2026-08-25 확정): 질문 칸은 위탁 시점에 조달해 요청에 실어 보낸 그 문구를 보관값에서 읽는다(마킹에서 고른 값, 없으면 그 유형의 첫 번째이며 유형 미수신이어도 선택값이 있으면 그 질문) — 재조달하지 않는다 · 후보 c1 의 caption_text 는 추가 질문 응답 서술 · 같은 후보 cot 의 1단계는 묘사 전문의 「상황」 라벨 줄. answer·evidence·cot 2단계 이후는 자동으로 채우지 않는다(사람이 확정할 공란). 두 창구가 후보 c1 을 공유하고 도착 순서가 보장되지 않으므로 후보를 통째로 교체하지 않고 자기 칸만 채운다. 묘사 전문 자체는 이 칸이 아니라 영상 블록으로 간다.",
               "primary_key": false,
               "logical_column_name": "어노테이션내용"
             },
@@ -1330,7 +1330,7 @@
               "unique": false,
               "default": "0",
               "nullable": false,
-              "description": "낙관적 잠금 버전(V127 신설, DEFAULT 0). 두 REVIEWER 가 같은 이벤트 어노테이션을 동시에 승인·반려할 때 1건만 성공시킨다(CWE-362). 2노드 Active-Active 라 JVM 락으로는 방어되지 않아 DB 수준으로만 해결한다.",
+              "description": "낙관적 잠금 버전(V127 신설, DEFAULT 0). 두 REVIEWER 가 같은 이벤트 어노테이션을 동시에 승인·반려할 때 1건만 성공시킨다(CWE-362). 4노드 Active-Active 라 JVM 락으로는 방어되지 않아 DB 수준으로만 해결한다.",
               "primary_key": false,
               "logical_column_name": "버전"
             }
@@ -1362,7 +1362,7 @@
         }
       ],
       "brownfield": {
-        "notes": "1차 LS_DATA_LBL/LS_DATA_META 의 고도화 + ATTR_VAL/META_REVIEW 신규. 라벨의 AI 메타를 담던 별도 테이블(AI_INFO)은 두지 않고 LS_DATA_LBL 같은 행에 통합했다. 1차 원형은 ERD-008(deprecated). 포털 채널 전용 업로드 라벨 표를 흡수하면서 등록 사용자 번호의 자료형을 문자로 바꿨다 — 포털 사용자 식별자가 문자이고, 이 컬럼을 읽는 운영 경로가 없어 이행할 값이 없다.",
+        "notes": "1차 LS_DATA_LBL/LS_DATA_META 의 고도화 + ATTR_VAL/META_REVIEW 신규. 라벨의 AI 메타를 담던 별도 테이블(AI_INFO)은 두지 않고 LS_DATA_LBL 같은 행에 통합했다. 1차 원형은 ERD-008(deprecated). 포털 채널 전용 업로드 라벨 표를 흡수하면서 등록 사용자 번호의 자료형을 문자로 바꿨다 — 포털 사용자 식별자가 문자이고, 이 컬럼을 읽는 운영 경로가 없어 이행할 값이 없다.\n\n[폐기 기록] ⚠ 구 서술 '비식별 누락 신고 시 해당 영상 전체 라벨을 일괄 삭제하기 전 이력 보존(SAVE_REASON_CD=DEIDENT_REPORT 스냅샷과 함께)'은 2026-07-27 확정으로 폐기 — 신고는 라벨을 삭제하지 않고 보존하며, 신고 구간에는 조회·저장을 412 로 차단하고 resolve 시 게이트가 자동 해제돼 기존 라벨을 그대로 재사용한다.",
         "status": "modified",
         "decided_by": "ADR-010",
         "legacy_source": {
@@ -1415,12 +1415,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 33,
+    "current_version": 36,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "값 한도를 넘길 때 잘림을 드러내는 형태를 확정한다(2026-09-02) — 값 끝에 원문 길이와 담긴 길이를 남긴다. 별도 키로 빼지 않는 이유는 그 키를 함께 읽지 않는 경로에서 잘린 줄 모르기 때문이다.",
+    "change_summary": "이벤트 어노테이션 내용 칸의 질문 조달 서술을 반전했다. 그 문구는 이제 위탁 시점에 조달해 추가 질문 축 요청 본문에 실려 나가고, 결과 수신 시 재조달하지 않고 보관값을 읽는다 — 질문 목록이 전체 교체로 저장되어 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문이다. 유형 미수신 시 마킹 선택값을 쓴다는 확정 규칙도 함께 반영했다. 칸 상한 500자에 맞춰 압축했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T02:44:04.860Z",
+    "last_updated_at": "2026-09-07T10:48:09.813Z",
     "created_at": "2026-06-01T02:41:49.410Z"
   }
 }

@@ -34,17 +34,25 @@
           "작업자가 고른 질문이 LS_MARKING.VRFC_EVNT_QSTN_SN에 함께 저장된다",
           "완료 시 MarkingCompletedEvent(EVT-001)가 AFTER_COMMIT로 발행된다",
           "잔여 배치(VLM→프레임추출→오토라벨링)가 시작된다",
-          "LS_RAW_DATA_STATUS 상태가 전이된다"
+          "LS_RAW_DATA_STATUS 상태가 전이된다",
+          "관제 인입에 유형이 있으면 고를 수 있는 유형 목록이 빈 배열로 내려와 마킹 화면에 유형 선택이 노출되지 않는다",
+          "관제 인입에 유형이 없으면 그 목록이 채워져 선택이 노출되고, 고른 유형에 따라 질문 목록이 따라온다",
+          "유형을 고르지 않아도 마킹은 저장되고 완료된다 — 유형 선택은 선택 사항이다",
+          "고른 질문 문구가 추가 질문 축 위탁 요청 본문(prompt)에 실려 나가고 위탁 시점에 멱등 원장(LS_WEBHOOK_IDEMPOTENCY.QSTN_CN)에 보관되어, 결과 수신 시 재조달되지 않는다 — 보낸 질문과 기록된 질문이 같다",
+          "검증 이벤트 유형이 미수신이어도 마킹에서 고른 질문이 있으면 그 질문을 쓴다",
+          "실을 질문 문구를 하나도 얻지 못하면 추가 질문 축 위탁만 건너뛰고 묘사 축 위탁은 그대로 나간다"
         ],
         "when": [
-          "비식별 영상을 배속 재생하며 수동/자동으로 이벤트 시점을 마킹하고, 검증 이벤트 유형 질문 하나를 골라 Enter로 완료한다"
+          "비식별 영상을 배속 재생하며 수동/자동으로 이벤트 시점을 마킹하고, 검증 이벤트 유형 질문 하나를 골라 Enter로 완료한다",
+          "관제 인입에서 검증 이벤트 유형을 받지 못한 영상에서는 화면이 노출한 유형 목록에서 유형을 먼저 고른다(선택 사항)"
         ],
         "given": [
           "대상 영상의 비식별이 완료되어 LS_DATA_RAW.DATA_STTS_CD=MARKING_READY 다",
-          "WORKER로 인증되어 본인 배정 영상이다"
+          "WORKER로 인증되어 본인 배정 영상이다",
+          "이 영상의 검증 이벤트 유형은 관제 인입에서 수신했거나(1순위) 미수신이다"
         ]
       },
-      "statement": "라벨링 작업자(WORKER)가 본인 배정된 MARKING_READY 영상을 SCREEN-006에서 비식별 스트리밍(HTTP Range)으로 배속 조절하며 재생하고, 수동(Space 마킹/Del 삭제) 또는 자동(프레임 간격 intervalFrames)으로 이벤트 시점을 마킹한 뒤, 그 영상의 검증 이벤트 유형에 등록된 질문 목록(정렬순서 오름차순, 기본 선택은 첫 번째)에서 하나를 골라 Enter로 완료하면, 시스템이 마킹을 LS_MARKING에 저장하고 MarkingCompleted(EVT-001, AFTER_COMMIT)로 잔여 배치(VLM→프레임추출→오토라벨링)를 시작한다.",
+      "statement": "라벨링 작업자(WORKER)가 본인 배정된 MARKING_READY 영상을 SCREEN-006에서 비식별 스트리밍(HTTP Range)으로 배속 조절하며 재생하고, 수동(Space 마킹/Del 삭제) 또는 자동(프레임 간격 intervalFrames)으로 이벤트 시점을 마킹한 뒤, 그 영상의 검증 이벤트 유형에 등록된 질문 목록(정렬순서 오름차순, 기본 선택은 첫 번째)에서 하나를 골라 Enter로 완료하면, 시스템이 마킹을 LS_MARKING에 저장하고 MarkingCompleted(EVT-001, AFTER_COMMIT)로 잔여 배치(VLM→프레임추출→오토라벨링)를 시작한다. ★관제 인입에서 검증 이벤트 유형을 받지 못한 영상에서는 마킹 화면이 고를 수 있는 유형 목록(selectableVrfcEvntTypes)을 노출하고, 작업자가 고른 유형(마킹 저장 요청의 vrfcEvntTypeCd)에 따라 질문 목록이 따라온다 — 관제 값이 있는 영상에서는 그 목록이 빈 배열이라 선택이 아예 노출되지 않으며 관제 인입이 1순위다. 유형 선택은 선택 사항이라 고르지 않아도 마킹은 저장되고 완료된다. ★고른 질문은 기록에만 쓰이지 않는다 — 추가 질문 축 위탁(POST /v1/videovlm-klid/custom)의 요청 본문 prompt 에 그 문구가 그대로 실려 나가며, 위탁 시점에 조달해 멱등 원장(LS_WEBHOOK_IDEMPOTENCY.QSTN_CN)에 보관하고 결과 수신 시 재조달하지 않는다 — 그래서 보낸 질문과 기록된 질문이 같다. 검증 이벤트 유형이 미수신이어도 마킹에서 고른 질문이 있으면 그 질문을 쓰며, 실을 문구를 하나도 얻지 못하면 추가 질문 축 위탁만 건너뛰고 묘사 축 위탁(POST /v1/videovlm-klid/describe)은 그대로 나간다.",
       "brownfield": {
         "status": "new"
       },
@@ -63,19 +71,19 @@
         "DOMAIN-011"
       ],
       "verification_method": "manual_test",
-      "verification_status": "passing",
+      "verification_status": "unverified",
       "derived_from_use_cases": [
         "UC-019"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "change_summary": "검증 상태를 passing 에서 unverified 로 내렸다. 2026-09-07 에 추가한 단정(유형 선택 노출 조건·유형 선택은 선택 사항·보낸 질문과 기록된 질문이 같다·창구 교체)은 오늘 확정된 신규 설계라 아직 검증된 적이 없는데, 마지막 실행 기록이 2026-08-31 로 그보다 앞선다. 그대로 두면 미구현일 수 있는 기준을 통과로 선언하는 것이 되어 검증이 그 위에서 잘못된 판정을 낸다. ⚠ last_run 은 그 시점의 사실 기록이라 지우지 않았다 — 옛 단정에 대해서는 유효한 결과였다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:44.603Z",
+    "last_updated_at": "2026-09-07T11:19:36.845Z",
     "created_at": "2026-08-31T02:06:59.605Z"
   }
 }

@@ -1,14 +1,14 @@
 ---
 logicraft_item: TEST-001
 type: test_scenario
-version: 11
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:43:41.844Z
+synced_at: 2026-09-07T13:24:05.757Z
 status: CHANGED
-prev_version: 10
-content_hash: 0e4983f1d6d6802be1fb47ef5798a24f753de75481d7d6183575e2bef597f86a
-stale: false
+prev_version: 11
+content_hash: 9dc6874f614d6c79089920b7c8ba3b789b2087be0cbfcd10791954b51ba8dca8
+stale: true
 raw: ./_raw/TEST-001.json
 links:
   references: ["[[DOMAIN-003]]", "[[DOMAIN-011]]", "[[DOMAIN-012]]", "[[SCREEN-008]]", "[[UC-011]]", "[[UC-018]]"]
@@ -101,7 +101,7 @@ integration
 ### [8]
 
 - **seq**: 8
-- **note**: TC-004 | 결손 보강 — 정상 흐름에 없던 회수 경로. 배치 연동(화면 없음). 자동 시험이 실재하는지는 확인되지 않았다 — 통과 기록을 만들지 말고 수동 확인 절차로 수행한다. 유예 값은 설정값이므로 시험 전에 설정한 값을 기준으로 만료를 만든다(이 문서에 숫자를 두지 않는다). 두 노드가 동시에 도는 형상에서는 같은 후보를 두 번 집지 않는지(조건부 갱신 원자 선점)도 함께 본다. 「폴링 경과 만료」와 「수락 대기 유예 만료」는 다른 축이므로 혼동하지 않는다.
+- **note**: TC-004 | 결손 보강 — 정상 흐름에 없던 회수 경로. 배치 연동(화면 없음). 자동 시험이 실재하는지는 확인되지 않았다 — 통과 기록을 만들지 말고 수동 확인 절차로 수행한다. 유예 값은 설정값이므로 시험 전에 설정한 값을 기준으로 만료를 만든다(이 문서에 숫자를 두지 않는다). 여러 노드가 동시에 도는 형상에서는 같은 후보를 두 번 집지 않는지(조건부 갱신 원자 선점)도 함께 본다. 「폴링 경과 만료」와 「수락 대기 유예 만료」는 다른 축이므로 혼동하지 않는다.
 - **action**: 수락 응답 미관측 건 회수
 - **expected**: 폴링 잡이 미결 행을 회수해 실패로 종결하고, 재위탁 없이 영상 비식별 여부가 'F'로 내려간다. 【검증】DB: SELECT PROC_STTS_CD, POLL_STTS_CD, FAIL_RSN_CD FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN=:rawSn → PROC_STTS_CD='FAILED'·종결 사유 'KPST_ACK_MISSING' 1행 · DB: SELECT DE_IDENT_YN FROM LS_DATA_RAW WHERE RAW_SN=:rawSn → DE_IDENT_YN='F' · 재위탁 없음: 외부 비식별 위탁 호출이 추가로 발생하지 않고 LS_DEIDENT_PROC_LOG 에 새 '요청' 이력이 늘지 않는다(행 수 불변)
 - **test_item**: 수락 응답도 결과 회신도 관측되지 않은 위탁 건이 수락 대기 유예 만료 후 회수되어 실패 사유 KPST_ACK_MISSING 으로 마감되고, 재위탁 없이 영상 비식별 여부가 'F'로 내려가는지 확인

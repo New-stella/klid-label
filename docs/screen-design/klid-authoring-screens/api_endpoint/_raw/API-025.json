@@ -1,0 +1,320 @@
+{
+  "item": {
+    "id": "API-025",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/labels",
+    "slug": "post-v1managelabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/labels",
+      "tags": [
+        "label",
+        "master"
+      ],
+      "method": "POST",
+      "summary": "라벨 마스터 생성",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "라벨명 (labelNm)"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "라벨 타입 코드 (labelTypeCd)"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "색상 값 (colrVl)"
+                  },
+                  "useYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "사용 여부 플래그"
+                  },
+                  "sortNo": {
+                    "type": "integer",
+                    "description": "정렬 순서 (sortSeq)"
+                  },
+                  "labelId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 마스터 PK"
+                  }
+                },
+                "description": "생성된 라벨 마스터"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "name": "차량",
+              "type": "OBJECT",
+              "color": "#00FF00",
+              "useYn": "Y",
+              "sortNo": 2,
+              "labelId": 10
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공 (HTTP 201). ApiResponse 래퍼의 data 에 생성된 LabelMasterResponse 가 담긴다. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "동일 이름 중복. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨 마스터 관리",
+        "legacy_source": {
+          "type": "api",
+          "identifier": "POST /api/v1/projects/{projectId}/labels",
+          "legacy_artifact_id": "LEGACY-055"
+        }
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "라벨 마스터를 생성한다. REVIEWER 전용.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "color",
+            "type"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1,
+              "description": "라벨명"
+            },
+            "type": {
+              "enum": [
+                "BBOX",
+                "POLYGON",
+                "POINT",
+                "SKELETON"
+              ],
+              "type": "string",
+              "description": "라벨 형태. SKELETON=COCO-17 키포인트(POINT 예약어 재해석 아님)"
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-F]{6}$",
+              "description": "대문자 hex(#RRGGBB). 소문자 입력 시 400"
+            },
+            "sortNo": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "정렬 순서"
+            },
+            "dtctTypeCd": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 20,
+              "description": "AI(COCO) 검출 클래스 매핑. 미지정=미매핑. COCO 80 클래스명 아니면 400"
+            }
+          }
+        },
+        "example": {
+          "name": "사람",
+          "type": "BBOX",
+          "color": "#EF4444",
+          "sortNo": 1,
+          "dtctTypeCd": "person"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-232"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:38.609Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "반환하지 않는 응답 코드를 계약에서 뺀다. 이 창구는 성공이 생성 하나뿐인데 200 항목을 들고 있었고, 그 설명 자리에 「이 코드는 반환하지 않는다」는 편집 지시문이 들어가 있었다. 설명으로 남길 것이 아니라 항목 자체가 없어야 맞다 — 남겨 두면 설계 산출물의 사후조건 칸에 그 지시문이 그대로 실리고, 계약을 읽는 쪽은 반환하지 않는 코드를 반환 가능한 것으로 읽는다. 다른 응답 코드와 본문은 건드리지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:01:54.285Z",
+    "created_at": "2026-05-30T07:20:12.972Z"
+  }
+}

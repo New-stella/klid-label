@@ -27,7 +27,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "배치처리이력일련번호"
             },
@@ -43,7 +44,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "작업아이디"
             },
@@ -59,7 +61,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -75,7 +78,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "소스데이터일련번호"
             },
@@ -101,7 +105,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "처리단계코드"
             },
@@ -122,7 +127,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "처리상태코드"
             },
@@ -138,7 +144,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "시작일시"
             },
@@ -154,7 +161,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "종료일시"
             },
@@ -171,7 +179,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "재시도횟수"
             },
@@ -187,7 +196,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "오류코드"
             },
@@ -203,7 +213,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "오류메시지내용"
             },
@@ -219,7 +230,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "요청페이로드내용"
             },
@@ -235,7 +247,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "응답페이로드내용"
             },
@@ -251,7 +264,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -268,7 +282,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -284,7 +299,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -300,7 +316,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -359,7 +376,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "작업잠금일련번호"
             },
@@ -378,7 +396,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "잠금대상코드"
             },
@@ -394,7 +413,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -410,7 +430,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "소스데이터일련번호"
             },
@@ -430,7 +451,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "잠금상태코드"
             },
@@ -446,7 +468,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "잠금아이디"
             },
@@ -462,7 +485,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "잠금소유자아이디"
             },
@@ -478,7 +502,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "잠금일시"
             },
@@ -494,7 +519,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "만료일시"
             },
@@ -510,7 +536,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "해제일시"
             },
@@ -526,7 +553,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "해제사유"
             },
@@ -542,7 +570,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -559,7 +588,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -575,7 +605,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -591,7 +622,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -747,31 +779,155 @@
           },
           "description": "라벨링 배치 작업 큐(V2 생성, V162 개명). 원래 MNG_CLIP_SCHEDULE_QUE 라는 이름으로 관제 소유처럼 보였으나, 실제로는 저작도구가 직접 INSERT 하는 우리 테이블이고 관제 공유 9종 중 유일하게 @Immutable 이 아니었다. 따라서 V162 에서 소유권 표기를 LS_ 로 정정했다(테이블·인덱스·제약·시퀀스 일괄 개명, 멱등). 컬럼 물리명은 한동안 원형 그대로였다 — 공유 스키마로 오인돼 협의가 필요하다는 이유로 표준용어 정합 범위 밖에 있었고, 소유권이 저작도구로 정리되면서 그 제약이 사라져 정합했다. 물리 컬럼명은 행정안전부 공통표준단어 조합을 따른다 — 작업(JOB)·유형(TYPE)·코드(CD)·상태(STTS)·재시도(RTRY)·횟수(NMTM)·등록(REG)·시작(BGNG)·완료(CMPTN)·최종(LAST)·오류(ERR)·메시지(MSG)·내용(CN)·일시(DT). 코드값은 표준도메인에 따라 16자로 둔다.",
           "logical_table_name": "클립스케줄큐"
+        },
+        {
+          "name": "LS_BAT_RTY_WTNG",
+          "columns": [
+            {
+              "name": "BAT_RTY_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "배치 재시도 대기 일련번호 (PK).",
+              "primary_key": true,
+              "logical_column_name": "배치재시도일련번호"
+            },
+            {
+              "name": "RAW_SN",
+              "type": "bigint",
+              "unique": true,
+              "nullable": false,
+              "references": {
+                "table": "LS_DATA_RAW",
+                "column": "RAW_SN",
+                "on_delete": "cascade"
+              },
+              "description": "재시도 대상 영상 일련번호. 영상 한 건당 대기 행은 하나뿐이라 UNIQUE 이며, 대상 영상이 삭제되면 이 행도 함께 삭제된다.",
+              "primary_key": false,
+              "logical_column_name": "원시일련번호"
+            },
+            {
+              "name": "RTY_NMTM",
+              "type": "integer",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "지금까지 시도한 횟수(기본값 0).",
+              "primary_key": false,
+              "logical_column_name": "재시도횟수"
+            },
+            {
+              "name": "MAX_RTY_NMTM",
+              "type": "integer",
+              "unique": false,
+              "default": "3",
+              "nullable": false,
+              "description": "허용하는 최대 시도 횟수(기본값 3).",
+              "primary_key": false,
+              "logical_column_name": "최대재시도횟수"
+            },
+            {
+              "name": "STTS_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "default": "PENDING",
+              "nullable": false,
+              "description": "대기 행의 상태 코드(기본값 대기).",
+              "primary_key": false,
+              "logical_column_name": "상태코드"
+            },
+            {
+              "name": "RTY_PRNMNT_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "다음 시도 예정 일시.",
+              "primary_key": false,
+              "logical_column_name": "재시도예정일시"
+            },
+            {
+              "name": "LAST_ERR_MSG_CN",
+              "type": "varchar(2000)",
+              "unique": false,
+              "nullable": true,
+              "description": "마지막 실패의 오류 메시지.",
+              "primary_key": false,
+              "logical_column_name": "최종오류메시지내용"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "등록 일시(기본값 현재시각).",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "수정 일시(기본값 현재시각).",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "UK_LBRW_RAW_SN",
+              "unique": true,
+              "columns": [
+                "RAW_SN"
+              ]
+            },
+            {
+              "name": "IDX_LBRW_STATUS",
+              "unique": false,
+              "columns": [
+                "STTS_CD",
+                "RTY_PRNMNT_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신규",
+            "status": "new"
+          },
+          "description": "배치 처리가 실패한 영상을 다시 시도하기 위해 대기시키는 원장. 영상 한 건당 한 행이며(RAW_SN 이 UNIQUE), 시도 횟수와 그 상한, 다음 시도 예정 시각, 마지막 오류 메시지를 보유한다. 상태(STTS_CD)와 예정 시각(RTY_PRNMNT_DT)에 인덱스가 걸려 있어 지금 다시 시도할 대상을 골라내는 조회가 그 축을 탄다. 대상 영상(LS_DATA_RAW)이 삭제되면 이 대기 행도 함께 삭제된다(ON DELETE CASCADE). 물리 컬럼명은 표준단어 조합을 따른다 — 배치(BAT)·재시도(RTY)·일련번호(SN)·원시(RAW)·횟수(NMTM)·최대(MAX)·상태(STTS)·코드(CD)·예정(PRNMNT)·일시(DT)·최종(LAST)·오류(ERR)·메시지(MSG)·내용(CN)·등록(REG)·수정(MDFCN).",
+          "logical_table_name": "배치재시도대기"
         }
       ],
       "brownfield": {
         "notes": "고도화 신규",
         "status": "new"
       },
-      "description": "고도화 배치 파이프라인 인프라. LS_BATCH_PROC_LOG 는 Quartz 1건/분 배치의 단계별(비식별→마킹→VLM→FFmpeg→YOLO→SAM2→보간) 처리 이력. LS_AUTH_WORK_LOCK 은 저작도구 작업 잠금(재비식별 등). LS_CLIP_SCHEDULE_QUE 는 라벨링 배치 파이프라인 입구의 작업 큐. (V12, V22, V36 신설) + JPA 엔티티 LsBatchProcLog/LsAuthWorkLock. 데드라인 정의 테이블은 두지 않는다 — 비식별 유형별 마감 일시를 읽는 경로가 설계에 없다. 클립 스케줄 큐의 컬럼 물리명은 공통표준단어 조합으로 정합했다.",
+      "description": "고도화 배치 파이프라인 인프라. LS_BATCH_PROC_LOG 는 Quartz 1건/분 배치의 단계별(비식별→마킹→VLM→FFmpeg→YOLO→SAM2→보간) 처리 이력. LS_AUTH_WORK_LOCK 은 저작도구 작업 잠금(재비식별 등). LS_CLIP_SCHEDULE_QUE 는 라벨링 배치 파이프라인 입구의 작업 큐. (V12, V22, V36 신설) + JPA 엔티티 LsBatchProcLog/LsAuthWorkLock. LS_BAT_RTY_WTNG 는 그 파이프라인의 실패 회수 축으로, 다시 처리할 영상이 차례를 기다리는 자리다. 데드라인 정의 테이블은 두지 않는다 — 비식별 유형별 마감 일시를 읽는 경로가 설계에 없다. 클립 스케줄 큐의 컬럼 물리명은 공통표준단어 조합으로 정합했다.",
       "relationships": [],
+      "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-403"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-06T13:10:05.385Z",
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 22,
+    "current_version": 24,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "소유권 근거 서술에서 내부 서비스 클래스명과 저장 API 표기를 걷어낸다 — 저작도구가 직접 INSERT 한다는 근거 자체는 그대로다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T13:22:57.657Z",
+    "change_summary": "최상위 설명이 표 셋만 열거하고 있어 tables 와 어긋나던 것을 닫는다 — LS_BAT_RTY_WTNG 한 줄을 더하기만 하고 기존 세 표 서술은 그대로 둔다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-06T13:10:05.385Z",
     "created_at": "2026-06-01T02:46:58.339Z"
   }
 }

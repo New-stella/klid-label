@@ -1,0 +1,123 @@
+{
+  "item": {
+    "id": "UC-004",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "객체 자동 추적",
+    "slug": "객체-자동-추적",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "사용자가 지정한 객체를 이어지는 프레임에서 AI(SAM2)가 자동 추적하여 위치·경계를 갱신한다.",
+      "actor": "라벨링 작업자(WORKER)",
+      "title": "객체 자동 추적",
+      "status": "draft",
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "시작 프레임에서 추적할 객체를 박스(bbox/시드)로 지정한다 (선행 전제)"
+        },
+        {
+          "step": 2,
+          "action": "POST /v1/frames/{srcSn}/sam2-track 으로 Sam2TrackRequest 를 송신한다 (path/body srcSn 불일치 시 400, 본인 미배정 프레임 IDOR 차단)"
+        },
+        {
+          "step": 3,
+          "action": "AI 추론 서버 연동(Resilience4j)으로 ai-server(SAM2) 추론을 요청한다"
+        },
+        {
+          "step": 4,
+          "action": "ai-server SAM2 가 후속 프레임에 위치(BBox)·경계(폴리곤)를 전파·반환한다"
+        },
+        {
+          "step": 5,
+          "action": "자동 라벨로 저장한다(AUTO_LBL_YN='Y', 좌표 실측 상한 검증 CWE-20)"
+        },
+        {
+          "step": 6,
+          "action": "트랙 보간 알고리즘으로 빈 프레임을 채운다"
+        },
+        {
+          "step": 7,
+          "action": "사용자가 키프레임을 확인·보정하고 저장한다"
+        }
+      ],
+      "brownfield": {
+        "notes": "2026-07-30: 추적 출력 형태 = 선택 객체 형태 고정 확정(ADR-040), 구 R12 모달 독립 형태선택 설계 폐기",
+        "status": "modified",
+        "decided_by": "ADR-040",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "1차 트랙 → 2차 AI 객체 자동 추적 고도화"
+      },
+      "description": "라벨링 캔버스에서 작업자가 시작 프레임의 객체를 박스로 지정하면 SAM2 기반 비디오 객체 추적·분할(VOS)로 후속 프레임의 위치(BBox)·경계(폴리곤)를 추론·갱신하고(AUTO_LBL_YN='Y') 트랙 보간으로 빈 프레임을 채운다. 제약: 가림·장면전환·빠른 이동 시 정확도가 저하되며 사용자 키프레임 보정을 전제로 한다. 본인 미배정 프레임 접근은 IDOR 차단된다. 오토라벨링은 원본에만 실행하고 비식별본은 좌표를 공유한다. REQ-006(RQ-SFR-08-01)을 실현한다. ★추적 출력 형태 확정(ADR-040) — 추적 결과 형태는 선택 객체의 형태로 고정된다(박스로 지정→박스 추적, 폴리곤으로 지정→폴리곤 추적). 모달 경유 여부와 무관하게 툴바·단축키 등 모든 진입 경로에서 동일하게 적용된다. 온디맨드 YOLO 트랙(POST /v1/frames/{srcSn}/yolo-track = API-123)도 동일 원칙을 따른다. 온디맨드 실행의 흐름과 그 규칙(결과 적용 방식·수락 입도·저장 시점·라벨 마스터 식별자 전달·진입점 표기)은 별도 유스케이스 UC-034(온디맨드 AI 자동 추적)가 소유하므로 이 유스케이스에는 두지 않는다.",
+      "stakeholders": [],
+      "preconditions": [
+        "유효한 JWT(REVIEWER 또는 WORKER)로 인증되어 있다",
+        "대상 프레임(SRC_SN)과 추적 시작 객체(bbox/seed) 지정이 선행되어 있다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-06-05T05:06:50.438Z",
+        "module_paths": []
+      },
+      "postconditions": [
+        "후속 프레임에 추적된 객체 위치·경계가 갱신·저장된다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "ai-server 호출 실패/타임아웃",
+          "steps": [
+            "서킷 브레이커 동작, 사용자에게 추적 실패 안내(원본 라벨 유지)"
+          ],
+          "trigger": "재시도 후에도 실패"
+        },
+        {
+          "name": "가림·장면전환·빠른 이동 시 정확도 저하",
+          "steps": [
+            "사용자가 키프레임을 수동 보정 후 보간 재계산 (사용자 보정 전제)"
+          ],
+          "trigger": "추적 결과 부정확(가림/장면전환/빠른 이동)"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-020"
+      ],
+      "related_screens": [
+        "SCREEN-005"
+      ],
+      "extension_points": [],
+      "secondary_actors": [
+        "검수자(REVIEWER)",
+        "AI 추론 서버"
+      ],
+      "extends_use_cases": [],
+      "realizes_features": [
+        "FEAT-001"
+      ],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1024",
+        "AC-1025"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 18,
+    "stale": true,
+    "stale_reason": "SCREEN-005의 data.sections 변경 — references",
+    "change_summary": "액터 표기 통일 — ai-server(YOLO/SAM2) → AI 추론 서버",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T05:35:55.163Z",
+    "created_at": "2026-06-01T06:23:41.908Z"
+  }
+}
