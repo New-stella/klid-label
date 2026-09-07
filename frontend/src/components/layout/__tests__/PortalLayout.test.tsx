@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
+import { useAuthStore } from '@/stores/useAuthStore';
+
 import { PortalLayout } from '../PortalLayout';
 
 function renderLayout() {
@@ -163,6 +165,56 @@ describe('PortalLayout', () => {
    * 그것을 실제로 마운트하는가**(배선)만 본다 — 컴포넌트만 만들고 붙이지 않으면 화면에서는
    * 아무 일도 일어나지 않는데 그쪽 시험은 전부 초록이다.
    */
+  describe('머리 영역의 사용자 이름', () => {
+    // [@design SHELL-002] [@design SHELL-001]
+    //
+    // ★<b>표시</b> 축의 가드다 — 「스토어에 값이 있다」와는 다른 축이다. 그 둘을 한 축으로 보면
+    //   읽는 자리가 통째로 무너져도 아무 시험이 죽지 않는다(실측: 이 자리를 상수 `'사용자'` 로
+    //   굳히는 변이가 전체 회귀 4,819건을 전부 통과했다).
+    //
+    // ⚠ <b>이 채널의 이름 조달원은 인계 토큰 클레임 하나뿐이다</b> — 포털 채널은 `GET /v1/me` 를
+    //   부르지 않는다(토큰 발급 시점에 역할이 확정돼 서버에 다시 묻지 않는다). 그래서 관제 채널의
+    //   서버 이름 주입(SHELL-001)은 여기에 닿지 않으며, 그것은 결함이 아니라 채널 차이다.
+    //   여기서 지키는 것은 <b>Host 가 준 이름을 화면이 버리지 않는다</b>는 것뿐이다.
+    //
+    // ⚠ <b>이 레이아웃에는 이니셜 모노그램이 없다</b>(상단 헤더의 GNB 와 다르다). 사양이 로고·
+    //   사용자 신원·역할 배지를 Host 소유로 두었기 때문이다 — 부재는 결손이 아니라 그 결정의
+    //   결과이므로, 이니셜 단언을 두지 않는다(없는 것을 지키는 시험은 거짓 초록이 된다).
+
+    afterEach(() => {
+      useAuthStore.getState().clear();
+    });
+
+    function signIn(name?: string) {
+      useAuthStore.setState({
+        token: 'portal-handoff',
+        claims: name === undefined
+          ? { sub: 'p1', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 }
+          : { sub: 'p1', role: 'PORTAL_USER', name, channel: 'PORTAL', exp: 9999999999 },
+      });
+    }
+
+    it('★인계된_이름이_머리_영역에_그대로_보인다', () => {
+      signIn('포털사용자');
+      renderLayout();
+
+      expect(screen.getByText('포털사용자')).toBeInTheDocument();
+      // 대체 표기가 그 자리를 덮지 않는다.
+      expect(screen.queryByText('사용자')).toBeNull();
+    });
+
+    it('이름을_끝내_얻지_못했을_때만_대체_표기로_내려간다', () => {
+      // ★폴백 존치 확인 — 위 케이스만 두면 폴백을 지워도 초록이라 이름 없는 세션에서 빈 자리가 된다.
+      //   ⚠ `signIn(undefined)` 이 <b>키 자체를 넣지 않는</b> 것에 의미가 있다. 기본값 매개변수는
+      //     명시적으로 넘긴 `undefined` 에도 발동하므로, 기본값으로 이 상태를 만들려 하면 정반대
+      //     상태(이름 있음)가 만들어진다.
+      signIn(undefined);
+      renderLayout();
+
+      expect(screen.getByText('사용자')).toBeInTheDocument();
+    });
+  });
+
   describe('본문 상단 이동 탭', () => {
     it('목적지_화면의_본문_맨_위에_이동_탭이_붙는다', () => {
       renderLayoutAt('/portal');

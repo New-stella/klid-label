@@ -9,6 +9,18 @@ export const USER_KEYS = {
   detail: (id: number) => [...USER_KEYS.all, 'detail', id] as const,
 };
 
+/**
+ * 인증·진입 축. [@design SCREEN-002] [@design API-245]
+ *
+ * `USER_KEYS` 와 나누는 이유는 무효화 범위다 — 사용자 관리 화면의 목록·단건 갱신이
+ * 「관리자 부트스트랩 창구 개폐」까지 함께 버릴 이유가 없다.
+ */
+export const AUTH_KEYS = {
+  all: ['auth'] as const,
+  /** 관리자 부트스트랩 창구 개폐(`GET /v1/auth/role-claim/availability`). */
+  roleClaimAvailability: () => [...AUTH_KEYS.all, 'role-claim', 'availability'] as const,
+};
+
 export const ASSIGNMENT_KEYS = {
   all: ['assignments'] as const,
   list: (params: Record<string, unknown>) => [...ASSIGNMENT_KEYS.all, 'list', params] as const,

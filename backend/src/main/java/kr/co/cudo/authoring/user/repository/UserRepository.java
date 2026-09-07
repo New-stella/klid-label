@@ -217,11 +217,21 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
 
     /**
      * 사용자 마스터 페이징 검색 (관리자의 /admin/users 화면용).
-     * keyword 가 null/빈 문자열이면 전체 검색, 그렇지 않으면 USER_ID/USER_NM/USER_EML_ADDR LIKE.
+     * keyword 가 null/빈 문자열이면 전체 검색, 그렇지 않으면 <b>USER_ID/USER_NM 두 축</b> LIKE.
      * 활성/비활성 모두 포함.
      *
-     * <p>자동등록 사용자는 {@code userId}/{@code userEmlAddr} 가 null 일 수 있다 — LIKE 는 null 에
-     * 대해 참이 되지 않으므로 그 사용자는 이름으로만 검색된다(오류 아님).
+     * <h3>★ 이메일은 매칭 축이 아니다 (@design API-001)</h3>
+     * <p>구 구현은 {@code USER_EML_ADDR} 까지 세 축이었다. 뺀 이유는 <b>그 축이 화면이 안내하지
+     * 않는 숨은 검색 축</b>이기 때문이다 — 상위 시스템이 인계하는 토큰에 이메일이 실려 오지 않아
+     * 그 경로로 진입한 사용자는 이메일이 <b>영구히 비어 있고</b>, 목록도 이메일 대신 로그인
+     * 식별자를 보여준다. 안내되지 않는 축만 남으면 검색 결과가 화면과 어긋나 보인다.
+     *
+     * <p>⚠ <b>{@code USER_EML_ADDR} 컬럼과 응답의 이메일 필드는 그대로 존치한다</b> — 이미 적재된
+     * 값을 표현하기 위해서다. 바뀐 것은 <b>매칭 축뿐</b>이며 스키마도 응답 계약도 건드리지 않았다.
+     * 이 축을 되살리려면 화면이 그 축을 안내하는 것이 먼저다.
+     *
+     * <p>자동등록 사용자는 {@code userId} 가 null 일 수 있다 — LIKE 는 null 에 대해 참이 되지
+     * 않으므로 그 사용자는 이름으로만 검색된다(오류 아님).
      *
      * <h3>★ 역할 필터는 여기서 걸린다 — 서비스가 페이지 안에서 거르지 않는다 (@design AC-1018)</h3>
      * <p>구 구현은 한 페이지를 먼저 가져온 뒤 그 안에서 역할을 걸렀다. 그러면 결함이 둘이다 —
@@ -248,9 +258,8 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     @Query("""
             SELECT u FROM LsAcntUser u
              WHERE (:keyword IS NULL OR :keyword = ''
-                    OR LOWER(u.userId)      LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(u.userNm)      LIKE LOWER(CONCAT('%', :keyword, '%'))
-                    OR LOWER(u.userEmlAddr) LIKE LOWER(CONCAT('%', :keyword, '%')))
+                    OR LOWER(u.userId) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(u.userNm) LIKE LOWER(CONCAT('%', :keyword, '%')))
                AND (:role IS NULL OR :role = ''
                     OR EXISTS (SELECT 1 FROM LsUserRole r
                                 WHERE r.userNo = u.userNo AND r.roleCd = :role))

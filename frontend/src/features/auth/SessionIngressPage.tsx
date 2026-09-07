@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Alert } from '@/components/common/Alert';
 import { Spinner } from '@/components/common/Spinner';
+import { ApiError } from '@/lib/api/errors';
 import type { Channel, Role } from '@/lib/api/types';
 import { isPortalEmbedChannel, IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -50,6 +51,18 @@ const ERROR_EXPIRED: IngressError = {
   title: '세션이 만료되었습니다',
   description: REENTER_DESC,
 };
+/**
+ * 서버 인가 조회(`GET /v1/me`) 자체가 실패했고 토큰 클레임에도 역할이 없을 때. [@design SEQ-034]
+ *
+ * ★<b>이 자리에 관리자 등록 화면을 두지 않는다.</b> 예전에는 조회 실패를 전부 「역할 없음」으로
+ * 뭉개 `/role-claim` 으로 보냈고, 그래서 **인증 실패·서버 장애가 *"이 시스템에는 아직 관리자가
+ * 없습니다"* 로 표시**됐다(246 실측 2026-09-07 — 만료 토큰이 남아 401 을 받고 그 화면에 도달).
+ * 역할을 <b>확인하지 못한 상태</b>와 역할이 <b>없는 상태</b>는 다르다.
+ */
+const ERROR_ROLE_UNKNOWN: IngressError = {
+  title: '사용자 정보를 확인할 수 없습니다',
+  description: '잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.',
+};
 
 /**
  * `/ingress` 진입 페이지.
@@ -62,8 +75,10 @@ const ERROR_EXPIRED: IngressError = {
  *   4) JWT decode → 만료 검증 → useAuthStore.setToken
  *   5) 채널별 메인 진입점 navigate
  *      - PORTAL → /portal (종전 그대로, 서버 role 조회 안 함)
- *      - INTERNAL → GET /v1/me 로 <서버 인가 role> 확인 후
- *          role 있으면 /dashboard, role=null(무권한)이면 /role-claim(권한안내·부트스트랩)
+ *      - INTERNAL → GET /v1/me 로 <서버 인가 role 과 이름>을 확인해 claims 에 주입한 뒤
+ *          role 있으면 /dashboard, role=null(무권한)이면 /role-claim(관리자 등록 화면)
+ *        조회가 실패하면 갈래를 나눈다 — 401 은 상위 시스템 재로그인, 그 밖은 토큰 role 이
+ *        있으면 종전 폴백(/dashboard), 없으면 오류 표시. <어느 쪽도 /role-claim 이 아니다>.
  */
 export function SessionIngressPage() {
   const [params] = useSearchParams();
@@ -149,14 +164,22 @@ export function SessionIngressPage() {
       return;
     }
 
-    // [@design SCREEN-002] [@design ADR-063] [@design UC-041]
+    // [@design SCREEN-002] [@design ADR-063] [@design UC-041] [@design SEQ-034] [@design AC-1098]
     // 관제(INTERNAL) 채널: 서버 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다.
-    // 관제 진입자는 진입 순간 userNo 를 발급받고 role=null(무권한)로 진입하며, 관제 토큰에는
-    // role 클레임이 실리지 않는다(claims.role 로 판정하면 역할 보유자도 무권한으로 오인한다).
+    // 관제 진입자는 진입 순간 userNo 를 발급받고 role=null(무권한)로 진입할 수 있으며, 토큰의
+    // role 클레임만으로 판정하면 역할 보유자를 무권한으로 오인한다.
     //   role 있음  → 종전대로 /dashboard
-    //   role=null  → 권한안내·관리자 부트스트랩 화면(/role-claim)
-    // 조회 실패 시에는 토큰 클레임 role 로 폴백해(가드와 같은 판정) 유효 세션이 막다른 길에
-    // 빠지지 않게 한다. 인가 최종 판정은 어차피 서버가 소유한다.
+    //   role=null  → 관리자 등록 화면(/role-claim) — 그 화면이 창구 개폐를 조회해 열림·닫힘 두
+    //                모습 중 하나를 그린다. 「역할 없음」만으로 <등록 모습>이 뜨지 않는다.
+    //
+    // ★조회가 <실패>했을 때 role=null 로 뭉개지 않는다 (2026-09-07). 실패는 세 갈래다:
+    //   ① 401(인증 실패·만료)  → 상위 시스템 재로그인. 기존 만료 처리와 <같은 결말>이다.
+    //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로 /dashboard. ★유효 세션을 막지 않는다는 폴백의
+    //                            취지는 그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
+    //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가 /role-claim
+    //                            으로 떨어져 서버 장애가 "관리자가 없습니다"로 표시됐다.
+    //   ⚠ 구 동작 폐기 — *"조회 실패 시에는 토큰 클레임 role 로 폴백"* 을 <전 갈래>에 적용하던 것.
+    //     ②만 남고 ①③은 갈라졌다. 되돌리면 오류가 다시 사양으로 위장된다.
     const routeInternal = async (fallbackRole: Role | null) => {
       let serverRole: Role | null;
       try {
@@ -164,9 +187,25 @@ export function SessionIngressPage() {
         serverRole = me.role;
         // 서버 진실원 role 을 claims 에 주입한다 — 이후 RoleGuard(claims.role 을 읽음)가
         // 서버 LS_USER_ROLE 을 보게 되어 관제 재방문 role 보유자가 정상 진입한다.
-        useAuthStore.getState().setServerRole(serverRole);
-      } catch {
-        // /me 조회 실패 시 토큰 클레임 role 로 폴백(가드와 같은 판정). 주입은 하지 않는다.
+        //
+        // ★이름도 함께 넘긴다 (@design SHELL-001) — 헤더 이름의 진실원이 이 응답이다. 역할만
+        //   취하고 이름을 버리면 관제 토큰처럼 이름 클레임이 없는 세션에서 헤더가 대체 표기
+        //   「사용자」에 고착된다. 빈 값은 스토어가 무시하므로 토큰 클레임 폴백이 살아 있다.
+        useAuthStore.getState().setServerRole(serverRole, me.name);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          // ① 인증이 유효하지 않다 — 역할 없음이 아니다. HTTP 계층이 이미 토큰을 비웠으나
+          //    여기서도 명시적으로 비워 이 갈래를 자족적으로 만든다(중복 호출은 무해).
+          useAuthStore.getState().clear();
+          handleAuthFailure(claims.channel, ERROR_EXPIRED);
+          return;
+        }
+        if (fallbackRole == null) {
+          // ③ 역할을 <확인하지 못했다>. 관리자 등록 화면으로 보내지 않는다.
+          setError(ERROR_ROLE_UNKNOWN);
+          return;
+        }
+        // ② 유효 세션 폴백 — 종전 동작.
         serverRole = fallbackRole;
       }
       navigate(serverRole != null ? '/dashboard' : '/role-claim', { replace: true });

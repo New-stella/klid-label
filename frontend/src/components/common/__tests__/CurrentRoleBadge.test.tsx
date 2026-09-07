@@ -26,10 +26,25 @@ import { useAuthStore } from '@/stores/useAuthStore';
 /** 인증 상태 자리 — 배지 판정에 쓰이는 것은 `claims.role` 뿐이다. */
 const AUTH_STUB = 'tok';
 
-function signInAs(role: Role | null) {
+/** @param name 표시 이름. 기본값이 있으므로 <이름이 없는 세션>은 아래 전용 헬퍼로 만든다. */
+function signInAs(role: Role | null, name = '홍길동') {
   useAuthStore.setState({
     token: AUTH_STUB,
-    claims: { sub: '1', role, name: '홍길동', channel: 'INTERNAL', exp: 9999999999 },
+    claims: { sub: '1', role, name, channel: 'INTERNAL', exp: 9999999999 },
+  });
+}
+
+/**
+ * 이름을 끝내 얻지 못한 세션 — 관제 인계 토큰에 이름 클레임이 없고 「내 정보」도 이름을 모를 때.
+ *
+ * ⚠ <b>`signInAs(role, undefined)` 로는 이 상태를 만들 수 없다.</b> 기본값 매개변수는 명시적으로
+ *   넘긴 `undefined` 에도 발동해 `'홍길동'` 이 들어간다 — 실제로 그렇게 썼다가 시험이 대체 표기를
+ *   찾지 못해 죽었고, 렌더 결과에 `홍길동` 이 찍혀 원인이 드러났다. 그래서 전용 헬퍼로 가른다.
+ */
+function signInWithoutName(role: Role | null) {
+  useAuthStore.setState({
+    token: AUTH_STUB,
+    claims: { sub: '1', role, channel: 'INTERNAL', exp: 9999999999 },
   });
 }
 
@@ -102,6 +117,42 @@ describe('상단 헤더(GNB)의 역할 배지', () => {
 
     expect(screen.getByText('검수자')).toBeInTheDocument();
     expect(screen.queryByText('미배정')).toBeNull();
+  });
+});
+
+describe('상단 헤더(GNB)의 사용자 이름', () => {
+  // [@design SHELL-001] [@design UI-035] [@design AC-1098]
+  //
+  // ★<b>표시</b> 축의 가드다 — 「스토어에 값이 들어간다」와는 다른 축이다. 그 둘을 한 축으로 보면
+  //   읽는 자리가 통째로 무너져도 아무 시험이 죽지 않는다(실측: `const name = '사용자'` 변이가
+  //   전체 회귀 4,817건을 전부 통과했다).
+  //
+  // 고친 증상: 「내 정보」 응답이 이름을 주는데 진입 처리가 그것을 버려, 관제 인계 세션(토큰에
+  //   이름 클레임이 없다)에서 헤더가 대체 표기 「사용자」·이니셜 「사」에 고착됐다.
+  //   조달원 우선순위는 <서버 응답 → 인계 토큰 클레임 → 대체 표기>이며, 이 화면이 읽는
+  //   `claims.name` 은 앞의 두 단계를 이미 거친 결과다.
+
+  it('★서버가_알려준_이름과_그_첫_글자_이니셜이_함께_보인다', () => {
+    // 진입 처리가 「내 정보」 이름을 주입한 뒤의 상태.
+    signInAs(Role.ADMIN, '찬기차장');
+    renderWithProviders(<Gnb />);
+
+    expect(screen.getByText('찬기차장')).toBeInTheDocument();
+    // 이니셜은 이름에서 파생된다 — 이름만 보면 이니셜이 상수로 굳어도 잡히지 않는다.
+    expect(screen.getByText('찬')).toBeInTheDocument();
+    // 대체 표기가 그 자리를 덮지 않는다.
+    expect(screen.queryByText('사용자')).toBeNull();
+    expect(screen.queryByText('사')).toBeNull();
+  });
+
+  it('이름을_끝내_얻지_못했을_때만_대체_표기로_내려간다', () => {
+    // ★폴백 존치 확인 — 두 조달원 모두에서 이름을 얻지 못하는 경우가 실제로 있다.
+    //   위 케이스만 두면 폴백을 지워도 초록이라 이름 없는 세션에서 빈 헤더가 된다.
+    signInWithoutName(Role.ADMIN);
+    renderWithProviders(<Gnb />);
+
+    expect(screen.getByText('사용자')).toBeInTheDocument();
+    expect(screen.getByText('사')).toBeInTheDocument();
   });
 });
 

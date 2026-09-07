@@ -51,10 +51,15 @@ public class UserController {
 
     @Operation(
             summary = "사용자 마스터 목록 조회 (REVIEWER)",
-            description = "REVIEWER 전용. 사용자 관리 화면용. keyword 로 USER_ID/USER_NM/USER_EMAIL 부분일치 검색."
+            description = "REVIEWER 전용. 사용자 관리 화면용. keyword 로 로그인ID(USER_ID)·이름(USER_NM) "
+                    + "두 축 부분일치 검색. 이메일은 매칭 축이 아니다 — 인계 토큰에 이메일이 실려 오지 않아 "
+                    + "그 경로로 진입한 사용자는 이메일이 영구히 비어 있고 목록도 로그인 식별자를 보여준다. "
+                    + "응답의 이메일 필드는 이미 적재된 값을 표현하기 위해 존치한다."
     )
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "성공. 응답 항목의 role 은 ADMIN|REVIEWER|WORKER|PORTAL_USER 이며, "
+                            + "아직 역할이 부여되지 않은 사용자는 null 이다(기본값을 부여하지 않는다)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "size 한도 초과"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
@@ -62,7 +67,8 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<Page<UserSummaryResponse>> list(
-            @Parameter(description = "검색 키워드 (USER_ID/USER_NM/USER_EMAIL 부분일치)") @RequestParam(required = false) String keyword,
+            @Parameter(description = "검색 키워드 (로그인ID·이름 부분일치. 이메일은 매칭 축이 아니다)")
+                @RequestParam(required = false) String keyword,
             @Parameter(description = "역할 필터 (ADMIN/REVIEWER/WORKER/PORTAL_USER, 선택)")
                 @RequestParam(required = false)
                 @Pattern(regexp = "^(ADMIN|REVIEWER|WORKER|PORTAL_USER)$") String role,

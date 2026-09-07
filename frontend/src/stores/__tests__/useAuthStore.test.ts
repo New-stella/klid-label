@@ -159,4 +159,44 @@ describe('useAuthStore', () => {
     useAuthStore.getState().setServerRole('ADMIN');
     expect(useAuthStore.getState().claims).toBeNull();
   });
+
+  // ─────────────────────────────────────────────────────────────────
+  // ★역할만 취하고 이름을 버리지 않는다 (2026-09-07 · @design SHELL-001 · UI-035)
+  //   헤더 이름의 진실원은 서버 응답이고 인계 토큰의 이름 클레임은 보조다.
+  // ─────────────────────────────────────────────────────────────────
+
+  it('★setServerRole_은_서버_이름도_함께_주입한다', () => {
+    // 관제 토큰에는 이름이 실려 오지 않을 수 있는데, 그때 헤더가 대체 표기에 고착되던 것이 결함.
+    const token = `h.${b64url({ sub: 'u1', channel: 'INTERNAL', exp: 9999999999 })}.s`;
+    useAuthStore.getState().setToken(token);
+    expect(useAuthStore.getState().claims?.name).toBeUndefined();
+
+    useAuthStore.getState().setServerRole('ADMIN', '찬기차장');
+    expect(useAuthStore.getState().claims?.name).toBe('찬기차장');
+    expect(useAuthStore.getState().claims?.role).toBe('ADMIN');
+  });
+
+  it('★서버_이름이_비어_있으면_토큰_이름을_지우지_않는다', () => {
+    // 진실원이 비었을 때 보조 조달원까지 버리면 고친 결함이 그대로 재발한다.
+    const token = `h.${b64url({ sub: 'u1', channel: 'INTERNAL', exp: 9999999999, name: '토큰이름' })}.s`;
+    useAuthStore.getState().setToken(token);
+
+    useAuthStore.getState().setServerRole('WORKER', undefined);
+    expect(useAuthStore.getState().claims?.name).toBe('토큰이름');
+
+    useAuthStore.getState().setServerRole('WORKER', '   ');
+    expect(useAuthStore.getState().claims?.name).toBe('토큰이름');
+
+    useAuthStore.getState().setServerRole('WORKER', null);
+    expect(useAuthStore.getState().claims?.name).toBe('토큰이름');
+  });
+
+  it('★서버_이름은_토큰_이름보다_우선한다', () => {
+    // 「진실원 우선, 보조 폴백」 — 둘 다 있으면 서버 값이 이긴다.
+    const token = `h.${b64url({ sub: 'u1', channel: 'INTERNAL', exp: 9999999999, name: '옛이름' })}.s`;
+    useAuthStore.getState().setToken(token);
+
+    useAuthStore.getState().setServerRole('REVIEWER', '새이름');
+    expect(useAuthStore.getState().claims?.name).toBe('새이름');
+  });
 });

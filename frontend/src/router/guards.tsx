@@ -110,8 +110,19 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
       </div>
     );
   }
-  // Phase 2 — 인증은 되었으나 role 이 부여되지 않은 사용자는 /role-claim 으로 안내.
+  // 인증은 되었으나 role 이 부여되지 않은 사용자는 /role-claim 으로 안내.
   // INTERNAL 채널에만 적용 (PORTAL_USER 은 토큰 발급 시점에 항상 role 이 부여됨).
+  //
+  // ★도착지 판정 축은 「역할 없음」 <하나가 아니라> 「역할 없음 + 창구 열림」 <둘>이다
+  //   (@design SCREEN-002 v32 · @design AC-1098). 그 둘째 축은 <그 화면이 소유한다> — 화면이
+  //   진입 시점에 개폐를 조회해(API-245) 열림이면 최초 관리자 등록 모습을, 닫힘이면 권한 요청
+  //   안내 모습을 그린다. 즉 여기서 보내는 곳은 「관리자 등록 화면」이 아니라 <두 모습을 가진
+  //   화면>이며, 역할이 없다는 이유만으로 *"아직 관리자가 없습니다"* 가 뜨지 않는다.
+  //
+  //   ⚠ 개폐 조회를 <가드로 끌어올리지 말 것>. 가드는 렌더 시점에 동기로 판정하는 자리라
+  //     비동기 조회를 넣으면 **역할을 가진 사용자의 모든 라우트 전환까지** 그 조회를 기다리게
+  //     된다(그 사용자에게는 개폐가 애초에 무관한 정보다). 축이 둘이라는 것과 그 둘을 <같은
+  //     곳에서> 판정한다는 것은 다른 이야기다.
   if (!claims.role && claims.channel === 'INTERNAL') {
     if (isPortalEmbedChannel()) return <PortalEmbedNotice kind="role-required" />;
     return <Navigate to="/role-claim" replace />;

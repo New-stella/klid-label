@@ -54,6 +54,10 @@ export function PortalLayout() {
           >
             AI 학습데이터 포털
           </Link>
+          {/* ★포털 채널의 이름 조달원은 <인계 토큰 클레임 하나뿐>이다 — 이 채널은 `GET /v1/me`
+              를 부르지 않는다(포털 토큰은 발급 시점에 역할이 확정돼 서버에 다시 묻지 않는다).
+              그래서 관제 채널의 서버 이름 주입(@design SHELL-001)은 여기에 닿지 않으며, 그것이
+              결함이 아니라 채널 차이다. 대체 표기도 그대로 남긴다. */}
           <span className="text-btn-label text-gray-700">{claims?.name ?? '사용자'}</span>
         </header>
       )}

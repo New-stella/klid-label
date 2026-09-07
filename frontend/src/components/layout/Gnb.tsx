@@ -19,6 +19,13 @@ import { useAuthStore } from '@/stores/useAuthStore';
  */
 export function Gnb() {
   const claims = useAuthStore((s) => s.claims);
+  // ★이름의 <진실원은 서버 응답>(`GET /v1/me`)이고 인계 토큰의 이름 클레임은 보조다
+  //   (@design SHELL-001 · @design UI-035). 진입 처리가 서버 이름을 `claims.name` 에 주입하므로
+  //   여기서 읽는 값이 곧 「서버가 아는 이름 → 토큰 이름」 순서의 결과다.
+  //
+  //   ⚠ 대체 표기('사용자')는 **남긴다** — 두 조달원 모두에서 이름을 얻지 못하는 경우가 실제로
+  //     있다. 고친 것은 「서버가 아는데도 대체 표기로 떨어지던」 원인(주입 누락)이지 이 폴백이
+  //     아니다. 폴백을 지우면 이름 없는 세션에서 빈 헤더가 된다.
   const name = claims?.name ?? '사용자';
   const initials = name.slice(0, 1);
 

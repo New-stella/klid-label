@@ -87,9 +87,18 @@ public class SecurityConfig {
                                 .maxAgeInSeconds(31536000))
                 )
                 .authorizeHttpRequests(auth -> {
-                    // /v1/auth/role-claim 은 인증된 사용자만 호출 가능 — role 부여 endpoint.
-                    // permitAll 매처보다 먼저 매칭되도록 위에 둔다.
-                    auth.requestMatchers("/v1/auth/role-claim").authenticated();
+                    // /v1/auth/role-claim 계열은 인증된 사용자만 호출 가능 — 관리자 부트스트랩 창구
+                    // (역할 부여)와 그 개폐 조회(/availability)다. permitAll 매처보다 먼저 매칭되도록 위에 둔다.
+                    //
+                    // ★ 하위 경로까지 함께 잡는다(@design API-245) — 아래 /v1/auth/** 가 permitAll 이라
+                    //   부트스트랩 창구 밑에 경로를 하나 더 두는 순간 그것이 <조용히 공개>된다. 실제로
+                    //   개폐 조회를 신설할 때 그 상태가 됐다(미인증자에게 관리자 존재 여부가 노출).
+                    //   구 매처는 정확 경로 하나만 잡아 그 사고를 구조적으로 허용했다.
+                    // ⚠ 컨트롤러의 @PreAuthorize("isAuthenticated()") 는 <함께> 유지한다. 그것만
+                    //   남으면 미인증 요청이 permitAll 로 통과해 메서드 보안에서 거절되어 401 이 아니라
+                    //   403 이 되고(AccessDeniedException → GlobalExceptionHandler), 필터 계층의
+                    //   fail-closed 가 사라진다.
+                    auth.requestMatchers("/v1/auth/role-claim", "/v1/auth/role-claim/**").authenticated();
                     // A-ISSUE-02 — /v1/** 매처를 역할 결합으로 상향하면서 남기는 **의도된 예외**.
                     // /v1/me 는 본인 토큰 클레임(sub/role/channel)만 반환하며 업무 데이터를 노출하지 않는다.
                     // 역할 미배정(role=null) 사용자가 "나는 무권한" 임을 확인하고 /role-claim 온보딩으로

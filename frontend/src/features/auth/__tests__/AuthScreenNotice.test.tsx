@@ -113,6 +113,33 @@ describe('SessionIngressPage — 보이는 안내(SCREEN-001)', () => {
       expectAlert('세션이 만료되었습니다', '관제서버에서 다시 접근해주세요.');
     });
   });
+
+  // ★자기 정보 조회가 401 이면 <기존 만료 처리와 같은 결말>이어야 한다
+  //   (2026-09-07 · @design SEQ-034). 이 파일은 /dev/login 우회를 꺼 두므로 <운영 형상의 갈래>를
+  //   본다 — 다른 시험 파일은 DEV 빌드라 /dev/login 으로 빠져 이 경로가 관측되지 않는다.
+  //   구 동작에서는 이 401 이 관리자 등록 화면으로 떨어져 *"아직 관리자가 없습니다"* 로 보였다.
+  it('★자기정보_조회가_401_이면_만료와_같은_안내로_끝난다', async () => {
+    const mock = new MockAdapter(apiClient);
+    mock.onGet('/me').reply(401, {
+      success: false,
+      data: null,
+      message: '인증이 필요합니다.',
+      errorCode: 'UNAUTHORIZED',
+    });
+    try {
+      renderIngress([
+        `/ingress?token=${buildJwt({ sub: 'u1', channel: 'INTERNAL', exp: 9999999999 })}`,
+      ]);
+
+      await waitFor(() => {
+        expectAlert('세션이 만료되었습니다', '관제서버에서 다시 접근해주세요.');
+      });
+      // 관리자 등록 화면의 문구가 이 자리에 끼어들지 않는다.
+      expect(document.body.textContent ?? '').not.toContain('이 시스템에는 아직 관리자가 없습니다');
+    } finally {
+      mock.restore();
+    }
+  });
 });
 
 describe('RoleClaimPage — 오류 안내(SCREEN-002)', () => {
@@ -120,6 +147,15 @@ describe('RoleClaimPage — 오류 안내(SCREEN-002)', () => {
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    // 이 화면은 진입 시점에 등록 창구의 개폐를 먼저 묻는다(@design API-245 · SCREEN-002 v32).
+    // 여기서 검증하는 것은 <제출 실패의 안내 모양>이므로 창구는 열린 상태를 전제한다 —
+    // 닫힌 상태에서는 제출 수단 자체가 없어 이 케이스가 성립하지 않는다.
+    mock.onGet('/auth/role-claim/availability').reply(200, {
+      success: true,
+      data: { available: true },
+      message: null,
+      errorCode: null,
+    });
     useAuthStore.setState({
       token: 'dummy-token',
       claims: {
@@ -149,6 +185,8 @@ describe('RoleClaimPage — 오류 안내(SCREEN-002)', () => {
     // ⚠ 역할 선택 단계가 없어졌다 — 이 화면은 관리자 부트스트랩이라 부여 역할이 고정이다
     //   (ADR-055). 패스워드만으로 제출한다.
     renderWithProviders(<RoleClaimPage />);
+    // 개폐 조회가 끝나야 폼이 그려진다.
+    await screen.findByLabelText('관리자 패스워드');
     await user.type(screen.getByLabelText('관리자 패스워드'), 'pw-for-test');
     await user.click(screen.getByRole('button', { name: '관리자로 등록' }));
 

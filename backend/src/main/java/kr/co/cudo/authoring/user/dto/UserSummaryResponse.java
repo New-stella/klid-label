@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.user.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import kr.co.cudo.authoring.user.entity.LsAcntUser;
 
 import java.time.LocalDateTime;
@@ -26,14 +27,34 @@ import java.time.LocalDateTime;
  * 않는다 — 과거 화면이 그 폴백을 넣어 <b>가입 시각을 "최근 로그인" 으로 표시</b>했고(거짓 표기),
  * 그것이 이 필드를 만든 이유다. 미접속은 {@code null} 로 내려보내고 표기는 화면이 담당한다.
  *
+ * <h3>★ {@code role} 은 미배정이면 {@code null} 이다 — 기본값을 부여하지 않는다 (@design API-001)</h3>
+ * <p>이 창구는 <b>한 응답에 여러 사용자의 역할</b>을 싣는 자리라, 역할이 아직 부여되지 않은 사용자를
+ * 응답에서 피할 수 없다(대상자를 호출자가 고르지 않는다). 그 {@code null} 은 <b>확인해서 알아낸
+ * 「역할 없음」</b>이지 확인하지 못한 상태가 아니며, 네 값 중 어느 것으로도 임의로 채우지 않는다.
+ * ⚠ 「없으면 작업자」 같은 기본값 처리를 되살리지 말 것 — 사실과 다른 역할을 보이게 하던 결함이다.
+ *
  * @design SCREEN-024
+ * @design API-001
  */
 public record UserSummaryResponse(
         // FE 호환 alias
+        @Schema(description = "사용자 PK (userNo alias)", example = "1001")
         Long id,
+
+        @Schema(description = "로그인 ID (userId alias)", example = "worker01")
         String loginId,
+
+        @Schema(description = "사용자 이름 (userNm alias)", example = "홍길동")
         String name,
+
+        @Schema(description = "이메일 (userEmail alias). 검색 매칭 축이 아니며, 인계 토큰에 이메일이 "
+                + "실려 오지 않아 그 경로로 진입한 사용자는 비어 있다", nullable = true)
         String email,
+
+        @Schema(description = "권한 코드. 인가에 쓰는 값의 진실원은 저작도구가 보관한 역할이다. "
+                + "아직 역할이 부여되지 않은 사용자는 null 이며 네 값 중 하나로 임의로 채우지 않는다.",
+                allowableValues = {"ADMIN", "REVIEWER", "WORKER", "PORTAL_USER"},
+                nullable = true, example = "WORKER")
         String role,
         Boolean active,
         LocalDateTime createdAt,
