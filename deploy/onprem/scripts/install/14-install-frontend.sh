@@ -162,17 +162,35 @@ fi
 
 # ---- 3) 설정 배치 ----
 #   conf.d 드롭인으로 넣는다. httpd 본체 설정(모듈 적재·MPM·MIME)은 배포판 것을 그대로 쓴다.
-CONF_DST="/etc/httpd/conf.d/klid-frontend.conf"
-sed -e "s#@WEB_ROOT@#${WEB_DIR}/${DIST_NAME}#g" \
-    -e "s#@BACKEND_ORIGIN@#${BACKEND_ORIGIN}#g" \
-    "${ONPREM}/config/frontend/httpd-klid.conf.template" > "${CONF_DST}"
-chmod 0644 "${CONF_DST}"
-ok "[frontend] httpd 설정: ${CONF_DST} (backend=${BACKEND_ORIGIN})"
+#
+#   ★★ KLID_SKIP_HTTPD_CONF=1 이면 <여기도> 건너뛴다 (2026-09-07 정정, 구속).
+#     그 플래그는 바로 위에서 "httpd 설정을 건너뜁니다" 라고 찍어 놓고 이 블록은 막지 못했다.
+#     현장에서 두 가지로 나타났다:
+#       · /etc/httpd/conf.d 가 <없는> 장비 → 리다이렉션이 실패하고 set -e 로 여기서 종료.
+#         그 뒤의 klid-config.js 재생성·소유권 교정·SELinux 문맥이 <통째로 안 돌아>
+#         화면이 빈 설정({})으로 떴다. 배치는 됐는데 앱이 API 주소를 모르는 상태다.
+#       · /etc/httpd/conf.d 가 <있는> 장비 → 현장 conf 를 조용히 덮어썼을 자리다.
+#         "현장 설정 보존" 이라는 플래그의 존재 이유가 정면으로 깨진다.
+if [[ "${KLID_SKIP_HTTPD_CONF:-0}" == "1" ]]; then
+  info "[frontend] httpd 설정 배치도 건너뜁니다(KLID_SKIP_HTTPD_CONF=1 — 현장 설정 보존)."
+elif [[ ! -d /etc/httpd/conf.d ]]; then
+  # ★ 없는 디렉터리에 리다이렉션하면 set -e 로 <여기서 끝난다>. 이 단계의 나머지가
+  #   더 중요하므로(런타임 설정·권한·문맥) 경고만 남기고 계속 간다.
+  warn "[frontend] /etc/httpd/conf.d 가 없어 httpd 설정을 배치하지 않습니다."
+  warn "           이 장비의 httpd 는 다른 자리에 설정을 둡니다 — 현장 담당과 확인하세요."
+else
+  CONF_DST="/etc/httpd/conf.d/klid-frontend.conf"
+  sed -e "s#@WEB_ROOT@#${WEB_DIR}/${DIST_NAME}#g" \
+      -e "s#@BACKEND_ORIGIN@#${BACKEND_ORIGIN}#g" \
+      "${ONPREM}/config/frontend/httpd-klid.conf.template" > "${CONF_DST}"
+  chmod 0644 "${CONF_DST}"
+  ok "[frontend] httpd 설정: ${CONF_DST} (backend=${BACKEND_ORIGIN})"
 
-# 배포판 기본 환영 페이지가 우리 문서 루트를 가리는 것을 막는다.
-if [[ -f /etc/httpd/conf.d/welcome.conf ]]; then
-  mv /etc/httpd/conf.d/welcome.conf /etc/httpd/conf.d/welcome.conf.disabled
-  ok "[frontend] 기본 welcome.conf 비활성화"
+  # 배포판 기본 환영 페이지가 우리 문서 루트를 가리는 것을 막는다.
+  if [[ -f /etc/httpd/conf.d/welcome.conf ]]; then
+    mv /etc/httpd/conf.d/welcome.conf /etc/httpd/conf.d/welcome.conf.disabled
+    ok "[frontend] 기본 welcome.conf 비활성화"
+  fi
 fi
 
 # ---- 3-1) 런타임 설정 생성 (값이 없어도 설치는 계속한다) ----

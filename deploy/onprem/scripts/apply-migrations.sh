@@ -71,6 +71,8 @@ done
 require_cmd psql
 
 # ---- 접속 축 (16-load-schema.sh 와 동일) ----
+# ★ 설정 파일이 있으면 거기서 읽는다 — 환경변수가 이긴다(2026-09-07 신설).
+klid_load_db_props
 CONTROL_DB_NAME="${CONTROL_DB_NAME:-klid_system}"
 DB_APP_USER="${DB_APP_USER:-${CONTROL_DB_USERNAME:-klid_user}}"
 DB_SCHEMA="${DB_SCHEMA:-klid_at}"
@@ -80,8 +82,8 @@ DB_SCHEMA="${DB_SCHEMA:-klid_at}"
 
 DB_APP_PASSWORD="${DB_APP_PASSWORD:-${CONTROL_DB_PASSWORD:-}}"
 : "${DB_APP_PASSWORD:?DB_APP_PASSWORD 또는 CONTROL_DB_PASSWORD 가 필요합니다(앱 유저 비밀번호)}"
-export PGHOST="${PGHOST:-${CONTROL_DB_HOST:-127.0.0.1}}"
-export PGPORT="${PGPORT:-${CONTROL_DB_PORT:-5432}}"
+# ★ CONTROL_DB_HOST 는 "host:port,host" 형태일 수 있다 — 그대로 넘기면 접속이 실패한다.
+PGHOST_OVERRIDE="${PGHOST:-}" PGPORT_OVERRIDE="${PGPORT:-}" klid_pg_env
 export PGPASSWORD="${DB_APP_PASSWORD}"
 # ★ 전 세션 공통 — 비한정 식별자가 klid_at 에 떨어지게 한다(위 헤더의 조용한 오생성 방어).
 export PGOPTIONS="-c search_path=${DB_SCHEMA}"

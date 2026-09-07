@@ -666,6 +666,66 @@ klid_role_has() {
 }
 
 # ----------------------------------------------------------------------------
+# DB 접속 정규화 — 현장 값을 libpq 가 이해하는 모양으로 바꾼다 (2026-09-07 신설)
+#
+#   ★ 왜 필요한가. 현장 application.properties 의 CONTROL_DB_HOST 는 <JDBC 다중 호스트
+#     문자열>이다: "10.177.199.148:19999,10.177.199.149". 이 값을 그대로 PGHOST 로 넘기면
+#     libpq 가 콜론 붙은 포트를 못 읽어 접속이 실패한다. 2026-09-07 현장에서 증분 적용이
+#     이 자리에서 막혔고, 화면에는 "psql 이 없습니다" 뒤에 가려 원인이 안 보였다.
+#
+#   ★ 여러 대를 살려 둔다 — libpq 는 PGHOST/PGPORT 의 쉼표 목록을 페일오버로 쓴다.
+#     DDL 은 쓰기 노드에 붙어야 하므로 target_session_attrs=read-write 를 함께 세운다.
+#     (대기 노드에 붙으면 read-only 오류로 <시끄럽게> 실패한다 — 조용한 것보다 낫다.)
+#
+#   klid_pg_env  → PGHOST/PGPORT/PGTARGETSESSIONATTRS 를 export 한다.
+# ----------------------------------------------------------------------------
+klid_pg_env() {
+  local raw="${CONTROL_DB_HOST:-127.0.0.1}" defport="${CONTROL_DB_PORT:-5432}"
+  local hosts="" ports="" entry h p
+  # ★ IFS 를 갈아끼우며 for 로 도는 방식은 쓰지 않는다 — 2026-09-07 에 그렇게 짰다가
+  #   둘째 호스트가 사라지고 포트가 어긋났다. 줄 단위로 읽으면 그 함정이 없다.
+  while IFS= read -r entry; do
+    entry="${entry//[[:space:]]/}"
+    [[ -n "${entry}" ]] || continue
+    case "${entry}" in
+      *:*) h="${entry%%:*}"; p="${entry##*:}" ;;
+      *)   h="${entry}";     p="${defport}"   ;;
+    esac
+    [[ "${p}" =~ ^[0-9]+$ ]] || p="${defport}"
+    hosts="${hosts:+${hosts},}${h}"
+    ports="${ports:+${ports},}${p}"
+  #   ⚠ printf 에 개행을 붙인다 — 없으면 read 가 <마지막 항목을 버린다>(EOF 미종결 행).
+  done < <(printf '%s\n' "${raw}" | tr ',' '\n')
+  [[ -n "${hosts}" ]] || { hosts="127.0.0.1"; ports="${defport}"; }
+  export PGHOST="${PGHOST_OVERRIDE:-${hosts}}"
+  export PGPORT="${PGPORT_OVERRIDE:-${ports}}"
+  # 이미 지정돼 있으면 존중한다(수동 진단 중일 수 있다).
+  export PGTARGETSESSIONATTRS="${PGTARGETSESSIONATTRS:-read-write}"
+}
+
+# ----------------------------------------------------------------------------
+# 설정 파일에서 DB 접속값을 읽어 온다 (2026-09-07 신설)
+#
+#   ★ WAR 형상의 정본은 ${KLID_ETC}/application.properties 다. 종전에는 이 스크립트들이
+#     환경변수만 읽어, 운영자가 다섯 개를 손으로 export 해야 했다. 손으로 옮기는 값이
+#     늘수록 틀린다 — 실제로 DB 이름을 기본값(klid_system)으로 잘못 알고 진행할 뻔했다.
+#   ★ source 하지 않는다 — 비밀번호에 !·#·공백이 들어 있어 셸이 다르게 해석한다.
+#   ★ <이미 환경에 있는 값은 덮지 않는다> — 명시 지정이 언제나 이긴다.
+# ----------------------------------------------------------------------------
+klid_load_db_props() {
+  local f="${1:-${KLID_ETC}/application.properties}" k v
+  [[ -r "${f}" ]] || return 0
+  for k in CONTROL_DB_HOST CONTROL_DB_PORT CONTROL_DB_NAME \
+           CONTROL_DB_USERNAME CONTROL_DB_PASSWORD DB_SCHEMA; do
+    [[ -n "${!k:-}" ]] && continue
+    v="$(grep -E "^[[:space:]]*${k}=" "${f}" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+    v="${v%$'\r'}"
+    [[ -n "${v}" ]] && export "${k}=${v}"
+  done
+  return 0
+}
+
+# ----------------------------------------------------------------------------
 # JBOSS_HOME 탐지 — <한 곳에서만> 판정한다 (2026-09-07 이관)
 #
 #   ★ 왜 여기로 옮겼나. 같은 판정이 세 곳에 복제돼 있었고 <목록이 달랐다>:

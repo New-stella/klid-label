@@ -122,12 +122,26 @@ fi
 # 1) 사전점검
 # ---------------------------------------------------------------------------
 info "[pre] 매체 : ${ONPREM}"
-[[ -f "${ONPREM}/VERSION.built" ]] && sed 's/^/          /' "${ONPREM}/VERSION.built" \
-  || warn "[pre] VERSION.built 가 없습니다 — 패키징 마무리(90-finalize-media.sh)가 돌지 않은 매체일 수 있습니다."
+#   ★ 패치 매체에는 VERSION.built 가 <원래 없다>(그 파일은 전체 설치 매체가 만든다).
+#     대신 VERSION.txt 를 읽는다 — 그것이 패치 회차의 판본 기록이다. 둘 다 없을 때만 경고한다.
+if [[ -f "${ONPREM}/VERSION.built" ]]; then
+  sed 's/^/          /' "${ONPREM}/VERSION.built"
+elif [[ -f "$(dirname "${ONPREM}")/VERSION.txt" ]]; then
+  sed 's/^/          /' "$(dirname "${ONPREM}")/VERSION.txt"
+else
+  warn "[pre] 판본 기록(VERSION.built·VERSION.txt)이 없습니다 — 어느 판인지 알 수 없는 매체입니다."
+fi
 
 [[ -f "${WAR_SRC}" ]] || die "[pre] 반입 WAR 가 없습니다: ${WAR_SRC}
      이 매체로는 업데이트할 수 없습니다(패키징 10-build-backend.sh 가 수집합니다)."
 info "[pre] 새 WAR   : $(war_stamp "${WAR_SRC}")"
+
+# ★ 매체 무결성 — 올리기 <전에> 대조한다 (2026-09-07 신설).
+#   종전에는 해시를 <찍기만> 하고 대조하지 않았다. 전송·압축해제가 중간에 끊긴 매체가
+#   와도 이 자리에서 걸리지 않아, 손상된 WAR 이 그대로 배포될 수 있었다.
+#   install.sh 는 같은 목록으로 이미 검증하는데 업데이트 경로만 비어 있었다.
+#   ⚠ 목록이 없으면 <검증 생략>이다(sha256_verify 의 기존 동작) — 옛 매체 호환.
+sha256_verify "$(dirname "${WAR_SRC}")"
 
 CUR_WAR="$(current_war)"
 if [[ -n "${CUR_WAR}" ]]; then

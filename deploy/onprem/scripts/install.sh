@@ -195,16 +195,32 @@ if [[ "${_list_only}" -eq 1 ]]; then
 fi
 
 # ---- 서비스 사용자/그룹 + 기본 디렉토리 생성 ----
-if ! getent group "${KLID_GROUP}" >/dev/null 2>&1; then
-  groupadd --system "${KLID_GROUP}"
-  ok "그룹 생성: ${KLID_GROUP}"
-fi
-if ! id "${KLID_USER}" >/dev/null 2>&1; then
-  useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
-          --shell /usr/sbin/nologin "${KLID_USER}" 2>/dev/null \
-    || useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
-               --shell /bin/false "${KLID_USER}"
-  ok "사용자 생성: ${KLID_USER}"
+#   ★ KLID_NO_USER_CREATE=1 이면 <만들지 않는다> (2026-09-07 신설).
+#     현장 보안 정책상 계정 신규 생성이 금지된 곳이 있다. 그런 곳에서는 이미 있는 계정을
+#     KLID_USER/KLID_GROUP 으로 지정해 쓰면 되고(예: apache·jboss), 그때 이 블록이
+#     조용히 새 계정을 만들면 정책 위반이 된다.
+#   ★ 없는 계정을 지정한 채 이 토글을 켜면 <즉시 멈춘다> — 뒤에서 chown 이 실패하며
+#     반쯤 설치된 상태로 끝나는 것보다, 여기서 사유를 말하고 서는 편이 낫다.
+if [[ "${KLID_NO_USER_CREATE:-0}" == "1" ]]; then
+  getent group "${KLID_GROUP}" >/dev/null 2>&1 \
+    || die "그룹이 없습니다: ${KLID_GROUP} (KLID_NO_USER_CREATE=1 — 만들지 않습니다)
+     이미 있는 그룹을 KLID_GROUP 으로 지정하세요. 예: KLID_GROUP=apache"
+  id "${KLID_USER}" >/dev/null 2>&1 \
+    || die "사용자가 없습니다: ${KLID_USER} (KLID_NO_USER_CREATE=1 — 만들지 않습니다)
+     이미 있는 계정을 KLID_USER 로 지정하세요. 예: KLID_USER=apache"
+  info "계정 생성 생략(KLID_NO_USER_CREATE=1) — 기존 계정 사용: ${KLID_USER}:${KLID_GROUP}"
+else
+  if ! getent group "${KLID_GROUP}" >/dev/null 2>&1; then
+    groupadd --system "${KLID_GROUP}"
+    ok "그룹 생성: ${KLID_GROUP}"
+  fi
+  if ! id "${KLID_USER}" >/dev/null 2>&1; then
+    useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
+            --shell /usr/sbin/nologin "${KLID_USER}" 2>/dev/null \
+      || useradd --system --gid "${KLID_GROUP}" --home-dir "${KLID_PREFIX}" \
+                 --shell /bin/false "${KLID_USER}"
+    ok "사용자 생성: ${KLID_USER}"
+  fi
 fi
 
 ensure_dir "${KLID_PREFIX}" "${KLID_PREFIX}/runtime" \

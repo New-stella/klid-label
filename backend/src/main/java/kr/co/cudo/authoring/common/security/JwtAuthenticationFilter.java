@@ -107,7 +107,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             //   * 거부 방식은 다른 실패 경로(서명 불일치·issuer 불일치·exp 부재)와 동일하다 —
             //     컨텍스트를 비우고 체인을 이어, 보호 엔드포인트는 진입점이 401 을 표준 응답 형식으로
             //     낸다. 필터가 직접 응답을 쓰면 그 형식이 이 경로에서만 갈린다.
-            log.debug("[Auth] rejected conflicting token headers");
+            log.warn("[Auth] rejected conflicting token headers");
             SecurityContextHolder.clearContext();
             chain.doFilter(request, response);
             return;
@@ -122,7 +122,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims body = jws.getPayload();
 
                 if (!issuerValidator.isAllowed(body.getIssuer())) {
-                    log.debug("[Auth] rejected unknown issuer");
+                    log.warn("[Auth] rejected unknown issuer iss={}", body.getIssuer());
                     SecurityContextHolder.clearContext();
                     chain.doFilter(request, response);
                     return;
@@ -136,7 +136,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 //   없으므로, issuer 게이트와 동일하게 fail-closed 로 거부한다.
                 //   ※ Jwts.parser().require("exp", ...) 는 값 고정 비교라 부적합해 명시 분기로 처리한다.
                 if (body.getExpiration() == null) {
-                    log.debug("[Auth] rejected token without exp claim");
+                    log.warn("[Auth] rejected token without exp claim iss={}", body.getIssuer());
                     SecurityContextHolder.clearContext();
                     chain.doFilter(request, response);
                     return;
@@ -260,11 +260,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     request.setAttribute(AUTH_NAME_ATTR, name);
                 }
             } catch (JwtException | IllegalArgumentException e) {
-                log.debug("[Auth] jwt validation failed message={}", e.getMessage());
+                // ★ WARN 이다 — DEBUG 로 두면 <기본 설정의 운영 로그에 한 줄도 안 남는다>.
+                //   2026-09-07 현장에서 인계 로그인이 안 되는데 서버 로그가 조용해, 원인을
+                //   가리는 데만 한나절이 들었다. 실패는 보이는 것이 안전한 쪽이다.
+                // ★ alg 와 키 길이를 함께 남긴다 — 이 둘이 가장 흔한 원인이고,
+                //   토큰 본문·시크릿은 남기지 않는다(CWE-532).
+                log.warn("[Auth] jwt validation failed alg={} keyBytes={} message={}",
+                        peekAlg(token), keyResolver.resolve().getEncoded().length, e.getMessage());
                 SecurityContextHolder.clearContext();
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * 검증 실패 진단용으로 토큰 헤더의 {@code alg} 만 들여다본다.
+     *
+     * <p>★ 서명을 확인하지 않고 읽으므로 <b>신뢰하는 값이 아니다</b> — 로그에만 쓰고
+     * 인가 판정에는 절대 쓰지 않는다. 그럼에도 남기는 이유는, 발급 주체가 외부(관제/포털)라
+     * 서명 알고리즘이 환경마다 다를 수 있고 그것이 실패의 가장 흔한 원인이기 때문이다.
+     * 예: HS512 토큰은 키가 64바이트 미만이면 값이 맞아도 검증이 실패한다.
+     *
+     * <p>파싱이 안 되면 {@code "?"} 를 돌린다 — 진단 문자열 하나 때문에 예외를 던지지 않는다.
+     */
+    private static String peekAlg(String token) {
+        try {
+            int dot = token.indexOf('.');
+            if (dot <= 0) {
+                return "?";
+            }
+            String header = new String(
+                    java.util.Base64.getUrlDecoder().decode(token.substring(0, dot)),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            java.util.regex.Matcher m =
+                    java.util.regex.Pattern.compile("\"alg\"\\s*:\\s*\"([A-Za-z0-9]{1,10})\"").matcher(header);
+            return m.find() ? m.group(1) : "?";
+        } catch (RuntimeException e) {
+            return "?";
+        }
     }
 
     /**

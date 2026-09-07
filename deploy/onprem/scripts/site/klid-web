@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ============================================================================
+# klid-web — [웹] 정적자산을 갈아 끼운다. <klid-config.js 를 반드시 살린다>
+#
+#   ★★ 이 스크립트가 존재하는 이유가 그 한 파일이다 (2026-09-07 현장).
+#     새 dist 에도 같은 이름의 klid-config.js 가 들어 있는데 그건 <빌드 시점 빈 값>이다.
+#     그대로 덮으면 화면은 뜨는데 API 주소를 몰라 아무것도 안 나온다. 오류도 안 난다.
+#     설치 스크립트가 중간에 죽어 재생성 단계를 건너뛰자 정확히 그 상태가 됐다.
+#   ⇒ 여기서는 <먼저 빼두고 나중에 되돌려 놓는다>. 순서가 곧 방어다.
+#
+#   ★ httpd 설정은 건드리지 않는다. 계정도 만들지 않는다.
+#
+#   사용법
+#     ./scripts/site/klid-web --check                    바꾸지 않고 현황만
+#     sudo ./scripts/site/klid-web                       배치(기본: control 채널)
+#     sudo ./scripts/site/klid-web --flavor=portal
+#     sudo ./scripts/site/klid-web --web-root=<경로> --owner=apache:apache
+#     sudo ./scripts/site/klid-web --rollback            직전 백업으로 되돌린다
+# ============================================================================
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SELF_DIR}/../lib/common.sh"
+ONPREM="$(onprem_root)"
+
+WEB_ROOT="${KLID_WEB_ROOT:-/GCLOUD/WebApp/label-studio}"
+FLAVOR="${KLID_DEPLOY_FLAVOR:-control}"
+OWNER=""; CHECK=0; ROLLBACK=0
+for a in "$@"; do
+  case "${a}" in
+    --check)      CHECK=1 ;;
+    --rollback)   ROLLBACK=1 ;;
+    --web-root=*) WEB_ROOT="${a#*=}" ;;
+    --flavor=*)   FLAVOR="${a#*=}" ;;
+    --owner=*)    OWNER="${a#*=}" ;;
+    --help|-h)    sed -n '3,25p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) die "알 수 없는 옵션: ${a} (--help 로 사용법)" ;;
+  esac
+done
+[[ "${FLAVOR}" == control || "${FLAVOR}" == portal ]] \
+  || die "--flavor 는 control 또는 portal 입니다: '${FLAVOR}'"
+
+SRC="${ONPREM}/artifacts/frontend/dist/${FLAVOR}"
+CFG="${WEB_ROOT}/klid-config.js"
+
+# 소유 계정 — 지정이 없으면 <지금 그 자리의 소유자>를 그대로 쓴다(계정을 만들지 않는다).
+if [[ -z "${OWNER}" ]]; then
+  OWNER="$(stat -c '%U:%G' "${WEB_ROOT}" 2>/dev/null || echo 'apache:apache')"
+fi
+
+info "[web] 대상   : ${WEB_ROOT}"
+info "[web] 채널   : ${FLAVOR}   (반대 채널을 올리면 화면이 뜨지 않습니다 — 조용히 어긋납니다)"
+info "[web] 소유   : ${OWNER}"
+if [[ -f "${CFG}" ]]; then
+  _n="$(grep -c 'VITE_' "${CFG}" 2>/dev/null || true)"
+  info "[web] 현재 klid-config.js : 값 ${_n:-0}개"
+else
+  warn "[web] 현재 klid-config.js 가 없습니다 — 배치 후 /etc/klid/frontend.env 로 만들어야 합니다."
+fi
+
+if [[ "${ROLLBACK}" -eq 1 ]]; then
+  require_root
+  _bak="$(ls -d "${WEB_ROOT}".bak.* 2>/dev/null | sort | tail -n1 || true)"
+  [[ -n "${_bak}" ]] || die "[web] 되돌릴 백업이 없습니다: ${WEB_ROOT}.bak.*"
+  confirm "${_bak} 로 되돌릴까요?" || die "[web] 사용자가 중단했습니다."
+  rm -rf "${WEB_ROOT}.rollback-tmp" && mv "${WEB_ROOT}" "${WEB_ROOT}.rollback-tmp"
+  mv "${_bak}" "${WEB_ROOT}"
+  ok "[web] 되돌렸습니다: ${_bak} → ${WEB_ROOT}  (직전 것은 ${WEB_ROOT}.rollback-tmp)"
+  exit 0
+fi
+
+[[ -d "${SRC}" ]] || die "[web] 정적자산이 없습니다: ${SRC}"
+info "[web] 원본   : ${SRC}  ($(du -sh "${SRC}" | cut -f1))"
+
+if [[ "${CHECK}" -eq 1 ]]; then
+  info "— --check, 아무것도 바꾸지 않았습니다 —"; exit 0
+fi
+require_root
+[[ -d "${WEB_ROOT}" ]] || die "[web] 대상 경로가 없습니다: ${WEB_ROOT} (--web-root 로 지정하세요)"
+
+# ① 런타임 설정을 먼저 빼둔다 — 이 한 줄이 이 스크립트의 핵심이다.
+KEEP=""
+if [[ -f "${CFG}" ]]; then
+  KEEP="$(mktemp)"; cp -a "${CFG}" "${KEEP}"
+  ok "[web] klid-config.js 보관: ${KEEP}"
+fi
+
+# ② 통째로 백업(지우지 않고 옮긴다)
+BAK="${WEB_ROOT}.bak.$(date '+%Y%m%d%H%M%S')"
+cp -a "${WEB_ROOT}" "${BAK}"
+ok "[web] 백업: ${BAK}"
+
+# ③ 배치
+cp -R "${SRC}/." "${WEB_ROOT}/"
+ok "[web] 배치 완료"
+
+# ④ 런타임 설정 되돌려 놓기
+if [[ -n "${KEEP}" ]]; then
+  cp -a "${KEEP}" "${CFG}"; rm -f "${KEEP}"
+  ok "[web] klid-config.js 복원 (값 $(grep -c 'VITE_' "${CFG}" 2>/dev/null || echo 0)개)"
+elif [[ -x "${SELF_DIR}/../install/render-frontend-config.sh" ]]; then
+  KLID_ETC="${KLID_ETC}" WEB_ROOT="${WEB_ROOT}" \
+    "${SELF_DIR}/../install/render-frontend-config.sh" \
+    && ok "[web] klid-config.js 생성(/etc/klid/frontend.env 기준)" \
+    || warn "[web] klid-config.js 생성 실패 — 값을 확인하세요."
+fi
+
+# ⑤ 소유·문맥 — 이걸 빠뜨리면 httpd 가 못 읽는다
+chown -R "${OWNER}" "${WEB_ROOT}"
+command -v restorecon >/dev/null 2>&1 && restorecon -R "${WEB_ROOT}" >/dev/null 2>&1 || true
+ok "[web] 소유·SELinux 문맥 정리"
+
+echo
+info "확인:"
+info "  curl -s -o /dev/null -w '%{http_code}\\n' http://localhost/label-studio/"
+info "  브라우저에서 Ctrl+Shift+R (klid-config.js 는 파일명이 고정이라 캐시됩니다)"
+info "되돌리기:  sudo ./scripts/site/klid-web --rollback"

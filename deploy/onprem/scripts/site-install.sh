@@ -229,7 +229,18 @@ if [[ "${IS_WEB}" -eq 1 ]]; then
     info "[web] httpd 설정은 <만들지 않습니다>(현장 설정 보존). 정적 자산만 배치합니다."
     info "      우리가 만들어야 하면 --with-httpd-conf --backend=<WAS 주소> 를 주세요."
   fi
-  _n_be="$(printf '%s' "${BACKEND}" | tr ',' '\n' | grep -c .)"
+  # ★ grep 은 <못 찾으면 1 을 낸다>. 이 스크립트는 pipefail 이라 BACKEND 가 비면
+  #   이 대입이 실패하고 set -e 가 <아무 말 없이> 스크립트를 끝낸다. 2026-09-07 현장에서
+  #   웹 배포가 여기서 통째로 멈췄고, 화면에는 바로 앞 INFO 두 줄만 찍혀 성공처럼 보였다.
+  #   ⇒ 산술로 세고, 비어 있으면 <조용히 죽지 말고> 사유를 말한다.
+  _n_be="$(printf '%s' "${BACKEND}" | tr ',' '\n' | { grep -c . || true; })"
+  [[ "${_n_be}" =~ ^[0-9]+$ ]] || _n_be=0
+  if [[ "${_n_be}" -eq 0 ]]; then
+    warn "[web] --backend 이 비어 있습니다 — /api 프록시 대상이 정해지지 않았습니다."
+    warn "      httpd 설정을 우리가 만들지 않는 형상이면 이 값은 <표시용>이라 진행해도 됩니다."
+    warn "      만들어야 하면 --with-httpd-conf --backend=<WAS 주소> 를 주세요."
+    BACKEND_ORIGIN_RESOLVED="http://127.0.0.1:8080"
+  fi
   if [[ "${_n_be}" -eq 1 ]]; then
     BACKEND_ORIGIN_RESOLVED="${BACKEND}"
     [[ "${BACKEND_ORIGIN_RESOLVED}" == http*://* ]] || BACKEND_ORIGIN_RESOLVED="http://${BACKEND_ORIGIN_RESOLVED}"
