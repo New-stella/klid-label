@@ -14,7 +14,7 @@
 
   python3 docs/cbd-inputs/verify.py
 """
-import json, pathlib, sys
+import hashlib, json, os, pathlib, sys
 
 HERE = pathlib.Path(__file__).parent
 
@@ -114,8 +114,52 @@ def main() -> int:
             print(f"!! 양성 대조 실패 — '{cur}' 이 안 잡힌다.")
             print("     파일이 깨끗한 게 아니라 훑는 축이 틀렸다(키 이름·구조가 바뀌었는지 본다)")
 
+    ok = check_draft_twin() and ok
+
     print("통과" if ok else "실패")
     return 0 if ok else 1
+
+
+# 레포 밖에 같은 초안이 있으면 갈렸는지 본다.
+# 왜: 생성기는 --draft 로 준 경로를 읽는다. 레포 밖 사본을 고치면 산출물은 바뀌는데
+#     레포는 그대로라, 다른 기계에서 체크아웃하면 그 변경이 통째로 없다.
+#     ⚠ 없으면 실패가 아니다 — 다른 기계에는 애초에 그 사본이 없는 것이 정상이다.
+TWIN = os.path.expanduser(
+    "~/Documents/workspace/klid/docs/design/"
+    "D11-R1-단위시험절차서-기능정상-컴포넌트기준-UI절차-정합수정.md"
+)
+DRAFT = "D11-단위시험절차서-초안.md"
+
+
+def _sha(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def check_draft_twin():
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), DRAFT)
+    if not os.path.exists(here):
+        print(f"!! {DRAFT} 이 레포에 없다 — 생성기가 물 정본이 사라졌다")
+        return False
+    mine = _sha(here)
+    # 양성 대조: 자기 자신과는 반드시 같아야 한다. 다르면 해시 계산이 깨진 것이다.
+    if _sha(here) != mine:
+        print("!! 양성 대조 실패 — 같은 파일을 두 번 재는데 값이 다르다")
+        return False
+    if not os.path.exists(TWIN):
+        print(f"OK {DRAFT} — 레포 밖 사본 없음(이 기계에는 정본만 있다)")
+        return True
+    if _sha(TWIN) == mine:
+        print(f"OK {DRAFT} — 레포 밖 사본과 같다")
+        return True
+    print(f"!! {DRAFT} 이 레포 밖 사본과 갈렸다")
+    print(f"     레포   {mine[:16]}  {here}")
+    print(f"     레포 밖 {_sha(TWIN)[:16]}  {TWIN}")
+    print("     둘 중 어느 쪽이 최신인지 확인해 맞춘다. 레포 쪽이 정본이다")
+    return False
 
 
 if __name__ == "__main__":

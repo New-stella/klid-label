@@ -314,8 +314,8 @@
    {
     "구분": "WEB(웹서버)",
     "제출본": "Caddy(온프렘)·nginx(컨테이너) / /opt/klid/web/{dist,Caddyfile}",
-    "현재": "Apache httpd (RPM 설치 · systemd 유닛 httpd · 실행 계정 apache) / /opt/klid/web/dist",
-    "근거": "반입 전제 문서의 현장 확정 — 실행 계정은 jboss(WAS)·apache(httpd). 웹 서버는 httpd RPM 으로 수집한다. Caddyfile 경로는 매체에 없다"
+    "현재": "Apache httpd (RPM 설치 · systemd 유닛 httpd · 실행 계정 apache) / /opt/klid/web/dist — 웹 서버 자체는 현장(관제지원) 소유·운영이고 저작도구는 그 아래 정적 번들과 연동 설정만 얹는다",
+    "근거": "반입 전제 문서의 현장 확정 — 실행 계정은 jboss(WAS)·apache(httpd). 웹 서버는 httpd RPM 으로 수집한다(폐쇄망 신규 설치 대비). 소유가 현장인 근거는 웹 컨텍스트 향을 현장 httpd 설정이 정하는데 그 설정 파일이 배포물에 없다는 점이며, 그래서 매체가 두 향을 다 싣는다. Caddyfile 경로는 매체에 없다"
    },
    {
     "구분": "WAS(애플리케이션)",
