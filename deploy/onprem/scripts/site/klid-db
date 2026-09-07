@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ============================================================================
+# klid-db — [현장] 접속값을 <손으로 치지 않고> DB 에 붙는다
+#
+#   2026-09-07 현장에서 이 한 줄을 만들지 못해 반나절이 들었다. 틀린 자리는 매번 같았다:
+#     · -d 를 빠뜨려 postgres DB 를 보고 "표가 0개"로 오판
+#     · -h 를 빼서 유닉스 소켓을 찾다 실패
+#     · CONTROL_DB_HOST 가 "host:port,host" 라 그대로는 안 붙음
+#     · 증분 SQL 에 search_path 를 안 걸어 public 에 빈 표 생성 위험
+#   이 스크립트가 넷을 전부 대신한다.
+#
+#   사용법
+#     ./scripts/site/klid-db                     현황 (접속처·스키마별 표 개수)
+#     ./scripts/site/klid-db -c "select 1"       임의 쿼리
+#     ./scripts/site/klid-db -f V32__....sql     SQL 파일 적용 (search_path 자동)
+#     ./scripts/site/klid-db --psql              대화형 psql
+#   ⚠ 비밀번호는 설정 파일에서 읽어 환경변수로만 넘긴다 — 명령 이력에 남지 않는다.
+# ============================================================================
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SELF_DIR}/../lib/common.sh"
+
+klid_load_db_props
+CONTROL_DB_NAME="${CONTROL_DB_NAME:-klid_system}"
+DB_SCHEMA="${DB_SCHEMA:-klid_at}"
+DB_APP_USER="${DB_APP_USER:-${CONTROL_DB_USERNAME:-klid_user}}"
+DB_APP_PASSWORD="${DB_APP_PASSWORD:-${CONTROL_DB_PASSWORD:-}}"
+klid_pg_env
+export PGPASSWORD="${DB_APP_PASSWORD}"
+# ★ 비한정 식별자를 klid_at 으로 떨어뜨린다 — 증분 SQL 의 조용한 오생성 방어.
+export PGOPTIONS="${PGOPTIONS:--c search_path=${DB_SCHEMA}}"
+
+command -v psql >/dev/null 2>&1 || die "psql 이 없습니다. DB 서버에서 실행하거나 클라이언트를 설치하세요.
+     찾아보기:  ls /usr/pgsql-*/bin/psql /usr/local/pgsql/bin/psql"
+
+PSQL=(psql -U "${DB_APP_USER}" -d "${CONTROL_DB_NAME}" -v ON_ERROR_STOP=1)
+
+if [[ $# -eq 0 ]]; then
+  info "접속  : ${PGHOST}:${PGPORT} / ${CONTROL_DB_NAME} / ${DB_APP_USER} / search_path=${DB_SCHEMA}"
+  "${PSQL[@]}" -c "select current_database() as db, inet_server_addr() as server, inet_server_port() as port"
+  "${PSQL[@]}" -c "select table_schema, count(*) from information_schema.tables
+                    where table_schema not in ('pg_catalog','information_schema')
+                    group by 1 order by 2 desc"
+  info "우리 스키마(${DB_SCHEMA}) 는 표 80 + 뷰 4 = 84 가 현재 판입니다."
+  exit 0
+fi
+
+case "${1:-}" in
+  --psql) shift; exec psql -U "${DB_APP_USER}" -d "${CONTROL_DB_NAME}" "$@" ;;
+  --help|-h) sed -n '3,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
+esac
+exec "${PSQL[@]}" "$@"

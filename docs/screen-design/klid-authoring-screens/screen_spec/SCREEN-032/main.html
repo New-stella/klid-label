@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-032</span><span class="sep">/</span><span>비식별 신고 관리 화면</span></div>
+      <h1 style="white-space:nowrap">비식별 신고 관리 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER 전용(/manage/deident-reports). 라벨링·마킹 중 작업자가 개인정보 노출(비식별 누락)을 신고하면 영상이 잠기고(작업락 + DE_IDNTF_YN='F') 그 구간 동안 라벨 조회·저장·프레임 이미지·버전 diff·롤백·개인정보 메타 PUT 이 412 로 차단되고 스트리밍은 404 가 된다. ★라벨은 삭제되지 않으며(스냅샷도 남기지 않는다) 개인정보 3필드 판정도 보존된다. REVIEWER 는 본 화면에서 미처리 신고를 확인하고, 외부 솔루션으로 수동 비식별화를 완료한 뒤 '해소 처리'로 작업락을 해제한다(POST /v1/deident-reports/{rprtSn}/resolve). 해소로 'F'→'Y' 가 복원되면 게이트가 자동 해제되어 보존된 기존 라벨을 그대로 재사용한다… · route /manage/deident-reports</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">비식별 신고 관리</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 신고 상태 필터 탭</h2>
+        <span class="wf-badge">role: filter</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-109</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-muted">StatusTabs</span>
+        <span class="wf-muted">CountBadge</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 신고 목록 테이블</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-094</span>
+            <span class="wf-badge wf-badge-primary">API-109</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">신고 목록</span><table class="wf-table"><thead><tr><th>신고 번호</th><th>영상</th><th>신고자</th><th>사유</th><th>신고일시</th><th>신고 단계</th><th>상태</th><th>처리</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-muted">DeidentStageBadge</span><span class="wf-help">단계별 툴팁으로 해소 시 무엇이 재개되는지 안내한다. 단계 기록이 없는 레거시 신고는 '미상'으로 표시되며 해소해도 자동 재개가 없다는 안내를 별도 툴팁으로 준다.</span>
+            <span class="wf-muted">DeidentStatusBadge</span>
+            <button class="wf-btn wf-btn-primary">해소 처리</button><span class="wf-badge wf-badge-primary">API-094</span><span class="wf-help">미처리 상태 행에만 노출. 클릭 시 비식별 산출물 선택 다이얼로그가 열리며, 거기서 고른 파일명을 실어 해소 처리를 요청한다. 서버 안전장치 — ①선택한 파일이 요청 시점에 다시 열거한 후보 목록에 있어야 하고 저장 서브트리 실경로·산출물 무결성·신고 시각 이후 수정 검증을 모두 통과해…</span>
+            <span class="wf-muted">Pagination</span><span class="wf-help">totalPages&gt;1 일 때 노출. 이전 · 페이지 번호 · 다음 순서로 배치하고, 페이지 번호는 양끝(첫·마지막)과 현재 앞뒤 1칸만 노출하며 그 사이는 말줄임으로 접는다. 페이지당 20건.</span>
+            <div class="wf-alert wf-alert-info">신고 목록을 불러올 수 없습니다</div><span class="wf-badge wf-badge-danger">error</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 이관 보류 영상 목록</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-207</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">이관으로 들어온 승인 보류 영상</span>
+            <div class="wf-stack"><span class="wf-bold">보류 영상 목록</span><table class="wf-table"><thead><tr><th>가져온 시각</th><th>폴더명</th><th>영상 번호</th><th>승인 보류</th><th>프레임 수</th><th>실행자</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-muted">Pagination</span><span class="wf-help">totalPages&gt;1 일 때 노출. 신고 목록과 같은 규칙으로 페이지당 20건.</span>
+            <button class="wf-btn wf-btn-secondary">비식별 완료 기록</button><span class="wf-help">승인 보류가 선 행에만 노출된다. 클릭하면 비식별 완료 기록 다이얼로그가 열린다.</span>
+            <div class="wf-alert wf-alert-info">보류 영상 목록을 불러올 수 없습니다</div><span class="wf-badge wf-badge-danger">error</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">④ 비식별 산출물 선택 다이얼로그</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-094</span>
+          <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-bold">비식별 산출물 선택</span>
+          <span class="wf-muted">DeidentArtifactCandidateList</span><span class="wf-help">각 후보는 파일명·크기·수정시각을 함께 보여준다. 내부 저장 경로는 표시하지 않는다. 현재 이력에 기록된 산출물에는 그 사실을 알리는 표시를 단다. 초기에는 아무것도 선택돼 있지 않다.</span>
+          <div class="wf-alert wf-alert-info">선택할 수 있는 비식별 산출물이 없습니다</div><span class="wf-help">후보 0건일 때만 노출. 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하라고 안내하고 확인 조작은 비활성 상태로 둔다.</span>
+          <button class="wf-btn wf-btn-primary">해소 처리</button><span class="wf-badge">disabled</span><span class="wf-badge wf-badge-primary">API-094</span><span class="wf-help">후보를 고르기 전에는 비활성. 선택 후 클릭하면 고른 파일명을 실어 해소를 요청하고 성공 시 토스트 + 목록 최신화 후 닫힌다. 서버 검증에 실패하면 다이얼로그를 연 채 실패를 알리고 신고는 미처리로 남는다.</span>
+          <button class="wf-btn wf-btn-secondary">취소</button>
+        </div>
+      </div>
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑥ 비식별 완료 기록 다이얼로그</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-215</span>
+          <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-bold">비식별 완료 기록</span>
+          <div class="wf-field"><label class="wf-label">비식별 산출물 폴더 경로</label><input class="wf-input" placeholder="예: /nas-storage/handover/00000073-deid" /></div><span class="wf-help">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있다.</span>
+          <button class="wf-btn wf-btn-primary">기록</button><span class="wf-badge">disabled</span><span class="wf-badge wf-badge-primary">API-215</span><span class="wf-help">경로를 적기 전에는 비활성. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.</span>
+          <div class="wf-alert wf-alert-info">기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수</div>
+          <div class="wf-alert wf-alert-info">비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.</div><span class="wf-help">비워 둔 프레임이 하나라도 있을 때만 노출</span>
+          <button class="wf-btn wf-btn-secondary">취소</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>PageHeader. '비식별 신고 관리' 제목 + description('라벨링·마킹 중 신고된 비식별 누락 건을 확인하고 외부 수동 비식별화 완료 후 해소 처리합니다.').</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 신고 관리)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 신고 상태 필터 탭</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상태 탭 2종(미처리 기본 / 처리완료). 탭 전환 시 페이지가 처음으로 리셋되고 상태별 건수가 다시 조회된다. 각 탭 오른쪽에 해당 상태의 건수 배지.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(상태 탭 (미처리 / 처리완료))</li><li>Custom(탭별 건수 배지) · binds reports.totalElements</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-109</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 신고 목록 테이블</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>신고 목록 테이블(신고 번호 · 영상 · 신고자 · 사유 · 신고일시 · 신고 단계 · 상태 · 처리). 영상은 '영상 #{rawSn}' 단위로 표시한다. 신고 단계 배지는 마킹(마킹 화면에서 접수)/라벨링(라벨링 화면에서 접수)/미상(이 기능 이전 접수, 기록 없음) 중 하나이며, 호버 시 해소하면 무엇이 재개되는지 안내 문구가 뜬다. 신고 상태 배지는 미처리/처리완료를 표시한다. 신고자 표시명은 페이지의 USER_NO 를 단일 IN 쿼리로 한 번에 해석한다(N+1 회피, 마스터에 없는 번호는 null). 미처리 행에만 '해소 처리' 버튼이 노출되며 해소 성공 시 그 영상의 스트림 메타 캐시가 커밋 후 무효화되고(외부 수동 재비식별로 비식별본이 교체됐을 수 있음) 신고 단계에 따라 재개 이벤트가 발행된다 — 마킹 단계 신고는 배치 단계를 되감고 활성 마킹을 종결해 재마킹을 열며, 라벨링 단계 신고는 프레임 이미지만 재추출해 라벨 좌표를 보존한 채 이어간다(단계 미상은 재개 이벤트 미발행). 목록 로딩 중에는 스켈레톤을, 탭별로 '미처리 신고가 없습니다'/'처리완료된 신고가 없습니다' 빈 상태 안내를 표시한다. 에러 시 ErrorState.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(신고 목록)</li><li>Custom(신고 단계 배지 (마킹/라벨링/미상))<p class="wf-help" style="margin:2px 0 0">단계별 툴팁으로 해소 시 무엇이 재개되는지 안내한다. 단계 기록이 없는 레거시 신고는 '미상'으로 표시되며 해소해도 자동 재개가 없다는 안내를 별도 툴팁으로 준다.</p></li><li>Custom(신고 상태 배지 (미처리/처리완료))</li><li>Button(해소 처리) · → API-094<p class="wf-help" style="margin:2px 0 0">미처리 상태 행에만 노출. 클릭 시 비식별 산출물 선택 다이얼로그가 열리며, 거기서 고른 파일명을 실어 해소 처리를 요청한다. 서버 안전장치 — ①선택한 파일이 요청 시점에 다시 열거한 후보 목록에 있어야 하고 저장 서브트리 실경로·산출물 무결성·신고 시각 이후 수정 검증을 모두 통과해야 해소가 성립하며 실패 시 미처리 상태가 그대로 유지된다 ②동일 신고 2인 동시 해소 요청 시 하나만 성공하고 나머지는 실패로 처리된다(중복 실행 차단) ③성공한 요청만 작업락을 해제하고 선택한 산출물 경로를 비식별 처리 이력에 새 성공 행으로 적재한 뒤 신고 단계에 따라 재개 동작을 수행한다.</p></li><li>Custom(페이지네이션)<p class="wf-help" style="margin:2px 0 0">totalPages&gt;1 일 때 노출. 이전 · 페이지 번호 · 다음 순서로 배치하고, 페이지 번호는 양끝(첫·마지막)과 현재 앞뒤 1칸만 노출하며 그 사이는 말줄임으로 접는다. 페이지당 20건.</p></li><li>Alert(신고 목록을 불러올 수 없습니다) · error</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-094</li><li>API-109</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 비식별 산출물 선택 다이얼로그</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>'해소 처리'를 누르면 열리는 다이얼로그. 서버가 그 영상의 비식별 산출 디렉터리를 다시 열거해 만든 후보 목록을 보여주고 REVIEWER 가 하나를 고른다. 초기 상태는 아무것도 선택되지 않은 상태이며, 고르기 전에는 확인 조작을 할 수 없다 — 서버가 기본값을 고르지 않으므로 사람이 명시적으로 선택해야 한다. 각 후보는 파일명과 함께 크기·수정시각을 보여준다. 외부 비식별 솔루션이 같은 이름으로 덮어쓰지 않고 다른 이름으로 산출할 수 있어, 어느 것이 이번에 새로 만들어진 산출물인지 사람이 판단할 근거가 필요하기 때문이다. 현재 비식별 처리 이력에 기록된 산출물에는 그 사실을 알리는 표시를 달아 구분한다. 화면에는 내부 저장 경로를 표시하지 않고 파일명만 보여준다. 후보가 0건이면 확인 조작을 비활성화하고 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하라는 안내를 표시한다. 선택한 파일이 서버 검증을 통과하지 못하면 해소가 성립하지 않고 신고는 미처리 상태로 남는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 산출물 선택)</li><li>Custom(산출물 후보 목록 (단일 선택))<p class="wf-help" style="margin:2px 0 0">각 후보는 파일명·크기·수정시각을 함께 보여준다. 내부 저장 경로는 표시하지 않는다. 현재 이력에 기록된 산출물에는 그 사실을 알리는 표시를 단다. 초기에는 아무것도 선택돼 있지 않다.</p></li><li>Alert(선택할 수 있는 비식별 산출물이 없습니다)<p class="wf-help" style="margin:2px 0 0">후보 0건일 때만 노출. 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하라고 안내하고 확인 조작은 비활성 상태로 둔다.</p></li><li>Button(해소 처리) · → API-094 · disabled<p class="wf-help" style="margin:2px 0 0">후보를 고르기 전에는 비활성. 선택 후 클릭하면 고른 파일명을 실어 해소를 요청하고 성공 시 토스트 + 목록 최신화 후 닫힌다. 서버 검증에 실패하면 다이얼로그를 연 채 실패를 알리고 신고는 미처리로 남는다.</p></li><li>Button(취소)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-094</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 이관 보류 영상 목록</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>산출물 가져오기로 들어와 검수 승인 보류가 선 영상을 최근순으로 보여준다. 목록은 이관 이력에서 조달하며, 각 항목은 그 이관으로 만들어진 영상에 승인 보류가 서 있는지를 함께 싣는다. 이 값은 이관 상태와 다른 축이라 이관이 성공했는지로 대신 판단하지 않는다. 값은 보류·없음·미상 세 갈래이며, 비어 있는 것을 보류 아님으로 단정하지 않고 기록하는 자리를 연다 — 단정하면 그 자리가 감춰져 그 영상은 승인될 길을 잃는다.
+
+이 목록은 위의 신고 목록과 대상이 다르다. 신고 목록의 한 행은 작업자가 접수한 신고 건이고, 여기의 한 행은 외부에서 원본이라고 지정해 들여온 영상이다. 신고 해소는 잠긴 영상의 작업락을 풀어 마킹·라벨링을 재개시키고, 여기의 기록은 검수 승인 보류만 푼다. 그래서 위의 상태 탭은 이 목록에 걸리지 않으며 두 목록을 한 표로 합치지 않는다.
+
+보류가 선 행에만 '비식별 완료 기록' 자리가 열린다. 조회가 실패했을 때와 조회는 됐으나 보류가 선 영상이 한 건도 없을 때는 다른 안내로 가른다 — 한 문구로 묶으면 그런 영상이 없다는 뜻과 불러오지 못했다는 뜻이 구분되지 않기 때문이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(이관으로 들어온 승인 보류 영상)</li><li>Table(보류 영상 목록)</li><li>Custom(페이지네이션)<p class="wf-help" style="margin:2px 0 0">totalPages&gt;1 일 때 노출. 신고 목록과 같은 규칙으로 페이지당 20건.</p></li><li>Button(비식별 완료 기록)<p class="wf-help" style="margin:2px 0 0">승인 보류가 선 행에만 노출된다. 클릭하면 비식별 완료 기록 다이얼로그가 열린다.</p></li><li>Alert(보류 영상 목록을 불러올 수 없습니다) · error</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-207</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 비식별 완료 기록 다이얼로그</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>'비식별 완료 기록'을 누르면 열리는 다이얼로그. 외부에서 이미 비식별한 산출물이 놓인 폴더의 위치를 사람이 적어 그 사실을 기록한다. 이 자리가 비식별을 수행하지는 않는다.
+
+기록은 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다. 적어 넣은 위치가 허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 아무것도 기록하지 않고 거부한다. 확인 없이 기록만 바꿀 수 있으면 처리되지 않은 산출물이 검수 승인을 통과하기 때문이다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣어 기록을 요청할 수 있다.
+
+확인을 통과하면 그 영상의 비식별 처리 이력에 행을 남기고 거기에 산출물의 위치를 적재한 뒤 검수 승인 보류를 푼다. 그리고 폴더의 파일을 프레임에 대응시켜 각 프레임의 비식별 이미지 위치까지 채운다. 대응은 파일 이름으로 하며 순서나 개수로 짐작해 잇지 않는다 — 짐작으로 이으면 다른 프레임의 비식별 이미지가 붙고 그것은 되돌릴 수 없다. 이름이 맞는 파일이 없는 프레임은 비워 둔 채로 두고 그 수를 결과로 알린다. 비워 둔 프레임이 하나라도 있으면 그만큼의 프레임이 비식별 이미지 없이 남아 그 영상의 학습데이터 산출물에 빠진 채로 나가므로 사람이 그 사실을 알아야 한다. 한 건도 잇지 못하면 그 폴더는 이 영상의 산출물이 아니므로 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.
+
+거부는 사유마다 다른 안내로 가른다. 허용 범위 밖이거나 산출물이 실재하지 않거나 이름이 맞는 파일이 한 건도 없거나 대상이 이관 경로로 들어온 영상이 아닌 경우는 뒤에 달라지지 않는 조건이라 다시 시도해도 결과가 같다. 이미 비식별 완료로 기록되어 풀 보류가 없는 경우는 다시 기록하지 않고 그 사실을 알린다. 기록 도중 실패한 경우에는 승인 보류가 그대로 남는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 완료 기록)</li><li>Input(비식별 산출물 폴더 경로)<p class="wf-help" style="margin:2px 0 0">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있다.</p></li><li>Button(기록) · → API-215 · disabled<p class="wf-help" style="margin:2px 0 0">경로를 적기 전에는 비활성. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.</p></li><li>Alert(기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수)</li><li>Alert(비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.)<p class="wf-help" style="margin:2px 0 0">비워 둔 프레임이 하나라도 있을 때만 노출</p></li><li>Button(취소)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-215</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

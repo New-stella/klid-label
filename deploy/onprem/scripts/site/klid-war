@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ============================================================================
+# klid-war — [WAS] 향을 <읽어서> 고르고 WAR 을 갈아 끼운다
+#
+#   ★ 향을 사람이 고르지 않는다. 지금 배포돼 있는 WAR 안 jboss-web.xml 의 컨텍스트를
+#     읽어 같은 향의 파일을 자동으로 집는다. 틀린 향을 올리면 <아무 신호가 없다> —
+#     WAS 는 정상 기동하고 화면도 뜨는데 API 만 전건 404 다. 그래서 추측을 없앤다.
+#
+#   ★ 재기동하지 않는다. WAR 재배포는 .dodeploy 마커를 배포 스캐너가 집으면 끝난다.
+#     2026-09-07 현장처럼 WAS 가 systemd 밖에서 떠 있으면 재기동이 오히려 위험하다.
+#
+#   사용법
+#     ./scripts/site/klid-war --check      바꾸지 않고 향·판본만
+#     sudo ./scripts/site/klid-war         교체
+#     sudo ./scripts/site/klid-war --rollback
+#       --jboss-home=<경로>  자동 탐지가 안 될 때
+# ============================================================================
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SELF_DIR}/../lib/common.sh"
+ONPREM="$(onprem_root)"
+BE="${ONPREM}/artifacts/backend"
+
+JH_ARG=""; CHECK=0; PASS=()
+for a in "$@"; do
+  case "${a}" in
+    --check)        CHECK=1; PASS+=(--check) ;;
+    --rollback)     PASS+=(--rollback) ;;
+    --jboss-home=*) JH_ARG="${a#*=}"; PASS+=("${a}") ;;
+    --help|-h)      sed -n '3,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) die "알 수 없는 옵션: ${a} (--help 로 사용법)" ;;
+  esac
+done
+
+ctx_of() { unzip -p "$1" WEB-INF/jboss-web.xml 2>/dev/null | tr -d '\r' \
+           | grep -o '<context-root>[^<]*</context-root>' | head -n1 \
+           | sed 's|.*<context-root>||; s|</context-root>.*||'; }
+
+JH="$(klid_detect_jboss_home "${JH_ARG:-${JBOSS_HOME:-}}" || true)"
+[[ -n "${JH}" ]] || die "JBOSS_HOME 을 찾지 못했습니다 — --jboss-home=<경로> 로 주세요."
+CUR="${JH}/standalone/deployments/api.war"
+
+# ---- 향 판정: 지금 배포된 WAR 에서 읽는다 ----------------------------------
+WANT=""
+if [[ -f "${CUR}" ]]; then
+  WANT="$(ctx_of "${CUR}")"
+  info "[war] 현재 배포본 컨텍스트 = ${WANT:-(읽지 못함)}"
+fi
+if [[ -z "${WANT}" ]]; then
+  warn "[war] 현재 WAR 에서 컨텍스트를 읽지 못했습니다(옛 빌드일 수 있습니다)."
+  warn "      브라우저로 다음을 열어 판정하세요 — JSON 이면 /label-studio/api, 404 면 /label-studio:"
+  warn "        https://<사이트>/label-studio/api/actuator/health/liveness"
+  die   "      확정 후 KLID_WEB_CONTEXT=/label-studio 처럼 지정해 다시 실행하세요."
+fi
+WANT="${KLID_WEB_CONTEXT:-${WANT}}"
+
+PICK=""
+for f in "${BE}/api.war" "${BE}/api-strip.war" "${BE}/api-passthrough.war"; do
+  [[ -f "${f}" ]] || continue
+  [[ "$(ctx_of "${f}")" == "${WANT}" ]] && { PICK="${f}"; break; }
+done
+[[ -n "${PICK}" ]] || die "[war] 매체에 '${WANT}' 향의 WAR 이 없습니다: ${BE}
+     들어 있는 것: $(for f in "${BE}"/*.war; do printf '%s(%s) ' "$(basename "${f}")" "$(ctx_of "${f}")"; done)"
+ok "[war] 고른 파일: $(basename "${PICK}")  (ctx=${WANT})"
+
+# ---- deploy-update.sh 가 찾는 이름은 api.war 하나다 -------------------------
+if [[ "$(basename "${PICK}")" != "api.war" ]]; then
+  [[ "${CHECK}" -eq 1 ]] || {
+    require_root
+    [[ -f "${BE}/api.war" ]] && mv "${BE}/api.war" "${BE}/api-$(ctx_of "${BE}/api.war" | tr -d '/' | tr '/' '-').war.bak" 2>/dev/null || true
+    cp "${PICK}" "${BE}/api.war"
+    ok "[war] ${BE}/api.war 로 놓았습니다"
+  }
+fi
+
+# ★ --restart 를 넘기지 않는다 — 마커로 재배포된다.
+exec "${SELF_DIR}/../deploy-update.sh" --skip-db-check ${PASS[@]+"${PASS[@]}"}

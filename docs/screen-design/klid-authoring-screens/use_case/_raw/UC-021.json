@@ -1,0 +1,148 @@
+{
+  "item": {
+    "id": "UC-021",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "라벨 편집·임시저장",
+    "slug": "라벨-편집임시저장",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "배정받은 영상의 프레임에 라벨(바운딩박스/폴리곤/세그멘테이션)과 객체 속성값을 편집하고 작업본을 임시저장한다",
+      "actor": "라벨링 작업자(WORKER)",
+      "title": "라벨 편집·임시저장",
+      "status": "approved",
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "라벨링 화면에 진입한다 — 본인 배정 검사가 접근을 검증한다(타인 배정 403)"
+        },
+        {
+          "step": 2,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "konva.js 캔버스에서 바운딩박스/폴리곤/세그멘테이션을 생성·수정한다 (LS_LABEL 마스터 코드 기반)"
+        },
+        {
+          "step": 3,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "객체별 속성값을 입력한다 (LS_LABEL_ATTR 정의 기반)"
+        },
+        {
+          "step": 4,
+          "actor": "시스템",
+          "action": "저장 시 작업본을 LS_DATA_LBL 전체 교체(full-replace, 프레임에 없는 라벨은 실삭제)로 upsert + LS_DATA_LBL_ATTR_VAL 저장한다 (버전 스냅샷 미생성 — 임시저장) 이 저장은 평상시 경로인 프레임 단위 작업본 갱신이며, 조회 응답의 낙관적 동시성 토큰(labelVersion)을 그대로 실어 보낸다. 생략하면 서버가 동시성을 검사하지 않아, 그사이 다른 세션이 이 프레임의 라벨을 바꿨더라도 전량 교체 저장이 그 변경을 조용히 지운다. 검수 승인으로 만들어진 산출 버전을 불러온 뒤의 저장은 이 프레임 단위 방식 대신 영상 전체를 한 번에 확정하는 별도 흐름을 따른다(UC-008)."
+        }
+      ],
+      "brownfield": {
+        "notes": "2026-07-30: full-replace(빠진 라벨 실삭제) + 저장이벤트 되돌리기(label-history) 반영(ADR-033)\n\n[폐기 기록] ⚠ 구 서술 '저장·수정은 작업락으로 409 차단' 은 폐기됐다 — 작업락은 6h 만료 후 회수되는데 'F' 는 resolve 까지 남아 조회 412 ↔ 저장 200 비대칭이 열렸고, full-replace 계약상 items:[] 저장이 기존 라벨을 전량 삭제했다",
+        "status": "modified",
+        "decided_by": "ADR-033",
+        "change_kind": [
+          "behavior-change"
+        ],
+        "diff_summary": "1차 프로젝트 단위 라벨링 → 2차 영상 단위(ADR-001) + 2계층 저장 분리(임시저장 vs 검수승인 버전)",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자(WORKER)",
+        "i_want": "프레임에 도형과 속성을 편집하고 안전하게 임시저장하기를",
+        "so_that": "검수 제출 전까지 작업본을 잃지 않고 이어서 작업한다"
+      },
+      "description": "2계층 분리(Critical): ①작업 임시저장 — 저장 시 현재 작업본을 LS_DATA_LBL에 전체 교체(full-replace)한다(프레임에 없는 라벨은 실제 삭제된다, 부분 upsert 아님 — ADR-033). 되돌리기는 저장 이벤트 단위 diff 이력(GET /v1/frames/{srcSn}/label-history)을 통해 이전 저장본으로 복원할 수 있으며, FE undo/redo(세션 내)와는 별개 개념이다. 학습데이터 버전이 아니며 LS_LABEL_VERSION 스냅샷 미생성. ②학습데이터 버전(확정)은 검수 승인 시점(UC-007). 객체 단위 속성값은 LS_LABEL_ATTR 정의 기반으로 LS_DATA_LBL_ATTR_VAL에 저장. 라벨 코드는 LS_LABEL 마스터 검증. 접근 제어: 본인 배정 검사(CWE-639 IDOR 방어). 캔버스는 konva.js, 단축키·복사/붙여넣기(+10 offset·경계 clamp) 지원. 이미 승인된 영상을 수정하면 그 영상은 재검수 대상이 되고, 검수자가 다시 승인한 시점에 TASK_MODIFIED 통지가 발행된다(UC-009 연계).",
+      "stakeholders": [],
+      "preconditions": [
+        "영상이 본인에게 배정되어 있다(LS_TASK_ALTMNT)",
+        "프레임이 추출되어 있다(LS_DATA_SRC)",
+        "이 유스케이스는 산출 버전을 불러오지 않았거나 아직 하나뿐인 경우의 편집·임시저장을 다룬다 — 산출 버전이 둘 이상이어서 편집 시작 버전을 고르는 흐름과 그 뒤의 영상 전체 확정 저장은 UC-008이 다룬다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "작업본이 LS_DATA_LBL/LS_DATA_LBL_ATTR_VAL에 영속되어 있다",
+        "저장 이벤트 단위 diff 이력이 기록되어 되돌리기가 가능하다",
+        "학습데이터 버전은 생성되지 않았다 (검수 승인 시 UC-007이 생성)"
+      ],
+      "alternate_flows": [
+        {
+          "name": "타인 배정 접근",
+          "steps": [
+            "403 거부 (CWE-639)"
+          ],
+          "trigger": "본인 배정이 아닌 프레임 편집 시도"
+        },
+        {
+          "name": "APPROVED 영상 수정",
+          "steps": [
+            "동일 작업 ID 유지로 저장되고 그 영상은 재검토 대상(LS_RAW_DATA_STATUS.REVLT_YN='Y')으로 표시된다. 즉시 재생성·통지가 나가지 않으며, 검수자가 그 수정을 다시 승인하는 시점에 export 가 새 버전으로 재생성되고 TASK_MODIFIED 통지가 발행된다(UC-009 연계)"
+          ],
+          "trigger": "검수 완료된 영상의 라벨 수정"
+        },
+        {
+          "name": "비식별 누락 신고 구간",
+          "steps": [
+            "신고 구간(DE_IDNTF_YN='F') 영상은 라벨 조회(GET)와 저장(PUT /v1/frames/{srcSn}/labels) 를 모두 412 로 차단한다 — 게이트는 인가 검사 이후·락 검사 보다 먼저 평가하며 역할 무관이다",
+            "409 는 신고와 무관한 락(트랙 병합 등 일시적 충돌)에만 남는다"
+          ],
+          "trigger": "대상 영상이 비식별 재처리 대기 상태"
+        },
+        {
+          "name": "값 검증 실패",
+          "steps": [
+            "좌표 범위·필수 속성·라벨 코드 정합 검증에 실패하면 저장을 거부하고 조치 가능한 오류 메시지를 안내한다"
+          ],
+          "trigger": "라벨 값이 업무규칙을 위반"
+        },
+        {
+          "name": "저장 충돌(동시 편집)",
+          "steps": [
+            "저장을 409 로 거부한다 — 그대로 전량 교체 저장을 진행하면 다른 사용자가 방금 저장한 라벨이 조용히 삭제되기 때문이다",
+            "최신 라벨을 불러와 화면을 갱신할지, 지금 화면의 미저장 변경을 그대로 유지할지 선택하게 한다",
+            "최신 라벨을 불러오면 미저장 변경은 사라지고, 지금 화면을 유지하면 다시 저장을 시도할 수 있다"
+          ],
+          "trigger": "저장 요청에 실은 동시성 토큰(labelVersion)이 그 프레임의 현재 값과 다르다 — 그사이 다른 세션이 먼저 저장했다"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-012",
+        "DFEAT-017",
+        "DFEAT-014",
+        "DFEAT-015",
+        "DFEAT-016"
+      ],
+      "related_screens": [
+        "SCREEN-005"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1057",
+        "AC-1058"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 23,
+    "stale": true,
+    "stale_reason": "SCREEN-005의 data.sections 변경 — references",
+    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:05:52.598Z",
+    "created_at": "2026-06-05T09:45:01.992Z"
+  }
+}

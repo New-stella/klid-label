@@ -666,6 +666,191 @@ klid_role_has() {
 }
 
 # ----------------------------------------------------------------------------
+# 실행 계정 판정 — <이 장비에서 실제로 서비스를 돌리는 계정>을 쓴다 (2026-09-07 확정, 구속)
+#
+#   ★ klid 계정을 만들지 않는다. 현장 보안 정책상 계정 생성은 계정 담당의 일이고,
+#     설치 도구가 만들면 정책 위반이다. 대신 이미 있는 계정을 쓴다:
+#       was → jboss    (WAS 가 그 계정으로 돈다 — 설정·산출물 권한이 저절로 맞는다)
+#       web → apache   (httpd 가 그 계정으로 돈다 — 정적자산을 읽어야 한다)
+#     그 자리에서 <실제로 도는 프로세스의 소유자>를 먼저 보고, 못 찾으면 관례 이름을 쓴다.
+#     파일에 적힌 값보다 도는 프로세스를 신뢰하는 이유는 JBOSS_HOME 탐지와 같다.
+#
+#   ⚠ ai 역할은 klid 를 그대로 쓴다 — 그 장비에는 이미 그 계정으로 유닛이 돌고 있다.
+#     없으면 만들지 않고 멈춘다(설치가 사유를 말한다).
+#
+#   klid_default_run_user  → 계정명(stdout). 못 정하면 빈 문자열.
+# ----------------------------------------------------------------------------
+klid_default_run_user() {
+  local u=""
+  if klid_role_has was; then
+    # ⚠ 대괄호로 끊지 않으면 <grep 자신의 명령줄>이 잡혀 엉뚱한 계정이 나온다(실측).
+    u="$(ps -eo user=,args= 2>/dev/null | grep -m1 -- '-Djboss[.]home[.]dir=' | awk '{print $1}' || true)"
+    [[ -n "${u}" && "${u}" != "root" ]] || u="jboss"
+    id "${u}" >/dev/null 2>&1 && { printf '%s\n' "${u}"; return 0; }
+    id jboss >/dev/null 2>&1 && { printf 'jboss\n'; return 0; }
+  fi
+  if klid_role_has web; then
+    u="$(ps -eo user=,comm= 2>/dev/null | awk '$2=="httpd"||$2=="apache2"{print $1}' \
+         | grep -v '^root$' | head -1 || true)"
+    [[ -n "${u}" ]] || u="apache"
+    id "${u}" >/dev/null 2>&1 && { printf '%s\n' "${u}"; return 0; }
+  fi
+  return 1
+}
+
+# ----------------------------------------------------------------------------
+# DB 접속 정규화 — 현장 값을 libpq 가 이해하는 모양으로 바꾼다 (2026-09-07 신설)
+#
+#   ★ 왜 필요한가. 현장 application.properties 의 CONTROL_DB_HOST 는 <JDBC 다중 호스트
+#     문자열>이다: "10.177.199.148:19999,10.177.199.149". 이 값을 그대로 PGHOST 로 넘기면
+#     libpq 가 콜론 붙은 포트를 못 읽어 접속이 실패한다. 2026-09-07 현장에서 증분 적용이
+#     이 자리에서 막혔고, 화면에는 "psql 이 없습니다" 뒤에 가려 원인이 안 보였다.
+#
+#   ★ 여러 대를 살려 둔다 — libpq 는 PGHOST/PGPORT 의 쉼표 목록을 페일오버로 쓴다.
+#     DDL 은 쓰기 노드에 붙어야 하므로 target_session_attrs=read-write 를 함께 세운다.
+#     (대기 노드에 붙으면 read-only 오류로 <시끄럽게> 실패한다 — 조용한 것보다 낫다.)
+#
+#   klid_pg_env  → PGHOST/PGPORT/PGTARGETSESSIONATTRS 를 export 한다.
+# ----------------------------------------------------------------------------
+klid_pg_env() {
+  local raw="${CONTROL_DB_HOST:-127.0.0.1}" defport="${CONTROL_DB_PORT:-5432}"
+  local hosts="" ports="" entry h p
+  # ★ IFS 를 갈아끼우며 for 로 도는 방식은 쓰지 않는다 — 2026-09-07 에 그렇게 짰다가
+  #   둘째 호스트가 사라지고 포트가 어긋났다. 줄 단위로 읽으면 그 함정이 없다.
+  while IFS= read -r entry; do
+    entry="${entry//[[:space:]]/}"
+    [[ -n "${entry}" ]] || continue
+    case "${entry}" in
+      *:*) h="${entry%%:*}"; p="${entry##*:}" ;;
+      *)   h="${entry}";     p="${defport}"   ;;
+    esac
+    [[ "${p}" =~ ^[0-9]+$ ]] || p="${defport}"
+    hosts="${hosts:+${hosts},}${h}"
+    ports="${ports:+${ports},}${p}"
+  #   ⚠ printf 에 개행을 붙인다 — 없으면 read 가 <마지막 항목을 버린다>(EOF 미종결 행).
+  done < <(printf '%s\n' "${raw}" | tr ',' '\n')
+  [[ -n "${hosts}" ]] || { hosts="127.0.0.1"; ports="${defport}"; }
+  export PGHOST="${PGHOST_OVERRIDE:-${hosts}}"
+  export PGPORT="${PGPORT_OVERRIDE:-${ports}}"
+  # 이미 지정돼 있으면 존중한다(수동 진단 중일 수 있다).
+  export PGTARGETSESSIONATTRS="${PGTARGETSESSIONATTRS:-read-write}"
+}
+
+# ----------------------------------------------------------------------------
+# 설정 파일에서 DB 접속값을 읽어 온다 (2026-09-07 신설)
+#
+#   ★ WAR 형상의 정본은 ${KLID_ETC}/application.properties 다. 종전에는 이 스크립트들이
+#     환경변수만 읽어, 운영자가 다섯 개를 손으로 export 해야 했다. 손으로 옮기는 값이
+#     늘수록 틀린다 — 실제로 DB 이름을 기본값(klid_system)으로 잘못 알고 진행할 뻔했다.
+#   ★ source 하지 않는다 — 비밀번호에 !·#·공백이 들어 있어 셸이 다르게 해석한다.
+#   ★ <이미 환경에 있는 값은 덮지 않는다> — 명시 지정이 언제나 이긴다.
+# ----------------------------------------------------------------------------
+klid_load_db_props() {
+  local f="${1:-${KLID_ETC}/application.properties}" k v
+  [[ -r "${f}" ]] || return 0
+  for k in CONTROL_DB_HOST CONTROL_DB_PORT CONTROL_DB_NAME \
+           CONTROL_DB_USERNAME CONTROL_DB_PASSWORD DB_SCHEMA; do
+    [[ -n "${!k:-}" ]] && continue
+    v="$(grep -E "^[[:space:]]*${k}=" "${f}" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+    v="${v%$'\r'}"
+    [[ -n "${v}" ]] && export "${k}=${v}"
+  done
+  return 0
+}
+
+# ----------------------------------------------------------------------------
+# JBOSS_HOME 탐지 — <한 곳에서만> 판정한다 (2026-09-07 이관)
+#
+#   ★ 왜 여기로 옮겼나. 같은 판정이 세 곳에 복제돼 있었고 <목록이 달랐다>:
+#       install/17-deploy-jboss.sh : /GCLOUD/JBOSS/jboss-eap-* 를 안다  (현장 실측 경로)
+#       deploy-update.sh           : 그 경로를 <모른다>                 ← 조용한 결함
+#       klid-jboss-fix.sh          : 또 다른 목록
+#     그래서 업데이트 배포가 현장에서 <현재 WAR 를 못 찾고>, 그 결과
+#     ①기존 WAR 백업이 조용히 건너뛰어지고 ②--rollback 이 되돌릴 것을 갖지 못한다.
+#     배포 자체는 17 에 위임하므로 <성공한다> — 되돌릴 수단만 사라진다. 이 조합이 위험하다.
+#
+#   우선순위: 인자 > 돌고 있는 프로세스 > was.env > 흔한 경로
+#   ★ "돌고 있는 프로세스"를 파일보다 신뢰하는 이유 — 설치 디렉터리가 여러 벌 있을 때
+#     실제로 쓰이는 것은 하나뿐이고, 파일에 적힌 값은 낡았을 수 있다.
+#
+#   klid_detect_jboss_home [<--jboss-home 으로 받은 값>]
+# ----------------------------------------------------------------------------
+klid_detect_jboss_home() {
+  local arg="${1:-}" h=""
+  if [[ -n "${arg}" ]]; then printf '%s\n' "${arg}"; return 0; fi
+
+  # ⚠ 대괄호로 끊는다 — 안 그러면 grep 자신의 인자가 먼저 잡힌다.
+  h="$(ps -eo args= 2>/dev/null | tr ' ' '\n' | grep -m1 -- '-Djboss[.]home[.]dir=' | cut -d= -f2- || true)"
+  [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
+
+  if [[ -f "${KLID_ETC}/was.env" ]]; then
+    h="$(grep -E '^[[:space:]]*WAS_HOME=' "${KLID_ETC}/was.env" | tail -1 | cut -d= -f2- | tr -d '"'"'"' ' || true)"
+    [[ -n "${h}" && -d "${h}" ]] && { printf '%s\n' "${h}"; return 0; }
+  fi
+
+  local c
+  for c in /GCLOUD/JBOSS/jboss-eap-* /opt/jboss-eap-* /opt/rh/eap*/root/usr/share/wildfly /opt/wildfly*; do
+    [[ -d "${c}/standalone" ]] && { printf '%s\n' "${c}"; return 0; }
+  done
+  return 1
+}
+
+# ----------------------------------------------------------------------------
+# 반입용 소스 추출 — git 이 추적하는 것만 담는다 (2026-09-05 신설)
+#
+#   ★ 왜 tar 제외 목록이 아니라 git 인가
+#     제외 목록을 손으로 유지하면 <반드시 빠뜨린다>. 실제로 그랬다 — 구 방식의 제외 목록에
+#     backend/storage 가 없어서, 소스를 담는 순간 <영상·프레임 운영 데이터 636MB 가 매체로
+#     함께 나갈> 상태였다. 테스트 로그와 .env 도 같은 이유로 빠져 있었다.
+#     git 은 .gitignore 를 이미 정본으로 갖고 있으므로, 추적된 것만 담으면 그 부류가
+#     <구조적으로> 빠진다. 목록을 늘려 대응하지 않는다.
+#
+#   ★ 기준은 HEAD 다 — 워킹트리가 아니다.
+#     반입물은 <배포된 판>과 일치해야 하고, 그것이 재현 가능해야 한다. 미커밋 변경이 있으면
+#     소스에는 들어가지 않으므로 아래에서 경고한다(산출물이 그 변경으로 빌드됐다면 어긋난다).
+#
+#   klid_export_source <하위 디렉터리> <받을 상위 경로>
+#     예: klid_export_source backend "${PAY}/src"   → ${PAY}/src/backend/
+# ----------------------------------------------------------------------------
+klid_repo_root() {
+  git -C "$(onprem_root)" rev-parse --show-toplevel 2>/dev/null
+}
+
+klid_export_source() {
+  local name="$1" dest_parent="$2"
+  local repo; repo="$(klid_repo_root)"
+  [[ -n "${repo}" ]] || die "[src] git 저장소를 찾지 못했습니다 — 소스 추출은 빌드머신(저장소 안)에서만 됩니다."
+  git -C "${repo}" rev-parse --verify -q "HEAD:${name}" >/dev/null     || die "[src] HEAD 에 '${name}' 가 없습니다 — 경로를 확인하세요."
+
+  # 미커밋 변경 경고 — 산출물이 그 변경으로 빌드됐다면 소스와 어긋난다.
+  if ! git -C "${repo}" diff --quiet HEAD -- "${name}" 2>/dev/null; then
+    warn "[src] '${name}' 에 미커밋 변경이 있습니다 — 소스는 HEAD 기준이라 그 변경이 <빠집니다>."
+    warn "      산출물을 그 변경으로 빌드했다면 매체 안 소스와 어긋납니다. 먼저 커밋하세요."
+  fi
+
+  local to="${dest_parent}/${name}"
+  rm -rf "${to}"
+  ensure_dir "${to}"
+  git -C "${repo}" archive "HEAD:${name}" | ( cd "${to}" && tar -xf - )     || die "[src] 소스 추출 실패: ${name}"
+  ok "[src] ${name} → ${to}  ($(du -sh "${to}" | cut -f1) · $(find "${to}" -type f | wc -l | tr -d ' ')개 파일)"
+}
+
+# klid_write_source_info <받을 상위 경로> — 어느 판의 소스인지 남긴다.
+klid_write_source_info() {
+  local dest_parent="$1"
+  local repo; repo="$(klid_repo_root)"
+  ensure_dir "${dest_parent}"
+  {
+    echo "# klid-label 반입 소스 기록"
+    echo "#   git 이 추적하는 파일만 담는다(.gitignore 가 정본) — 운영 데이터·로그·비밀값은 구조적으로 빠진다."
+    echo "#   기준은 HEAD 이며 워킹트리가 아니다. 재현: git archive HEAD:<디렉터리>"
+    echo "exported_at=$(date '+%Y-%m-%d %H:%M:%S%z')"
+    echo "git_commit=$(git -C "${repo}" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "git_describe=$(git -C "${repo}" describe --always --dirty 2>/dev/null || echo unknown)"
+  } > "${dest_parent}/SOURCE-INFO.txt"
+}
+
+# ----------------------------------------------------------------------------
 # ffmpeg / ffprobe — 대상 장비 전제조건 검증 (2026-08-30 신설, 서버 A 전용)
 #
 #   ★ 왜 검증이 필요한가: ffmpeg 는 <우리가 자동으로 설치하지 않는다>(관제 설치본을
