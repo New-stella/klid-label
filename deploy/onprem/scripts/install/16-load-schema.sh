@@ -75,8 +75,8 @@ require_cmd psql
 [[ -f "${SCHEMA_SQL}" ]] || die "[schema] schema.sql 을 찾을 수 없습니다: ${SCHEMA_SQL}"
 DB_APP_PASSWORD="${DB_APP_PASSWORD:-${CONTROL_DB_PASSWORD:-}}"
 : "${DB_APP_PASSWORD:?DB_APP_PASSWORD 또는 CONTROL_DB_PASSWORD 가 필요합니다(앱 유저 비밀번호)}"
-export PGHOST="${PGHOST:-${CONTROL_DB_HOST:-127.0.0.1}}"
-export PGPORT="${PGPORT:-${CONTROL_DB_PORT:-5432}}"
+# ★ CONTROL_DB_HOST 는 "host:port,host" 형태일 수 있다(2026-09-07 현장 실측).
+PGHOST_OVERRIDE="${PGHOST:-}" PGPORT_OVERRIDE="${PGPORT:-}" klid_pg_env
 export PGPASSWORD="${DB_APP_PASSWORD}"
 
 # 멱등 가드: 대상 스키마에 이미 BASE TABLE 이 있으면 로드하지 않는다(중복 로드/덮어쓰기 방지).

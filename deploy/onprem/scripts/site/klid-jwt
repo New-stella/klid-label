@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# ============================================================================
+# klid-jwt — [WAS] 인계 토큰이 <왜> 거부되는지 한 번에 판정한다
+#
+#   2026-09-07 현장: 관제 인계 로그인이 안 되는데 서버 로그가 조용해 원인을 못 찾았다.
+#   토큰만 있으면 서버를 건드리지 않고 여기서 갈린다 — 관제 담당을 기다릴 필요가 없다.
+#
+#   사용법
+#     ./scripts/site/klid-jwt                 토큰을 물어본다(화면에 안 찍힌다)
+#     ./scripts/site/klid-jwt <토큰>          인자로 줘도 된다
+#   토큰 얻는 법 — 브라우저 콘솔에서:  copy(localStorage['klid-jwt-token'])
+#
+#   ⚠ 이 스크립트는 <읽기만> 한다. 아무 설정도 바꾸지 않는다.
+# ============================================================================
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SELF_DIR}/../lib/common.sh"
+
+PROPS="${KLID_ETC}/application.properties"
+[[ -r "${PROPS}" ]] || die "설정을 읽을 수 없습니다: ${PROPS} (WAS 장비에서 실행하세요)"
+require_cmd python3
+
+TOKEN="${1:-}"
+if [[ -z "${TOKEN}" ]]; then
+  read -r -s -p "토큰을 붙여 넣고 Enter> " TOKEN; echo
+fi
+[[ -n "${TOKEN}" ]] || die "토큰이 비었습니다."
+
+TOKEN="${TOKEN}" PROPS="${PROPS}" python3 <<'PY'
+import base64, hmac, hashlib, json, os, re, sys, time
+
+tok = os.environ["TOKEN"].strip().strip('"').strip("'")
+props = open(os.environ["PROPS"], encoding="utf-8", errors="replace").read()
+
+def prop(k, d=""):
+    m = re.search(rf'^[ \t]*{k}=(.*)$', props, re.M)
+    return m.group(1).strip() if m else d
+
+def b64(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+parts = tok.split(".")
+if len(parts) != 3:
+    print("✗ JWT 형태가 아닙니다(점으로 나뉜 세 조각이 아님).")
+    sys.exit(2)
+h, p, sig = parts
+
+try:
+    hdr = json.loads(b64(h))
+except Exception as e:
+    print(f"✗ 헤더를 읽지 못했습니다: {e}")
+    sys.exit(2)
+try:
+    pay = json.loads(b64(p).decode("utf-8", "replace"))
+except Exception as e:
+    print(f"✗ 본문을 읽지 못했습니다: {e}")
+    sys.exit(2)
+
+alg = hdr.get("alg", "?")
+key = prop("JWT_SECRET").encode()
+allowed = [x.strip() for x in prop("JWT_ALLOWED_ISSUERS", prop("JWT_ISSUER", "klid-auth")).split(",") if x.strip()]
+
+digest = {"HS256": hashlib.sha256, "HS384": hashlib.sha384, "HS512": hashlib.sha512}.get(alg)
+need   = {"HS256": 32, "HS384": 48, "HS512": 64}.get(alg, 32)
+
+print(f"alg          : {alg}")
+print(f"클레임       : {', '.join(sorted(pay.keys()))}")
+print(f"iss          : {pay.get('iss', '(없음)')}")
+print(f"sub          : {pay.get('sub', '(없음)')}")
+exp = pay.get("exp")
+if exp:
+    left = int(exp) - int(time.time())
+    print(f"exp          : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))}"
+          f"  ({'남음 ' + str(left) + '초' if left > 0 else '★ 이미 만료'})")
+else:
+    print("exp          : (없음)  ← 서버가 거부합니다")
+print(f"JWT_SECRET   : {len(key)} 바이트  (이 alg 는 {need} 이상 필요)")
+
+fail = []
+if not key:
+    fail.append("JWT_SECRET 이 비어 있습니다 — 관제에서 받아 설정에 넣으세요.")
+elif len(key) < need:
+    fail.append(f"키가 짧습니다({len(key)} < {need}) — 값이 맞아도 {alg} 검증은 실패합니다.")
+
+if digest is None:
+    print("서명         : 확인 불가(HS 계열이 아닙니다)")
+    fail.append(f"이 서버는 HMAC({', '.join(['HS256','HS384','HS512'])})만 검증합니다.")
+elif key:
+    calc = base64.urlsafe_b64encode(
+        hmac.new(key, f"{h}.{p}".encode(), digest).digest()).rstrip(b"=").decode()
+    ok = hmac.compare_digest(calc, sig)
+    print(f"서명 일치    : {'예' if ok else '✗ 아니오'}")
+    if not ok and len(key) >= need:
+        fail.append("서명이 맞지 않습니다 — 관제와 <다른 시크릿>입니다.")
+
+if allowed and pay.get("iss") not in allowed:
+    fail.append(f"issuer 가 허용 목록에 없습니다: {pay.get('iss')!r} ∉ {allowed}")
+if not exp:
+    fail.append("exp 클레임이 없어 거부됩니다.")
+
+print()
+if fail:
+    print("── 이래서 거부됩니다 ──")
+    for f in fail:
+        print(f" · {f}")
+    sys.exit(1)
+print("── 토큰 검증 축은 모두 통과 ──")
+print("   그래도 로그인이 안 되면 WAR 판본(9월 5일 이후여야 함) 또는 역할 부재를 보세요.")
+PY

@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -uo pipefail   # ★ -e 를 쓰지 않는다 — 점검은 <하나가 실패해도 끝까지> 봐야 한다.
+# ============================================================================
+# klid-status — [모든 장비] 지금 무엇이 어떤 판으로 떠 있는지 한 번에 본다
+#
+#   아무것도 바꾸지 않는다. 이 장비에서 확인 가능한 것만 골라 본다.
+#   2026-09-07 현장에서 손으로 친 확인 명령들을 그대로 담았다.
+#
+#   사용법:  ./scripts/site/klid-status
+# ============================================================================
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SELF_DIR}/../lib/common.sh"
+ONPREM="$(onprem_root)"
+hr() { printf '── %s %s\n' "$1" "$(printf '─%.0s' $(seq 1 $((60 - ${#1}))))"; }
+val() { printf '   %-22s %s\n' "$1" "$2"; }
+
+hr "매체"
+for f in "${ONPREM}/../VERSION.txt" "${ONPREM}/VERSION.built"; do
+  [[ -f "${f}" ]] && { sed 's/^/   /' "${f}"; break; }
+done
+[[ -f "${ONPREM}/../VERSION.txt" || -f "${ONPREM}/VERSION.built" ]] || val "판본 기록" "없음"
+
+hr "WAS"
+JH="$(klid_detect_jboss_home "${JBOSS_HOME:-}" || true)"
+if [[ -n "${JH}" ]]; then
+  val "JBOSS_HOME" "${JH}"
+  D="${JH}/standalone/deployments"
+  for w in "${D}"/*.war; do
+    [[ -e "${w}" ]] || continue
+    ctx="$(unzip -p "${w}" WEB-INF/jboss-web.xml 2>/dev/null | tr -d '\r' \
+           | grep -o '<context-root>[^<]*</context-root>' | head -n1 \
+           | sed 's|.*<context-root>||; s|</context-root>.*||' || true)"
+    val "$(basename "${w}")" "$(du -h "${w}" | cut -f1) · $(date -r "${w}" '+%m-%d %H:%M') · ctx=${ctx:-?} · $(_hash_file sha256 "${w}" | cut -c1-12)"
+  done
+  for m in deployed failed dodeploy isdeploying; do
+    ls "${D}"/*.war.${m} >/dev/null 2>&1 && val "마커" "$(basename "$(ls "${D}"/*.war.${m} | head -1)")"
+  done
+  ps -eo args= 2>/dev/null | grep -q -- '-Djboss.home.dir=' \
+    && val "프로세스" "떠 있음" || val "프로세스" "★ 안 보임"
+  for u in jboss klid-backend; do
+    s="$(systemctl is-active "${u}" 2>/dev/null || true)"
+    [[ -n "${s}" && "${s}" != "inactive" ]] && val "systemd ${u}" "${s}"
+  done
+  for p in 8080 8443; do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+            "http://127.0.0.1:${p}/label-studio/api/actuator/health/liveness" 2>/dev/null || echo 000)"
+    [[ "${code}" != "000" ]] && val "헬스 :${p}" "${code} $([[ ${code} == 200 ]] && echo '(향 일치)' || echo '(다른 향일 수 있음)')"
+  done
+  LOG="${JH}/standalone/log/server.log"
+  if [[ -r "${LOG}" ]]; then
+    val "최근 ERROR" "$(grep -c ' ERROR ' "${LOG}" 2>/dev/null || echo 0) 건 (전체 파일 기준)"
+    grep '\[Auth\]' "${LOG}" 2>/dev/null | tail -3 | sed 's/^/   · /'
+  fi
+else
+  val "JBOSS" "이 장비에는 없습니다"
+fi
+
+hr "웹 정적자산"
+for W in /GCLOUD/WebApp/label-studio "${KLID_PREFIX}/frontend/dist" /var/www/html/label-studio; do
+  [[ -d "${W}" ]] || continue
+  val "경로" "${W}"
+  val "index.html" "$(date -r "${W}/index.html" '+%m-%d %H:%M' 2>/dev/null || echo '없음')"
+  if [[ -f "${W}/klid-config.js" ]]; then
+    n="$(grep -c 'VITE_' "${W}/klid-config.js" 2>/dev/null || echo 0)"
+    val "klid-config.js" "$([[ "${n}" -gt 0 ]] && echo "값 ${n}개" || echo '★ 비어 있음 — 화면이 API 주소를 모릅니다')"
+  else
+    val "klid-config.js" "★ 없음"
+  fi
+  val "소유" "$(stat -c '%U:%G %a' "${W}" 2>/dev/null || echo '?')"
+  ls -d "${W}".bak.* >/dev/null 2>&1 && val "백업" "$(ls -d "${W}".bak.* | wc -l | tr -d ' ') 벌"
+  break
+done
+
+hr "DB"
+if command -v psql >/dev/null 2>&1; then
+  "${SELF_DIR}/klid-db" -tAc "select 'schema=' || current_schema() || ' tables=' ||
+        (select count(*) from information_schema.tables where table_schema=current_schema())" 2>&1 | sed 's/^/   /'
+  "${SELF_DIR}/klid-db" -tAc "select 'increments=' || coalesce(string_agg(ver_nm, ',' order by ver_nm), '(이력 없음)')
+        from ls_schm_aplcn_hstry where aplcn_stts_cd='SUCCESS'" 2>&1 | sed 's/^/   /'
+else
+  val "psql" "이 장비에 없습니다 — DB 서버에서 ./scripts/site/klid-db 를 쓰세요"
+fi
+
+hr "AI 서버"
+if systemctl is-active klid-ai-server >/dev/null 2>&1; then
+  val "유닛" "$(systemctl is-active klid-ai-server)"
+  val "헬스" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:9300/health 2>/dev/null || echo 000)"
+  command -v nvidia-smi >/dev/null 2>&1 \
+    && val "GPU" "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1) · python $(nvidia-smi 2>/dev/null | grep -c python || echo 0)개 프로세스"
+fi
+echo
