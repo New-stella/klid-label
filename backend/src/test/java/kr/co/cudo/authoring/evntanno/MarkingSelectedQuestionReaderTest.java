@@ -30,6 +30,9 @@ import static org.mockito.Mockito.when;
  * 보면 묘사가 먼저 도착한 경우 활성 마킹이 사라져 <b>같은 영상인데도 도착 순서에 따라 기록되는
  * 질문이 달라지기</b> 때문이다. 그래서 「활성 우선」과 「최신 폴백」을 <b>각각</b> 못박는다 — 둘 중
  * 하나만 있으면 규칙이 아니라 우연이다.
+ *
+ * <p>★ <b>읽는 선택값이 둘</b>(질문·검증 이벤트 유형)이라, 두 값이 <b>같은 행</b>에서 나오는지도 함께
+ * 못박는다 — 행 선택 규칙이 둘이 되면 같은 영상에서 질문과 유형이 서로 다른 마킹에서 올 수 있다.
  */
 class MarkingSelectedQuestionReaderTest {
 
@@ -135,6 +138,44 @@ class MarkingSelectedQuestionReaderTest {
         assertThat(reader.findSelectedQuestionSn(RAW_SN)).isEqualTo(ACTIVE_QSTN_SN);
     }
 
+    // ------------------------------------------------- 선택값 둘은 같은 행에서 나온다
+
+    @Test
+    @DisplayName("★질문과_검증이벤트유형이_같은_마킹_행에서_나온다")
+    void readsBothSelectionsFromTheSameRow() {
+        stubActive(marking(ACTIVE_QSTN_SN, "fire"));
+        stubOrdered(marking(LATEST_QSTN_SN, "flooding"));
+
+        assertThat(reader.findSelectedQuestionSn(RAW_SN)).isEqualTo(ACTIVE_QSTN_SN);
+        assertThat(reader.findSelectedVrfcEvntType(RAW_SN))
+                .as("행 선택 규칙이 둘이 되면 같은 영상에서 질문과 유형이 서로 다른 마킹에서 온다")
+                .isEqualTo("fire");
+    }
+
+    @Test
+    @DisplayName("유형도_최신_폴백을_똑같이_탄다")
+    void typeAlsoFallsBackToLatestMarking() {
+        stubOrdered(marking(LATEST_QSTN_SN, "flooding"), marking(33L, "fire"));
+
+        assertThat(reader.findSelectedVrfcEvntType(RAW_SN)).isEqualTo("flooding");
+    }
+
+    @Test
+    @DisplayName("마킹이_유형을_고르지_않았으면_지어내지_않는다")
+    void returnsNullWhenChosenRowHasNoType() {
+        stubActive(marking(ACTIVE_QSTN_SN, null));
+        stubOrdered(marking(LATEST_QSTN_SN, "flooding"));
+
+        assertThat(reader.findSelectedVrfcEvntType(RAW_SN)).isNull();
+    }
+
+    @Test
+    @DisplayName("영상번호가_없으면_유형_조회도_하지_않는다")
+    void returnsNullTypeWithoutQueryingWhenRawSnMissing() {
+        assertThat(reader.findSelectedVrfcEvntType(null)).isNull();
+        verifyNoInteractions(markingRepository);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private void stubActive(LsMarking... markings) {
@@ -148,8 +189,13 @@ class MarkingSelectedQuestionReaderTest {
     }
 
     private static LsMarking marking(Long vrfcEvntQstnSn) {
+        return marking(vrfcEvntQstnSn, null);
+    }
+
+    private static LsMarking marking(Long vrfcEvntQstnSn, String vrfcEvntTypeCd) {
         LsMarking m = mock(LsMarking.class);
         when(m.getVrfcEvntQstnSn()).thenReturn(vrfcEvntQstnSn);
+        when(m.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
         return m;
     }
 }

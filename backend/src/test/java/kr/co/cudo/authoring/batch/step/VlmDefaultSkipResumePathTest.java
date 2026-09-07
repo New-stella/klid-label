@@ -94,7 +94,9 @@ class VlmDefaultSkipResumePathTest {
                 batchStatusService, ledger, deidentProcLogRepository,
                 mock(DeidentReportGate.class), markingTxService, mock(VlmSubmitOutcomeRecorder.class),
                 timeseriesMetaPresence, new ObjectMapper(), Schedulers.immediate(), marker,
-                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class),
+                mock(kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver.class),
+                mock(kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader.class));
         resumeRunner = new VlmWithheldResumeRunner(step, batchStatusService,
                 timeseriesMetaPresence, markingRepository);
 

@@ -25,8 +25,10 @@ import kr.co.cudo.authoring.common.config.WebhookCallbackDefaults;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.HmacWebhookFilter;
+import kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -49,15 +51,17 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * 시계열 분석 위탁 단계 — 확정 계약(KLID 연동 API v1.1.0) 정합.
+ * 시계열 분석 위탁 단계 — 확정 계약(KLID 연동 API v1.2.0) 정합.
  *
  * <p><b>비식별 영상</b>의 분석을 두 창구에 나눠 위탁하고, 결과는 {@code POST /v1/vlm/callback}
  * 콜백으로 수신한다 (@req R1).
  *
  * <ul>
  *   <li>{@code POST /v1/videovlm-klid/describe} — <b>묘사</b>. 결과가 시계열 서술 전문을 채운다.</li>
- *   <li>{@code POST /v1/videovlm-klid/describe-sub} — <b>추가 질문</b>. 결과가 이벤트 어노테이션의
- *       질의응답 축 초안을 채운다.</li>
+ *   <li>{@code POST /v1/videovlm-klid/custom} — <b>추가 질문</b>. 결과가 이벤트 어노테이션의
+ *       질의응답 축 초안을 채운다. 이 창구는 <b>이벤트 유형을 받지 않고</b> 질문 문구를 요청 본문
+ *       ({@code prompt})에 직접 싣는다 — 그 덕에 추가 질문 축에서는 이벤트 유형 미수신·미지원으로
+ *       인한 4xx 가 <b>구조적으로 사라진다</b>(묘사 축에는 그대로 남는다).</li>
  * </ul>
  *
  * <p><b>판정 창구는 연동하지 않는다</b> — 그 창구만 제공하는 발생 여부·일치도가 우리 확정 경로
@@ -65,11 +69,17 @@ import java.util.function.Supplier;
  *
  * <h3>요청 구성의 두 축</h3>
  * <ul>
- *   <li><b>{@code event_type}</b> (@req R6) — 분석 대상 이벤트 유형. 조달처는 <b>관제 인입값</b>
- *       {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 조달값을 <b>그대로 실어 보낸다</b>. 관제 코드
+ *   <li><b>{@code event_type}</b> (@req R6) — 분석 대상 이벤트 유형. 조달 순서는 <b>관제 인입값</b>
+ *       ({@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD}) → <b>마킹에서 작업자가 고른 값</b>
+ *       ({@code LS_MARKING.VRFC_EVNT_TYPE_CD}) → {@code null} 이며, 조달값을 <b>그대로 실어 보낸다</b>.
+ *       관제 값이 있으면 마킹 화면이 유형 선택을 아예 노출하지 않으므로 <b>둘이 경쟁하지 않는다</b>. 관제 코드
  *       체계를 벤더 값으로 번역하는 <b>자체 매핑표를 만들지 않는다</b>(그 표가 조용히 낡으면 잘못
  *       번역된 값으로 외부 위탁이 나간다). 우리 쪽 허용목록으로 사전 차단하지도 않는다 — 사본 목록이
  *       두 번째 진실원이 되면 벤더가 값을 넓혔을 때 정상 값을 우리가 먼저 막는다.</li>
+ *   <li><b>{@code prompt}</b> — <b>추가 질문 축 전용</b>. 그 영상의 검증 이벤트 유형에 등록된 질문
+ *       가운데 마킹이 고른 문구이며, 조달은 {@link VerificationEventQuestionResolver} <b>한 곳</b>이
+ *       판정한다(「첫 번째 질문」 해석을 여기 복제하지 않는다). <b>위탁 시점에 조달</b>해 보내고 그
+ *       문구 전문을 원장에 함께 보관하므로, 결과 수신부는 <b>재조달하지 않는다</b>.</li>
  *   <li><b>{@code frame_policy}</b> (@req R2) — 마킹에서 도출한다. 모드를 가리지 않고
  *       {@code frame_selected}(마킹 프레임 인덱스, 정렬·중복제거·상한 적용)가 기본이며, 실을 프레임을
  *       하나도 얻지 못하면 {@code frame_interval} 로 내린다. 추출 간격은 <b>서버가 관리</b>하므로
@@ -144,6 +154,9 @@ import java.util.function.Supplier;
  * {@code BatchOrchestrator} FAILED + {@code BatchRetryQueue} 경로를 탄다.
  *
  * @design ADR-049
+ * @design INTSPEC-003
+ * @design INT-002
+ * @design SEQ-036
  */
 @Slf4j
 @Component
@@ -287,6 +300,19 @@ public class VlmTimeseriesStep implements BatchStep {
      * <b>어디로 보냈는지 모르는 미결</b>이 되고, 부하 집계에서도 빠져 배분이 한쪽으로 기운다.
      */
     private final AiSrvrSelector aiSrvrSelector;
+    /**
+     * ★ 추가 질문 축의 {@code prompt} 조달 <b>단일 진실원</b>. [design: ERD-033]
+     *
+     * <p>「고른 질문이 그 유형에 속하는가 · 아니면 첫 번째로 되돌린다」는 해석을 <b>여기(batch)에
+     * 복제하지 않는다</b>. 복제하면 화면이 보여준 질문과 산출물에 실린 질문이 조용히 어긋난다 —
+     * 이 저장소의 반복 결함 패턴이며 확정 정책이 금지한다.
+     */
+    private final VerificationEventQuestionResolver questionResolver;
+    /**
+     * 마킹이 고른 질문 <b>일련번호</b>를 읽는 경로 — 어느 마킹 행에서 읽을지(활성 우선, 없으면 최신)를
+     * 그 컴포넌트가 소유한다. 여기서 다시 정하지 않는다.
+     */
+    private final MarkingSelectedQuestionReader markingSelectedQuestionReader;
 
     /** 콜백 base URL — 외부 시스템이 verify 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -309,7 +335,9 @@ public class VlmTimeseriesStep implements BatchStep {
                              ObjectMapper objectMapper,
                              @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler,
                              VlmDefaultSkipMarker vlmDefaultSkipMarker,
-                             AiSrvrSelector aiSrvrSelector) {
+                             AiSrvrSelector aiSrvrSelector,
+                             VerificationEventQuestionResolver questionResolver,
+                             MarkingSelectedQuestionReader markingSelectedQuestionReader) {
         this.vlmClient = vlmClient;
         this.videoRepository = videoRepository;
         this.ingestSourceRepository = ingestSourceRepository;
@@ -324,6 +352,8 @@ public class VlmTimeseriesStep implements BatchStep {
         this.vlmSubmitScheduler = vlmSubmitScheduler;
         this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
         this.aiSrvrSelector = aiSrvrSelector;
+        this.questionResolver = questionResolver;
+        this.markingSelectedQuestionReader = markingSelectedQuestionReader;
     }
 
     @Override
@@ -525,7 +555,7 @@ public class VlmTimeseriesStep implements BatchStep {
         //  장애로 오분류되고 재시도 큐가 반드시 다시 막힐 재시도로 상한을 소진한다.
         // ★ event_type 은 더 이상 위탁을 막지 않는다 (2026-08-06 사용자 확정) — 조달값을 그대로 실어
         //  보내고 수용 여부는 <b>벤더 응답</b>이 정한다. 아래 resolveEventType 은 조달·정규화만 한다.
-        String eventType = resolveEventType(rawSn);
+        String eventType = resolveEventType(rawSn, marking);
 
         String mediaPath = resolveDeidentifiedPath(rawSn);
 
@@ -545,9 +575,11 @@ public class VlmTimeseriesStep implements BatchStep {
         //  조립 자체를 앞에 두어 "선커밋 후 실패" 창을 구조적으로 없앤다.
         VlmTimeseriesRequest req = buildRequest(rawSn, marking, requestId, eventType,
                 mediaPath, callbackUrl);
-        // 두 창구는 요청 형식이 같다 — 같은 프레임 정책으로 request_id 만 갈아 끼운다(규격 §3.3).
-        VlmTimeseriesRequest subReq = new VlmTimeseriesRequest(
-                subRequestId, req.eventType(), req.media(), req.callbackUrl());
+        // 두 창구는 미디어·프레임 정책·콜백 주소가 같다(규격 §3.4). 추가 질문 축은 거기서 둘만 바꾼다 —
+        //  이벤트 유형을 싣지 않고, 질문 문구를 요청 본문(prompt)에 직접 싣는다.
+        //  ★ 조달도 <b>선커밋 이전</b>에 끝낸다 — 뒤에서 터지면 상관키만 durable 하게 남은 영구 대기가 된다.
+        String prompt = resolvePrompt(rawSn, eventType);
+        VlmTimeseriesRequest subReq = VlmTimeseriesRequest.toCustom(req, subRequestId, prompt);
 
         // ── 장비 선택 (@design ADR-057) — <b>선커밋보다 앞</b>이다.
         //
@@ -611,7 +643,12 @@ public class VlmTimeseriesStep implements BatchStep {
         //    나간 곳과 다른 장비의 부하가 늘어 다음 배분이 어긋난다.
         try {
             ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn, srvrId);
-            ledger.recordIssued(subRequestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn, srvrId);
+            // ★ 추가 질문 축은 <b>보낸 질문 문구 전문</b>을 같은 행에 남긴다. 콜백 수신부가 이 값을
+            //   읽어 어노테이션 질문 칸을 채우고 <b>재조달하지 않는다</b> — 질문 목록은 전체 교체로
+            //   저장되어 가리키던 행이 사라지는 것이 정상 동선이라, 재조달하면 그 사이에
+            //   <보낸 질문>과 <기록된 질문>이 갈린다. 위탁 1건 = 원장 1행이라 재위탁·도착순서도 함께 풀린다.
+            ledger.recordIssued(subRequestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn, srvrId,
+                    prompt);
         } catch (RuntimeException e) {
             log.error("[Batch][VlmTimeseries] ledger recordIssued failed (abort submit) rawSn={} err={}",
                     rawSn, VlmClient.safeForLog(e.getMessage()));
@@ -634,11 +671,12 @@ public class VlmTimeseriesStep implements BatchStep {
 
         // 로그에 싣는 외부/DB 유래 문자열은 sanitize 한다(CWE-117). event_type 은 허용목록 통과값이라
         // 이미 안전하지만, 판정 지점과 로그 지점이 분리되면 드리프트가 나므로 동일하게 통과시킨다.
-        log.info("[Batch][VlmTimeseries] dual submit rawSn={} describe_request_id={} sub_request_id={} "
-                        + "event_type={} mode={} hasMarking={} srvrId={}",
+        log.info("[Batch][VlmTimeseries] dual submit rawSn={} describe_request_id={} custom_request_id={} "
+                        + "event_type={} mode={} hasMarking={} hasPrompt={} srvrId={}",
                 rawSn, VlmClient.safeForLog(requestId), VlmClient.safeForLog(subRequestId),
                 VlmClient.safeForLog(eventType),
                 VlmClient.safeForLog(req.media().framePolicy().mode()), marking != null,
+                prompt != null && !prompt.isBlank(),
                 VlmClient.safeForLog(srvrId));
 
         // ── 논블로킹 제출 (Phase C-1): ACK 왕복조차 스레드를 점유하지 않는다.
@@ -670,7 +708,7 @@ public class VlmTimeseriesStep implements BatchStep {
         //    성질이 이 경로에서만 깨져 있었다.
         submitOne(() -> vlmClient.submitDescribe(req, srvrAddr), rawSn, requestId, markingSn, "describe");
         submitOne(() -> vlmClient.submitDescribeSub(subReq, srvrAddr), rawSn, subRequestId, null,
-                "describe-sub");
+                "custom");
 
         // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는
         // 완료 핸들러가 LS_BATCH_PROC_LOG 에 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다.
@@ -759,9 +797,16 @@ public class VlmTimeseriesStep implements BatchStep {
     /**
      * 검증이벤트유형 조달·정규화 — <b>판정하지 않는다</b> (@req R6, 2026-08-06 정책 반전).
      *
-     * <p>조달처는 관제 인입값 {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 하나이며, 정규화는
-     * {@link LsDataIngest#normalizeVrfcEvntType(String)} 을 <b>재사용</b>한다(리터럴을 복제해 새 상수를
-     * 만들면 한쪽만 갱신돼 조용히 어긋난다).
+     * <p>조달 순서는 <b>관제 인입값</b>({@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD}) →
+     * <b>마킹에서 작업자가 고른 값</b>({@code LS_MARKING.VRFC_EVNT_TYPE_CD}) → {@code null} 이다.
+     * 정규화는 {@link LsDataIngest#normalizeVrfcEvntType(String)} 을 <b>재사용</b>한다(리터럴을 복제해
+     * 새 상수를 만들면 한쪽만 갱신돼 조용히 어긋난다).
+     *
+     * <p>★ <b>두 값이 경쟁하지 않는다</b> — 관제 값이 있으면 마킹 화면이 유형 선택을 <b>아예 노출하지
+     * 않아</b> 2순위 칸이 비어 있다. 그래서 우선순위 충돌이 구조적으로 발생하지 않는다.
+     *
+     * <p>★ <b>적용 축은 묘사 하나다</b> — 추가 질문 축({@code custom})은 이벤트 유형을 보내지 않는다.
+     * [design: ERD-013] [design: DFEAT-039]
      *
      * <h3>★ 구 동작(허용목록 사전 차단) 폐기 — 되돌리지 말 것</h3>
      * <p>구 동작은 값이 없거나 {@link LsDataIngest#VRFC_EVNT_TYPES} 6종이 아니면 <b>외부 호출 0건 +
@@ -776,11 +821,23 @@ public class VlmTimeseriesStep implements BatchStep {
      *
      * @return 정규화된 event_type, 또는 조달값이 없으면 {@code null}(그대로 전송)
      */
-    private String resolveEventType(Long rawSn) {
+    private String resolveEventType(Long rawSn, LsMarking marking) {
         // 영상 행이 없으면 null 행이 온다(인입 행만 없으면 전 필드 null 인 행).
         IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
         String raw = source == null ? null : source.getVrfcEvntTypeCd();
         String normalized = LsDataIngest.normalizeVrfcEvntType(raw);
+
+        if (normalized == null && marking != null) {
+            // 2순위 — 관제가 유형을 보내지 않은 영상에서 <b>작업자가 마킹 화면에서 고른</b> 값.
+            //  관제 값이 있으면 화면이 유형 선택을 아예 노출하지 않으므로 둘이 경쟁할 일이 없다.
+            //  ⚠ 정규화는 같은 함수를 재사용한다 — 규칙을 복제하면 인입이 대문자로 실어 보낸 값과
+            //    작업자가 고른 값이 서로 다른 정규화를 타 조용히 어긋난다.
+            normalized = LsDataIngest.normalizeVrfcEvntType(marking.getVrfcEvntTypeCd());
+            if (normalized != null) {
+                log.info("[Batch][VlmTimeseries] verification event type taken from marking selection "
+                        + "rawSn={} value={}", rawSn, VlmClient.safeForLog(normalized));
+            }
+        }
 
         if (normalized == null) {
             // 차단이 아니라 관측이다 — 위탁은 그대로 나가고 벤더 응답이 수용 여부를 정한다.
@@ -792,6 +849,61 @@ public class VlmTimeseriesStep implements BatchStep {
                     + "rawSn={} value={}", rawSn, VlmClient.safeForLog(normalized));
         }
         return normalized;
+    }
+
+    /**
+     * 추가 질문 축의 {@code prompt} 조달 — <b>위탁 시점에</b> 한 번 조달해 그대로 보내고 원장에 남긴다.
+     * [design: ERD-033] [design: ERD-021] [design: INTSPEC-003] [design: AC-1013] [design: UC-019]
+     *
+     * <h3>★ 판정을 여기 복제하지 않는다</h3>
+     * <p>「고른 질문이 그 유형에 속하는가 · 아니면 첫 번째로 되돌린다」는 해석은
+     * {@link VerificationEventQuestionResolver} <b>한 곳</b>이 소유한다. 어느 마킹 행에서 선택값을
+     * 읽을지(활성 우선, 없으면 최신)는 {@link MarkingSelectedQuestionReader} 가 소유한다. 이 메서드는
+     * <b>둘을 잇기만</b> 한다 — 복제하면 화면이 보여준 질문과 산출물에 실린 질문이 조용히 어긋난다.
+     *
+     * <h3>★ 값은 항상 있어야 한다 — 비는 것은 정상 동선이 아니라 결함이다</h3>
+     * <p>수동 마킹이면 작업자가 고르고, 자동 마킹이면 그 유형의 첫 번째 질문이 자동 선택되며, 관제가
+     * 유형을 보내지 않은 영상은 마킹 화면이 유형 선택을 노출하고 그 선택이 <b>필수</b>다. 유형만 정해지면
+     * 판정기의 「첫 번째 질문」 폴백이 반드시 값을 낸다. 따라서 비어 있다는 것은 그 구조 중 하나가
+     * 깨졌다는 뜻이다(화면 필수 입력이 뚫렸거나 질문 카탈로그가 비었거나).
+     *
+     * <p>그래서 <b>조용히 건너뛰지 않는다</b> — 건너뛰면 그 결함이 감춰진다. 대신 {@code event_type} 과
+     * <b>같은 확정 관례</b>를 따른다: <b>값을 지어내지 않고 조달값을 그대로 실어 보내며 수용 여부는 벤더
+     * 응답이 정한다</b>. 벤더가 거부하면 완료 핸들러가 {@link #SKIP_REASON_SUBMIT_FAILED} 로 감사 행을
+     * 남기고 그 사유는 재개 대상이라, 사실이 <b>로그와 DB 양쪽에 드러나고 데이터가 고쳐지면 저절로
+     * 회수된다</b>. 새 {@code SKIP_REASON_*} 를 만들지 않는 이유이기도 하다 — 「질문을 못 얻어 축을
+     * 건너뛴다」는 상태는 설계상 존재하지 않는다.
+     *
+     * <p>⚠ <b>묘사 축은 이 조달에 영향을 받지 않는다</b>. 조달이 어떻게 끝나든 묘사 축은 그대로 나간다.
+     *
+     * <h3>길이 상한</h3>
+     * <p>질문 보관 칸의 폭과 벤더 상한이 {@value VlmTimeseriesRequest#MAX_PROMPT_LENGTH} 로 <b>같아</b>
+     * 초과는 구조적으로 발생하지 않는다. 그럼에도 방어적으로 자르는 이유는, 자르지 않으면 원장 적재가
+     * 컬럼 폭에서 실패하고 그 실패가 멱등 반환에 삼켜져 <b>상관키 행 자체가 남지 않기</b> 때문이다 —
+     * 그러면 콜백이 역조회에 실패해 결과가 통째로 유실된다. 자른 값을 <b>보내고 또 그대로 남기므로</b>
+     * 「보낸 질문 = 기록된 질문」 불변은 유지된다. 자른 사실은 반드시 드러낸다.
+     *
+     * @param eventType 묘사 축과 <b>같은</b> 조달값(관제 인입 → 마킹 선택 → null)
+     * @return 보낼 질문 문구. 조달이 비면 {@code null}(그대로 전송 — 벤더가 판정한다)
+     */
+    private String resolvePrompt(Long rawSn, String eventType) {
+        Long selectedQstnSn = markingSelectedQuestionReader.findSelectedQuestionSn(rawSn);
+        String text = questionResolver.resolveQuestionText(selectedQstnSn, eventType).orElse(null);
+
+        if (text == null || text.isBlank()) {
+            // 설계상 도달하지 않는 상태다. 조용히 넘기면 그 결함이 감춰지므로 반드시 드러낸다.
+            log.error("[Batch][VlmTimeseries] custom prompt unavailable — sending anyway (vendor decides) "
+                            + "rawSn={} hasEventType={} hasSelectedQuestion={}",
+                    rawSn, eventType != null, selectedQstnSn != null);
+            return null;
+        }
+        if (text.length() > VlmTimeseriesRequest.MAX_PROMPT_LENGTH) {
+            log.error("[Batch][VlmTimeseries] custom prompt exceeds vendor limit — truncated rawSn={} "
+                            + "length={} limit={}",
+                    rawSn, text.length(), VlmTimeseriesRequest.MAX_PROMPT_LENGTH);
+            return text.substring(0, VlmTimeseriesRequest.MAX_PROMPT_LENGTH);
+        }
+        return text;
     }
 
     /**

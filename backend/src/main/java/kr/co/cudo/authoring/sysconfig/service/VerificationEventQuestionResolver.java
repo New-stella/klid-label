@@ -26,7 +26,26 @@ import java.util.Optional;
  *       질문 목록은 전체 교체로 저장되어 <b>가리키던 행이 사라지는 것이 정상 동선</b>이기 때문이다.
  *       참조 무결성을 DB 가 아니라 이 판정기가 갖는다).</li>
  *   <li>마킹을 거치지 않는 경로는 <b>언제나</b> 첫 번째 질문을 쓴다.</li>
+ *   <li>★ 영상의 <b>유형을 알 수 없으면(미수신)</b> 작업자가 고른 질문이 있는 한 <b>그 질문을 쓴다</b>.
+ *       선택값이 없거나 그 행이 이미 사라졌을 때만 비어 있음이다.</li>
  * </ol>
+ *
+ * <h3>★ ④ 가 뒤집힌 근거 — 지우지 말 것</h3>
+ * <p>종전 규칙은 <b>유형이 미수신이면 선택값이 있어도 버리고</b> 비어 있음을 돌려주는 것이었고, 그
+ * 근거는 <i>「유형을 모르면 그 선택값이 어느 유형에 속하는지 판정할 축이 없다. 선택값만 믿고
+ * 내보내면 다른 유형의 질문이 어노테이션에 실린다 — 비워 두는 편이 지어내는 것보다 안전하다」</i>
+ * 였다. <b>질문이 우리 기록일 뿐이던 동안에는 옳은 판단이었다</b> — 사업자가 실제로 쓴 질문은 따로
+ * 있었으므로 우리 기록이 틀리면 안 됐기 때문이다.
+ *
+ * <p>전제 둘이 바뀌어 뒤집혔다. <b>첫째</b>, 추가 질문 축의 창구가 질문 문구를 <b>요청 본문에 직접
+ * 싣는</b> 쪽으로 바뀌어 이 값이 기록이 아니라 <b>실제로 보내는 값</b>이 됐다 — 비우면 그 영상은
+ * 추가 질문 축 위탁 자체가 나가지 못한다(그 창구는 질문 문구가 필수다). <b>둘째</b>, 그 창구는
+ * <b>이벤트 유형을 받지 않으므로</b> 「다른 유형의 질문이 간다」는 우려가 <b>위탁 축에서 성립하지
+ * 않는다</b>. 남는 판단 축은 <b>작업자가 영상을 보고 고른 값 하나뿐</b>이며, 그 값을 쓰는 편이
+ * 비우는 것보다 낫다.
+ *
+ * <p>⚠ 그래도 <b>지어내지는 않는다</b> — 선택값이 가리키던 행이 이미 사라졌으면 유형이 미수신일
+ * 때도 비어 있음이다(유형이 없어 첫 번째로 되돌릴 대상도 없다).
  *
  * <h3>★ 없으면 예외가 아니라 「비어 있음」이다</h3>
  * <p>유형이 카탈로그에 없거나 그 유형에 등록된 질문이 0건이면 {@link Optional#empty()} 를 돌려준다.
@@ -65,20 +84,30 @@ public class VerificationEventQuestionResolver {
 
     /**
      * 마킹이 고른 질문을 <b>해석</b>한다 — 그 유형에 속하면 그대로, 아니면 첫 번째로 되돌린다.
+     * [design: ERD-033] [design: AC-1013]
      *
      * <p>선택값이 그 유형에 속하는지 <b>조달 시점마다</b> 확인한다. 저장 시점에 한 번 검사하는 것으로는
      * 부족하다 — 그 사이에 질문 목록이 전체 교체되어 가리키던 행이 사라졌을 수 있다.
      *
+     * <p>★ <b>유형이 미수신이면 작업자가 고른 값이 유일한 판단 축</b>이라 소속 검증 없이 그대로 쓴다.
+     * 뒤집힌 근거와 종전 판단이 왜 옳았는지는 클래스 주석 「④ 가 뒤집힌 근거」에 있다.
+     *
      * @param selectedQstnSn 마킹이 보관한 선택값({@code LS_MARKING.VRFC_EVNT_QSTN_SN}). {@code null} 허용
-     * @param vrfcEvntTypeCd 그 영상의 검증 이벤트 유형 코드(정규화 전 원문 허용)
-     * @return 조달된 질문. 유형이 없거나 질문이 0건이면 {@link Optional#empty()} — <b>예외를 던지지 않는다</b>
+     * @param vrfcEvntTypeCd 그 영상의 검증 이벤트 유형 코드(정규화 전 원문 허용). {@code null} 허용
+     * @return 조달된 질문. 조달할 것이 하나도 없으면 {@link Optional#empty()} — <b>예외를 던지지 않는다</b>
      */
     public Optional<VerificationEventQuestionResponse> resolve(Long selectedQstnSn, String vrfcEvntTypeCd) {
         String normalized = LsDataIngest.normalizeVrfcEvntType(vrfcEvntTypeCd);
         if (normalized == null) {
-            // 유형을 모르면 소속을 판정할 축이 없다. 선택값만 믿고 내보내면 다른 유형의 질문이
-            // 어노테이션에 실린다 — 비워 두는 편이 지어내는 것보다 안전하다.
-            return Optional.empty();
+            if (selectedQstnSn == null) {
+                // 유형도 선택값도 없다 — 되돌릴 대상 자체가 없으므로 지어내지 않는다.
+                return Optional.empty();
+            }
+            // 유형 미수신 — 소속을 판정할 축이 없으나, 그 질문 문구가 곧 위탁 요청 본문에 실려 나가는
+            // 값이라 비우면 추가 질문 축 위탁이 아예 못 나간다. 작업자가 고른 값을 그대로 쓴다.
+            // 가리키던 행이 사라졌으면 비어 있음이다(없는 질문을 지어내지 않는다).
+            return questionRepository.findById(selectedQstnSn)
+                    .map(VerificationEventQuestionResponse::from);
         }
         if (selectedQstnSn != null) {
             Optional<LsVrfcEvntQstn> selected = questionRepository.findById(selectedQstnSn)

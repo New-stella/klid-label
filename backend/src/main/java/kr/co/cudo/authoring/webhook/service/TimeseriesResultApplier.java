@@ -18,6 +18,8 @@ package kr.co.cudo.authoring.webhook.service;
  *   <li>같은 결과를 여러 번 받아도 결과가 같아야 한다(규격상 콜백은 중복 수신될 수 있다).</li>
  *   <li>두 창구가 <b>같은 캡션 후보를 공유</b>하고 도착 순서가 보장되지 않으므로, 후보를 통째로
  *       교체하지 않고 자기 칸만 채워 먼저 도착한 축의 값을 지우지 않는다.</li>
+ *   <li><b>질문 칸은 위탁 시점에 실제로 보낸 값</b>으로만 채운다 — 콜백 시점에 다시 조달하지
+ *       않는다. 재조달은 그 사이의 질문 목록 교체로 보낸 값과 기록된 값을 갈라놓는다.</li>
  * </ul>
  */
 public interface TimeseriesResultApplier {
@@ -39,18 +41,26 @@ public interface TimeseriesResultApplier {
     boolean applyDescription(Long rawSn, String description);
 
     /**
-     * 추가 질문(describe-sub) 결과를 초안으로 반영한다.
+     * 추가 질문 결과를 초안으로 반영한다.
      *
      * <p>서술은 같은 캡션 후보의 <b>캡션 본문</b> 칸에 넣는다. <b>답변 칸은 자동으로 채우지 않는다</b>
      * — 사람이 확정할 공란이다.
      *
-     * <p><b>질문 문장 칸은 이 계약이 채우지 않는다</b> — 그 값의 조달원은 저작도구가 보관하는 검증
-     * 이벤트 유형별 질문 문구 목록이며, 어노테이션 도메인이 마킹에서 고른 질문(없으면 그 유형의
-     * 첫 번째)을 읽어 채운다.
+     * <h3>★ 질문 칸은 <b>실제로 보낸 값</b>으로 채운다 — 다시 조달하지 않는다</h3>
+     * <p>이 축의 위탁은 이벤트 유형 대신 <b>질문 문구를 요청 본문에 직접</b> 싣는다. 그래서 위탁 시점에
+     * 보낸 문구가 곧 <b>사업자가 실제로 받은 질문</b>이며, 그 값은 위탁 상관키 원장에 함께 보관된다.
+     * 콜백 수신부가 그 값을 읽어 여기로 넘기고, <b>구현은 조달 판정기를 다시 부르지 않는다</b>.
      *
-     * @param rawSn       대상 영상.
-     * @param description 분석 결과 서술(자연어 평문 — 형식이 고정돼 있지 않으므로 파싱에 의존하지 않는다).
+     * <p><b>왜 재조달하면 안 되는가</b> — 질문 목록은 <b>전체 교체</b>로 저장되어 가리키던 행이 사라지는
+     * 것이 <b>정상 동선</b>이다. 콜백 시점에 다시 조달하면 그 사이의 교체로 <b>보낸 질문과 기록된 질문이
+     * 갈리고</b>, 사업자가 받지 않은 질문이 산출물에 남는다.
+     *
+     * @param rawSn        대상 영상.
+     * @param description  분석 결과 서술(자연어 평문 — 형식이 고정돼 있지 않으므로 파싱에 의존하지 않는다).
+     * @param sentQuestion 위탁 시점에 <b>실제로 보낸 질문 문구 전문</b>. 보낸 적이 없거나(조달이 비어
+     *                     그대로 위탁된 경우) 보관 이전에 발급된 과거 행이면 {@code null} — 그때는 질문
+     *                     칸을 <b>비워 둔다</b>(지어내지 않는다).
      * @return 실제로 초안이 채워졌으면 true, 이미 사람이 손댔거나 동결돼 건너뛰었으면 false.
      */
-    boolean applySubDescription(Long rawSn, String description);
+    boolean applySubDescription(Long rawSn, String description, String sentQuestion);
 }

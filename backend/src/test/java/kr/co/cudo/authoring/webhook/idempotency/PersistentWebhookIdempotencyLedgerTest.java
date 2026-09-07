@@ -64,6 +64,27 @@ class PersistentWebhookIdempotencyLedgerTest {
     }
 
     @Test
+    @DisplayName("★보낸_질문_문구가_영속되고_조회_Entry로_그대로_돌아온다_묘사축은_null")
+    void sentQuestionRoundTripsThroughTheLedger() {
+        // given — 추가 질문 축은 위탁 시점에 보낸 문구를 같은 행에 남긴다. 콜백 수신부가 그 행을
+        //  역조회해 「보낸 값」을 그대로 넘기므로, 적재와 조회가 한 세트로 성립해야 이 배선이 산다.
+        //  ⚠ 적재만 시험하고 조회를 빼면, 조회 매핑이 빠져도 아무도 알아채지 못한다.
+        Long rawSn = seedVideo();
+        String sent = "연기가 관측됩니까? 근거를 서술하십시오.";
+        String subKey = "K-QSTN-SUB-" + UUID.randomUUID();
+        String mainKey = "K-QSTN-MAIN-" + UUID.randomUUID();
+
+        ledger.recordIssued(subKey, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn, null, sent);
+        ledger.recordIssued(mainKey, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn, null);
+
+        // then
+        assertThat(ledger.lookup(subKey).orElseThrow().qstnCn()).isEqualTo(sent);
+        assertThat(ledger.lookup(mainKey).orElseThrow().qstnCn())
+                .as("묘사 축은 질문을 보내지 않는다 — 지어내지 않고 비운다")
+                .isNull();
+    }
+
+    @Test
     @DisplayName("PersistentWebhookIdempotencyLedger_동시_markProcessed_시_UNIQUE_제약_멱등_반환")
     void concurrentMarkProcessedIsIdempotent() throws InterruptedException {
         String key = "K-RACE-" + UUID.randomUUID();

@@ -56,7 +56,7 @@ import java.time.LocalDateTime;
  * @param mntrCn           관제일지 내용
  * @param lclgvCd          지방자치단체코드
  * @param vrfcEvntTypeCd   검증이벤트유형코드 — 외부 VLM 검증 API 의 {@code event_type}
- *                         ({@link LsDataIngest#VRFC_EVNT_TYPES} 6종). 이벤트<b>유형</b>코드
+ *                         ({@link LsDataIngest#VRFC_EVNT_TYPES} 프리셋 7종 — 허용목록이 아니다). 이벤트<b>유형</b>코드
  *                         ({@code EVNT_TYPE_CD})와 다른 값이며, 미지정이면 null 이다(선택 입력).
  *                         값은 {@link LsDataIngest#normalizeVrfcEvntType} 로 정규화한 뒤 싣는다
  * @req R5

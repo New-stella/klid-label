@@ -47,7 +47,8 @@ public interface IngestSourceRow {
      * null (@req R5).
      *
      * <p>외부 VLM 검증 API 요청의 {@code event_type} 조달처이며 허용값은
-     * {@code LsDataIngest.VRFC_EVNT_TYPES} 6종이다. 이벤트 <b>유형</b>코드({@code EVNT_TYPE_CD},
+     * {@code LsDataIngest.VRFC_EVNT_TYPES} 프리셋 7종이다(허용목록이 아니라 그 밖의 값도 온다).
+     * 이벤트 <b>유형</b>코드({@code EVNT_TYPE_CD},
      * 예 {@code EV01000101})와 <b>축이 다른 값</b>이라 서로 대체하지 않는다 — 미송신이면 null 이
      * 정상이며 유형코드에서 유도하지 않는다(그 유도표가 곧 이 설계가 피하려던 자체 매핑표다).
      *

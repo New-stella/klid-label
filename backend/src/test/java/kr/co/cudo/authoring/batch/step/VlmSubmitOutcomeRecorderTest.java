@@ -1,13 +1,21 @@
 package kr.co.cudo.authoring.batch.step;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -86,5 +94,74 @@ class VlmSubmitOutcomeRecorderTest {
         verify(batchStatusService).recordVlmSkippedInNewTx(
                 703L, VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED);
         verify(markingTxService).markVlmFailedIfRequested(null);
+    }
+
+    // ───────────────── 벤더 오류코드 40001 — 「미지원 event_type」 구분 ─────────────────
+
+    /**
+     * ★ 이 축의 단정은 <b>기록 문자열이 바뀌지 않는다</b>가 절반이다.
+     *
+     * <p>{@code LS_BATCH_PROC_LOG} 에 적재되는 사유는 재개 판정의 키이자 이미 적재된 과거 행과의
+     * 대조 키다. 「더 정확하게」 다듬는 순간 그 행들의 재개 배선이 끊긴다.
+     */
+    @Test
+    @DisplayName("★벤더코드_40001이어도_DB에_적재되는_재개사유_문자열은_바뀌지_않는다")
+    void vendorCode40001DoesNotChangeResumeKey() {
+        recorder.onSubmitFailed(710L, 92L, new NonRetryableExternalException(
+                "시계열 분석 위탁 4xx 응답(status=400)", 400, 40001));
+
+        verify(batchStatusService).recordVlmSkippedInNewTx(
+                eq(710L), eq(VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED));
+        verify(markingTxService).markVlmFailedIfRequested(92L);
+    }
+
+    @Test
+    @DisplayName("★벤더코드_40001은_미지원_event_type으로_구분해_기록한다")
+    void vendorCode40001IsDistinguishedInRecord() {
+        List<ILoggingEvent> logs = captureRecorderLogs(() -> recorder.onSubmitFailed(711L, null,
+                new NonRetryableExternalException("4xx", 400, 40001)));
+
+        assertThat(logs).anySatisfy(e -> {
+            assertThat(e.getLevel()).isEqualTo(Level.ERROR);
+            assertThat(e.getFormattedMessage()).contains("undefined event_type").contains("40001");
+        });
+    }
+
+    @Test
+    @DisplayName("벤더코드가_없는_4xx는_종전_기록으로_떨어진다")
+    void missingVendorCodeFallsBackToPreviousRecord() {
+        List<ILoggingEvent> logs = captureRecorderLogs(() -> recorder.onSubmitFailed(712L, null,
+                new NonRetryableExternalException("4xx", 400)));
+
+        assertThat(logs).noneSatisfy(e ->
+                assertThat(e.getFormattedMessage()).contains("undefined event_type"));
+        verify(batchStatusService).recordVlmSkippedInNewTx(
+                eq(712L), eq(VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED));
+    }
+
+    @Test
+    @DisplayName("벤더코드가_원인_사슬_안쪽에_있어도_찾아낸다_메시지를_파싱하지_않는다")
+    void vendorCodeFoundThroughCauseChain() {
+        List<ILoggingEvent> logs = captureRecorderLogs(() -> recorder.onSubmitFailed(713L, null,
+                new RuntimeException("wrapped",
+                        new NonRetryableExternalException("4xx", 400, 40001))));
+
+        assertThat(logs).anySatisfy(e ->
+                assertThat(e.getFormattedMessage()).contains("undefined event_type"));
+    }
+
+    /** 완료 핸들러가 남기는 로그만 수집한다. */
+    private List<ILoggingEvent> captureRecorderLogs(Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(VlmSubmitOutcomeRecorder.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+        return appender.list;
     }
 }

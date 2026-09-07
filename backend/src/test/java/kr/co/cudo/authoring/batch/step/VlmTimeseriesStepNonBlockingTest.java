@@ -286,6 +286,8 @@ class VlmTimeseriesStepNonBlockingTest {
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), scheduler,
                 mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class),
-                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class),
+                mock(kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver.class),
+                mock(kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader.class));
     }
 }

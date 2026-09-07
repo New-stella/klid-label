@@ -1,5 +1,5 @@
 """
-IntelliVIX Video VLM 벤더 목 — 요청/응답 스키마 (KLID 연동 API v1.1.0 정합).
+IntelliVIX Video VLM 벤더 목 — 요청/응답 스키마 (KLID 연동 API v1.2.0 정합).
 
 요청은 pydantic 모델로 타입/필수/값범위를 검증한다(CWE-20). 요청 스키마를 명시적으로
 정의하므로 Entity 직접 바인딩(Mass Assignment) 우려가 없다. 외부 벤더 관대성을 위해
@@ -34,7 +34,7 @@ class EventType(str, Enum):
 
 
 class FramePolicy(BaseModel):
-    """프레임 선택 정책 — KLID 연동 API v1.1.0 §2.5.
+    """프레임 선택 정책 — KLID 연동 API v1.2.0 §2.6.
 
     ★ ``framerate`` 필드는 **규격에 없다**. mode 만 연동 시스템이 지정하고 간격·장수 등 세부
     값은 서버가 관리한다. 구 규격(v2.0.1 verify)의 framerate 는 폐기됐으므로 되살리지 말 것.
@@ -43,7 +43,9 @@ class FramePolicy(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    mode: Literal["frame_interval", "uniform", "frame_selected"]
+    # 규격 v1.2.0 §2.6 — mode 는 둘뿐이다. 구 `uniform` 은 삭제됐고 정의되지 않은 mode 는 400 이다.
+    #   ⚠ 되살리지 말 것 — 실벤더가 거부하는 값을 목이 수락하면 로컬에서만 통과하는 배선이 된다.
+    mode: Literal["frame_interval", "frame_selected"]
     # 규격 §2.5·§2.9 — 정수 배열, 최대 600개, 음수 불가. 초과/음수는 400.
     selected_frames: Optional[list[int]] = Field(
         default=None,
@@ -68,6 +70,28 @@ class Media(BaseModel):
     duration_sec: Optional[float] = Field(
         default=None, description="[목 전용] 영상 길이(초) 힌트 — 생략 시 ffprobe 조회"
     )
+
+
+class CustomRequest(BaseModel):
+    """사용자 프롬프트 위탁 요청 — 규격 v1.2.0 §3.4.
+
+    ★ 저작도구가 <b>추가 질문 축</b>에 쓰는 창구다. 사업자 가이드로 구 `describe-sub` 를 대체했다.
+
+    구 창구와 다른 점 둘:
+      - ``event_type`` 을 <b>쓰지 않는다</b> — 그래서 이 축에서는 이벤트 유형 미수신·미지원으로 인한
+        4xx 가 구조적으로 발생하지 않는다(묘사 축에는 그대로 남는다).
+      - ``prompt`` 에 <b>질문 문구를 직접</b> 싣는다. 그 문구는 연동 시스템이 보관하는 값이며
+        마킹에서 고른 질문이다.
+
+    ⚠ ``prompt`` 는 필수이고 상한 4,000자다. 넘으면 400 이다.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    request_id: Optional[str] = Field(default=None, description="상관키(누락 시 서버 발급)")
+    prompt: str = Field(min_length=1, max_length=4000, description="모델에 던질 질문 문구")
+    callback_url: HttpUrl
+    media: Media
 
 
 class KlidAnalysisRequest(BaseModel):

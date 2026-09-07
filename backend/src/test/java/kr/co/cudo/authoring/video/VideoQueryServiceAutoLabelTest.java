@@ -95,7 +95,10 @@ class VideoQueryServiceAutoLabelTest {
                 // 검증 이벤트 질문 목록 조달(마킹 화면용) — 본 테스트는 유형 미수신 경로만 지나가
                 //   질문 조회가 호출되지 않는다(정규화 결과가 null 이면 조회 자체를 하지 않는다).
                 mock(kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository.class),
-                labelMasterRepository);
+                labelMasterRepository,
+                // 고를 수 있는 검증 이벤트 유형 카탈로그 — 본 테스트는 오토라벨 축만 다룬다.
+                //   기본 스텁이 빈 목록을 주므로 상세 조립이 그 자리에서 빈 배열로 끝난다.
+                mock(kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntTypeRepository.class));
     }
 
     private LsDataRaw raw(Long rawSn) {

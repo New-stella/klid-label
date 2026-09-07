@@ -178,6 +178,27 @@ public class LsMarking {
     @Column(name = "VRFC_EVNT_QSTN_SN")
     private Long vrfcEvntQstnSn;
 
+    /**
+     * <b>검증이벤트유형코드</b> — 관제가 유형을 보내지 않은 영상에서 <b>작업자가 마킹 화면에서 고른</b> 값.
+     *
+     * <p>★ <b>관제 값이 있으면 이 칸은 쓰이지 않는다.</b> 그 경우 화면이 유형 선택을 <b>아예 노출하지 않아</b>
+     * 값이 들어올 수 없다. 조달 순서는 <b>관제 인입 값 → 이 칸 → {@code null}</b> 이며, 그래서 우선순위
+     * 충돌이 구조적으로 발생하지 않는다(둘이 경쟁할 일이 없다).
+     *
+     * <p>이 값이 있으면 두 가지가 함께 풀린다 — ①그 유형의 질문 목록이 조달돼 추가 질문 축 위탁의
+     * 질문 문구가 생기고 ②묘사 축 위탁의 이벤트 유형이 채워진다. 관제 미수신 영상은 이 값이 없으면
+     * <b>시계열 메타를 하나도 받지 못한다</b>.
+     *
+     * <p>⚠ <b>선택 사항이다</b> — 고르지 않아도 마킹은 완료된다. 필수로 만들면 유형 미수신 영상의 마킹이
+     * 막혀(지금은 진행된다) 하위호환이 깨진다.
+     *
+     * <p>★ <b>물리 FK 가 없다</b> — {@code vrfcEvntQstnSn} 과 같은 이유다. 검증 이벤트 유형·질문 카탈로그는
+     * 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이고, 그 카탈로그는 <b>허용목록이 아니다</b>
+     * (목록에 없는 유형의 영상도 위탁은 그대로 나간다).
+     */
+    @Column(name = "VRFC_EVNT_TYPE_CD", length = 20)
+    private String vrfcEvntTypeCd;
+
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
@@ -207,6 +228,29 @@ public class LsMarking {
      * @param marksJson      JSON 문자열
      * @param createdBy      생성자 사용자 식별자 (nullable)
      */
+
+    /**
+     * 작업자가 마킹 화면에서 고른 <b>검증 이벤트 유형</b>을 싣는다.
+     *
+     * <p>팩토리 인자로 받지 않고 별도 메서드로 둔 이유는 이 값이 <b>관제 미수신 영상에서만</b> 들어오는
+     * 조건부 값이라, 모든 생성 경로의 인자를 늘리면 대다수 호출부가 {@code null} 만 넘기게 되기 때문이다.
+     *
+     * <p>⚠ 넘기는 값은 <b>이미 정규화가 끝난</b> 것이어야 한다 — 관제 인입이 싣는 값과 같은 값 공간이므로
+     * 정규화 규칙을 여기에 복제하지 않는다. 복제하면 인입이 대문자로 실어 보낸 값이 이쪽에서만
+     * 조달에 실패한다.
+     *
+     * <p>⚠ 값이 없으면 <b>아무 일도 하지 않는다</b> — 지어내지 않는다.
+     *
+     * @param normalizedTypeCd 정규화된 검증 이벤트 유형 코드. {@code null}·공백이면 무시한다
+     */
+    public void applySelectedEventType(String normalizedTypeCd) {
+        if (normalizedTypeCd == null || normalizedTypeCd.isBlank()) {
+            return;
+        }
+        this.vrfcEvntTypeCd = normalizedTypeCd;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
     public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy) {
         return createAuto(rawSn, intervalFrames, marksJson, createdBy, null);
     }

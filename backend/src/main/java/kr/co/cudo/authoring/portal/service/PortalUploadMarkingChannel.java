@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.service.MarkPlan;
+import kr.co.cudo.authoring.marking.service.MarkingEventType;
 import kr.co.cudo.authoring.marking.service.MarkingChannel;
 import kr.co.cudo.authoring.marking.service.MarkingTarget;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
@@ -127,9 +128,12 @@ public class PortalUploadMarkingChannel implements MarkingChannel {
     /**
      * 이 경로에는 관제 인입 검증 이벤트 유형이 오지 않는다 — 고를 축 자체가 없으므로 비워 둔다
      * (지어내지 않는다).
+     *
+     * <p>유형 인자는 언제나 {@code MarkingEventType.NONE} 이다 — 이 채널은
+     * {@code MarkingChannel#resolveEventType} 의 기본 구현(그 축 없음)을 그대로 쓴다.
      */
     @Override
-    public Long resolveQuestionSn(Long uldSn, Long requestedQstnSn) {
+    public Long resolveQuestionSn(Long uldSn, Long requestedQstnSn, MarkingEventType eventType) {
         return null;
     }
 

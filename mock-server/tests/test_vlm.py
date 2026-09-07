@@ -213,8 +213,16 @@ def test_framerate를_보내도_무시하고_수락한다_필드_폐기(client: 
     assert res.json()["status"] == "accepted"
 
 
-def test_uniform_mode를_수락한다_신규(client: TestClient) -> None:
-    """규격 §2.5 가 정의한 세 mode 중 ``uniform`` — 전 구간 균등 추출."""
+def test_uniform_mode는_거부한다_v120에서_폐기(client: TestClient) -> None:
+    """★ 구 mode ``uniform`` 은 규격 v1.2.0 §2.6 에서 **삭제**됐다 — 이제 거부돼야 한다.
+
+    이 시험은 원래 ``uniform`` 을 **수락**하는 것을 고정하고 있었다. 규격이 그 값을 없앴으므로
+    단정을 뒤집는다 — 시험을 지우지 않는 이유는, 지우면 누군가 되살렸을 때 아무도 못 잡기 때문이다.
+
+    ⚠ 실벤더는 이 경우 **400** 을 준다(규격 §2.10). 이 목은 요청 검증 전반을 **422** 로 돌려주므로
+    상태코드가 다르다 — 우리 쪽 분류(4xx 중 429 만 재시도)에서는 둘이 같게 취급되어 검증에는 지장이
+    없으나, **목과 실벤더의 알려진 차이**다. 상태코드 자체를 단정하지 않고 「거부된다」만 고정한다.
+    """
     media = {
         "type": "video",
         "source_type": "path",
@@ -222,7 +230,8 @@ def test_uniform_mode를_수락한다_신규(client: TestClient) -> None:
         "frame_policy": {"mode": "uniform"},
     }
     res = client.post(DESCRIBE_URL, json=_request_body(media=media))
-    assert res.status_code == 202
+    assert res.status_code >= 400, "폐기된 mode 가 수락됐다 — 실벤더는 400 으로 거부한다"
+    assert res.status_code != 202
 
 
 def test_정의되지_않은_mode는_거부한다(client: TestClient) -> None:

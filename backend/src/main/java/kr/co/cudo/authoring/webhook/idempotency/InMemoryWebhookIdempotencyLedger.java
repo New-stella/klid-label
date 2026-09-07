@@ -40,9 +40,24 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
 
     @Override
     public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
+        recordIssued(idempotencyKey, channel, externalJobId, rawSn, null, null);
+    }
+
+    /**
+     * 추가 질문 축 — <b>보낸 질문 문구</b>까지 보관한다.
+     *
+     * <p>디폴트 구현이 그 값을 조용히 버리면, 결과 수신부가 「보낸 값」을 그대로 넘기는 배선이
+     * 단위 시험에서 <b>전혀 검증되지 않는다</b>(장비 식별자가 실제로 그런 상태다 — 클래스 javadoc 참조).
+     * 질문 축은 산출물에 그대로 실리는 값이라 그 사각을 만들지 않는다.
+     *
+     * <p>{@code srvrId} 는 이 구현의 상태 모델에 자리가 없어 종전대로 받지 않는다.
+     */
+    @Override
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
+                             String srvrId, String qstnCn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
         ledger.putIfAbsent(idempotencyKey,
-                new Entry(State.ISSUED, externalJobId, rawSn, LocalDateTime.now(), channel));
+                new Entry(State.ISSUED, externalJobId, rawSn, LocalDateTime.now(), channel, qstnCn));
     }
 
     @Override
@@ -53,7 +68,9 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
         Long rawSn = prev == null ? null : prev.rawSn();
         LocalDateTime issuedAt = prev == null ? null : prev.issuedAt();
         String channel = prev == null ? null : prev.channel();
-        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt, channel));
+        String qstnCn = prev == null ? null : prev.qstnCn();
+        ledger.put(idempotencyKey,
+                new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt, channel, qstnCn));
     }
 
     /**

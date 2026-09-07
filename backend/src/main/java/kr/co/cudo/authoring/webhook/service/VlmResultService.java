@@ -200,7 +200,13 @@ public class VlmResultService {
         // 7) 창구별 적재 — 위 4)에서 되짚은 채널로 가른다.
         boolean descriptionChanged;
         if (subChannel) {
-            boolean drafted = resultApplier.applySubDescription(rawSn, req.results().description());
+            // ★ 질문 칸은 <b>위탁 시점에 실제로 보낸 값</b>을 원장에서 그대로 넘긴다 — 여기서도, 협력자
+            //   쪽에서도 <b>재조달하지 않는다</b>. 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는
+            //   것이 정상 동선이라, 콜백 시점에 다시 조달하면 <보낸 질문>과 <기록된 질문>이 갈리고
+            //   사업자가 받지 않은 질문이 산출물에 남는다. 보관 이전에 발급된 과거 행은 null 이며
+            //   그때 무엇을 보냈는지 알 수 없으므로 <지어내지 않고> 그대로 null 을 넘긴다.
+            boolean drafted = resultApplier.applySubDescription(
+                    rawSn, req.results().description(), entry.qstnCn());
             log.info("[Webhook][Vlm] sub result routed to event annotation draft rawSn={} drafted={}",
                     rawSn, drafted);
             descriptionChanged = false;

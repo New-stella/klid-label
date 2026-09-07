@@ -23,6 +23,8 @@ import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -67,7 +69,25 @@ public class VlmClient {
     /** 묘사 위탁 경로 — 규격 §3.2. 결과가 시계열 서술 전문을 채운다. */
     static final String DESCRIBE_PATH = "/v1/videovlm-klid/describe";
 
-    /** 추가 질문 위탁 경로 — 규격 §3.3. 결과가 이벤트 어노테이션의 질의응답 축 초안을 채운다. */
+    /**
+     * <b>추가 질문 위탁 경로</b> — 규격 §3.4. 결과가 이벤트 어노테이션의 질의응답 축 초안을 채운다.
+     *
+     * <p>이 창구는 <b>이벤트 유형을 쓰지 않고 질문 문구를 요청 본문({@code prompt})에 직접</b> 싣는다.
+     * 벤더 가이드가 구 추가 질문 창구 대신 이 창구를 쓰라고 안내했다.
+     */
+    static final String CUSTOM_PATH = "/v1/videovlm-klid/custom";
+
+    /**
+     * [폐기] 구 추가 질문 위탁 경로 — <b>연동 대상으로 두지 않는다</b>(설계 결정).
+     *
+     * <p>⚠ 벤더는 이 창구를 <b>계속 제공</b>한다 — 없어진 것이 아니라 우리가 쓰지 않는 것이다.
+     * 이미 이 창구로 받아 적재된 결과는 <b>작업 결과라 보존</b>하며, 원장 채널 식별자
+     * ({@link kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency#CHANNEL_VLM_SUB})도
+     * <b>그대로 둔다</b> — 창구가 바뀐 것이지 축이 바뀐 게 아니고, 그 값은 이미 적재된 행의
+     * 역조회 키이자 미결 회수의 대상 목록이다.
+     *
+     * <p>상수를 남기는 것은 과거 기록을 읽는 사람이 「그때 무엇으로 보냈는가」를 알 수 있게 하기 위함이다.
+     */
     static final String DESCRIBE_SUB_PATH = "/v1/videovlm-klid/describe-sub";
 
     /** 서버 상태 조회 경로 — 규격 §3.5. 위탁 전 처리 가능 여부 확인용. */
@@ -154,7 +174,7 @@ public class VlmClient {
      * 위탁이 두 장비의 부하를 동시에 올린 것처럼 보인다.
      */
     public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request, String srvrAddr) {
-        return submit(DESCRIBE_SUB_PATH, "describe-sub", request, srvrAddr);
+        return submit(CUSTOM_PATH, "custom", request, srvrAddr);
     }
 
     /**
@@ -183,7 +203,7 @@ public class VlmClient {
         Objects.requireNonNull(request, "request must not be null");
         String requestId = resolveRequestId(request.requestId());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
-                requestId, request.eventType(), request.media(), request.callbackUrl());
+                requestId, request.eventType(), request.media(), request.callbackUrl(), request.prompt());
 
         // ★ 장비를 골랐으면 그 장비로 <실제로> 나가야 한다. 상대 경로로 두면 빈 생성 시점의 base 나
         //   설정 override 로 흘러가고, 그러면 위탁 원장에는 「A 로 보냈다」가 남는데 요청은 B 로 간다 —
@@ -288,11 +308,64 @@ public class VlmClient {
      */
     private Mono<Throwable> toNonRetryable4xx(ClientResponse response) {
         int status = response.statusCode().value();
-        log.warn("[Vlm] non-retryable 4xx status={}", status);
-        return response.releaseBody()
-                .then(Mono.error(new NonRetryableExternalException(
-                        "시계열 분석 위탁 4xx 응답(status=" + status + ")")));
+        return response.bodyToMono(String.class)
+                .defaultIfEmpty("")
+                .onErrorReturn("")
+                .map(body -> {
+                    Integer vendorCode = extractVendorCode(body);
+                    if (vendorCode != null) {
+                        log.warn("[Vlm] non-retryable 4xx status={} vendorCode={}", status, vendorCode);
+                    } else {
+                        log.warn("[Vlm] non-retryable 4xx status={}", status);
+                    }
+                    return (Throwable) new NonRetryableExternalException(
+                            "시계열 분석 위탁 4xx 응답(status=" + status + ")", status, vendorCode);
+                })
+                .flatMap(Mono::error);
     }
+
+    /**
+     * 4xx 본문에서 <b>벤더 오류 코드(정수)만</b> 뽑는다 — 규격 §2.10.
+     *
+     * <p>규격은 <b>정의되지 않은 이벤트 유형일 때만</b> 본문에 {@code code} 를 싣고 그 밖의 오류는
+     * {@code detail} 만 준다고 못 박는다. 그래서 이 값이 있으면 <b>「미지원 이벤트 유형」의 단일 근거</b>다.
+     * 저작도구는 이벤트 유형을 우리 허용목록으로 사전 차단하지 않고 <b>벤더 응답이 판정하게</b> 하므로,
+     * 그것이 없으면 실패 기록이 "4xx 응답"으로만 남아 <b>왜 거부됐는지 알 수 없다</b>.
+     *
+     * <p>★ <b>적용 축은 묘사 하나다</b> — 추가 질문 축은 이벤트 유형을 보내지 않아 이 코드가 나올 수 없다.
+     *
+     * <p>⚠ <b>본문 원문을 남기지 않는다</b>(CWE-209). 정수 코드만 꺼내고 문자열은 버린다.
+     * <p>⚠ 본문이 JSON 이 아니거나 {@code code} 가 없거나 정수가 아니어도 <b>예외를 던지지 않는다</b> —
+     * 그것이 정상 응답이며, 되받을 수 없는 입구에서의 엄격함은 곧 손실이다. {@code null} 을 돌려
+     * 기존 동작(일반 비재시도 4xx)으로 떨어뜨린다.
+     */
+    private static Integer extractVendorCode(String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        Matcher m = VENDOR_CODE_PATTERN.matcher(body);
+        if (!m.find()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(m.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 본문 최상위 {@code "code": <정수>} 만 집는 패턴.
+     *
+     * <p>본문 전체를 객체로 역직렬화하지 않는 이유는 벤더가 필드를 더하거나 모양을 바꿔도
+     * <b>이 판독이 깨지면 안 되기 때문</b>이다. 이 값 하나 말고는 아무것도 쓰지 않는다.
+     *
+     * <p>★ 뒤의 {@code (?!\d)} 는 <b>자릿수 경계</b>다. 없으면 상한을 넘는 긴 수에서 <b>앞 9자리만
+     * 잘라</b> {@code 400011111} 같은 <b>존재하지 않는 코드를 지어낸다</b>. 못 읽는 것보다 나쁘다 —
+     * 없는 사유가 기록에 남는다.
+     */
+    private static final Pattern VENDOR_CODE_PATTERN =
+            Pattern.compile("\"code\"\\s*:\\s*(-?\\d{1,9})(?!\\d)");
 
     /**
      * 호출자가 request_id 를 제공하지 않으면 UUIDv4 로 방어적 발급.

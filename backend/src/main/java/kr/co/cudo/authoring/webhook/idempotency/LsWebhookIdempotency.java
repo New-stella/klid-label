@@ -110,6 +110,24 @@ public class LsWebhookIdempotency {
     @Column(name = "APLCN_DT")
     private LocalDateTime aplcnDt;
 
+    /**
+     * <b>질문내용</b> — 위탁 시점에 외부 분석 서버로 <b>보낸 질문 문구 전문</b>. 묘사 축 행에는 없다(null).
+     *
+     * <p>추가 질문 축의 위탁이 이벤트 유형 대신 <b>질문 문구를 요청 본문에 직접</b> 싣게 되면서,
+     * 위탁 시점의 이 값이 <b>실제로 사업자에게 나간 값</b>이 됐다. 콜백 수신부는 이 값을 읽어
+     * 이벤트 어노테이션의 질문 칸을 채우고 <b>재조달하지 않는다</b>.
+     *
+     * <p>★ <b>왜 재조달하면 안 되는가</b> — 질문 목록은 <b>전체 교체</b>로 저장되고 가리키던 행이
+     * 사라지는 것이 <b>정상 동선</b>이다. 재조달하면 그 사이에 <b>보낸 질문과 기록된 질문이 갈린다</b>.
+     * 콜백이 이미 요청 식별자로 이 행을 역조회하므로 보관 자리로 자연스럽고, 재위탁·도착순서 문제가
+     * 구조적으로 해결된다(위탁 1건 = 원장 1행).
+     *
+     * <p>⚠ 질문 <b>식별자가 아니라 문구 전문</b>을 담는다. 식별자만 두면 그 행이 사라졌을 때 다시
+     * 읽을 수 없어 보장이 성립하지 않는다.
+     */
+    @Column(name = "QSTN_CN", length = 4000)
+    private String qstnCn;
+
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
@@ -132,6 +150,20 @@ public class LsWebhookIdempotency {
      */
     public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId,
                                              Long rawSn, String srvrId) {
+        return issue(idempotencyKey, channel, externalJobId, rawSn, srvrId, null);
+    }
+
+    /**
+     * 발급 — <b>보낸 질문 문구</b>까지 남긴다. [@design ERD-021]
+     *
+     * <p>추가 질문 축은 질문 문구를 요청 본문에 직접 실으므로, 그 문구를 여기 함께 보관해
+     * 콜백 수신부가 <b>재조달 없이</b> 읽게 한다.
+     *
+     * @param qstnCn 위탁 시점에 보낸 질문 문구 전문. 묘사 축이거나 실을 문구가 없었으면 {@code null}
+     *               (지어내지 않는다 — 없는 것을 채우면 보낸 적 없는 질문이 산출물에 남는다)
+     */
+    public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId,
+                                             Long rawSn, String srvrId, String qstnCn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotencyKey 는 필수입니다.");
         }
@@ -145,6 +177,7 @@ public class LsWebhookIdempotency {
         entity.otsdJobId = externalJobId;
         entity.rawSn = rawSn;
         entity.srvrId = srvrId;
+        entity.qstnCn = qstnCn;
         LocalDateTime now = LocalDateTime.now();
         entity.regDt = now;
         entity.mdfcnDt = now;

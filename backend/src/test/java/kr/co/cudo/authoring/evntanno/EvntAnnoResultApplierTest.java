@@ -9,6 +9,9 @@ import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import kr.co.cudo.authoring.evntanno.service.EvntAnnoResultApplier;
 import kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader;
+import kr.co.cudo.authoring.evntanno.service.VerificationEventTypeResolver;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -28,6 +31,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -45,8 +49,13 @@ import static org.mockito.Mockito.when;
  * 아무 시험으로도 고정돼 있지 않았다</b>. 그래서 수용기준뿐 아니라 그 경계들을 함께 못박는다.
  *
  * <p>적재 축(2026-08-25 확정): 추가 질문 → {@code caption.c1.caption_text} · 묘사의 「상황」 →
- * {@code caption.c1.cot["1단계"]} · 질문 → 검증 이벤트 유형별 질문 문구 카탈로그.
+ * {@code caption.c1.cot["1단계"]} · 질문 → <b>위탁 시점에 실제로 보낸 문구</b>.
  * {@code answer}·{@code evidence}·2단계 이후는 <b>사람이 채울 공란</b>이다.
+ *
+ * <p>★ <b>질문 축이 「보관한 값」에서 「보낸 값」으로 바뀌었다.</b> 구 판은 콜백 시점에 조달 판정기와
+ * 마킹 선택값을 <b>다시 읽어</b> 채웠다. 그 사이에 질문 목록이 전체 교체되면(그것이 정상 동선이다)
+ * <b>보낸 질문과 기록된 질문이 갈린다</b>. 이제 위탁 시점에 보낸 문구가 상관키 원장에 보관되고
+ * 콜백 수신부가 그 값을 넘겨 주므로, 이 클래스는 <b>받아 적기만</b> 한다.
  */
 class EvntAnnoResultApplierTest {
 
@@ -54,7 +63,6 @@ class EvntAnnoResultApplierTest {
     private static final long EVNT_ANNO_SN = 77L;
     private static final String VRFC_EVNT_TYPE = "fire";
     private static final String EVENT_CLASS = "fire";
-    private static final long SELECTED_QSTN_SN = 512L;
     private static final String QUESTION = "화재가 발생했습니까? 근거를 서술하십시오.";
     private static final String SUB_TEXT = "네, 연기와 불꽃이 함께 관측됩니다.";
     private static final String SITUATION = "불꽃은 확인되지 않음";
@@ -68,9 +76,8 @@ class EvntAnnoResultApplierTest {
     private LsEvntAnnoRepository annoRepository;
     private LsEvntAnnoReviewRepository reviewRepository;
     private IngestSourceRepository ingestSourceRepository;
+    private LsMarkingRepository markingRepository;
     private ReviewApprovalGate approvalGate;
-    private VerificationEventQuestionResolver questionResolver;
-    private MarkingSelectedQuestionReader selectedQuestionReader;
 
     private EvntAnnoResultApplier applier;
 
@@ -79,18 +86,24 @@ class EvntAnnoResultApplierTest {
         annoRepository = mock(LsEvntAnnoRepository.class);
         reviewRepository = mock(LsEvntAnnoReviewRepository.class);
         ingestSourceRepository = mock(IngestSourceRepository.class);
+        markingRepository = mock(LsMarkingRepository.class);
         approvalGate = mock(ReviewApprovalGate.class);
-        questionResolver = mock(VerificationEventQuestionResolver.class);
-        selectedQuestionReader = mock(MarkingSelectedQuestionReader.class);
+        // ★ 조달 협력자는 목이 아니라 <b>실제 객체</b>로 조립한다 — 이 시험이 고정하려는 것이
+        //  「초안 적재가 확정된 조달 순서를 실제로 탄다」이기 때문이다. 목으로 두면 적재가 관제 인입만
+        //  보도록 되돌아가도 이 시험은 초록으로 남는다(그 상태가 바로 이번 변경 이전의 결함이었다).
         applier = new EvntAnnoResultApplier(annoRepository, reviewRepository,
-                ingestSourceRepository, approvalGate, questionResolver, selectedQuestionReader);
+                new VerificationEventTypeResolver(
+                        ingestSourceRepository, new MarkingSelectedQuestionReader(markingRepository)),
+                approvalGate);
 
+        when(markingRepository.findByRawSnAndSttsCdIn(anyLong(), any())).thenReturn(List.of());
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(anyLong())).thenReturn(List.of());
         stubIngestType(VRFC_EVNT_TYPE);
-        // 기본 형상 = 마킹이 질문을 고르지 않았다 — 조달 판정기가 「첫 번째」로 되돌린다.
-        // ⚠ null 을 명시적으로 지정해야 한다. Mockito 는 래퍼 반환 타입에 null 이 아니라 기본값(0L)을
-        //   돌려주므로, 이 줄이 없으면 선택값 0 이 흘러가 아래 조달 스텁이 조용히 빗나간다.
-        when(selectedQuestionReader.findSelectedQuestionSn(RAW_SN)).thenReturn(null);
-        when(questionResolver.resolveQuestionText(null, VRFC_EVNT_TYPE)).thenReturn(Optional.of(QUESTION));
+    }
+
+    /** 추가 질문 축의 정상 형상 — 위탁 시점에 보낸 문구가 콜백 수신부에서 함께 넘어온다. */
+    private boolean applySub(String description) {
+        return applier.applySubDescription(RAW_SN, description, QUESTION);
     }
 
     // ------------------------------------------------------------------ 수용기준 1·2
@@ -98,7 +111,7 @@ class EvntAnnoResultApplierTest {
     @Test
     @DisplayName("추가질문_수신시_캡션본문이_채워지고_답변은_비어있다")
     void subDescriptionFillsCaptionTextAndLeavesAnswerEmpty() {
-        boolean drafted = applier.applySubDescription(RAW_SN, SUB_TEXT);
+        boolean drafted = applySub(SUB_TEXT);
 
         assertThat(drafted).isTrue();
         EventAnnotationPayload payload = captureCreated();
@@ -146,7 +159,7 @@ class EvntAnnoResultApplierTest {
     @Test
     @DisplayName("추가질문이_먼저_와도_뒤에_온_묘사가_같은_후보에_사고단계를_덧붙인다")
     void subThenDescriptionKeepsBothFields() {
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+        applySub(SUB_TEXT);
         EventAnnotationPayload afterSub = captureCreated();
 
         LsEvntAnno anno = stubExisting(afterSub);
@@ -165,7 +178,7 @@ class EvntAnnoResultApplierTest {
         EventAnnotationPayload afterDescription = captureCreated();
 
         LsEvntAnno anno = stubExisting(afterDescription);
-        boolean drafted = applier.applySubDescription(RAW_SN, SUB_TEXT);
+        boolean drafted = applySub(SUB_TEXT);
 
         assertThat(drafted).isTrue();
         CaptionCandidate merged = captureUpdated(anno).caption().get(CANDIDATE);
@@ -181,21 +194,25 @@ class EvntAnnoResultApplierTest {
         caption.put("c2", c2);
         LsEvntAnno anno = stubExisting(payload(caption, null));
 
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+        applySub(SUB_TEXT);
 
         Map<String, CaptionCandidate> result = captureUpdated(anno).caption();
         assertThat(result.get("c2")).isEqualTo(c2);
         assertThat(result.get(CANDIDATE).captionText()).isEqualTo(SUB_TEXT);
     }
 
-    // ------------------------------------------------------------------ 수용기준 6 (질문 조달)
+    // ------------------------------------------- 수용기준 6 (질문 칸 = 실제로 보낸 값)
 
     @Test
-    @DisplayName("질문은_검증이벤트유형별_질문문구_카탈로그에서_조달된다")
-    void questionComesFromCatalog() {
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+    @DisplayName("★질문은_위탁_시점에_실제로_보낸_문구가_그대로_실린다")
+    void questionIsTheTextActuallySent() {
+        String sent = "연기가 관측됩니까? 근거를 서술하십시오.";
 
-        assertThat(captureCreated().question()).isEqualTo(QUESTION);
+        applier.applySubDescription(RAW_SN, SUB_TEXT, sent);
+
+        assertThat(captureCreated().question())
+                .as("보낸 질문 = 기록된 질문 — 콜백 시점에 다시 조달하지 않는다")
+                .isEqualTo(sent);
     }
 
     @Test
@@ -205,104 +222,102 @@ class EvntAnnoResultApplierTest {
         LsEvntAnno anno = stubExisting(new EventAnnotationPayload(
                 EVENT_CLASS, humanQuestion, null, null, null));
 
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+        applySub(SUB_TEXT);
 
         assertThat(captureUpdated(anno).question()).isEqualTo(humanQuestion);
     }
 
     @Test
-    @DisplayName("유형이나_질문이_카탈로그에_없으면_질문은_비어있고_지어내지_않는다")
-    void leavesQuestionEmptyWhenCatalogHasNone() {
-        when(questionResolver.resolveQuestionText(null, VRFC_EVNT_TYPE)).thenReturn(Optional.empty());
-
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+    @DisplayName("★보낸_질문이_없으면_질문은_비어있고_지어내지_않는다")
+    void leavesQuestionEmptyWhenNothingWasSent() {
+        // 조달이 비어 질문 없이 위탁된 건 — 사업자가 받은 질문이 없으므로 기록할 질문도 없다.
+        applier.applySubDescription(RAW_SN, SUB_TEXT, null);
 
         EventAnnotationPayload payload = captureCreated();
         assertThat(payload.question()).isNull();
         assertThat(payload.caption().get(CANDIDATE).captionText()).isEqualTo(SUB_TEXT);
     }
 
-    // ------------------------------------------------------- 수용기준 1·5·7 (마킹 선택 질문 배선)
+    @Test
+    @DisplayName("★보관값이_없는_과거_행은_소급해_채우지_않는다_공백도_마찬가지")
+    void doesNotBackfillLegacyRowsWithoutStoredQuestion() {
+        // 보관 도입 이전 행은 null 이고, 그때 무엇을 보냈는지 알 수 없다.
+        // 공백 문자열도 「보낸 질문이 있다」로 읽지 않는다.
+        applier.applySubDescription(RAW_SN, SUB_TEXT, "   ");
+
+        assertThat(captureCreated().question()).isNull();
+    }
+
+    // ------------------------------------- 수용기준 1·5·7 (재조달이 사라졌다 — 구조로 고정)
 
     @Test
-    @DisplayName("★마킹이_고른_질문이_있으면_그_질문이_실린다")
-    void usesQuestionSelectedByMarking() {
-        String selectedText = "연기가 관측됩니까? 근거를 서술하십시오.";
-        when(selectedQuestionReader.findSelectedQuestionSn(RAW_SN)).thenReturn(SELECTED_QSTN_SN);
-        when(questionResolver.resolveQuestionText(SELECTED_QSTN_SN, VRFC_EVNT_TYPE))
-                .thenReturn(Optional.of(selectedText));
+    @DisplayName("★묘사_축은_질문을_보내지_않으므로_질문_칸을_채우지_않는다")
+    void descriptionAxisDoesNotFillQuestion() {
+        applier.applyDescription(RAW_SN, DESCRIPTION);
 
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
-
-        assertThat(captureCreated().question())
-                .as("1순위 조달값은 마킹이 고른 질문이다")
-                .isEqualTo(selectedText);
+        EventAnnotationPayload payload = captureCreated();
+        assertThat(payload.question())
+                .as("묘사 축 위탁 본문에는 질문이 없다 — 보낸 적 없는 값을 지어내지 않는다")
+                .isNull();
+        assertThat(payload.caption().get(CANDIDATE).cot()).containsEntry(FIRST_STEP, SITUATION);
     }
 
     @Test
-    @DisplayName("★묘사_축에서도_마킹이_고른_질문이_실린다_두_창구_동일")
-    void usesQuestionSelectedByMarkingOnDescriptionAxisToo() {
-        String selectedText = "연기가 관측됩니까? 근거를 서술하십시오.";
-        when(selectedQuestionReader.findSelectedQuestionSn(RAW_SN)).thenReturn(SELECTED_QSTN_SN);
-        when(questionResolver.resolveQuestionText(SELECTED_QSTN_SN, VRFC_EVNT_TYPE))
-                .thenReturn(Optional.of(selectedText));
+    @DisplayName("★추가질문이_질문을_채운_뒤_묘사가_와도_그_질문을_덮거나_지우지_않는다")
+    void laterDescriptionKeepsTheSentQuestion() {
+        applySub(SUB_TEXT);
+        LsEvntAnno anno = stubExisting(captureCreated());
 
         applier.applyDescription(RAW_SN, DESCRIPTION);
 
-        assertThat(captureCreated().question()).isEqualTo(selectedText);
+        assertThat(captureUpdated(anno).question()).isEqualTo(QUESTION);
     }
 
     @Test
-    @DisplayName("★소속_판정과_첫번째_폴백은_조달_판정기의_몫이라_선택값을_그대로_넘긴다")
-    void passesSelectedValueThroughWithoutRejudging() {
-        // 그 유형에 속하지 않는 선택값이어도 여기서 거르지 않는다 — 판정기가 첫 번째로 교정한다.
-        long strayQstnSn = 999_999L;
-        when(selectedQuestionReader.findSelectedQuestionSn(RAW_SN)).thenReturn(strayQstnSn);
-        when(questionResolver.resolveQuestionText(strayQstnSn, VRFC_EVNT_TYPE))
-                .thenReturn(Optional.of(QUESTION));
+    @DisplayName("★★조달_판정기도_마킹_선택값_읽기도_협력자로_갖지_않는다_재조달_경로_소멸")
+    void hasNoRequeryCollaboratorsAtAll() {
+        List<Class<?>> types = Arrays.stream(EvntAnnoResultApplier.class.getDeclaredFields())
+                .map(Field::getType)
+                .collect(java.util.stream.Collectors.toList());
 
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
-
-        verify(questionResolver).resolveQuestionText(strayQstnSn, VRFC_EVNT_TYPE);
-        assertThat(captureCreated().question())
-                .as("판정기가 되돌린 첫 번째 질문이 그대로 실린다")
-                .isEqualTo(QUESTION);
-    }
-
-    @Test
-    @DisplayName("★질문이_이미_있으면_마킹을_읽지도_않는다")
-    void doesNotReadMarkingWhenQuestionAlreadyPresent() {
-        stubExisting(new EventAnnotationPayload(EVENT_CLASS, "사람이 고쳐 쓴 질문", null, null, null));
-
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
-
-        verify(selectedQuestionReader, never()).findSelectedQuestionSn(any());
+        assertThat(types)
+                .as("질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이다. "
+                        + "콜백 시점에 다시 조달하면 보낸 질문과 기록된 질문이 갈린다 — "
+                        + "그래서 조달 경로를 협력자 수준에서 없앤다(호출을 지우는 것만으로는 되살아난다)")
+                .doesNotContain(VerificationEventQuestionResolver.class)
+                .doesNotContain(MarkingSelectedQuestionReader.class);
     }
 
     // ------------------------------------------------------------------ 수용기준 8 (사고단계 상한)
 
     @Test
-    @DisplayName("상황값이_사고단계_상한을_넘으면_그_칸만_건너뛰고_나머지_적재는_성공한다")
+    @DisplayName("상황값이_사고단계_상한을_넘으면_그_칸만_건너뛰고_먼저_채워진_값은_그대로_둔다")
     void overLimitSituationSkipsOnlyTheCotStep() {
+        // 추가 질문 축이 먼저 도착해 캡션 본문과 질문을 채워 둔 상태
+        applySub(SUB_TEXT);
+        LsEvntAnno anno = stubExisting(captureCreated());
         String tooLong = "가".repeat(EventAnnotationPayload.MAX_COT_STEP + 1);
 
         boolean drafted = applier.applyDescription(RAW_SN, "- 상황: " + tooLong);
 
-        assertThat(drafted).as("자르지도 던지지도 않고 나머지 적재는 진행한다").isTrue();
-        EventAnnotationPayload payload = captureCreated();
-        assertThat(payload.question()).isEqualTo(QUESTION);
-        assertThat(payload.caption()).as("상한을 넘는 값을 잘라 넣지 않는다").isNullOrEmpty();
+        assertThat(drafted).as("채울 칸이 없으므로 아무것도 바꾸지 않는다").isFalse();
+        verify(anno, never()).updatePayload(anyString(), anyString());
+        EventAnnotationPayload kept = EventAnnotationPayload.fromJson(anno.getAnnoCn());
+        assertThat(kept.question()).as("먼저 채워진 값은 그대로다").isEqualTo(QUESTION);
+        assertThat(kept.caption().get(CANDIDATE).captionText()).isEqualTo(SUB_TEXT);
+        assertThat(kept.caption().get(CANDIDATE).cot())
+                .as("상한을 넘는 값을 잘라 넣지 않는다")
+                .isNullOrEmpty();
     }
 
     @Test
-    @DisplayName("상한을_넘고_질문도_없으면_분류만_든_껍데기_행을_만들지_않는다")
-    void overLimitWithNoQuestionCreatesNothing() {
-        when(questionResolver.resolveQuestionText(null, VRFC_EVNT_TYPE)).thenReturn(Optional.empty());
+    @DisplayName("상한을_넘으면_분류만_든_껍데기_행을_만들지_않는다_묘사축은_질문도_안_채운다")
+    void overLimitCreatesNothing() {
         String tooLong = "가".repeat(EventAnnotationPayload.MAX_COT_STEP + 1);
 
         boolean drafted = applier.applyDescription(RAW_SN, "- 상황: " + tooLong);
 
-        assertThat(drafted).isFalse();
+        assertThat(drafted).as("자르지도 던지지도 않는다").isFalse();
         verify(annoRepository, never()).save(any());
     }
 
@@ -313,7 +328,7 @@ class EvntAnnoResultApplierTest {
     void skipsWhenEverApproved() {
         when(approvalGate.hasEverApproved(RAW_SN)).thenReturn(true);
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+        assertThat(applySub(SUB_TEXT)).isFalse();
         assertThat(applier.applyDescription(RAW_SN, DESCRIPTION)).isFalse();
         verifyNoInteractions(annoRepository);
     }
@@ -327,7 +342,7 @@ class EvntAnnoResultApplierTest {
         caption.put(CANDIDATE, new CaptionCandidate("사람이 쓴 캡션", cot));
         LsEvntAnno anno = stubExisting(payload(caption, QUESTION));
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+        assertThat(applySub(SUB_TEXT)).isFalse();
         assertThat(applier.applyDescription(RAW_SN, DESCRIPTION)).isFalse();
         verify(anno, never()).updatePayload(anyString(), anyString());
     }
@@ -350,30 +365,66 @@ class EvntAnnoResultApplierTest {
         LsEvntAnno anno = stubExisting(payload(null, null));
         stubReviewStatus(LsEvntAnnoReview.STTS_PENDING);
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isTrue();
+        assertThat(applySub(SUB_TEXT)).isTrue();
         assertThat(captureUpdated(anno).caption().get(CANDIDATE).captionText()).isEqualTo(SUB_TEXT);
     }
 
     @Test
     @DisplayName("같은_결과를_다시_받아도_두_번째부터는_아무것도_하지_않는다_멱등")
     void isIdempotentOnDuplicateCallback() {
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+        applySub(SUB_TEXT);
         EventAnnotationPayload first = captureCreated();
 
         LsEvntAnno anno = stubExisting(first);
-        boolean second = applier.applySubDescription(RAW_SN, SUB_TEXT);
+        boolean second = applySub(SUB_TEXT);
 
         assertThat(second).isFalse();
         verify(anno, never()).updatePayload(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("검증이벤트유형이_없으면_분류를_지어내지_않고_행을_만들지_않는다")
+    @DisplayName("검증이벤트유형이_어느_쪽에도_없으면_분류를_지어내지_않고_행을_만들지_않는다")
     void skipsCreateWhenEventClassUnavailable() {
         stubIngestType(null);
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+        assertThat(applySub(SUB_TEXT)).isFalse();
         assertThat(applier.applyDescription(RAW_SN, DESCRIPTION)).isFalse();
+        verify(annoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("★관제가_유형을_보내지_않아도_마킹에서_고른_유형이_있으면_그_값으로_초안이_만들어진다")
+    void createsDraftFromMarkingSelectedTypeWhenIngestHasNone() {
+        stubIngestType(null);
+        stubMarkingSelectedType("flooding");
+
+        assertThat(applySub(SUB_TEXT))
+                .as("관제 미수신 영상이 어노테이션 초안을 영영 못 받던 자리다 — 2순위가 그것을 연다")
+                .isTrue();
+        assertThat(captureCreated().eventClass()).isEqualTo("flooding");
+    }
+
+    @Test
+    @DisplayName("★관제_유형이_있으면_1순위_그대로다_마킹_선택값이_있어도_밀리지_않는다")
+    void ingestTypeStaysFirstEvenWhenMarkingAlsoHasOne() {
+        stubMarkingSelectedType("flooding");
+
+        assertThat(applySub(SUB_TEXT)).isTrue();
+        assertThat(captureCreated().eventClass())
+                .as("관제 값이 있으면 그것이 진실원이다")
+                .isEqualTo(EVENT_CLASS);
+    }
+
+    @Test
+    @DisplayName("★마킹에서_분류만_얻고_채울_다른_값이_없으면_껍데기_행을_만들지_않는다")
+    void doesNotCreateShellRowWhenOnlyEventClassIsAvailable() {
+        stubIngestType(null);
+        stubMarkingSelectedType("flooding");
+        // 「상황」 줄은 있으나 값이 사고 단계 상한을 넘어 그 칸만 건너뛴다 — 분류는 얻었는데
+        //  채울 칸이 하나도 없는 형상이며, 2순위가 열리면서 새로 도달 가능해진 자리다.
+        String tooLong = "가".repeat(EventAnnotationPayload.MAX_COT_STEP + 1);
+
+        assertThat(applier.applyDescription(RAW_SN, "- 상황: " + tooLong)).isFalse();
         verify(annoRepository, never()).save(any());
     }
 
@@ -382,7 +433,7 @@ class EvntAnnoResultApplierTest {
     void skipsCreateWhenIngestRowMissing() {
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(null);
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+        assertThat(applySub(SUB_TEXT)).isFalse();
         verify(annoRepository, never()).save(any());
     }
 
@@ -394,7 +445,7 @@ class EvntAnnoResultApplierTest {
         when(annoRepository.findByRawSn(RAW_SN)).thenReturn(Optional.of(anno));
 
         assertThatCode(() -> {
-            assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+            assertThat(applySub(SUB_TEXT)).isFalse();
             assertThat(applier.applyDescription(RAW_SN, DESCRIPTION)).isFalse();
         }).doesNotThrowAnyException();
         verify(anno, never()).updatePayload(anyString(), anyString());
@@ -405,7 +456,7 @@ class EvntAnnoResultApplierTest {
     void marksDraftActor() {
         LsEvntAnno anno = stubExisting(payload(null, null));
 
-        applier.applySubDescription(RAW_SN, SUB_TEXT);
+        applySub(SUB_TEXT);
 
         verify(anno).updatePayload(anyString(), eq(DRAFT_ACTOR));
     }
@@ -425,9 +476,9 @@ class EvntAnnoResultApplierTest {
     @Test
     @DisplayName("rawSn_이나_서술이_비어있으면_아무것도_하지_않는다")
     void ignoresBlankInput() {
-        assertThat(applier.applySubDescription(null, SUB_TEXT)).isFalse();
-        assertThat(applier.applySubDescription(RAW_SN, "   ")).isFalse();
-        assertThat(applier.applySubDescription(RAW_SN, null)).isFalse();
+        assertThat(applier.applySubDescription(null, SUB_TEXT, QUESTION)).isFalse();
+        assertThat(applier.applySubDescription(RAW_SN, "   ", QUESTION)).isFalse();
+        assertThat(applier.applySubDescription(RAW_SN, null, QUESTION)).isFalse();
         assertThat(applier.applyDescription(null, DESCRIPTION)).isFalse();
         assertThat(applier.applyDescription(RAW_SN, "  ")).isFalse();
         assertThat(applier.applyDescription(RAW_SN, null)).isFalse();
@@ -440,7 +491,7 @@ class EvntAnnoResultApplierTest {
         LsEvntAnno anno = stubExisting(payload(null, null));
         stubReviewStatus(status);
 
-        assertThat(applier.applySubDescription(RAW_SN, SUB_TEXT)).isFalse();
+        assertThat(applySub(SUB_TEXT)).isFalse();
         assertThat(applier.applyDescription(RAW_SN, DESCRIPTION)).isFalse();
         verify(anno, never()).updatePayload(anyString(), anyString());
     }
@@ -455,6 +506,13 @@ class EvntAnnoResultApplierTest {
         IngestSourceRow row = mock(IngestSourceRow.class);
         when(row.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(row);
+    }
+
+    /** 관제가 유형을 보내지 않은 영상에서 작업자가 마킹 화면에서 고른 유형. */
+    private void stubMarkingSelectedType(String vrfcEvntTypeCd) {
+        LsMarking marking = mock(LsMarking.class);
+        when(marking.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
+        when(markingRepository.findByRawSnAndSttsCdIn(eq(RAW_SN), any())).thenReturn(List.of(marking));
     }
 
     private static EventAnnotationPayload payload(Map<String, CaptionCandidate> caption, String question) {

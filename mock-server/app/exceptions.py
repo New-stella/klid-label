@@ -30,11 +30,16 @@ __all__ = [
 class MockApiError(Exception):
     """목 서버 규격 오류 — 상태코드 + 사용자 노출 가능 메시지."""
 
-    def __init__(self, status_code: int, message: str, error_code: str = "MOCK_API_ERROR") -> None:
+    def __init__(self, status_code: int, message: str, error_code: str = "MOCK_API_ERROR",
+                 vendor_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.message = message
         self.error_code = error_code
+        # 사업자 규격이 <특정 상황에만> 본문에 싣는 숫자 코드(예: 정의되지 않은 event_type).
+        #   ★ 그 밖의 오류에는 실리지 않는 것이 규격이므로 기본값은 None 이다 — 늘 실으면
+        #     연동 시스템이 그 코드로 사유를 가르지 못한다.
+        self.vendor_code = vendor_code
 
 
 class GenAiApiError(MockApiError):
@@ -49,8 +54,15 @@ class GenAiApiError(MockApiError):
         self.code = code
 
 
-def _err(error_code: str, message: str, status_code: int) -> JSONResponse:
+def _err(error_code: str, message: str, status_code: int,
+         vendor_code: int | None = None, detail: str | None = None) -> JSONResponse:
     payload = ErrorResponse(error_code=error_code, message=message).model_dump()
+    # 사업자 규격 형태(detail · 조건부 code)를 함께 싣는다 — 목 공통 필드는 그대로 두어
+    #   기존 소비자를 깨지 않는다(둘은 같은 사실의 두 표기다).
+    if detail is not None:
+        payload["detail"] = detail
+    if vendor_code is not None:
+        payload["code"] = vendor_code
     return JSONResponse(status_code=status_code, content=payload)
 
 
@@ -64,7 +76,8 @@ def register_exception_handlers(app: FastAPI) -> None:
             sanitize_for_log(exc.error_code),
             sanitize_for_log(exc.message),
         )
-        return _err(exc.error_code, exc.message, exc.status_code)
+        return _err(exc.error_code, exc.message, exc.status_code,
+                    vendor_code=getattr(exc, "vendor_code", None), detail=exc.message)
 
     @app.exception_handler(GenAiApiError)
     async def _genai_api_error(_: Request, exc: GenAiApiError) -> JSONResponse:

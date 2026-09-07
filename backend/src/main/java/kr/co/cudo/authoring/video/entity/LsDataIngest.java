@@ -129,22 +129,28 @@ public class LsDataIngest {
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     /**
-     * <b>검증이벤트유형</b>({@link #vrfcEvntTypeCd}) 허용값 — 외부 VLM 검증 API 의 {@code event_type}
-     * enum 6종이며 <b>단일 진실원</b>이다 (V176 — @req R5).
+     * <b>검증이벤트유형</b>({@link #vrfcEvntTypeCd}) <b>프리셋</b> — 외부 시계열 분석 사업자가 지원하는
+     * {@code event_type} 7종이다 (V176 — @req R5).
+     *
+     * <h3>★ 허용목록이 아니라 프리셋이다 (되돌리지 말 것)</h3>
+     * <p>자주 쓰는 값의 모음이자 <b>화면 드롭다운 소스</b>일 뿐이며 <b>판정에 쓰지 않는다</b>. 이
+     * 저장소는 2026-08-06 에 사전 차단을 <b>폐기</b>했다 — 우리가 벤더 목록의 사본을 들면 벤더가 값을
+     * 넓힐 때 <b>정상 값을 우리가 먼저 막는다</b>. 우리 쓰기 통로의 판정은 목록이 아니라
+     * <b>형식</b>({@link #isVrfcEvntTypeFormatValid})이고, 위탁 수용 여부는 벤더 응답이 정한다.
+     * <b>이 집합으로 게이팅하는 코드를 새로 만들지 말 것.</b>
      *
      * <p>값은 벤더 규격 그대로 <b>소문자</b>다. 우리가 표기를 바꾸면 위탁 요청이 벤더 검증에서
      * 거부되므로 대문자·한글로 정규화하지 않는다.
      *
-     * <p><b>이 집합을 리터럴로 복제하지 말 것</b> — DTO 검증({@code InternalUploadCreateRequest})과
-     * 서비스 2차 방어선({@code TusUploadService})이 같은 값을 봐야 한다. 두 목록이 갈라지면 한쪽만
-     * 통과하는 값이 조용히 생긴다({@link #UPLOAD_SRC_TYPES} 가 겪은 실사고와 동형).
+     * <p><b>이 집합을 리터럴로 복제하지 말 것</b> — 복제하면 두 목록이 갈라져 한쪽에만 보이는 값이
+     * 조용히 생긴다({@link #UPLOAD_SRC_TYPES} 가 겪은 실사고와 동형).
      *
-     * <p>이 판정은 <b>우리 쓰기 통로에만</b> 적용된다 — 관제는 우리 코드를 거치지 않고 직접
-     * INSERT 하므로 DB CHECK 를 두지 않으며(관제 인입 전체가 값 하나에 멈춘다), 관제가 실은 미지의
-     * 값은 <b>소비 시점</b>(VLM 위탁)이 fail-closed 로 거른다.
+     * <p>★ {@code smoke} 는 2026-09-07 사업자 개발 서버 조회({@code GET /events})로 <b>실측 확인</b>해
+     * 더했다 — 그전까지 6종이었고 「관제 문의 대기」로 남아 있던 항목이다. 질문 카탈로그
+     * ({@code LS_VRFC_EVNT_TYPE}·{@code LS_VRFC_EVNT_QSTN})에는 처음부터 7종이 시드돼 있었다(V18).
      */
     public static final java.util.Set<String> VRFC_EVNT_TYPES =
-            java.util.Set.of("fire", "fall", "violence", "flooding", "car_accident", "kidnapping");
+            java.util.Set.of("fire", "smoke", "fall", "violence", "flooding", "car_accident", "kidnapping");
 
     /**
      * 검증이벤트유형 입력 정규화 — {@code trim} 후 <b>소문자</b>로 접는다 (@req R5).
@@ -182,7 +188,7 @@ public class LsDataIngest {
      * 검증이벤트유형 <b>형식</b> 판정 — 값 목록이 아니라 표기 규칙만 본다 (2026-08-06 정책 반전).
      *
      * <h3>★ 구 동작(6종 allowlist 판정) 폐기 — 되돌리지 말 것</h3>
-     * <p>구 동작은 우리 쓰기 통로에서 {@link #VRFC_EVNT_TYPES} 6종만 통과시켰다. 같은 날 위탁
+     * <p>구 동작은 우리 쓰기 통로에서 {@link #VRFC_EVNT_TYPES} 프리셋에 든 값만 통과시켰다. 같은 날 위탁
      * 게이트가 "조달값을 그대로 실어 항상 위탁 → 수용 여부는 벤더 응답이 정한다"로 반전
      * ({@code VlmTimeseriesStep.resolveEventType})했고, 그 뒤로 <b>우리 화면에서만 6종에 갇히는
      * 비대칭</b>이 남았다(관제 인입분은 우리 코드를 거치지 않아 어떤 값이든 들어온다). 사용자 확정으로
@@ -494,7 +500,7 @@ public class LsDataIngest {
 
     /**
      * 검증이벤트유형코드 (V176 신설) — 외부 VLM 검증 API 요청의 {@code event_type} 조달처
-     * (@req R5). 허용값은 {@link #VRFC_EVNT_TYPES} 6종이다.
+     * (@req R5). 프리셋은 {@link #VRFC_EVNT_TYPES} 7종이나 <b>허용목록이 아니다</b>(형식만 판정한다).
      *
      * <h3>{@link #evntTypeCd}(이벤트유형코드)와 <b>다른 값</b>이다 — 대체·통합하지 않는다</h3>
      * <table>

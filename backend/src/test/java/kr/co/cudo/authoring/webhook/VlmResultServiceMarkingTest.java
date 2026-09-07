@@ -145,7 +145,7 @@ class VlmResultServiceMarkingTest {
 
         // then — 어노테이션 초안으로만 가고 마킹은 건드리지 않는다
         assertThat(applied).isTrue();
-        verify(resultApplier).applySubDescription(701L, "네, 근거는 ...");
+        verify(resultApplier).applySubDescription(701L, "네, 근거는 ...", null);
         verify(markingRepository, never()).findByRawSnAndSttsCdIn(anyLong(), anyList());
     }
 

@@ -86,7 +86,9 @@ class VlmTimeseriesStepNodeSelectionTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder, timeseriesMetaPresence,
                 new ObjectMapper(), Schedulers.immediate(),
-                mock(VlmDefaultSkipMarker.class), selector);
+                mock(VlmDefaultSkipMarker.class), selector,
+                mock(kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver.class),
+                mock(kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader.class));
 
         when(videoRepository.existsById(RAW_SN)).thenReturn(true);
         LsDeidentProcLog plog = mock(LsDeidentProcLog.class);
@@ -128,7 +130,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM), isNull(),
                 eq(RAW_SN), eq(NODE_ID));
         verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM_SUB), isNull(),
-                eq(RAW_SN), eq(NODE_ID));
+                eq(RAW_SN), eq(NODE_ID), any());
     }
 
     @Test
@@ -207,7 +209,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM), isNull(),
                 eq(RAW_SN), isNull());
         verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM_SUB), isNull(),
-                eq(RAW_SN), isNull());
+                eq(RAW_SN), isNull(), any());
         verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class), isNull());
         verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), isNull());
     }

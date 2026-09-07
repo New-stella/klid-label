@@ -175,17 +175,30 @@ public class WebClientConfig {
         if (token != null && !token.isBlank()) {
             // 평문 http 에 Bearer 토큰이 실리면 네트워크에 그대로 노출된다 (CWE-319) — 경고만, 값 미출력.
             urlPolicy.warnIfTokenOnCleartext(base, token);
-            b.defaultHeader(AUTHORIZATION_HEADER, "Bearer " + token);
+            // ★ 규격 §2.1 — 값을 그대로 싣는다. `Bearer ` 접두를 붙이지 않는다.
+            b.defaultHeader(VLM_API_KEY_HEADER, token);
             // defaultHeader 는 빈 생성 시점 고정이라, 주소를 바꾸면 이 토큰이 새 호스트로 따라간다.
             // 호스트가 달라지면 떼어낸다(CWE-522) — 원 수신처에 발급된 값이라 어차피 무효다.
             b.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
-                    IntegrationEndpoint.VLM, base, AUTHORIZATION_HEADER));
+                    IntegrationEndpoint.VLM, base, VLM_API_KEY_HEADER));
         }
         return b.build();
     }
 
-    /** 외부 시계열 분석 벤더 인증 헤더명. */
-    static final String AUTHORIZATION_HEADER = "Authorization";
+    /**
+     * 외부 시계열 분석 벤더 인증 헤더명 — <b>{@code X-API-Key}</b> (규격 §2.1).
+     *
+     * <p>★ <b>{@code Bearer } 접두를 쓰지 않는다.</b> 값을 그대로 싣는다.
+     *
+     * <p>⚠ 구 배선은 {@code Authorization: Bearer <token>} 이었는데 <b>규격 근거가 없던 것</b>이다 —
+     * 이전 판(v1.1.0)에는 <b>인증 절 자체가 없었고</b> 우리와 연동 규격 산출물이 각자 지어낸 값이었다.
+     * 신설된 방식은 이 헤더다. <b>Bearer 를 되살리지 말 것.</b>
+     *
+     * <p>★ 헤더가 없거나 값이 다르면 벤더가 <b>401 로 거부하고 콜백을 전송하지 않는다</b> —
+     * 위탁이 <b>아무 신호 없이 사라지고</b> 미결 회수가 재위탁해도 같은 401 이라 회복되지 않는다.
+     * 그래서 키를 받기 전에 배선만 먼저 맞춰 둔다(키가 비면 헤더를 붙이지 않아 현재 동작은 그대로다).
+     */
+    static final String VLM_API_KEY_HEADER = "X-API-Key";
 
     /** 관제 inbound SPI 인증 헤더명(API-251 / API-285 계약). */
     static final String CONTROL_NOTIFY_TOKEN_HEADER = "x-access-token";

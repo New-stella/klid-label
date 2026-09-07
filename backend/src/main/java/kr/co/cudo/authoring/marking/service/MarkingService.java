@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.listener.MarkingBatchTriggerReport;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoDurationResolver;
@@ -224,6 +225,17 @@ public class MarkingService {
         //       거부되고, 동시 요청은 아래 flush 시점의 DB 부분 유니크 인덱스(V142)가 잡는다.
         MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
 
+        // 1-1. 검증 이벤트 유형 형식 검증 — 컨트롤러의 @Valid 와 <b>같은 함수</b>를 부르는 2단 방어다.
+        //      @Valid 를 타지 않는 호출부(내부 서비스·시험)가 형식 위반 값을 그대로 흘리면 컬럼 폭 초과가
+        //      INSERT 시점 DB 오류(500)로 터지고, 제어문자가 섞인 값은 외부 위탁 본문·로그로 나간다.
+        //      판정 단일 진실원은 LsDataIngest 이며 여기서 규칙을 다시 쓰지 않는다(CWE-117/209).
+        if (!LsDataIngest.isVrfcEvntTypeFormatValid(req.vrfcEvntTypeCdOrNull())) {
+            // 메시지에 입력 원문을 담지 않는다 — 응답·로그로 흘러간다.
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "검증이벤트유형은 영문 소문자·숫자·밑줄 "
+                            + LsDataIngest.VRFC_EVNT_TYPE_MAX_LENGTH + "자 이내여야 합니다.");
+        }
+
         // 1-3. 이벤트 유형 코드 조달 — 채널이 돌려준 값을 그대로 쓴다.
         //       ★ 이 값은 마킹 행에 저장하지 않고 <응답에만> 실린다(V27) — 마킹 행에 베껴 두면 영상
         //       쪽이 바뀔 때 두 값이 어긋난다. [design: ERD-013]
@@ -269,7 +281,12 @@ public class MarkingService {
         //      첫 번째 질문으로 되돌아간다. 유형이 미수신이거나 질문이 0건이면 null 이며 그래도 마킹은
         //      막지 않는다 — 질문 부재는 거부 사유가 아니다(위탁도 그대로 나간다).
         //      그 축이 아예 없는 채널(포털)은 null 을 돌려준다.
-        Long questionSn = channel.resolveQuestionSn(rawSn, req.vrfcEvntQstnSn());
+        //
+        // 3-2-a. 먼저 <b>유형</b>을 조달한다 — 관제 인입값이 진실원이고, 없을 때만 작업자 선택값이다.
+        //        ★ 조달은 여기 한 번뿐이며 그 결과를 질문 판정과 원장 저장이 <b>함께</b> 쓴다. 두 번
+        //          조달하면 「질문을 고른 유형」과 「저장되는 유형」이 갈릴 수 있다. [design: API-047]
+        MarkingEventType eventType = channel.resolveEventType(rawSn, req.vrfcEvntTypeCdOrNull());
+        Long questionSn = channel.resolveQuestionSn(rawSn, req.vrfcEvntQstnSn(), eventType);
 
         // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
         //    ★ 생성자 식별자는 토큰 주체를 <문자 그대로> 담는다(V27). 숫자로 파싱해 담던 구 방식은
@@ -280,6 +297,10 @@ public class MarkingService {
         LsMarking marking = MODE_AUTO.equals(req.mode())
                 ? LsMarking.createAuto(rawSn, req.intervalFrames(), marksJson, actorNo, fps, questionSn)
                 : LsMarking.createManual(rawSn, marksJson, actorNo, fps, questionSn);
+        // 4-1. 작업자가 고른 검증 이벤트 유형을 싣는다 — <b>관제 값은 여기서 null</b> 이라 저장되지 않는다.
+        //      관제 값을 마킹 행에 베끼면 인입 원장과 두 곳에 같은 값이 생겨 조용히 갈라진다(이벤트 유형
+        //      코드·영상 경로를 마킹 행에서 걷어낸 것과 같은 이유다). 판정은 MarkingEventType 이 소유한다.
+        marking.applySelectedEventType(eventType.persistableTypeCd());
         // 동시성 최종 방어(B-ISSUE-22 / CWE-362) — 부분 유니크 인덱스(V142) 위반을 <b>이 메서드 안에서</b>
         //   표면화해 409 로 변환한다. save/flush 를 함께 감싸는 이유:
         //   - MARKING_SN 이 IDENTITY 라 {@code save} 시점에 INSERT 가 즉시 실행된다(위반이 여기서 터진다).

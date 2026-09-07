@@ -165,6 +165,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       ({@code WHERE stts_cd IN ('PENDING','VLM_REQUESTED')})가 이미 그 값을 배제해, 상태값 추가가
  *       애플리케이션 상수만으로 성립한다(제약을 새로 걸면 오히려 그 성질이 깨진다). 순수 신설이라
  *       구 jar 에 무해하다</li>
+ *   <li>{@code V34} — {@code LS_WEBHOOK_IDEMPOTENCY.QSTN_CN}(질문내용) 신설. 외부 시계열 위탁의
+ *       추가 질문 창구가 질문 문구를 요청 본문에 직접 싣게 되면서, 그 문구가 기록이 아니라
+ *       <b>실제로 보내는 값</b>이 됐다. 질문 목록은 통째로 교체되는 성질이라 콜백 시점에 다시
+ *       조달하면 <b>보낸 값과 기록된 값이 갈라진다</b> — 보낸 값을 이 원장에 함께 남겨 콜백이
+ *       그것을 읽는다. 순수 신설이라 구 jar 에 무해하다</li>
+ *   <li>{@code V35} — {@code LS_MARKING.VRFC_EVNT_TYPE_CD}(검증이벤트유형코드) 신설. 관제가 이
+ *       값을 보내지 않은 영상에서 작업자가 마킹 화면에서 고른 유형을 담는다. ⚠ <b>NULL 을
+ *       허용한다</b> — 관제 값이 있는 영상은 이 칸을 쓰지 않는다(인입 원장이 진실원이라 마킹
+ *       행에 베끼지 않는다). 화면에서 필수인 것과 저장에서 필수인 것은 다른 축이며, 여기를
+ *       NOT NULL 로 올리면 관제 값이 있는 영상의 마킹 저장이 전부 실패한다.
+ *       순수 신설이라 구 jar 에 무해하다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -204,7 +215,7 @@ class FlywaySquashBaselineIT {
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
                         "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32",
-                        "33",
+                        "33", "34", "35",
                         "9001", "9002");
     }
 
@@ -247,6 +258,8 @@ class FlywaySquashBaselineIT {
                         "V31__add_ls_eblc_uld_job.sql",
                         "V32__ls_acnt_user_no_seq_and_user_id_unique.sql",
                         "V33__add_portal_user_meta_and_evnt_anno_overlay.sql",
+                        "V34__add_qstn_cn_to_ls_webhook_idempotency.sql",
+                        "V35__add_vrfc_evnt_type_cd_to_ls_marking.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",

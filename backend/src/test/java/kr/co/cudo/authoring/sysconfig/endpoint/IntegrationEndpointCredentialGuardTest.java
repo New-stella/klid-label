@@ -42,6 +42,21 @@ import static org.mockito.Mockito.when;
  * {@code IntegrationEndpointTransportGuards.stripCredentialOnHostChange(...)} 배선을 지우면
  * "다른 호스트" 케이스가 "헤더가 여전히 붙어 있다"로 실패한다.
  */
+/*
+ * ★ 2026-09-07 — 단정 대상 헤더를 `Authorization` 에서 `X-API-Key` 로 바꿨다.
+ *
+ * 외부 시계열 사업자 규격 v1.2.0 이 인증 절을 신설하면서 헤더가 `X-API-Key` 가 됐고
+ * (`Bearer ` 접두를 쓰지 않는다), 구 `Authorization: Bearer` 배선은 규격 근거가 없던 것이라 폐기됐다.
+ *
+ * ⚠⚠ 그 전환이 <b>이 파일의 가드 둘을 조용히 무력화</b>했다 — 헤더가 붙는지 보는 시험 셋은 즉시
+ * 빨개져 드러났지만, <b>헤더가 「없어야 한다」를 단정하는 둘</b>
+ * (호스트 변경 시 탈락 · 표식 없을 때 탈락)은 <b>그 헤더를 애초에 안 붙이게 되면서 항상 참</b>이 되어
+ * <b>통과한 채로 아무것도 지키지 않게</b> 됐다. 초록이라 눈에 띄지도 않았다.
+ *
+ * ⇒ 교훈: 자격증명 헤더명을 바꿀 때는 <b>「붙는다」 시험뿐 아니라 「안 붙는다」 시험도 함께</b> 옮겨야 한다.
+ *   전자는 실패로 알려 주지만 후자는 <b>침묵한다</b>. 이 파일이 지키는 것은 CWE-522(자격증명이 원 수신처가
+ *   아닌 곳으로 따라가는 것)이며, 그 방어는 「안 붙는다」 쪽에 있다.
+ */
 class IntegrationEndpointCredentialGuardTest {
 
     private static final String VLM_TOKEN = "vlm-secret-token";
@@ -103,7 +118,7 @@ class IntegrationEndpointCredentialGuardTest {
     }
 
     @Test
-    @DisplayName("★VLM — 호스트가_바뀌면_Authorization_토큰을_붙이지_않는다")
+    @DisplayName("★VLM — 호스트가_바뀌면_X_API_Key_토큰을_붙이지_않는다")
     void vlmTokenIsStrippedWhenHostChanges() throws Exception {
         // given — 배포 기본값(토큰이 발급된 원 수신처)으로 만들어진 빈
         String bootDefault = bootServer.url("/").toString();
@@ -115,7 +130,7 @@ class IntegrationEndpointCredentialGuardTest {
 
         // then — 새 호스트로 나가되 자격증명은 실리지 않는다
         assertThat(received).as("새 주소가 요청을 받아야 한다").isNotNull();
-        assertThat(received.getHeader("Authorization"))
+        assertThat(received.getHeader("X-API-Key"))
                 .as("원 수신처에 발급된 토큰이 새 호스트로 따라가면 안 된다(CWE-522)")
                 .isNull();
     }
@@ -151,9 +166,9 @@ class IntegrationEndpointCredentialGuardTest {
         // then
         RecordedRequest received = otherServer.takeRequest(5, TimeUnit.SECONDS);
         assertThat(received).as("고른 장비가 요청을 받아야 한다").isNotNull();
-        assertThat(received.getHeader("Authorization"))
+        assertThat(received.getHeader("X-API-Key"))
                 .as("이중화된 두 번째 장비로 가는 정상 위탁이 무인증이 되면 전량 401 로 확정 실패한다")
-                .isEqualTo("Bearer " + VLM_TOKEN);
+                .isEqualTo(VLM_TOKEN);
     }
 
     /**
@@ -178,7 +193,7 @@ class IntegrationEndpointCredentialGuardTest {
         // then
         RecordedRequest received = otherServer.takeRequest(5, TimeUnit.SECONDS);
         assertThat(received).isNotNull();
-        assertThat(received.getHeader("Authorization"))
+        assertThat(received.getHeader("X-API-Key"))
                 .as("표식 없는 호스트 변경까지 통과시키면 CWE-522 가 그대로 열린다")
                 .isNull();
     }
@@ -193,7 +208,7 @@ class IntegrationEndpointCredentialGuardTest {
         RecordedRequest received = exchange(client, otherServer);
 
         assertThat(received).isNotNull();
-        assertThat(received.getHeader("Authorization")).isEqualTo("Bearer " + VLM_TOKEN);
+        assertThat(received.getHeader("X-API-Key")).isEqualTo(VLM_TOKEN);
     }
 
     @Test
@@ -206,7 +221,7 @@ class IntegrationEndpointCredentialGuardTest {
         RecordedRequest received = exchange(client, bootServer);
 
         assertThat(received).isNotNull();
-        assertThat(received.getHeader("Authorization")).isEqualTo("Bearer " + VLM_TOKEN);
+        assertThat(received.getHeader("X-API-Key")).isEqualTo(VLM_TOKEN);
     }
 
     @Test

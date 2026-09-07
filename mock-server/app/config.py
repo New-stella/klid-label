@@ -109,6 +109,28 @@ class Settings(BaseSettings):
     # 콜백(outbound POST) 허용 호스트 — SSRF(CWE-918) 방어.
     #   VLM verify/describe 는 요청자가 지정한 callback_url 로 서버측 outbound POST 를 발사한다.
     #   인증이 없는 목 서버이므로 호스트를 제한하지 않으면 내부망 포트 스캔/요청 위조가 성립한다.
+    vlm_api_key: str = Field(
+        default="",
+        description=(
+            "외부 시계열 위탁 인증 키(규격 v1.2.0 §2.1). "
+            "★ 비어 있으면 인증을 요구하지 않는다 — 키를 쓰지 않는 환경의 재현이고 로컬 개발의 기본값이다. "
+            "값을 주면 분석 요청에 X-API-Key 헤더가 필수가 되고, 없거나 다르면 401 이며 "
+            "<콜백을 전송하지 않는다>(그래서 위탁이 아무 신호 없이 사라진다 — 그 상황을 재현하기 위한 설정이다). "
+            "조회용 GET(status·events)은 키 없이 호출할 수 있다."
+        ),
+    )
+
+    vlm_strict_event_type: bool = Field(
+        default=False,
+        description=(
+            "정의되지 않은 event_type 을 400 + {\"code\": 40001} 로 거부할지. "
+            "★ 기본값 거짓이 <확정 동작>이다 — 목의 event_type 은 2026-08-06 확정으로 값을 좁히지 않으며, "
+            "그래야 관제 값이 채워지기 전 영상도 로컬·개발 환경에서 완주한다. "
+            "이 스위치는 사업자가 40001 을 줄 때 우리 판독이 실제로 동작하는지 확인하기 위한 <시험 전용>이며 "
+            "평상시 켜 두면 안 된다."
+        ),
+    )
+
     callback_allowed_hosts: str = Field(
         default="klid-backend,localhost,127.0.0.1",
         description=(
