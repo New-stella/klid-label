@@ -29,6 +29,14 @@ META = {"_사업", "_doc", "_출처", "_읽는법", "_주의", "_실측근거", 
 SIDE = {"제출본", "근거", "★주의", "항목", "구분", "대상"}
 
 # (폐기된 값, 그 자리를 대신한 현행 값) — 현행 값은 양성 대조로도 쓴다.
+#
+# ⚠ 대소문자를 무시해 비교한다. 구분해서 비교했더니 **대문자 변이를 놓쳤다**(실측:
+#    값 자리에 대문자로 심으니 통과했다). 실제 표기가 문서마다 갈리므로(제품명·환경변수·
+#    경로가 각각 다른 표기를 쓴다) 구분 비교는 오염을 조용히 통과시킨다.
+#
+# ⚠⚠ 양성 대조로 고르는 값은 **「잡힐 것 같은 것」이 아니라 「반드시 잡혀야 하는 것」**이어야
+#    한다. 잡히지 않는 값을 고르면 **양성 대조 자체가 거짓 0건**이 되어, 감시가 있는 척만 한다.
+#    새 짝을 넣으면 그 자리에 심어 보고 실제로 발화하는지 먼저 확인한다.
 PAIRS = [("Tom" + "cat", "JBoss")]
 
 
@@ -57,10 +65,14 @@ def main() -> int:
         doc = json.loads(f.read_text(encoding="utf-8"))
         for key, text in values(doc):
             checked += 1
+            low = text.lower()
             for old, cur in PAIRS:
-                if old in text:
-                    bad.append(f"{f.name} / {key}: {text[:90]}")
-                if cur in text:
+                if old.lower() in low:
+                    # ⚠ 어느 짝에 걸렸는지 **여기서 함께 담는다.** 아래에서 문자열을 다시
+                    #    검색해 가르면 그 검색이 또 대소문자에 걸린다 — 실제로 수집만 고치고
+                    #    판정을 안 고쳐 대문자 변이를 놓쳤다(값이 두 군데 있으면 한쪽만 고쳐진다).
+                    bad.append((old, f"{f.name} / {key}: {text[:90]}"))
+                if cur.lower() in low:
                     seen_current.add(cur)
 
     print(f"검사한 값 문자열 {checked}개 ({len(files)}개 파일)")
@@ -86,7 +98,7 @@ def main() -> int:
         print(f"!! 검사한 값이 {checked}개뿐이다(하한 {FLOOR}) — 값 컨테이너를 못 보고 있을 수 있다")
         print("     파일이 줄어든 게 아니라면 META/SIDE 열거가 값 키를 삼켰는지 본다")
     for old, cur in PAIRS:
-        hit = [b for b in bad if old in b]
+        hit = [msg for o, msg in bad if o == old]
         if hit:
             ok = False
             print(f"!! 값 키에 폐기된 값 '{old}' 이 있다 — 설명이 아니라 값 자리다")
