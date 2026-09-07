@@ -31,7 +31,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원본영상아이디"
             },
@@ -59,7 +60,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터상태코드"
             },
@@ -76,7 +78,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "단계주기"
             },
@@ -93,7 +96,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "검수주기"
             },
@@ -110,7 +114,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -127,7 +132,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "버전"
             },
@@ -187,7 +193,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터이슈일련번호"
             },
@@ -208,7 +215,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "상위데이터이슈일련번호"
             },
@@ -229,7 +237,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -245,7 +254,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "반려사유내용"
             },
@@ -261,7 +271,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "반려작성자번호"
             },
@@ -278,7 +289,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             }
@@ -310,7 +322,7 @@
             "notes": "고도화 신규 (1차 미존재 또는 영상 단위 대체)",
             "status": "new"
           },
-          "description": "[폐기] 이 ERD 는 LS_DATA_ISSUE 를 정의하지 않는다 — 정의(이슈 타입·상태·프레임 참조·낙관적 잠금 확장 포함)는 ERD-023 이 소유한다(설계 결정). 아래 컬럼·인덱스는 위임 이전 표기이며 갱신 대상이 아니다.",
+          "description": "이 ERD 는 LS_DATA_ISSUE 를 정의하지 않는다 — 정의(이슈 타입·상태·프레임 참조·낙관적 잠금 확장 포함)는 ERD-023 이 소유한다(설계 결정). 아래 컬럼·인덱스는 위임 이전 표기이며 갱신 대상이 아니다.",
           "logical_table_name": "검수반려사유"
         }
       ],
@@ -342,6 +354,7 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -350,18 +363,19 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:31.400Z"
+        "last_updated": "2026-08-25T01:21:31.400Z",
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 16,
+    "current_version": 17,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별화완료여부 설명에 두 축 관계 추가 — 이 값이 완료로 풀려도 영상 축 비식별 여부는 미수행으로 남을 수 있고 두 축은 별개라 모순이 아님을 명시. 500자 상한 안에 넣기 위해 같은 컬럼의 코드값·기본값이 이미 담고 있는 중복 한 문장을 걷어내고 두 문장을 뜻이 같은 짧은 표현으로 압축.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:31.400Z",
+    "change_summary": "표지를 뗀다. 이 문장은 폐기된 옛 서술이 아니라 「이 자료는 그 표를 정의하지 않고 다른 자료가 소유한다」는 현행 설계 결정인데, 폐기 표지가 붙어 있어 설계 산출물의 표 설명 칸에 편집 지시문처럼 실렸다. 내용은 한 글자도 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:42:22.877Z",
     "created_at": "2026-06-01T02:46:11.643Z"
   }
 }

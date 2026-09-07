@@ -98,11 +98,12 @@
           "MOD-021"
         ],
         "records": [
-          "IMPREC-023"
+          "IMPREC-023",
+          "IMPREC-399"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T22:48:30.526Z",
+        "last_updated": "2026-09-06T06:50:21.379Z",
         "module_paths": []
       },
       "required_roles": [
@@ -141,8 +142,8 @@
     "stale": true,
     "stale_reason": "UC-024의 data.alternate_flows 변경 — realizes",
     "change_summary": "이어서 작업할 수 없는 행(열 프레임 없음·진입 거부)의 화면 처리를 정한다 — 그 행을 목록에서 빼지 않고 이어서 작업 버튼만 비활성 + 사유 표기(문구·자리 시안 미확정), 내려받기는 별개 축이라 함께 막지 않는다. 목록 정렬은 마지막 저장 시각, 없으면 자산이 생긴 시각으로 하되 표시하는 저장 시각은 비워 둔다(표시 값과 정렬 값이 다른 것이 의도 — 만료 예정일 열의 빈칸 규칙과는 다른 열).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-06T00:19:41.805Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-06T06:50:21.379Z",
     "created_at": "2026-05-30T07:55:58.838Z"
   }
 }

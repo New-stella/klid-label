@@ -55,7 +55,7 @@
         {
           "kind": "service",
           "name": "PortalLabelService",
-          "description": "데이터마트 라벨 Load + 사용자별 적재 (원본 미수정). 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르며 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다 — 편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치다.",
+          "description": "데이터마트 채널 저작물 셋(저장 라벨·메타 오버레이·이벤트 어노테이션 오버레이) 가운데 저장 라벨 축을 맡는다 — Load + 사용자별 적재. 셋 다 단방향 오버레이라 저장해도 원본과 데이터마트 동결본을 수정하지 않고 관제 통지나 산출물 재생성을 일으키지 않는다. 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르며 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다 — 편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치다.",
           "implementation": {
             "status": "planned",
             "modules": [],
@@ -356,9 +356,116 @@
             "subtasks": [],
             "module_paths": []
           }
+        },
+        {
+          "kind": "controller",
+          "name": "PortalUserWorkController",
+          "technology": "/v1/portal/user-works",
+          "description": "포털 채널 진입 화면의 「내 저장 작업 목록」 조회 엔드포인트 — 본인이 올린 업로드 자산과 본인 저작물이 있는 데이터마트 영상을 영상 단위로 묶어 페이징으로 내린다. 데이터마트 영상 전체를 훑는 카탈로그는 이 엔드포인트가 내리지 않는다 — 그 목록은 Host 인 포털이 자기 화면에서 제공한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "PortalUserWorkService",
+          "description": "내 저장 작업 목록 산정 — 모집단이 두 축이라 본인 업로드 자산은 저작물 보유 여부와 무관하게 전부 싣고, 데이터마트 영상은 저장 라벨·메타 오버레이·이벤트 어노테이션 오버레이 세 저작물 가운데 어느 하나라도 보유한 것만 싣는다. 저장 라벨만으로 행을 고르면 라벨 없이 메타만 고친 영상이 목록에서 빠지면서도 보존기간 만료 삭제의 대상은 되어, 사용자가 자기 작업물이 사라지는 것을 볼 수조차 없다. 두 출처가 섞이므로 행마다 자산 출처를 알 수 있어야 하고, 만료 예정 시각은 축마다 다른 규칙으로 파생해 함께 내리며 캐시하지 않는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "PortalFrameMetaController",
+          "technology": "/v1/portal/frames/{srcSn}/meta",
+          "description": "포털 프레임 메타 오버레이 Load·저장 엔드포인트",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "PortalMetaOverlayService",
+          "description": "데이터마트 채널 저작물 셋 가운데 메타 오버레이 축을 맡는다 — 촬영환경·프레임 설명·개인정보 판정·시계열 메타의 Load 와 사용자별 적재. 단방향 오버레이라 저장해도 원본과 데이터마트 동결본을 수정하지 않고 관제 통지나 산출물 재생성을 일으키지 않는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "PortalEventAnnotationController",
+          "technology": "/v1/portal/videos/{rawSn}/event-annotation",
+          "description": "포털 이벤트 어노테이션 오버레이 Load·저장 엔드포인트",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "PortalEventAnnotationOverlayService",
+          "description": "데이터마트 채널 저작물 셋 가운데 이벤트 어노테이션 오버레이 축을 맡는다 — Load 와 사용자별 적재. 단방향 오버레이라 저장해도 원본과 데이터마트 동결본을 수정하지 않고 관제 통지나 산출물 재생성을 일으키지 않는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsPortalUserMetaRepository",
+          "description": "포털 사용자 메타 오버레이(LS_PORTAL_USER_META) CRUD — 데이터마트 채널 저작물 셋 가운데 메타 축의 적재처. 저장소 정의의 소유는 포털 ERD 이므로 여기서는 역할로만 가리킨다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsPortalUserEvntAnnoRepository",
+          "description": "포털 사용자 이벤트 어노테이션 오버레이(LS_PORTAL_USER_EVNT_ANNO) CRUD — 데이터마트 채널 저작물 셋 가운데 이벤트 어노테이션 축의 적재처. 저장소 정의의 소유는 포털 ERD 이므로 여기서는 역할로만 가리킨다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
         }
       ],
-      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★로드·저장 / 자산 업로드 / 내려받기 축으로 갈린다. PortalLabelController(/v1/portal)→PortalLabelService 가 데이터마트 영상 라벨 Load·사용자별 적재(원본 미수정)를 맡는다 — 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르고 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다(편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치이며, 트랙 번호 변경·병합은 포털에 두지 않는다). PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 프레임 이미지 서빙은 이름에 이미지가 들어가지만 영상에서 추출한 프레임이라 이 축과 무관하다. 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다. PortalDatamartDownloadController(/v1/portal/datamart)는 본인 작업 데이터 묶음 내려받기를 맡고, 조회 단계(PortalDatamartDownloadTxService)와 산출 단계(PortalDatamartDownloadService)가 트랜잭션 경계로 갈린다 — 산출물은 검수 승인 학습데이터 산출물과 같은 구조라 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내며, 영상 단위로 라벨을 모아 담던 단일 문서는 두지 않는다. 이미지와 문서가 가리키는 경로는 비식별 기준이고 원본 폴백이 없다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 ControlNotifyService.sendCompleted→ControlNotifyClient 로 outbound 통지(완료 통지는 디바운스를 거치지 않는다), 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
+      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★내 작업 목록 / 로드·저장 / 자산 업로드 / 내려받기 축으로 갈린다. ★데이터마트 채널에서 포털 사용자가 만드는 저작물은 저장 라벨·메타 오버레이(촬영환경·프레임 설명·개인정보 판정·시계열 메타를 담는 포털 전용 저장소)·이벤트 어노테이션 오버레이 셋이다 — 셋 다 단방향 오버레이라 저장해도 원본과 데이터마트 동결본을 수정하지 않고 관제 통지나 산출물 재생성을 일으키지 않으며, 보존기간이 지나면 셋이 함께 삭제된다. 판정 기준은 「원본을 덮어쓰지 않는 것이 존재 이유인 단방향 오버레이인가」 그대로이고, 바뀐 것은 그 기준에 해당하는 것의 개수다. PortalUserWorkController(/v1/portal/user-works)→PortalUserWorkService 는 포털 채널 진입 화면의 「내 저장 작업 목록」을 채운다 — 모집단은 두 축이라 본인이 올린 업로드 자산은 저작물 보유 여부와 무관하게 전부 행이 되고, 데이터마트 영상은 세 저작물 가운데 어느 하나라도 보유한 것만 행이 된다(라벨 없이 메타나 이벤트 어노테이션만 고친 영상도 여기에 든다). ⚠ 데이터마트 영상 전체를 훑는 카탈로그는 Host 인 포털이 자기 화면에서 제공하므로 이 축이 그것을 그리지 않는다 — 데이터마트 영상 전체를 돌려주는 창구로 이 목록을 채우면 저작도구가 포털 소유인 카탈로그를 대신 그리는 것이 된다. 두 출처가 한 목록에 섞이므로 이어서 작업하러 들어가는 자리가 출처마다 갈리고, 만료 예정 시각도 축마다 다른 규칙으로 계산되어 한 목록에 섞여 실린다(보존 규칙의 소유는 보존 기능이라 여기에 옮겨 적지 않고 가리키기만 한다). ★세 저작물의 적재처도 셋이다 — 저장 라벨은 LsPortalUserLabelRepository(LS_PORTAL_USER_LABEL), 메타 오버레이는 LsPortalUserMetaRepository(LS_PORTAL_USER_META), 이벤트 어노테이션 오버레이는 LsPortalUserEvntAnnoRepository(LS_PORTAL_USER_EVNT_ANNO)가 맡고, 두 오버레이의 Load·저장은 PortalFrameMetaController(/v1/portal/frames/{srcSn}/meta)→PortalMetaOverlayService 와 PortalEventAnnotationController(/v1/portal/videos/{rawSn}/event-annotation)→PortalEventAnnotationOverlayService 가 맡는다. 저장소를 한 벌로 그리면 라벨만 지우고 나머지 둘을 남기는 설계가 된다. PortalLabelController(/v1/portal)→PortalLabelService 는 그중 저장 라벨 축의 Load·사용자별 적재를 맡는다 — 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르고 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다(편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치이며, 트랙 번호 변경·병합은 포털에 두지 않는다). PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 프레임 이미지 서빙은 이름에 이미지가 들어가지만 영상에서 추출한 프레임이라 이 축과 무관하다. 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다. PortalDatamartDownloadController(/v1/portal/datamart)는 본인 작업 데이터 묶음 내려받기를 맡고, 조회 단계(PortalDatamartDownloadTxService)와 산출 단계(PortalDatamartDownloadService)가 트랜잭션 경계로 갈린다 — 산출물은 검수 승인 학습데이터 산출물과 같은 구조라 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내며, 영상 단위로 라벨을 모아 담던 단일 문서는 두지 않는다. 이미지와 문서가 가리키는 경로는 비식별 기준이고 원본 폴백이 없다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 ControlNotifyService.sendCompleted→ControlNotifyClient 로 outbound 통지(완료 통지는 디바운스를 거치지 않는다), 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
       "module_name": "assignment + portal + controlnotify",
       "relationships": [
         {
@@ -530,6 +637,66 @@
           "to": "ExportFileNaming",
           "from": "PortalDatamartDownloadService",
           "description": "산출 구조·파일명 규칙 공유"
+        },
+        {
+          "to": "PortalUserWorkController",
+          "from": "PORTAL_USER",
+          "description": "내 저장 작업 목록 조회"
+        },
+        {
+          "to": "PortalUserWorkService",
+          "from": "PortalUserWorkController",
+          "description": "목록 산정 위임"
+        },
+        {
+          "to": "LsPortalUserLabelRepository",
+          "from": "PortalUserWorkService",
+          "description": "저장 라벨 보유 행 산정"
+        },
+        {
+          "to": "LsPortalUserMetaRepository",
+          "from": "PortalUserWorkService",
+          "description": "메타 오버레이 보유 행 산정"
+        },
+        {
+          "to": "LsPortalUserEvntAnnoRepository",
+          "from": "PortalUserWorkService",
+          "description": "이벤트 어노테이션 오버레이 보유 행 산정"
+        },
+        {
+          "to": "VideoRepository",
+          "from": "PortalUserWorkService",
+          "description": "본인 업로드 자산 행 산정·표시용 영상 이름 조달"
+        },
+        {
+          "to": "PortalFrameMetaController",
+          "from": "PORTAL_USER",
+          "description": "메타 오버레이 Load·저장"
+        },
+        {
+          "to": "PortalMetaOverlayService",
+          "from": "PortalFrameMetaController",
+          "description": "메타 오버레이 위임"
+        },
+        {
+          "to": "LsPortalUserMetaRepository",
+          "from": "PortalMetaOverlayService",
+          "description": "사용자별 메타 오버레이 적재"
+        },
+        {
+          "to": "PortalEventAnnotationController",
+          "from": "PORTAL_USER",
+          "description": "이벤트 어노테이션 오버레이 Load·저장"
+        },
+        {
+          "to": "PortalEventAnnotationOverlayService",
+          "from": "PortalEventAnnotationController",
+          "description": "이벤트 어노테이션 오버레이 위임"
+        },
+        {
+          "to": "LsPortalUserEvntAnnoRepository",
+          "from": "PortalEventAnnotationOverlayService",
+          "description": "사용자별 이벤트 어노테이션 오버레이 적재"
         }
       ],
       "attached_files": [],
@@ -610,17 +777,22 @@
           "kind": "container",
           "name": "ExportFileNaming",
           "description": "검수 승인 학습데이터 산출물의 산출 구조·파일명 규칙 — 포털 내려받기가 같은 규칙을 공유한다 (dataset.export 패키지)"
+        },
+        {
+          "kind": "system",
+          "name": "포털",
+          "description": "저작도구 포털향 화면을 자기 화면 안에서 실행하는 Host. 데이터마트 영상 카탈로그(승인 영상 전체를 훑는 목록)를 자기 화면에서 제공하므로 저작도구는 그 목록을 그리지 않는다 — 저작도구가 그리는 것은 「내 저장 작업 목록」이다. 머리 영역과 좌측 주 메뉴도 이 Host 가 소유한다."
         }
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 19,
+    "current_version": 21,
     "stale": true,
-    "stale_reason": "API-140의 data.attached_files 변경이 depicts로 2-hop 전파",
-    "change_summary": "2026-09-02 확정 — 포털 이미지 자산 접수 폐기에 따라 화면·사양에서 이미지 축 제거. 그룹 개요·포털 업로드 창구 컴포넌트·그 이용 관계에서 이미지 폐기·존치 서술을 걷어내 영상 단일 전제로 정리했다. '프레임 이미지 서빙은 이름에 이미지가 들어가지만 영상에서 추출한 프레임이라 이 축과 무관하다'는 방어 문장과 내려받기 산출 컴포넌트의 프레임 이미지 서술은 축이 달라 그대로 두었다. 데이터 값역 보존은 ERD 가 소유하므로 여기서 반복하지 않는다.",
+    "stale_reason": "DFEAT-053의 data.implemented_by_endpoints 변경 — depicts",
+    "change_summary": "포털 채널 부품 구성에서 두 가지 결손을 메운다. ① 포털 채널 진입 화면의 「내 저장 작업 목록」을 채우는 축이 부품 층에 통째로 없었다 — 그룹 개요가 포털 축을 「로드·저장 / 자산 업로드 / 내려받기」 셋으로만 열거하고 있어 목록 축이 빠져 있었다. 그 축을 열거에 더하고 PortalUserWorkController(/v1/portal/user-works)→PortalUserWorkService 부품과 관계를 신설했다. 모집단이 두 축(업로드 자산은 저작물 보유 여부와 무관하게 전부, 데이터마트 영상은 세 저작물 중 어느 하나라도 보유한 것만)이라는 것과, 데이터마트 영상 전체를 훑는 카탈로그는 Host 인 포털 소유라 이 축이 그리지 않는다는 경계를 함께 적었다. ② 포털 전용 저작물이 산문에서는 셋인데 부품 층에는 저장소가 한 벌(LsPortalUserLabelRepository)뿐이라 같은 ITEM 안에서 층이 갈려 있었다. 메타 오버레이·이벤트 어노테이션 오버레이의 저장소 부품 둘과 그 Load·저장 창구 부품 넷을 더하고 관계를 이었다. 기존 부품·관계·외부 의존은 하나도 지우거나 고치지 않았고 더하기만 했다. 저장소 정의와 보존 규칙 세부는 각각 포털 ERD 와 보존 기능이 소유하므로 역할로만 가리키고 컬럼·보존일수·설정 키를 복제하지 않았다. depicts 는 이 축이 이미 걸린 도메인 기능으로 덮이므로 손대지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T08:23:28.128Z",
+    "last_updated_at": "2026-09-05T23:45:30.529Z",
     "created_at": "2026-06-02T13:17:00.252Z"
   }
 }

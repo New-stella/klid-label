@@ -1,18 +1,18 @@
 ---
 logicraft_item: TEST-007
 type: test_scenario
-version: 3
+version: 5
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T07:14:25.282Z
+synced_at: 2026-09-07T15:15:50.792Z
 status: CHANGED
-prev_version: 1
-content_hash: bef005fe3551c1b6e3f4dd367ff04578bc7bd047fe8db15b07a2cbe2f6d941fa
-stale: true
+prev_version: 3
+content_hash: 310d12994a735e60096806a1a748fc205fe54570fc8d4266d5b41e3c46057bce
+stale: false
 raw: ./_raw/TEST-007.json
 links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
-  references: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[DOMAIN-005]]", "[[DOMAIN-010]]", "[[DOMAIN-017]]", "[[SCREEN-039]]", "[[UC-035]]", "[[UC-036]]"]
+  references: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-221]]", "[[DOMAIN-005]]", "[[DOMAIN-010]]", "[[DOMAIN-017]]", "[[SCREEN-039]]", "[[UC-035]]", "[[UC-036]]"]
 ---
 
 # 외부 산출물을 검사해 적재하고 검수 승인까지 잇는다
@@ -132,6 +132,28 @@ integration
 - **screen_ref**: SCREEN-039
 - **preconditions**: 9단계에서 고른 이력
 
+### [11]
+
+- **seq**: 11
+- **note**: 현장에서 흐름이 막힌 자리가 여기다. 허용 루트 바로 아래에서 한 걸음도 나가지 못하면 이 단계에서 끊긴다
+- **action**: 탐색 창구로 저장소를 한 단계씩 내려가며 산출물 폴더를 고른다
+- **expected**: 허용 루트 바로 아래 목록이 돌아오고, 그중 한 폴더로 내려간 뒤에도 그 안의 목록이 돌아온다. 한 단계 내려간 자리에서 위로 올라가는 것도 받아들여진다
+- **test_item**: 허용 루트가 바로가기인 형상에서 탐색이 루트 아래로 내려가고 다시 위로 올라갈 수 있는지
+- **input_data**: 탐색을 시작할 위치를 비운 요청, 이어서 응답이 돌려준 하위 폴더 위치
+- **screen_ref**: SCREEN-039
+- **preconditions**: 허용 저장소 루트가 바로가기로 구성돼 있다
+
+### [12]
+
+- **seq**: 12
+- **note**: 사람이 실제로 밟는 동선이 이 왕복이라, 값을 손질해 넣으면 이 시험이 현장 형상을 대신하지 못한다
+- **action**: 탐색이 돌려준 폴더 위치를 손대지 않고 그대로 검사와 적재에 되보낸다
+- **expected**: 같은 값으로 검사가 통과하고, 이어서 같은 값으로 적재까지 완주한다
+- **test_item**: 탐색 응답이 돌려준 위치 값이 손질 없이 검사와 적재 양쪽에 그대로 받아들여지는지
+- **input_data**: 11단계 응답이 돌려준 폴더 위치 그대로
+- **screen_ref**: SCREEN-039
+- **preconditions**: 11단계에서 고른 폴더
+
 ## status
 
 draft
@@ -148,12 +170,15 @@ draft
 - API-206
 - API-207
 - API-208
+- API-221
 
 ## preconditions
 
 - 관리자로 인증되어 있다
 - 허용된 저장소 범위 안에 외부 산출물 폴더가 놓여 있다
 - 산출물이 쓰는 분류 이름에 대응할 라벨 마스터와 이벤트 유형이 등록돼 있다
+- 허용 저장소 루트가 바로가기로 구성돼 있어, 그 루트가 실제로 가리키는 자리가 설정에 적힌 표기와 다르다
+- 바로가기로 된 허용 루트를 만들 수 없는 실행 환경에서는 탐색 왕복 단계를 조용히 통과시키지 않고 건너뛴 사실을 남긴다
 
 ## verifies_nfrs
 

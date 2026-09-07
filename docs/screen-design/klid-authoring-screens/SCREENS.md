@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 KLID 저작도구 전체 화면 |
-| last sync | 2026-09-05T02:34:48.532Z (session 35) |
+| last sync | 2026-09-07T15:22:15.762Z (session 36) |
 | 화면 수 | 38개 |
 | ui_component 카탈로그 | populated 145건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
@@ -19,7 +19,7 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]] |  |
+| [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]], [[API-245]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
 | [[SCREEN-005]] | 라벨링 캔버스 화면 | UNCHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]], [[API-204]] | [[ROLE-001]], [[ROLE-002]] |
@@ -54,8 +54,8 @@
 | [[SCREEN-041]] | 관리자 패스워드 교체 | UNCHANGED | ✅ | [[API-223]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
 | [[SCREEN-043]] | 위험 작업 화면 | UNCHANGED | ✅ |  | [[ROLE-004]] |
-| [[SCREEN-044]] | 포털 증강 화면 | NEW | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
-| [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | NEW | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
+| [[SCREEN-044]] | 포털 증강 화면 | UNCHANGED | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
+| [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | UNCHANGED | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
 
 ## 공유 자산 인덱스
 
@@ -64,7 +64,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 145 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 208 |
+| api_endpoint | _shared/api/ | 207 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -121,21 +121,6 @@
 | 36 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
 | 37 | [[SCREEN-044]] — 포털 증강 화면 | screens/SCREEN-044/SCREEN-044.md | wireframe.html | uc/ | ac/ |
 | 38 | [[SCREEN-045]] — 포털 업로드 영상 마킹 화면 | screens/SCREEN-045/SCREEN-045.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[AC-1070]] | acceptance | NEW |
-| [[AC-1071]] | acceptance | NEW |
-| [[API-232]] | api_endpoint | NEW |
-| [[API-233]] | api_endpoint | NEW |
-| [[API-238]] | api_endpoint | NEW |
-| [[API-239]] | api_endpoint | NEW |
-| [[API-240]] | api_endpoint | NEW |
-| [[API-241]] | api_endpoint | NEW |
-| [[SCREEN-044]] | screen_spec | NEW |
-| [[SCREEN-045]] | screen_spec | NEW |
 
 ## Obsidian 볼트로 보기
 

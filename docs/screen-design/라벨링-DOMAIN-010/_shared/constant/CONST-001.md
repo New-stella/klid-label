@@ -2,7 +2,7 @@
 logicraft_item: CONST-001
 type: constant
 version: 4
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/CONST-001.json
 ---

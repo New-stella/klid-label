@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
 <body>
   <main class="wf-content">
@@ -102,7 +102,7 @@
         </div>
         <div class="wf-stack wf-mt">
           <span class="wf-bold">비식별 완료 기록</span>
-          <div class="wf-field"><label class="wf-label">비식별 산출물 폴더 경로</label><input class="wf-input" placeholder="예: /nas-storage/handover/00000073-deid" /></div><span class="wf-help">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다.</span>
+          <div class="wf-field"><label class="wf-label">비식별 산출물 폴더 경로</label><input class="wf-input" placeholder="예: /nas-storage/handover/00000073-deid" /></div><span class="wf-help">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있다.</span>
           <button class="wf-btn wf-btn-primary">기록</button><span class="wf-badge">disabled</span><span class="wf-badge wf-badge-primary">API-215</span><span class="wf-help">경로를 적기 전에는 비활성. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.</span>
           <div class="wf-alert wf-alert-info">기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수</div>
           <div class="wf-alert wf-alert-info">비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.</div><span class="wf-help">비워 둔 프레임이 하나라도 있을 때만 노출</span>
@@ -171,12 +171,12 @@
       <h3 class="wf-sec-detail-modal-title">⑥ 비식별 완료 기록 다이얼로그</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>'비식별 완료 기록'을 누르면 열리는 다이얼로그. 외부에서 이미 비식별한 산출물이 놓인 폴더의 위치를 사람이 적어 그 사실을 기록한다. 이 자리가 비식별을 수행하지는 않는다.
 
-기록은 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다. 적어 넣은 위치가 허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 아무것도 기록하지 않고 거부한다. 확인 없이 기록만 바꿀 수 있으면 처리되지 않은 산출물이 검수 승인을 통과하기 때문이다.
+기록은 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다. 적어 넣은 위치가 허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 아무것도 기록하지 않고 거부한다. 확인 없이 기록만 바꿀 수 있으면 처리되지 않은 산출물이 검수 승인을 통과하기 때문이다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣어 기록을 요청할 수 있다.
 
 확인을 통과하면 그 영상의 비식별 처리 이력에 행을 남기고 거기에 산출물의 위치를 적재한 뒤 검수 승인 보류를 푼다. 그리고 폴더의 파일을 프레임에 대응시켜 각 프레임의 비식별 이미지 위치까지 채운다. 대응은 파일 이름으로 하며 순서나 개수로 짐작해 잇지 않는다 — 짐작으로 이으면 다른 프레임의 비식별 이미지가 붙고 그것은 되돌릴 수 없다. 이름이 맞는 파일이 없는 프레임은 비워 둔 채로 두고 그 수를 결과로 알린다. 비워 둔 프레임이 하나라도 있으면 그만큼의 프레임이 비식별 이미지 없이 남아 그 영상의 학습데이터 산출물에 빠진 채로 나가므로 사람이 그 사실을 알아야 한다. 한 건도 잇지 못하면 그 폴더는 이 영상의 산출물이 아니므로 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.
 
 거부는 사유마다 다른 안내로 가른다. 허용 범위 밖이거나 산출물이 실재하지 않거나 이름이 맞는 파일이 한 건도 없거나 대상이 이관 경로로 들어온 영상이 아닌 경우는 뒤에 달라지지 않는 조건이라 다시 시도해도 결과가 같다. 이미 비식별 완료로 기록되어 풀 보류가 없는 경우는 다시 기록하지 않고 그 사실을 알린다. 기록 도중 실패한 경우에는 승인 보류가 그대로 남는다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 완료 기록)</li><li>Input(비식별 산출물 폴더 경로)<p class="wf-help" style="margin:2px 0 0">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다.</p></li><li>Button(기록) · → API-215 · disabled<p class="wf-help" style="margin:2px 0 0">경로를 적기 전에는 비활성. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.</p></li><li>Alert(기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수)</li><li>Alert(비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.)<p class="wf-help" style="margin:2px 0 0">비워 둔 프레임이 하나라도 있을 때만 노출</p></li><li>Button(취소)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 완료 기록)</li><li>Input(비식별 산출물 폴더 경로)<p class="wf-help" style="margin:2px 0 0">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다. 길이는 폴더경로명 표준 도메인 폭을 넘을 수 없다. 허용 저장소가 바로가기로 구성돼 있어도 폴더 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있다.</p></li><li>Button(기록) · → API-215 · disabled<p class="wf-help" style="margin:2px 0 0">경로를 적기 전에는 비활성. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.</p></li><li>Alert(기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수)</li><li>Alert(비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.)<p class="wf-help" style="margin:2px 0 0">비워 둔 프레임이 하나라도 있을 때만 노출</p></li><li>Button(취소)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-215</li></ul></div>
     </div>
   </div>

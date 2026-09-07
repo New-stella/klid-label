@@ -1,0 +1,167 @@
+{
+  "item": {
+    "id": "API-245",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/auth/role-claim/availability — 관리자 부트스트랩 창구 개폐 조회",
+    "slug": "get-v1authrole-claimavailability-관리자-부트스트랩-창구-개폐-조회",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/auth/role-claim/availability",
+      "tags": [
+        "auth"
+      ],
+      "method": "GET",
+      "summary": "관리자 부트스트랩 창구 개폐 조회",
+      "security": [
+        {
+          "jwt": []
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "available": {
+                    "type": "boolean",
+                    "description": "창구 개폐 여부. true=열림(시스템에 관리자가 한 명도 없다) / false=닫힘(관리자가 한 명 이상 있다). 조회 시점의 순간 상태이며, 제출까지 유지된다는 보장이 아니다."
+                  }
+                },
+                "description": "관리자 부트스트랩 창구의 개폐 상태"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "available": false
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 창구 개폐 여부만 담긴다. 관리자 인원수는 담지 않는다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "토큰 없음/만료/검증 실패 (인증 주체가 확인되지 않음). 미인증자에게는 창구 개폐 여부를 알리지 않는다. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이 창구는 내부 채널에서만 사용할 수 있습니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "포털 채널 요청이다 — 관리자 부트스트랩은 내부 채널의 개념이라 포털 채널에는 그 개념 자체가 없다. 그 채널에는 개폐를 답하지 않고 거절한다. ErrorCode=CONFLICT 형제 창구 API-007 의 채널 거절과 같은 코드·같은 축이다 — 두 창구가 같은 사유에 다른 코드를 쓰면 화면이 갈래를 두 벌로 짜야 한다. ★ 같은 코드라도 두 창구에서 뜻하는 바가 같지 않다. 이 창구에서 창 닫힘은 거절이 아니라 200 응답의 available=false 로 답하므로, 이 코드의 사유는 채널 하나뿐이다. 형제 창구에서는 창 닫힘도 같은 코드로 나와 사유가 둘이다. 따라서 화면이 두 창구의 이 코드를 한 문구로 다루면 한쪽에서 거짓이 된다 — 사유를 상태코드만으로 가르지 말고 서버가 보낸 문장을 그대로 쓸 것. ★ 이 거절은 등록 화면이 포털 채널에서 등록 수단 자체에 도달하지 못하게 하는 앞선 관문이기도 하다. 이 관문을 완화하면 채널이 맞지 않는 사용자가 제출까지 가서 형제 창구의 거절을 받게 되고, 그 화면은 창이 닫혔다고 원인을 지어낸다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "notes": "### 2026-09-07 — 신설\n- 부트스트랩 창구의 개폐를 화면이 진입 시점에 물을 수 있게 하는 조회 창구다. 자가부여 창구를 확장하지 않고 별도 창구로 둔다.\n- 내 정보 조회 응답을 넓히지 않는다. 그 응답은 진입 경로의 핵심이라 필드 추가가 다른 소비자에게 번지고, 나에 대한 응답에 시스템 전역 상태를 얹는 것은 응집도가 낮다.\n- 개폐 판정은 자가부여 창구가 거절을 가릴 때 쓰는 것과 같은 조회를 쓴다. 두 번째 판정 근거를 만들지 않는다.\n- 응답은 열림/닫힘 하나만 담는다. 관리자 인원수는 노출하지 않는다.\n- 인증을 요구하고 역할은 요구하지 않는다. 역할이 없는 사용자가 주된 호출자다.",
+        "status": "new",
+        "decided_by": "ADR-055",
+        "diff_summary": "관리자 부트스트랩 창구의 개폐를 읽기 전용으로 노출하는 창구 신설 — 1차에 대응 산출물 없음"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "관리자 부트스트랩 창구가 지금 열려 있는지를 화면이 진입 시점에 미리 묻기 위한 조회 창구다. 응답은 열림/닫힘 한 가지 사실만 담는다 — 열림은 시스템에 관리자가 한 명도 없다는 뜻이고, 닫힘은 관리자가 한 명 이상 있다는 뜻이다.\n\n이 창구가 필요한 이유는 개폐를 묻는 수단이 없으면 화면이 그 사실을 제출 응답으로 사후에 알게 되기 때문이다. 그러면 관리자가 이미 있는 시스템에서도 등록 화면이 \"아직 관리자가 없습니다\"를 먼저 띄우고, 사용자가 패스워드를 넣어 제출한 뒤에야 거절을 받는다. 화면이 거짓을 말하고 그 뒤에 막다른 길이 놓인다.\n\n★ 개폐 판정은 [[API-007]] 이 창 닫힘을 판정할 때 쓰는 것과 같은 조회여야 한다. 두 번째 판정 근거를 만들면 이 창구가 \"열림\"이라 답한 직후에 그 창구가 거절하는 어긋남이 생긴다.\n\n★ 이 값은 순간의 상태다. 조회와 제출 사이에 다른 사람이 최초 관리자가 되면 창은 그 사이에 닫히고 제출은 거절된다. 따라서 이 조회는 화면을 미리 맞추는 수단일 뿐이며, 호출하는 화면은 제출이 창 닫힘으로 거절되는 갈래를 그대로 유지해야 한다. 이 조회로 그 갈래를 대신할 수 없다.\n\n인증을 요구한다 — 미인증자에게 관리자의 존재 여부를 알릴 이유가 없고, 이 창구를 쓰는 화면에는 인증 후에만 도달한다. 역할은 요구하지 않는다. security 에 역할을 하나도 적지 않은 것은 누락이 아니라 그것이 사양이기 때문이다 — 이 창구의 주된 호출자는 아직 아무 역할도 부여받지 못한 사용자이므로, 역할을 조건으로 걸면 정작 필요한 사람이 부르지 못한다. 역할을 이미 가진 사용자는 이 조회가 필요하지 않으므로 그 진입 경로에는 끼어들지 않는다.\n\n응답에 관리자 인원수를 담지 않는다. 화면이 필요로 하는 것은 열림/닫힘 하나이고, 인원수는 인가와 무관한 사용자에게 줄 정보가 아니다.\n\n관리자 부트스트랩은 내부 채널의 개념이다 — 포털 채널에는 이 개념이 없다.\n\n창이 열리는 전제(시스템에 관리자가 한 명도 없을 때만 열린다)와 부여 역할이 관리자로 고정된다는 규칙은 [[ADR-055]] 에서 나온다. 이 조회를 소비하는 화면은 [[SCREEN-002]] 이고, 그 화면이 제출하는 창구는 [[API-007]] 이다.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-405",
+          "IMPREC-412"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-07T03:55:41.592Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "계약이 실제 갈래보다 좁았다 — 포털 채널 거절(409)을 responses 에 명시한다. 본문은 \"관리자 부트스트랩은 내부 채널의 개념이다\"라고 전제만 적고 그 전제를 벗어난 호출이 어떻게 되는지는 상태코드 어디에도 없어, 소비자가 200·401 두 갈래만 짜게 되어 있었다. 형제 창구 API-007 의 채널 거절과 같은 코드·같은 축으로 적었다(같은 사유에 다른 코드를 쓰면 화면이 갈래를 두 벌로 짜야 한다). ★ 같은 코드라도 두 창구에서 뜻이 같지 않다는 사실을 함께 못박았다 — 이 창구에서 창 닫힘은 거절이 아니라 200 의 available=false 이므로 이 코드의 사유는 채널 하나뿐이고, 형제 창구에서는 창 닫힘도 같은 코드로 나와 사유가 둘이다. 화면이 두 창구의 이 코드를 한 문구로 다루면 한쪽에서 거짓이 된다. 200·401 갈래와 응답 형태, 인증 요구·역할 무관 서술은 한 자도 고치지 않았고 추가만 했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:27:12.014Z",
+    "created_at": "2026-09-07T01:59:12.785Z"
+  }
+}

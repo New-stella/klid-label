@@ -1,20 +1,20 @@
 ---
 logicraft_item: DOMAIN-003
 type: domain
-version: 13
+version: 14
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:14.636Z
+synced_at: 2026-09-07T15:15:40.623Z
 status: CHANGED
-prev_version: 12
-content_hash: 3d7b6056fd70f03952ff1da78800d94cb25894f507be03d8f3976dcfd9c10fd8
+prev_version: 13
+content_hash: 9e9d7bde977f7c7874c00af9c67aa4c21ced99cf132069986b1b39e4ec9abccb
 stale: false
 raw: ./_raw/DOMAIN-003.json
 links:
   collaborates_with: ["[[DOMAIN-010]]"]
   migrated_from: ["[[LEGACY-003]]"]
-  applies_to_backward: ["[[NFR-008]]", "[[NFR-012]]"]
-  belongs_to_domain_backward: ["[[AC-1020]]", "[[AC-1021]]", "[[AC-1022]]", "[[AC-1023]]", "[[ADR-042]]", "[[ADR-049]]", "[[ADR-050]]", "[[API-042]]", "[[API-043]]", "[[API-044]]", "[[API-045]]", "[[API-046]]", "[[API-084]]", "[[API-092]]", "[[API-114]]", "[[API-143]]", "[[API-144]]", "[[API-145]]", "[[API-146]]", "[[API-148]]", "[[API-150]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-167]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-174]]", "[[API-181]]", "[[API-185]]", "[[API-186]]", "[[API-191]]", "[[API-192]]", "[[API-198]]", "[[API-199]]", "[[API-200]]", "[[API-201]]", "[[API-212]]", "[[API-213]]", "[[API-214]]", "[[CDIAG-001]]", "[[CMP-001]]", "[[CMP-010]]", "[[DFEAT-007]]", "[[DFEAT-008]]", "[[DFEAT-009]]", "[[DFEAT-010]]", "[[DFEAT-011]]", "[[ERD-012]]", "[[ERD-020]]", "[[ERD-025]]", "[[EVT-002]]", "[[EVT-005]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-038]]", "[[SD-004]]", "[[STATE-002]]", "[[UC-038]]"]
+  applies_to_backward: ["[[NFR-008]]", "[[NFR-012]]", "[[NFR-025]]", "[[NFR-037]]"]
+  belongs_to_domain_backward: ["[[AC-1020]]", "[[AC-1021]]", "[[AC-1022]]", "[[AC-1023]]", "[[ADR-042]]", "[[ADR-049]]", "[[ADR-050]]", "[[API-042]]", "[[API-043]]", "[[API-044]]", "[[API-045]]", "[[API-046]]", "[[API-084]]", "[[API-092]]", "[[API-114]]", "[[API-143]]", "[[API-144]]", "[[API-145]]", "[[API-146]]", "[[API-148]]", "[[API-150]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-167]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-174]]", "[[API-181]]", "[[API-185]]", "[[API-186]]", "[[API-191]]", "[[API-192]]", "[[API-198]]", "[[API-199]]", "[[API-200]]", "[[API-201]]", "[[API-212]]", "[[API-213]]", "[[API-214]]", "[[CDIAG-001]]", "[[CDIAG-017]]", "[[CDIAG-029]]", "[[CDIAG-036]]", "[[CMP-001]]", "[[CMP-010]]", "[[DFEAT-007]]", "[[DFEAT-008]]", "[[DFEAT-009]]", "[[DFEAT-010]]", "[[DFEAT-011]]", "[[ERD-012]]", "[[ERD-020]]", "[[ERD-025]]", "[[EVT-002]]", "[[EVT-005]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-038]]", "[[SD-004]]", "[[SEQ-031]]", "[[SEQ-035]]", "[[STATE-002]]", "[[UC-018]]", "[[UC-038]]", "[[UC-042]]"]
   collaborates_with_backward: ["[[DOMAIN-010]]", "[[DOMAIN-017]]"]
   derived_domain_backward: ["[[AC-1020]]", "[[AC-1021]]", "[[AC-1022]]", "[[AC-1023]]"]
   implements_in_backward: ["[[MOD-003]]", "[[MOD-041]]", "[[MOD-042]]", "[[MOD-045]]", "[[MOD-046]]", "[[MOD-048]]"]
@@ -110,7 +110,7 @@ _(empty)_
 ### [5]
 
 - **term**: 폴링 적재
-- **meaning**: 인입 테이블의 미처리 행을 주기적으로 원자 클레임해 LS_DATA_RAW 로 옮기는 배치. 2노드 동시 적재를 조건부 UPDATE 로 막는다
+- **meaning**: 인입 테이블의 미처리 행을 주기적으로 원자 클레임해 LS_DATA_RAW 로 옮기는 배치. 다중 노드 동시 적재를 조건부 UPDATE 로 막는다
 
 ### [6]
 

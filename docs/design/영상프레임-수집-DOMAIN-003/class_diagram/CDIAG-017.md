@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-017
 type: class_diagram
-version: 1
+version: 2
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:45:12.136Z
-status: NEW
-prev_version: null
-content_hash: 4bf44b012bed2e72423c3501324b59872e167432d842778ecc318e9312afee95
+synced_at: 2026-09-07T15:15:40.619Z
+status: CHANGED
+prev_version: 1
+content_hash: 035af2b28493b1ff8fe047ee2f7b16dfbb45f3ed8615560401efc6e27e1895d5
 stale: false
 raw: ./_raw/CDIAG-017.json
 links:
@@ -62,7 +62,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 영상 한 건의 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록을 함께 조회한다
+- **description**: 영상 한 건의 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록을 함께 조회한다. 관제가 검증 이벤트 유형을 보내지 않은 영상에서는 작업자가 고를 수 있는 유형 목록도 함께 싣는다 — 관제 값이 있는 영상에서는 그 목록이 비어 있다.
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 

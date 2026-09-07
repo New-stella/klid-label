@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-09-05T01:33:12.608Z (session 19) |
+| last sync | 2026-09-07T15:22:08.368Z (session 20) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
+| [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -47,34 +47,6 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-112]] | api_endpoint | CHANGED (v5→v6) |
-| [[API-167]] | api_endpoint | NEW |
-| [[API-201]] | api_endpoint | CHANGED (v8→v9) |
-| [[ROLE-001]] | permission_role | CHANGED (v13→v14) |
-| [[ROLE-003]] | permission_role | NEW |
-| [[ROLE-004]] | permission_role | CHANGED (v4→v5) |
-| [[SCREEN-009]] | screen_spec | CHANGED (v75→v76) |
-| [[UI-035]] | ui_component | CHANGED (v6→v7) |
-| [[UI-037]] | ui_component | CHANGED (v4→v6) |
-| [[UI-046]] | ui_component | CHANGED (v7→v8) |
-| [[UI-071]] | ui_component | CHANGED (v4→v5) |
-| [[UI-072]] | ui_component | CHANGED (v4→v5) |
-| [[UI-096]] | ui_component | CHANGED (v5→v6) |
-| [[UI-105]] | ui_component | CHANGED (v1→v3) |
-| [[UI-129]] | ui_component | CHANGED (v1→v4) |
-| [[UI-131]] | ui_component | CHANGED (v1→v2) |
-| [[UI-132]] | ui_component | CHANGED (v1→v2) |
-| [[UI-134]] | ui_component | CHANGED (v1→v2) |
-| [[UI-138]] | ui_component | CHANGED (v1→v2) |
-| [[UI-139]] | ui_component | CHANGED (v1→v2) |
-| [[UI-140]] | ui_component | CHANGED (v1→v2) |
-| [[UC-011]] | use_case | CHANGED (v13→v19) |
-| [[UC-016]] | use_case | CHANGED (v25→v30) |
 
 ## Obsidian 볼트로 보기
 

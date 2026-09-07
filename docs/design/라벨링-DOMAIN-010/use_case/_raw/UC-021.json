@@ -36,7 +36,7 @@
         }
       ],
       "brownfield": {
-        "notes": "2026-07-30: full-replace(빠진 라벨 실삭제) + 저장이벤트 되돌리기(label-history) 반영(ADR-033)",
+        "notes": "2026-07-30: full-replace(빠진 라벨 실삭제) + 저장이벤트 되돌리기(label-history) 반영(ADR-033)\n\n[폐기 기록] ⚠ 구 서술 '저장·수정은 작업락으로 409 차단' 은 폐기됐다 — 작업락은 6h 만료 후 회수되는데 'F' 는 resolve 까지 남아 조회 412 ↔ 저장 200 비대칭이 열렸고, full-replace 계약상 items:[] 저장이 기존 라벨을 전량 삭제했다",
         "status": "modified",
         "decided_by": "ADR-033",
         "change_kind": [
@@ -93,7 +93,6 @@
           "name": "비식별 누락 신고 구간",
           "steps": [
             "신고 구간(DE_IDNTF_YN='F') 영상은 라벨 조회(GET)와 저장(PUT /v1/frames/{srcSn}/labels) 를 모두 412 로 차단한다 — 게이트는 인가 검사 이후·락 검사 보다 먼저 평가하며 역할 무관이다",
-            "⚠ 구 서술 '저장·수정은 작업락으로 409 차단' 은 폐기됐다 — 작업락은 6h 만료 후 회수되는데 'F' 는 resolve 까지 남아 조회 412 ↔ 저장 200 비대칭이 열렸고, full-replace 계약상 items:[] 저장이 기존 라벨을 전량 삭제했다",
             "409 는 신고와 무관한 락(트랙 병합 등 일시적 충돌)에만 남는다"
           ],
           "trigger": "대상 영상이 비식별 재처리 대기 상태"
@@ -138,12 +137,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 22,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 62건이 있었는데 그중 62건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1057, AC-1058)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "current_version": 23,
+    "stale": true,
+    "stale_reason": "SCREEN-005의 data.sections 변경 — references",
+    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:25:52.137Z",
+    "last_updated_at": "2026-09-07T04:05:52.598Z",
     "created_at": "2026-06-05T09:45:01.992Z"
   }
 }

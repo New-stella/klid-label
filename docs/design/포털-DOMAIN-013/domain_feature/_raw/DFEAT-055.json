@@ -28,11 +28,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-008"
+          "IMPREC-008",
+          "IMPREC-400"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:33:25.807Z",
+        "last_updated": "2026-09-06T06:50:43.731Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java",
@@ -71,8 +72,8 @@
     "stale": true,
     "stale_reason": "API-225의 2개 필드 변경 — implements",
     "change_summary": "홈 목록의 모집단이 두 축이 되어 업로드 자산 행도 그 목록에 실리게 됐다. 그래서 한 목록 안에서 만료 고지가 두 규칙으로 갈린다는 사실과, 행마다 따르는 보존 규칙이 다르다는 것을 본문 끝에 한 항목으로 더했다. 데이터마트 영상 행은 데이터마트 채널 규칙을, 업로드 자산 행은 업로드 채널 규칙을 따른다. 파급을 올린 쪽이 「업로드 자산 행에는 고지할 만료 예정 시각이 없다」고 적었으나 그것은 사실과 다르므로 그 서술을 옮겨 적지 않고, 업로드 축에 이미 자기 보존 규칙과 만료 예정 시각이 있다는 점을 함께 못박았다. 데이터마트 축과 업로드 축의 기존 규칙 서술, 폐기 표기, 안전 규율, 확정 회신 블록, 적재 테이블 목록은 한 자도 건드리지 않았고 본문 끝에 더하기만 했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-05T23:29:34.492Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-06T06:50:43.731Z",
     "created_at": "2026-08-17T01:07:35.410Z"
   }
 }

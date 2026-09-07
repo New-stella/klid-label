@@ -32,7 +32,7 @@
         {
           "step": 4,
           "actor": "시스템",
-          "action": "수정된 영상이 재검수에서 승인되면 TASK_MODIFIED 페이로드를 구성한다 — job_id 와 changed_items{images[]·jsons[]}(산출 폴더의 변경 파일명 목록)에 선택 ver_expln·output_ver_no 를 더한 평면 구조다. [폐기] 변경 프레임 목록(SRC_SN)·변경 종류·요약 카운트를 싣던 방식은 지금은 그렇게 하지 않는다"
+          "action": "수정된 영상이 재검수에서 승인되면 TASK_MODIFIED 페이로드를 구성한다 — job_id 와 changed_items{images[]·jsons[]}(산출 폴더의 변경 파일명 목록)에 선택 ver_expln·output_ver_no 를 더한 평면 구조다."
         },
         {
           "step": 5,
@@ -46,7 +46,7 @@
         }
       ],
       "brownfield": {
-        "notes": "2026-07-30: outbound 통지 계약 BREAKING 변경 반영(notify-completed/notify-updated, flat payload). 경로·필드명은 관제 정본과 정합 완료이며, 인증만 미확정으로 남아 관제 회신 대기 중이다.",
+        "notes": "2026-07-30: outbound 통지 계약 BREAKING 변경 반영(notify-completed/notify-updated, flat payload). 경로·필드명은 관제 정본과 정합 완료이며, 인증만 미확정으로 남아 관제 회신 대기 중이다.\n\n[폐기 기록] [폐기] 변경 프레임 목록(SRC_SN)·변경 종류·요약 카운트를 싣던 방식은 지금은 그렇게 하지 않는다",
         "status": "new",
         "decided_by": "ADR-007",
         "change_kind": [
@@ -108,17 +108,20 @@
       "tech_considerations": [],
       "covered_by_acceptances": [
         "AC-1077",
-        "AC-1078"
+        "AC-1078",
+        "AC-1095",
+        "AC-1096",
+        "AC-1097"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
+    "current_version": 25,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "액터 표기에서 [외부] 표기를 뺀다 — 관제서버[외부] → 관제서버 (보조 액터와 기본 시나리오 6단계 액터 두 자리)",
+    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T05:38:35.132Z",
+    "last_updated_at": "2026-09-07T04:05:50.835Z",
     "created_at": "2026-06-01T06:25:20.231Z"
   }
 }

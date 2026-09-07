@@ -33,16 +33,23 @@
           "묘사 서술 전문이 vlm.description에 적재되고 검수큐에 진입한다(검수큐는 이 전문뿐)",
           "이벤트 어노 초안의 자기 칸만 채워진다(후보 통째 교체 없음)",
           "승인 이력·기존 값·종결 시 채우지 않고 중복 콜백은 멱등이며 자동채움은 재검수를 발화하지 않는다",
-          "검수자가 패널에서 검토·수정 후 RVW_STTS_CD를 승인/반려로 전이한다"
+          "검수자가 패널에서 검토·수정 후 RVW_STTS_CD를 승인/반려로 전이한다",
+          "질문 칸은 위탁 시점에 추가 질문 요청 본문(prompt)에 실어 보내고 멱등 원장에 보관한 그 문구로 채워진다 — 결과 수신 시 재조달하지 않아 보낸 질문과 기록된 질문이 같다",
+          "일치도(accuracy)·검출여부(detected)는 이 경로로 적재되지 않는다 — 판정(verify) 창구 전용 응답 필드이고 그 창구는 연동 대상이 아니다",
+          "추가 질문 축이 실패해도 마킹의 위탁 상태 표시는 실패로 내려가지 않는다 — 그 표시는 묘사 축 기준이다",
+          "구 창구 describe-sub 로 이미 받아 적재된 결과는 그대로 보존된다"
         ],
         "when": [
-          "콜백을 적재하고 검수자가 패널에서 검토·수정 후 승인/반려한다"
+          "콜백을 적재하고 검수자가 패널에서 검토·수정 후 승인/반려한다",
+          "request_id로 위탁 원장을 역조회해 어느 창구의 결과인지 가른다"
         ],
         "given": [
-          "외부 VLM이 두 창구의 시계열 분석을 콜백으로 보낸다"
+          "외부 VLM이 두 창구(묘사 describe · 추가 질문 custom)의 시계열 분석을 콜백으로 보낸다",
+          "두 축은 각각 별개 request_id로 위탁됐고, 콜백 바디에는 어느 창구의 응답인지 가르는 구분자가 없다",
+          "추가 질문 축에 실어 보낸 질문 문구는 위탁 시점에 멱등 원장(LS_WEBHOOK_IDEMPOTENCY.QSTN_CN)에 보관돼 있다"
         ]
       },
-      "statement": "외부 VLM이 묘사(describe)·추가 질문(describe-sub) 두 창구의 분석 결과를 창구별 request_id로 각각 콜백(POST /v1/vlm/callback)으로 보내면(요청·도착 순서 불일치), 묘사 결과 서술 전문을 LS_DATA_META(vlm.description)에 적재하고 LS_DATA_META_REVIEW 검수큐에 진입시킨다(검수큐 진입은 이 서술 전문뿐). 같은 결과로 이벤트 어노테이션 초안의 자기 칸만 채우되(「상황」→캡션 후보 c1 CoT 1단계, 추가 질문 답변→같은 후보 캡션 본문, 질문 칸→저작도구 보관 유형별 질문 문구, 후보 통째 교체 없음), 승인 이력이 있거나 칸에 값이 있거나 어노 검토가 종결됐으면 채우지 않고 중복 콜백은 멱등이며 자동채움은 재검수를 발화시키지 않는다. 검수자가 SCREEN-005 우측 시계열 메타 패널에서 검토·수정 후 승인/반려(RVW_STTS_CD 전이)한다.",
+      "statement": "외부 VLM이 묘사(describe, POST /v1/videovlm-klid/describe)·추가 질문(custom, POST /v1/videovlm-klid/custom) 두 창구의 분석 결과를 창구별 request_id로 각각 콜백(POST /v1/vlm/callback)으로 보내면(요청·도착 순서 불일치), 콜백 바디에 어느 창구의 응답인지 가르는 구분자가 없으므로 request_id로 위탁 원장을 역조회해 축을 가른다 — 원장 채널 식별자는 창구가 바뀌어도 그대로다. 묘사 결과 서술 전문을 LS_DATA_META(vlm.description)에 적재하고 LS_DATA_META_REVIEW 검수큐에 진입시킨다(검수큐 진입은 이 서술 전문뿐). 같은 결과로 이벤트 어노테이션 초안의 자기 칸만 채우되(「상황」→캡션 후보 c1 CoT 1단계, 추가 질문 답변 서술→같은 후보 캡션 본문, 질문 칸→위탁 시점에 조달해 추가 질문 요청 본문 prompt 에 실은 뒤 멱등 원장(LS_WEBHOOK_IDEMPOTENCY.QSTN_CN)에 보관한 그 문구를 읽어 채우며 결과 수신 시 재조달하지 않는다, 후보 통째 교체 없음), 승인 이력이 있거나 칸에 값이 있거나 어노 검토가 종결됐으면 채우지 않고 중복 콜백은 멱등이며 자동채움은 재검수를 발화시키지 않는다. 콜백 results 는 {description} 단일이라 일치도(accuracy)·검출여부(detected)는 이 경로로 오지 않는다 — 그 둘은 미연동인 판정(verify) 창구 전용 응답 필드다. 추가 질문 축의 실패는 기록만 남기고 마킹의 위탁 상태 표시를 실패로 내리지 않는다 — 그 표시는 묘사 축 기준이다. 검수자가 SCREEN-005 우측 시계열 메타 패널에서 검토·수정 후 승인/반려(RVW_STTS_CD 전이)한다. [폐기] 구 추가 질문 창구 POST /v1/videovlm-klid/describe-sub — 외부 분석 서버가 계속 제공하나 연동 대상으로 두지 않는다. 그 창구로 이미 받아 적재된 결과는 보존한다.",
       "brownfield": {
         "status": "new"
       },
@@ -59,19 +66,19 @@
       },
       "derived_domain_ids": [],
       "verification_method": "manual_test",
-      "verification_status": "passing",
+      "verification_status": "unverified",
       "derived_from_use_cases": [
         "UC-022"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "UC-022의 data.description 변경 — derived_from",
+    "change_summary": "검증 상태를 passing 에서 unverified 로 내렸다. 2026-09-07 에 추가한 단정(유형 선택 노출 조건·유형 선택은 선택 사항·보낸 질문과 기록된 질문이 같다·창구 교체)은 오늘 확정된 신규 설계라 아직 검증된 적이 없는데, 마지막 실행 기록이 2026-08-31 로 그보다 앞선다. 그대로 두면 미구현일 수 있는 기준을 통과로 선언하는 것이 되어 검증이 그 위에서 잘못된 판정을 낸다. ⚠ last_run 은 그 시점의 사실 기록이라 지우지 않았다 — 옛 단정에 대해서는 유효한 결과였다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:45.511Z",
+    "last_updated_at": "2026-09-07T11:19:37.146Z",
     "created_at": "2026-08-31T02:15:28.373Z"
   }
 }

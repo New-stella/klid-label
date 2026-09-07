@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-09-05T01:33:13.144Z (session 16) |
+| last sync | 2026-09-07T15:22:13.141Z (session 17) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
@@ -53,31 +53,6 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[AC-1050]] | acceptance | NEW |
-| [[AC-1051]] | acceptance | NEW |
-| [[ROLE-001]] | permission_role | CHANGED (v13→v14) |
-| [[ROLE-003]] | permission_role | NEW |
-| [[ROLE-004]] | permission_role | CHANGED (v4→v5) |
-| [[UI-035]] | ui_component | CHANGED (v6→v7) |
-| [[UI-037]] | ui_component | CHANGED (v4→v6) |
-| [[UI-046]] | ui_component | CHANGED (v7→v8) |
-| [[UI-071]] | ui_component | CHANGED (v4→v5) |
-| [[UI-072]] | ui_component | CHANGED (v4→v5) |
-| [[UI-096]] | ui_component | CHANGED (v5→v6) |
-| [[UI-105]] | ui_component | CHANGED (v1→v3) |
-| [[UI-129]] | ui_component | CHANGED (v1→v4) |
-| [[UI-131]] | ui_component | CHANGED (v1→v2) |
-| [[UI-132]] | ui_component | CHANGED (v1→v2) |
-| [[UI-134]] | ui_component | CHANGED (v1→v2) |
-| [[UI-138]] | ui_component | CHANGED (v1→v2) |
-| [[UI-139]] | ui_component | CHANGED (v1→v2) |
-| [[UI-140]] | ui_component | CHANGED (v1→v2) |
-| [[UC-040]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 
