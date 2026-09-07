@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -121,7 +122,7 @@ class VlmResultServiceDescriptionDraftTest {
                 900L, VlmResultService.META_KEY_DESCRIPTION, description);
         verify(isolatedDraftApplier).applyDescription(900L, description);
         // 추가 질문 축 계약은 묘사 콜백이 부르지 않는다(두 축이 같은 칸을 쓰면 한쪽이 유실된다).
-        verify(resultApplier, never()).applySubDescription(anyLong(), anyString());
+        verify(resultApplier, never()).applySubDescription(anyLong(), anyString(), any());
         // ★격리 경계를 우회해 협력자를 직접 부르면 위 전파 속성이 아무것도 막지 못한다.
         verify(resultApplier, never()).applyDescription(anyLong(), anyString());
     }
@@ -171,7 +172,7 @@ class VlmResultServiceDescriptionDraftTest {
 
         // then
         assertThat(applied).isTrue();
-        verify(resultApplier).applySubDescription(902L, "네, 근거는 ...");
+        verify(resultApplier).applySubDescription(902L, "네, 근거는 ...", null);
         verify(isolatedDraftApplier, never()).applyDescription(anyLong(), anyString());
         verify(markingRepository, never()).findByRawSnAndSttsCdIn(anyLong(), anyList());
         verify(metaRepository, never()).upsertMetaReturning(anyLong(), anyString(), anyString());

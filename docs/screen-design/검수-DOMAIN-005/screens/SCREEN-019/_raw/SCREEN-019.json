@@ -521,7 +521,7 @@
     "schema_version": 1,
     "current_version": 43,
     "stale": true,
-    "stale_reason": "UC-007의 3개 필드 변경이 realizes로 2-hop 전파",
+    "stale_reason": "API-132의 2개 필드 변경 — consumes",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (25.6KB)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-27T09:25:32.550Z",

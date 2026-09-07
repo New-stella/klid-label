@@ -6,6 +6,7 @@ import { DeidentReportButton } from '@/features/label/components/DeidentReportBu
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
+import { VerificationEventTypeSelect } from '@/features/marking/components/VerificationEventTypeSelect';
 import { VerificationQuestionSelect } from '@/features/marking/components/VerificationQuestionSelect';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
@@ -65,14 +66,47 @@ export function MarkingPage() {
   //   서버가 값을 못 내리는 경우에만 동일 폴백값(30)을 사용한다.
   const markingFps = resolveMarkingFps(videoDetail?.fps);
 
-  // [@design SCREEN-006] [@design API-047] 검증 질문 선택 — 목록의 출처는 <b>영상 단건 조회 응답</b>이다.
-  //   관리 화면 경로(/v1/manage/verification-event-types)는 검수자 전용이라 작업자에게 403 이며,
-  //   그걸 부르면 이 화면이 작업자에게 통째로 깨진다.
-  //   BE 가 정렬순서 오름차순으로 내려주므로 여기서 다시 정렬하지 않는다.
-  const vrfcEvntQuestions = useMemo(
-    () => videoDetail?.vrfcEvntQuestions ?? [],
-    [videoDetail?.vrfcEvntQuestions],
+  // [@design SCREEN-006] [@design API-047] [@design API-043] 검증 이벤트 유형·질문 선택 —
+  //   <b>두 목록 모두 출처가 영상 단건 조회 응답</b>이다. 관리 화면 경로
+  //   (/v1/manage/verification-event-types)는 검수자 전용이라 작업자에게 403 이며, 그걸 부르면 이
+  //   화면이 작업자에게 통째로 깨진다. BE 가 정렬순서 오름차순으로 내려주므로 다시 정렬하지 않는다.
+  //
+  // [@design SCREEN-006] [@design API-043] 검증 이벤트 유형 선택 — <b>관제 값이 없을 때만</b> 노출한다.
+  //   서버가 그 판정을 이미 내려 목록으로 표현한다: 관제 인입에서 유형을 받은 영상에는 <b>빈 배열</b>을
+  //   내려 준다. 그래서 화면은 목록이 비었는지만 보고 판정하고 `vrfcEvntTypeCd` 의 null 여부로 다시
+  //   유도하지 않는다 — 판정이 두 곳으로 갈리면 한쪽만 조용히 낡는다.
+  //   ⚠ 「표시하되 잠근다」가 아니다(그 안은 미채택). 노출 자체를 가르므로 작업자 선택과 관제 값이
+  //     맞붙는 상태가 구조적으로 생기지 않는다.
+  const selectableVrfcEvntTypes = useMemo(
+    () => videoDetail?.selectableVrfcEvntTypes ?? [],
+    [videoDetail?.selectableVrfcEvntTypes],
   );
+  const typeChoiceOffered = selectableVrfcEvntTypes.length > 0;
+  const [selectedTypeCd, setSelectedTypeCd] = useState<string | null>(null);
+
+  // 고른 유형이 목록에서 사라지면(관제 값이 뒤늦게 도착해 목록이 비는 경우 포함) 선택을 버린다.
+  //   ★ 버리지 않으면 <b>노출되지 않는 선택값이 요청에 실린다</b> — 화면에 보이지 않는 값이 저장되고
+  //     외부 위탁까지 나가는 상태라, 사용자가 되돌릴 수단이 없다.
+  useEffect(() => {
+    setSelectedTypeCd((prev) =>
+      prev !== null && selectableVrfcEvntTypes.some((t) => t.vrfcEvntTypeCd === prev) ? prev : null,
+    );
+  }, [selectableVrfcEvntTypes]);
+
+  // 질문 목록의 조달처는 <b>유형 선택을 노출했는지</b>에 따라 갈린다.
+  //   ① 관제 값이 있는 영상 — 서버가 그 유형의 질문을 `vrfcEvntQuestions` 로 이미 실어 준다(종전 그대로).
+  //   ② 유형 선택을 노출한 영상 — 그 영상의 `vrfcEvntQuestions` 는 <b>구조적으로 빈 배열</b>이다
+  //      (서버가 관제 수신 유형으로 조회하는데 그 값이 없다). 그래서 <b>다시 조회해도</b> 고른 유형의
+  //      질문은 오지 않는다. 유형별 질문을 실어 보낼 자리는 목록 항목뿐이므로 거기서 읽는다.
+  //   ⚠ 관리 화면 경로(/v1/manage/…)로 조달하지 않는다 — 검수자 전용이라 작업자에게 403 이고
+  //     그걸 부르면 이 화면이 통째로 깨진다.
+  const vrfcEvntQuestions = useMemo(() => {
+    if (!typeChoiceOffered) return videoDetail?.vrfcEvntQuestions ?? [];
+    if (selectedTypeCd === null) return [];
+    return (
+      selectableVrfcEvntTypes.find((t) => t.vrfcEvntTypeCd === selectedTypeCd)?.questions ?? []
+    );
+  }, [typeChoiceOffered, videoDetail?.vrfcEvntQuestions, selectableVrfcEvntTypes, selectedTypeCd]);
   const [selectedQstnSn, setSelectedQstnSn] = useState<number | null>(null);
 
   // 기본 선택 = 정렬순서 첫 번째. 목록이 도착하거나 영상이 바뀌면 다시 맞춘다.
@@ -188,13 +222,34 @@ export function MarkingPage() {
     // 고른 질문이 있을 때만 싣는다 — 고를 것이 없으면 필드를 만들지 않는다(값을 지어내지 않는다).
     //   ⚠ 서버는 어긋난 값을 400 이 아니라 <b>그 유형의 첫 번째 질문으로 교정</b>하고 교정 결과를
     //     응답으로 돌려주지 않는다. 화면은 그 교정을 전제로 하며 「교정됨」 표시를 만들지 않는다.
+    // ★ 유형 선택을 노출한 영상에서는 유형이 <b>필수</b>다 — 고르지 않으면 그 영상은 질문도
+    //   시계열 메타도 하나도 받지 못하는 상태가 그대로 굳는다(그것을 풀려고 만든 선택이다).
+    //   ⚠ 완료 버튼을 죽여서 막지 않는다 — 이 화면의 확정 사양은 버튼을 누를 수 있게 두고 사유를
+    //     토스트로 말하는 것이다(마크 0건 축과 같다). 조용한 early return 이면 스크린리더 사용자에게
+    //     아무 신호도 남지 않는다.
+    if (typeChoiceOffered && selectedTypeCd === null) {
+      pushToast({
+        variant: 'warning',
+        message: '검증 이벤트 유형을 골라 주세요.',
+      });
+      return;
+    }
     const questionPayload =
       selectedQstnSn !== null ? { vrfcEvntQstnSn: selectedQstnSn } : {};
+    // 유형은 <b>선택을 노출한 영상에서만</b> 싣는다 — 관제 값이 있는 영상에는 필드 자체를 만들지
+    // 않는다(서버가 관제 인입을 1순위로 쓰므로 실어 봐야 무시되고, 두 조달처가 맞붙는 것처럼 보인다).
+    //   ⚠ `typeChoiceOffered` 검사는 위 정리 effect 덕분에 <b>지금은 중복</b>이다(선택이 목록에서
+    //     사라지면 값이 이미 버려진다). 변이시험에서 이 조건만 지워도 죽지 않는 이유가 그것이며,
+    //     남겨 두는 것은 「노출하지 않은 값은 보내지 않는다」를 <b>보내는 자리에서도</b> 말하기
+    //     위해서다 — 정리 effect 가 나중에 바뀌어도 이 자리는 그대로 지킨다.
+    const typePayload =
+      typeChoiceOffered && selectedTypeCd !== null ? { vrfcEvntTypeCd: selectedTypeCd } : {};
     if (mode === 'AUTO') {
       if (!intervalFrames || intervalFrames < 1) return;
       createMutation.mutate({
         mode: 'AUTO',
         intervalFrames,
+        ...typePayload,
         ...questionPayload,
       });
     } else {
@@ -212,10 +267,21 @@ export function MarkingPage() {
       createMutation.mutate({
         mode: 'MANUAL',
         marks: localMarks,
+        ...typePayload,
         ...questionPayload,
       });
     }
-  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast, selectedQstnSn]);
+  }, [
+    mode,
+    intervalFrames,
+    localMarks,
+    rawSn,
+    createMutation,
+    pushToast,
+    selectedQstnSn,
+    typeChoiceOffered,
+    selectedTypeCd,
+  ]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -389,9 +455,20 @@ export function MarkingPage() {
         )}
       </div>
 
+      {/* [@design SCREEN-006] [@design API-043] 검증 이벤트 유형 선택 — 관제가 유형을 보내지 않은
+          영상에서만 뜬다(서버가 그런 영상에만 목록을 채워 준다). 관제 값이 있으면 컴포넌트가 스스로
+          아무것도 렌더하지 않는다. */}
+      <VerificationEventTypeSelect
+        types={selectableVrfcEvntTypes}
+        value={selectedTypeCd}
+        onChange={setSelectedTypeCd}
+        disabled={createMutation.isPending}
+      />
+
       {/* [@design SCREEN-006] 검증 질문 선택 — 고를 질문이 하나도 없으면 컴포넌트가 스스로
           아무것도 렌더하지 않는다(빈 드롭다운은 "고를 수 있는데 비어 있다"로 읽힌다).
-          질문이 없다고 마킹이 막히지는 않는다 — 어노테이션의 질문 칸이 비는 것뿐이다. */}
+          질문이 없다고 마킹이 막히지는 않는다 — 어노테이션의 질문 칸이 비는 것뿐이다.
+          유형 선택을 노출한 영상에서는 유형을 고른 뒤에 이 목록이 열린다. */}
       <VerificationQuestionSelect
         questions={vrfcEvntQuestions}
         value={selectedQstnSn}

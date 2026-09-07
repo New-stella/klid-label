@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-09-05T00:45:13.080Z |
-| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 107 |
+| Last sync | 2026-09-07T15:21:42.453Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 110 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 47건
   ℹ️  api_endpoint: 이번 키트 13건 / 스코프 밖 210건
-  ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
+  ℹ️  erd: 이번 키트 1건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 32건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 36건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 31건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 76건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 80건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 16건 / 스코프 밖 40건 (그중 domain_id 없음 5건)
+  ℹ️  adr: 이번 키트 16건 / 스코프 밖 42건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -41,9 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-021]]
-- NEW [[CDIAG-031]]
-- NEW [[CDIAG-039]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -62,12 +60,12 @@
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-023]] | adr | 8 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
-| [[ADR-031]] | adr | 2 | UNCHANGED |
+| [[ADR-031]] | adr | 4 | UNCHANGED |
 | [[ADR-044]] | adr | 3 | UNCHANGED |
 | [[ADR-045]] | adr | 7 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
-| [[ADR-058]] | adr | 8 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
+| [[ADR-058]] | adr | 9 | UNCHANGED |
 | [[ADR-059]] | adr | 1 | UNCHANGED |
 | [[ADR-061]] | adr | 1 | UNCHANGED |
 | [[ADR-062]] | adr | 4 | UNCHANGED |
@@ -85,16 +83,16 @@
 | [[API-189]] | api_endpoint | 3 | UNCHANGED |
 | [[API-190]] | api_endpoint | 7 | UNCHANGED |
 | [[CDIAG-010]] | class_diagram | 14 | UNCHANGED |
-| [[CDIAG-021]] | class_diagram | 1 | NEW |
-| [[CDIAG-031]] | class_diagram | 1 | NEW |
-| [[CDIAG-039]] | class_diagram | 1 | NEW |
+| [[CDIAG-021]] | class_diagram | 1 | UNCHANGED |
+| [[CDIAG-031]] | class_diagram | 1 | UNCHANGED |
+| [[CDIAG-039]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-007]] | diagram_c4_component | 8 | UNCHANGED |
 | [[DFEAT-029]] | domain_feature | 18 | UNCHANGED |
 | [[DFEAT-030]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-007]] | domain | 18 | UNCHANGED |
-| [[ERD-011]] | erd | 29 | UNCHANGED |
+| [[ERD-011]] | erd | 30 | UNCHANGED |
 | [[EVT-011]] | domain_event | 5 | UNCHANGED |
-| [[EXTSYS-004]] | external_system | 10 | UNCHANGED |
+| [[EXTSYS-004]] | external_system | 11 | UNCHANGED |
 | [[FEAT-001]] | feature | 9 | UNCHANGED |
 | [[FEAT-004]] | feature | 11 | UNCHANGED |
 | [[INT-006]] | integration_point | 15 | UNCHANGED |
@@ -158,4 +156,4 @@
 | [[UC-001]] | use_case | 18 | UNCHANGED |
 | [[UC-002]] | use_case | 21 | UNCHANGED |
 | [[UC-003]] | use_case | 16 | UNCHANGED |
-| [[UC-010]] | use_case | 16 | UNCHANGED |
+| [[UC-010]] | use_case | 17 | UNCHANGED |

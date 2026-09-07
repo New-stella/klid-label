@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-09-05T00:45:17.828Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 137 |
+| Last sync | 2026-09-07T15:21:47.564Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 138 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 6건 / 스코프 밖 43건
   ℹ️  api_endpoint: 이번 키트 25건 / 스코프 밖 198건
-  ℹ️  erd: 이번 키트 3건 / 스코프 밖 20건
+  ℹ️  erd: 이번 키트 3건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 11건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 73건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 77건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 11건 / 스코프 밖 45건 (그중 domain_id 없음 7건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 8건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
 
@@ -41,13 +41,13 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-019]]
+- (변경 없음)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1036]] | acceptance | 6 | UNCHANGED |
+| [[AC-1036]] | acceptance | 8 | UNCHANGED |
 | [[AC-1037]] | acceptance | 5 | UNCHANGED |
 | [[AC-1038]] | acceptance | 8 | UNCHANGED |
 | [[AC-1039]] | acceptance | 6 | UNCHANGED |
@@ -64,8 +64,8 @@
 | [[ADR-015]] | adr | 4 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-020]] | adr | 11 | UNCHANGED |
-| [[ADR-031]] | adr | 2 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
+| [[ADR-031]] | adr | 4 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-060]] | adr | 1 | UNCHANGED |
 | [[API-008]] | api_endpoint | 12 | UNCHANGED |
 | [[API-009]] | api_endpoint | 9 | UNCHANGED |
@@ -78,23 +78,23 @@
 | [[API-016]] | api_endpoint | 3 | UNCHANGED |
 | [[API-017]] | api_endpoint | 5 | UNCHANGED |
 | [[API-021]] | api_endpoint | 9 | UNCHANGED |
-| [[API-065]] | api_endpoint | 21 | UNCHANGED |
+| [[API-065]] | api_endpoint | 25 | UNCHANGED |
 | [[API-066]] | api_endpoint | 7 | UNCHANGED |
 | [[API-067]] | api_endpoint | 8 | UNCHANGED |
-| [[API-102]] | api_endpoint | 14 | UNCHANGED |
+| [[API-102]] | api_endpoint | 15 | UNCHANGED |
 | [[API-103]] | api_endpoint | 11 | UNCHANGED |
-| [[API-104]] | api_endpoint | 14 | UNCHANGED |
+| [[API-104]] | api_endpoint | 15 | UNCHANGED |
 | [[API-105]] | api_endpoint | 7 | UNCHANGED |
 | [[API-128]] | api_endpoint | 3 | UNCHANGED |
-| [[API-132]] | api_endpoint | 5 | UNCHANGED |
+| [[API-132]] | api_endpoint | 7 | UNCHANGED |
 | [[API-138]] | api_endpoint | 4 | UNCHANGED |
 | [[API-168]] | api_endpoint | 2 | UNCHANGED |
 | [[API-172]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
 | [[CDIAG-006]] | class_diagram | 15 | UNCHANGED |
-| [[CDIAG-014]] | class_diagram | 13 | UNCHANGED |
-| [[CDIAG-019]] | class_diagram | 1 | NEW |
+| [[CDIAG-014]] | class_diagram | 16 | UNCHANGED |
+| [[CDIAG-019]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 9 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-023]] | domain_feature | 2 | UNCHANGED |
@@ -103,7 +103,7 @@
 | [[DFEAT-049]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-005]] | domain | 16 | UNCHANGED |
-| [[ERD-015]] | erd | 16 | UNCHANGED |
+| [[ERD-015]] | erd | 17 | UNCHANGED |
 | [[ERD-023]] | erd | 12 | UNCHANGED |
 | [[ERD-030]] | erd | 2 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
@@ -115,8 +115,8 @@
 | [[FEAT-004]] | feature | 11 | UNCHANGED |
 | [[FEAT-008]] | feature | 4 | UNCHANGED |
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
-| [[INT-003]] | integration_point | 18 | UNCHANGED |
-| [[INTSPEC-002]] | integration_spec | 12 | UNCHANGED |
+| [[INT-003]] | integration_point | 23 | UNCHANGED |
+| [[INTSPEC-002]] | integration_spec | 16 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
@@ -162,7 +162,7 @@
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 14 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 106 | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 29 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 47 | UNCHANGED |
@@ -172,16 +172,16 @@
 | [[SEQ-010]] | diagram_sequence | 18 | UNCHANGED |
 | [[SEQ-011]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
-| [[SEQ-023]] | diagram_sequence | 9 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 15 | UNCHANGED |
+| [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |
-| [[TEST-007]] | test_scenario | 3 | UNCHANGED |
-| [[TEST-008]] | test_scenario | 3 | UNCHANGED |
+| [[TEST-007]] | test_scenario | 5 | UNCHANGED |
+| [[TEST-008]] | test_scenario | 4 | UNCHANGED |
 | [[UC-007]] | use_case | 15 | UNCHANGED |
-| [[UC-009]] | use_case | 23 | UNCHANGED |
-| [[UC-010]] | use_case | 16 | UNCHANGED |
-| [[UC-022]] | use_case | 24 | UNCHANGED |
+| [[UC-009]] | use_case | 25 | UNCHANGED |
+| [[UC-010]] | use_case | 17 | UNCHANGED |
+| [[UC-022]] | use_case | 29 | UNCHANGED |
 | [[UC-023]] | use_case | 30 | UNCHANGED |
 | [[UI-097]] | ui_component | 5 | UNCHANGED |

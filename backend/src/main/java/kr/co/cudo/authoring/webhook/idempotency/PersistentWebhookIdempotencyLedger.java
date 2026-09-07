@@ -79,14 +79,30 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
                              String srvrId) {
+        recordIssued(idempotencyKey, channel, externalJobId, rawSn, srvrId, null);
+    }
+
+    /**
+     * 추가 질문 축 — <b>보낸 질문 문구</b>까지 영속한다. [@design ERD-021]
+     *
+     * <p>그 축은 질문 문구를 요청 본문에 직접 실으므로, 이 값이 곧 <b>실제로 나간 값</b>이다. 콜백
+     * 수신부는 이 행에서 읽어 <b>재조달하지 않는다</b> — 질문 목록은 전체 교체로 저장되어 가리키던 행이
+     * 사라지는 것이 정상 동선이라, 재조달하면 보낸 질문과 기록된 질문이 갈린다.
+     *
+     * <p>묘사 축은 {@code qstnCn} 이 {@code null} 이며 기존 행과 동작이 같다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
+                             String srvrId, String qstnCn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
         String safeChannel = (channel == null || channel.isBlank()) ? CHANNEL_UNKNOWN : channel;
         try {
             if (repository.existsById(idempotencyKey)) {
                 return; // 불변 보장 — 이미 발급된 키는 다시 기록하지 않음
             }
-            repository.save(
-                    LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId, rawSn, srvrId));
+            repository.save(LsWebhookIdempotency.issue(
+                    idempotencyKey, safeChannel, externalJobId, rawSn, srvrId, qstnCn));
         } catch (DataIntegrityViolationException e) {
             // 동시 발급 — 멱등 반환
             log.debug("[WebhookLedger] recordIssued unique violation (idempotent)");
@@ -184,6 +200,10 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
      * <p><b>비-PROCESSED 는 전부 {@code ISSUED} 로 매핑</b>한다(불변 계약): 스위퍼가 회수 표식으로 쓰는
      * {@code FAILED} 도, ACK 수신 표식인 {@code ACCEPTED}(H1)도 여기서는 "발급됨"이다. 그래야 지각 콜백이
      * 401 로 거부되지 않고 정상 처리된다.
+     *
+     * <p><b>보낸 질문 문구를 함께 싣는다</b> — 결과 수신부가 그 값을 재조달 없이 그대로 넘기기 위해서다.
+     * 이 컬럼이 생기기 전에 발급된 행과 묘사 축 행은 {@code null} 이며, 그때 무엇을 보냈는지 알 수 없으므로
+     * <b>여기서 조달해 채우지 않는다</b>(지어내면 사업자가 받지 않은 질문이 산출물에 남는다).
      */
     private Entry toEntry(LsWebhookIdempotency e) {
         return new Entry(
@@ -191,7 +211,8 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
                 e.getOtsdJobId(),
                 e.getRawSn(),
                 e.getRegDt(),
-                e.getChnlCd());
+                e.getChnlCd(),
+                e.getQstnCn());
     }
 
     /**

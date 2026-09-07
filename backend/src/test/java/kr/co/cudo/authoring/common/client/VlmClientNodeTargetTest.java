@@ -122,7 +122,9 @@ class VlmClientNodeTargetTest {
         // then
         RecordedRequest received = chosenNode.takeRequest(5, TimeUnit.SECONDS);
         assertThat(received).isNotNull();
-        assertThat(received.getPath()).isEqualTo(VlmClient.DESCRIBE_SUB_PATH);
+        // 추가 질문 축의 창구는 custom 이다 — 그 창구는 이벤트 유형 대신 질문 문구를 싣는다.
+        //   ⚠ 구 경로 상수(describe-sub)는 벤더가 계속 제공하지만 <b>우리가 부르지 않는다</b>.
+        assertThat(received.getPath()).isEqualTo(VlmClient.CUSTOM_PATH);
     }
 
     @Test

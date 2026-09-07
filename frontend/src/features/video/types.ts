@@ -419,6 +419,60 @@ export interface VrfcEvntQuestion {
   qstnCn: string;
 }
 
+/**
+ * 작업자가 고를 수 있는 **검증 이벤트 유형** 1건 — BE `VideoDetailResponse.selectableVrfcEvntTypes`
+ * 의 원소. [@design API-043] [@design SCREEN-006]
+ *
+ * ★ <b>관제 인입에서 유형을 수신한 영상에서는 이 목록이 빈 배열</b>이다 — 그것이 곧 「유형 선택을
+ * 노출하지 않는다」는 신호다. 화면은 목록이 비었는지만 보고 판정하며, `vrfcEvntTypeCd` 의 null
+ * 여부로 <b>다시 유도하지 않는다</b>(판정이 두 곳으로 갈리면 한쪽만 조용히 낡는다).
+ *
+ * ⚠ 이 목록은 <b>허용목록이 아니다</b> — 여기 없는 유형의 영상도 묘사 축 위탁은 그대로 나간다.
+ *
+ * <h3>왜 질문을 여기서 읽는가</h3>
+ * 확정 사양(SCREEN-006 · AC-1013)은 <b>「유형을 고르면 그 유형의 질문 목록이 따라 열린다」</b>고
+ * 규정하는데, 질문을 받을 수 있는 통로가 <b>영상 단건 조회 응답 하나뿐</b>이다(질문을 관리하는
+ * 경로 `/v1/manage/…` 는 검수자 전용이라 작업자에게 403). 그런데 응답의 `vrfcEvntQuestions` 는
+ * <b>그 영상의 관제 수신 유형</b>에 매인 목록이라, 유형 미수신 영상에서는 서버가 빈 배열을 준다 —
+ * 즉 <b>다시 조회해도 고른 유형의 질문은 오지 않는다</b>. 유형별 질문을 실어 보낼 자리는 이
+ * 원소뿐이므로 여기서 읽는다.
+ *
+ * <h3>★ questions 는 서버가 채운다 — 그래도 optional 로 둔다 (2026-09-07 판단)</h3>
+ * ⚠ <b>[폐기] 구 서술</b> — *"계약 미확정 구간이라 아직 서버가 채우지 않을 수 있다"*. BE 가
+ * `VideoDetailResponse.SelectableVrfcEvntTypeDto.questions` 로 <b>실제로 채운다</b>(정렬순서
+ * 오름차순, 등록 0건이면 빈 배열이고 항목 자체는 남는다). 그 전제는 더 이상 참이 아니다.
+ *
+ * 그럼에도 <b>필수로 좁히지 않는다</b> — 이유는 셋이다.
+ * <ul>
+ *   <li><b>배포가 원자적이지 않다.</b> 이 시스템은 노드가 여럿인 Active-Active 라 구 BE 노드와 신
+ *       FE 가 함께 뜨는 창이 존재한다. 그 창에서 서버가 키를 빠뜨리면 필수 타입은 <b>거짓말</b>이
+ *       되고, 화면은 없는 배열에 접근한다.</li>
+ *   <li><b>필수로 좁히면 정규화가 값을 지어내야 한다.</b> 지금 경계(`api.getVideo`)는 서버가 키를
+ *       안 보내면 `undefined` 를 그대로 둔다. 필수가 되면 `[]` 로 메워야 하는데, 그러면
+ *       <b>「서버가 안 보냈다」와 「등록된 질문이 0건이다」가 같은 값</b>이 되어 구분이 소멸한다.
+ *       후자는 <b>정상 상태</b>라 이 둘을 합치면 계약 결손이 정상으로 위장된다.</li>
+ *   <li><b>좁혀서 얻는 것이 없다.</b> 소비처(`MarkingPage`)가 이미 `?? []` 로 받고 화면은
+ *       빈 목록을 정상 분기로 처리한다 — 타입을 좁혀도 런타임 동작이 하나도 바뀌지 않는다.</li>
+ * </ul>
+ * 없으면 질문 드롭다운이 뜨지 않을 뿐 마킹은 그대로 저장된다(값을 지어내지 않는다).
+ * 이는 <b>질문이 0건인 유형</b>을 골랐을 때와 같은 화면 상태이며, 그 경우가 정상임을
+ * `MarkingPageVerificationEventType.test.tsx` 가 고정한다.
+ */
+export interface SelectableVrfcEvntType {
+  /** 검증이벤트유형코드 — 마킹 등록 요청에 실어 고른 유형을 가리키는 값(소문자 스네이크). */
+  vrfcEvntTypeCd: string;
+  /** 화면에 보여줄 유형 이름. */
+  vrfcEvntTypeNm: string;
+  /**
+   * 그 유형에 등록된 질문 목록(<b>정렬순서 오름차순</b> — 첫 번째가 그 유형의 기본 질문).
+   *
+   * 등록된 질문이 0건이면 <b>빈 배열</b>이고 항목 자체는 남는다 — 오류가 아니라 정상 상태다
+   * (질문 없이도 유형을 골라야 묘사 축의 `event_type` 이라도 채워진다).
+   * optional 인 이유는 위 주석 참조 — <b>서버는 채운다</b>.
+   */
+  questions?: VrfcEvntQuestion[];
+}
+
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
@@ -549,6 +603,15 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
    */
   vrfcEvntQuestions?: VrfcEvntQuestion[];
+  /**
+   * 작업자가 고를 수 있는 **검증 이벤트 유형 목록**(정렬순서 오름차순) — BE
+   * `VideoDetailResponse.selectableVrfcEvntTypes`. [@design API-043] [@design SCREEN-006]
+   *
+   * ★ <b>관제 값이 있는 영상에서는 빈 배열</b>이며, 그것이 곧 「유형 선택을 노출하지 않는다」는
+   * 신호다. 관제가 유형을 보내지 않은 영상에서만 채워진다.
+   * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
+   */
+  selectableVrfcEvntTypes?: SelectableVrfcEvntType[];
 }
 
 /**

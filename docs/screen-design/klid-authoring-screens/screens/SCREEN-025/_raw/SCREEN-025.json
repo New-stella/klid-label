@@ -289,7 +289,7 @@
     "schema_version": 1,
     "current_version": 49,
     "stale": true,
-    "stale_reason": "UC-031의 3개 필드 변경 — realizes",
+    "stale_reason": "UC-031의 2개 필드 변경 — realizes",
     "change_summary": "AI 장비 목록을 이 화면에서 뺀다 — 배치가 틀렸다. 연동 서버 주소는 관리자 페이지가 소유하고 그 화면에 이미 AI 추론 서버·외부 시계열 분석 벤더 주소 칸이 있다. 장비 목록은 그 칸이 목록으로 바뀌는 것이므로 같은 화면에 있어야 하며, 여기에 두면 주소를 고치는 자리가 두 화면으로 갈린다. SCREEN-042 로 옮긴다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-09-01T14:35:14.780Z",

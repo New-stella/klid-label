@@ -415,6 +415,22 @@
                 "subtasks": [],
                 "module_paths": []
               }
+            },
+            {
+              "name": "qstnCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "위탁 시점에 외부 분석 서버로 보낸 질문 문구 전문. 추가 질문 축 위탁이 질문 문구를 요청 본문에 직접 싣게 되면서, 결과 수신 시 재조달하지 않고 이 값을 읽어 이벤트 어노테이션의 질문 칸을 채운다 — 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이라, 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문이다. 묘사 축 위탁 행에는 값이 없다. (QSTN_CN)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
             }
           ],
           "description": "외부 위탁(비식별/VLM/증강) 시 발급 멱등키 영속 원장. 재시작·멀티 인스턴스 중복 적재 차단. (LS_WEBHOOK_IDEMPOTENCY)",
@@ -609,7 +625,7 @@
               }
             }
           ],
-          "description": "관제 수정 통지의 디바운스 누적 창을 영속하는 루트. 영상 1건의 수정을 창으로 모아 한 번만 내보낸다. 열린 창은 영상당 최대 1개이고, 창이 만료돼도 그 영상에 재검토 표식이 서 있는 동안에는 아무 노드도 가져가지 못한다. 표식이 해제된 뒤에야 한 노드만 조건부 갱신으로 가져가 발송·재산출을 위임한 뒤 행을 지운다. 창을 노드 메모리에 두면 두 노드에 축적이 나뉘어 통지가 두 번 나가고 노드가 죽을 때 축적분이 통째로 사라지므로 영속화한다. (LS_MON_NOTI_ACML)",
+          "description": "관제 수정 통지의 디바운스 누적 창을 영속하는 루트. 영상 1건의 수정을 창으로 모아 한 번만 내보낸다. 열린 창은 영상당 최대 1개이고, 창이 만료돼도 그 영상에 재검토 표식이 서 있는 동안에는 아무 노드도 가져가지 못한다. 표식이 해제된 뒤에야 한 노드만 조건부 갱신으로 가져가 발송·재산출을 위임한 뒤 행을 지운다. 창을 노드 메모리에 두면 여러 노드에 축적이 나뉘어 통지가 두 번 나가고 노드가 죽을 때 축적분이 통째로 사라지므로 영속화한다. (LS_MON_NOTI_ACML)",
           "enum_values": [],
           "stereotypes": []
         },
@@ -912,7 +928,7 @@
           "stereotypes": []
         }
       ],
-      "description": "저작도구→관제서버 단방향 outbound 통지(TASK_COMPLETED/TASK_MODIFIED)의 영속 fallback 큐와 외부 위탁 멱등 원장을 다루는 도메인 모델. 전송 실패 시 지수 백오프 재시도, 최대 횟수 초과 시 dead-letter 격리. ERD-021·ERD-027 기반.\n\n[★발송 순서 직렬화] 통지는 export 가 SUCCEEDED 된 뒤에만 나간다. 승인 경로는 ReviewApproved(EVT-006) → export 전량 재생성 → DatasetExportCompleted(EVT-009) → TaskCompleted(EVT-003) 이고, 수정 경로는 TaskModified 를 디바운스 윈도우에 축적해 두되 창이 만료되는 것만으로는 내보내지 않는다 — 수정이 생긴 영상은 재검토 대상으로 표시되고(REVLT_YN), 그 표식이 서 있는 동안에는 창을 flush 후보에서 제외하며 클레임하는 문장에서도 같은 조건을 다시 확인한다. 검수자가 그 수정을 다시 검수해 승인해 표식이 해제되면 그때 풀린 축적분이 나가면서 재생성과 TaskModified 통지가 함께 일어난다. 재승인은 ReviewApproved 를 발행하지 않으므로, 재생성 여부는 승인 이벤트가 아니라 축적된 exportRegenerated 가 정한다. export 실패면 통지를 보류하고 회수기가 재산출 성공 후 재개한다.\n\n[changed_items 범위] TaskModified 의 exportRegenerated 플래그가 범위를 결정한다 — true 면 전 프레임, false 면 빈 목록(관제가 뷰를 재조회). 발행처 클래스명으로 추정하지 않고 이벤트가 직접 싣는다.\n\n[★멱등 원장 범위 정정] LS_WEBHOOK_IDEMPOTENCY 의 증강 채널(CHANNEL_AUGMENT) 선행 write 는 어디서도 읽히지 않아 제거됐고, 증강 위탁의 request_id 선기록은 LS_DATA_AUG_JOB.IDMP_KEY 가 담당한다.",
+      "description": "저작도구→관제서버 단방향 outbound 통지(TASK_COMPLETED/TASK_MODIFIED)의 영속 fallback 큐와 외부 위탁 멱등 원장을 다루는 도메인 모델. 전송 실패 시 지수 백오프 재시도, 최대 횟수 초과 시 dead-letter 격리. ERD-021·ERD-027 기반.\n\n[★발송 순서 직렬화] 통지는 export 가 SUCCEEDED 된 뒤에만 나간다. 승인 경로는 ReviewApproved(EVT-006) → export 전량 재생성 → DatasetExportCompleted(EVT-009) → TaskCompleted(EVT-003) 이고, 수정 경로는 TaskModified 를 디바운스 윈도우에 축적해 두되 창이 만료되는 것만으로는 내보내지 않는다 — 수정이 생긴 영상은 재검토 대상으로 표시되고(REVLT_YN), 그 표식이 서 있는 동안에는 창을 flush 후보에서 제외하며 클레임하는 문장에서도 같은 조건을 다시 확인한다. 검수자가 그 수정을 다시 검수해 승인해 표식이 해제되면 그때 풀린 축적분이 나가면서 재생성과 TaskModified 통지가 함께 일어난다. 재승인은 ReviewApproved 를 발행하지 않으므로, 재생성 여부는 승인 이벤트가 아니라 축적된 exportRegenerated 가 정한다. export 실패면 통지를 보류하고 회수기가 재산출 성공 후 재개한다.\n\n[changed_items 범위] TaskModified 의 exportRegenerated 플래그가 범위를 결정한다 — true 면 전 프레임, false 면 빈 목록(관제가 뷰를 재조회). 발행처 클래스명으로 추정하지 않고 이벤트가 직접 싣는다.\n\n[★멱등 원장 범위 정정] LS_WEBHOOK_IDEMPOTENCY 의 증강 채널(CHANNEL_AUGMENT) 선행 write 는 어디서도 읽히지 않아 제거됐고, 증강 위탁의 request_id 선기록은 LS_DATA_AUG_JOB.IDMP_KEY 가 담당한다.\n\n[★의도적 부재 — 웹훅 요청 방어 원장] 밖에서 들어오는 웹훅 요청을 막고 걸러 내는 원장 LS_WHK_SIGN_USE(이미 쓰인 서명을 기억해 재사용을 막는다)와 LS_WHK_FAIL_NMTM(호출한 쪽 주소별 실패를 창 단위로 센다)에 대응하는 클래스를 이 모델에 두지 않는다. 이 모델의 클래스는 모두 영속 클래스를 가진 것들인데 그 둘은 영속 클래스가 없고 질의문을 직접 쓰는 저장소 구현이 다루므로, 애그리거트로 넣으면 코드에 없는 도메인 객체를 있다고 말하게 된다. 결손이 아니다 — 두 원장은 데이터 계층 산출물에 정식으로 등재돼 있고 여기에 없는 것은 판단의 결과다. 다시 넣자는 제안이 오면 이 근거를 먼저 볼 것.",
       "module_name": "ControlNotify",
       "relationships": [
         {
@@ -1004,12 +1020,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
-    "stale": true,
-    "stale_reason": "DFEAT-046의 2개 필드 변경 — depicts",
-    "change_summary": "멱등 애그리거트에 위탁을 보낸 AI 서버 식별 속성을 더하고, 상태 열거에 빠져 있던 수락 상태와 채널 열거에 빠져 있던 추가 질문 창구를 보정한다. 원장 ERD 변경의 하위 정합이다.",
+    "current_version": 12,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "멱등 원장 클래스에 위탁 시점에 보낸 질문 문구 전문을 보관하는 속성 qstnCn 을 더했다. 추가 질문 축 위탁이 질문 문구를 요청 본문에 직접 싣게 되면서, 결과 수신 시 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문에 보관값을 읽는다. 기존 속성·클래스·관계는 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T07:34:33.670Z",
+    "last_updated_at": "2026-09-07T10:46:13.704Z",
     "created_at": "2026-06-02T08:55:08.399Z"
   }
 }

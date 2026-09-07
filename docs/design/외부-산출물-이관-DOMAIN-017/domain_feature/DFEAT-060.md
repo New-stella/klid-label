@@ -4,7 +4,7 @@ type: domain_feature
 version: 4
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T13:23:46.373Z
+synced_at: 2026-09-07T15:15:39.375Z
 status: CHANGED
 prev_version: 3
 content_hash: 8c654baf645a308d789dc04c17e8a5e3d3720a033e9e49796a768868c3afbf93

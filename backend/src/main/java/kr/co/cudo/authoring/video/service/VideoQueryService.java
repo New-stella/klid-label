@@ -24,7 +24,10 @@ import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.sysconfig.entity.LsVrfcEvntQstn;
+import kr.co.cudo.authoring.sysconfig.entity.LsVrfcEvntType;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
+import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntTypeRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
@@ -46,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -180,6 +184,18 @@ public class VideoQueryService {
      * 나가고 마스터에서 이름·색을 바꿔도 이 화면만 따라오지 않는다(마스터가 단일 진실원인 이유).
      */
     private final LsLabelRepository labelMasterRepository;
+
+    /**
+     * 검증 이벤트 유형 카탈로그 조회 — 작업자가 <b>고를 수 있는</b> 유형 목록의 조달처.
+     * [@design API-043] [@design SCREEN-006] [@design AC-1013]
+     *
+     * <p><b>읽기 전용 재사용</b>이다. 이 표는 허용목록이 아니라 <b>화면이 보여줄 선택지</b>이며, 여기에
+     * 없는 유형의 영상도 위탁은 그대로 나간다(확정 정책).
+     *
+     * <p>필드를 <b>맨 뒤</b>에 둔다({@code approvalGate} 와 같은 이유) — {@code @RequiredArgsConstructor}
+     * 가 선언 순서로 생성자를 만들므로 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다.
+     */
+    private final LsVrfcEvntTypeRepository vrfcEvntTypeRepository;
 
     /**
      * 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용.
@@ -743,6 +759,12 @@ public class VideoQueryService {
                 sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
         List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
                 verificationEventQuestions(vrfcEvntTypeCd);
+        // [@design API-043] [@design SCREEN-006] [@design AC-1013] [@design UC-019]
+        //   관제가 유형을 보내지 않은 영상에서 작업자가 <고를 수 있는> 유형 목록 + 유형별 질문.
+        //   ★ 관제 값이 있으면 <빈 배열>이고 조회도 하지 않는다 — 화면은 이 목록이 비었는지만 보고
+        //     유형 선택 노출을 정한다(판정 원천을 두 벌로 만들지 않는다).
+        List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes =
+                selectableVerificationEventTypes(vrfcEvntTypeCd);
         // [@design API-043] [@design SCREEN-009] 영상 해상도 — LS_DATA_META 의 video.resolution.
         //   ★ LS_DATA_RAW 에는 해상도 컬럼이 없어 메타 테이블이 유일한 조달원이다. 미상이면 null 이며
         //     서버가 대체 문자를 지어내지 않는다(표시는 화면의 몫 — fps 와 달리 계산 입력이 아니다).
@@ -751,7 +773,7 @@ public class VideoQueryService {
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
                 skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
-                resolution);
+                resolution, selectableVrfcEvntTypes);
     }
 
     /**
@@ -804,6 +826,67 @@ public class VideoQueryService {
         }
         return vrfcEvntQstnRepository.findByVrfcEvntTypeCdOrderBySortSeqAsc(normalizedTypeCd).stream()
                 .map(q -> new VideoDetailResponse.VrfcEvntQuestionDto(q.getVrfcEvntQstnSn(), q.getQstnCn()))
+                .toList();
+    }
+
+    /**
+     * 작업자가 <b>고를 수 있는</b> 검증 이벤트 유형 목록 — 항목마다 그 유형의 질문 목록을 함께 담는다.
+     * [@design API-043] [@design SCREEN-006] [@design AC-1013] [@design UC-019]
+     *
+     * <h3>★ 관제 값이 있으면 빈 목록이고 <b>질문 조회도 하지 않는다</b></h3>
+     * <p>관제 인입에서 유형을 받은 영상은 마킹 화면이 유형 선택을 <b>아예 노출하지 않는다</b>(확정
+     * 정책 — 「표시하되 잠근다」가 아니다). 화면은 이 목록이 비었는지만 보고 판정하므로 여기서
+     * 빈 목록을 돌려주는 것이 곧 그 신호다. 대부분의 조회가 이 경로라 <b>추가 질의가 0회</b>여야 한다.
+     *
+     * <h3>★ 왜 질문을 항목 <b>안</b>에 담나</h3>
+     * <p>유형을 고르는 시점과 질문을 고르는 시점 사이에 <b>서버 왕복을 두지 않기 위해서</b>다. 왕복을
+     * 두면 그 창구가 조회 시점에 작업자의 유형 선택을 입력으로 받아야 하는데, 그 선택은 <b>아직 아무
+     * 데도 저장되지 않은 화면 상태</b>다. 게다가 유형별 질문을 주는 다른 창구는 검수자 전용이라
+     * 마킹 작업자에게 403 이다 — 화면이 질문을 얻을 통로가 이 응답뿐이다.
+     *
+     * <h3>★ N+1 을 만들지 않는다</h3>
+     * <p>유형마다 질문을 따로 조회하면 유형 수만큼 쿼리가 는다. 유형 목록을 얻은 뒤 질문을
+     * <b>한 번에</b> 읽어 유형별로 묶는다(두 표 모두 코드 체계 규모라 성립한다 — 관리 화면
+     * {@code VerificationEventTypeService.list()} 와 같은 판단이다).
+     *
+     * <p>질문 정렬은 저장소 메서드 이름이 갖는다({@code ...VrfcEvntTypeCdAscSortSeqAsc}) — 여기서
+     * 다시 정렬하거나 「첫 번째」를 해석하지 않는다. 그 해석의 단일 진실원은
+     * {@code VerificationEventQuestionResolver} 이며, 사본을 두면 화면이 보여준 기본 질문과 위탁에
+     * 실리는 질문이 조용히 어긋난다.
+     *
+     * <p>등록된 질문이 0건인 유형도 <b>목록에서 빠지지 않는다</b> — 질문 칸만 빈 채로 고를 수 있어야
+     * 묘사 축의 {@code event_type} 이라도 채워진다(유형 미수신 영상은 그것조차 못 받는 상태다).
+     *
+     * @param normalizedTypeCd 관제 인입에서 받은 유형 코드({@code LsDataIngest.normalizeVrfcEvntType}
+     *                         통과값). {@code null}(미수신)일 때만 목록을 채운다
+     */
+    private List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVerificationEventTypes(
+            String normalizedTypeCd) {
+        if (normalizedTypeCd != null) {
+            // 관제 값이 있는 영상 — 선택을 노출하지 않으므로 카탈로그·질문 조회를 아예 하지 않는다.
+            return Collections.emptyList();
+        }
+        List<LsVrfcEvntType> types = vrfcEvntTypeRepository.findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
+        if (types.isEmpty()) {
+            // 고를 유형이 없으면 질문을 읽어봐야 담을 곳이 없다.
+            return Collections.emptyList();
+        }
+        Map<String, List<VideoDetailResponse.VrfcEvntQuestionDto>> questionsByType =
+                vrfcEvntQstnRepository.findAllByOrderByVrfcEvntTypeCdAscSortSeqAsc().stream()
+                        .collect(Collectors.groupingBy(
+                                LsVrfcEvntQstn::getVrfcEvntTypeCd,
+                                // 유형 묶음 자체의 순서는 아래 types 순서가 정하므로 여기서는 각 유형
+                                //   안의 <조회 순서(정렬순서 오름차순)>만 보존하면 된다.
+                                LinkedHashMap::new,
+                                Collectors.mapping(
+                                        q -> new VideoDetailResponse.VrfcEvntQuestionDto(
+                                                q.getVrfcEvntQstnSn(), q.getQstnCn()),
+                                        Collectors.toList())));
+        return types.stream()
+                .map(t -> new VideoDetailResponse.SelectableVrfcEvntTypeDto(
+                        t.getVrfcEvntTypeCd(),
+                        t.getVrfcEvntTypeNm(),
+                        questionsByType.getOrDefault(t.getVrfcEvntTypeCd(), Collections.emptyList())))
                 .toList();
     }
 

@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 |
-| Last sync | 2026-09-05T00:45:15.132Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 72 |
+| Last sync | 2026-09-07T15:21:44.492Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 73 |
 | 출력 루트 | docs/design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 1건 / 스코프 밖 48건
   ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 213건
-  ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
+  ℹ️  erd: 이번 키트 1건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 1건 / 스코프 밖 35건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 35건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 80건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 84건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 3건 / 스코프 밖 53건 (그중 domain_id 없음 10건)
+  ℹ️  adr: 이번 키트 3건 / 스코프 밖 55건 (그중 domain_id 없음 11건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-026]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -51,10 +51,10 @@
 | [[AC-1076]] | acceptance | 5 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
-| [[API-001]] | api_endpoint | 8 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
+| [[API-001]] | api_endpoint | 10 | UNCHANGED |
 | [[API-002]] | api_endpoint | 2 | UNCHANGED |
-| [[API-070]] | api_endpoint | 9 | UNCHANGED |
+| [[API-070]] | api_endpoint | 10 | UNCHANGED |
 | [[API-071]] | api_endpoint | 7 | UNCHANGED |
 | [[API-072]] | api_endpoint | 10 | UNCHANGED |
 | [[API-073]] | api_endpoint | 9 | UNCHANGED |
@@ -63,11 +63,11 @@
 | [[API-137]] | api_endpoint | 6 | UNCHANGED |
 | [[API-187]] | api_endpoint | 3 | UNCHANGED |
 | [[CDIAG-007]] | class_diagram | 8 | UNCHANGED |
-| [[CDIAG-026]] | class_diagram | 1 | NEW |
-| [[CMP-009]] | diagram_c4_component | 19 | UNCHANGED |
+| [[CDIAG-026]] | class_diagram | 1 | UNCHANGED |
+| [[CMP-009]] | diagram_c4_component | 21 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 9 | UNCHANGED |
 | [[DOMAIN-015]] | domain | 6 | UNCHANGED |
-| [[ERD-014]] | erd | 12 | UNCHANGED |
+| [[ERD-014]] | erd | 13 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |

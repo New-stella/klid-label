@@ -64,6 +64,12 @@ class VideoDetailDeidentHistoryTest {
     @Mock private kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
     @Mock private kr.co.cudo.authoring.batch.status.BatchBundleFailureGate bundleFailureGate;
 
+    /**
+     * 고를 수 있는 검증 이벤트 유형 카탈로그 — 관제가 유형을 보내지 않은 영상에서만 읽힌다.
+     * {@code @InjectMocks} 는 목이 없는 타입에 null 을 넣으므로 여기서 채운다(미스텁 시 빈 목록).
+     */
+    @Mock private kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntTypeRepository vrfcEvntTypeRepository;
+
     @InjectMocks private VideoQueryService videoQueryService;
 
     private static final long RAW_SN = 9001L;

@@ -1,5 +1,5 @@
 """
-IntelliVIX Video VLM 벤더 목 라우터 — KLID 연동 API v1.1.0 정합.
+IntelliVIX Video VLM 벤더 목 라우터 — KLID 연동 API v1.2.0 정합.
 
 엔드포인트(모두 ``/v1/videovlm-klid/`` prefix):
 - POST /describe     : 이벤트 묘사(장소·환경·상황 서술)
@@ -42,7 +42,13 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 from app.exceptions import MockApiError
-from app.schemas.vlm import AcceptedResponse, DescribeRequest, DescribeSubRequest
+from app.schemas.vlm import (
+    AcceptedResponse,
+    CustomRequest,
+    DescribeRequest,
+    DescribeSubRequest,
+    EventType,
+)
 from app.services import url_guard, vlm_sim
 from app.state import sanitize_for_log
 
@@ -180,6 +186,56 @@ def _resolve_request_id(provided: str | None) -> str:
     return provided
 
 
+def _assert_api_key(request: Request) -> None:
+    """분석 요청 인증 — 규격 v1.2.0 §2.1.
+
+    ★ 서버에 키가 설정된 <경우에만> 요구한다. 비어 있으면 통과시킨다 — 키를 쓰지 않는 환경의 재현이며
+    로컬 개발이 이것 때문에 막히면 안 된다.
+
+    ⚠ 401 일 때 <콜백을 전송하지 않는다>. 그래서 연동 시스템 입장에서는 위탁이 아무 신호 없이
+    사라지고, 미결 회수가 재위탁해도 같은 401 이라 회복되지 않는다 — 그 상황을 재현하려고 이 경로를 둔다.
+
+    ⚠ 조회용 GET(status·events)에는 걸지 않는다.
+    """
+    configured = (get_settings().vlm_api_key or "").strip()
+    if not configured:
+        return
+    provided = request.headers.get("X-API-Key")
+    if provided != configured:
+        logger.warning(
+            "[MOCK][VLM] 401 — X-API-Key %s",
+            "누락" if provided is None else "불일치",
+        )
+        raise MockApiError(
+            status.HTTP_401_UNAUTHORIZED,
+            "API 키가 없거나 올바르지 않습니다.",
+            "UNAUTHORIZED",
+        )
+
+
+def _assert_known_event_type(event_type: object) -> None:
+    """정의되지 않은 event_type 거부 — 규격 v1.2.0 §2.10.
+
+    ★ 기본값은 <검사하지 않는다>. 목의 event_type 은 2026-08-06 확정으로 값을 좁히지 않으며,
+    그래야 관제 값이 채워지기 전 영상도 로컬·개발에서 완주한다. 이 검사는 설정으로 켤 때만 돈다.
+
+    켜면 규격대로 <이 경우에만> 본문에 code 를 함께 싣는다 — 그 밖의 오류는 detail 만 준다.
+    연동 시스템은 그 코드로 「미지원 이벤트 유형」을 다른 400 과 구분한다.
+    """
+    if not get_settings().vlm_strict_event_type:
+        return
+    known = {e.value for e in EventType}
+    if event_type is None or str(event_type) not in known:
+        logger.warning("[MOCK][VLM] 40001 — 정의되지 않은 event_type=%s",
+                       sanitize_for_log(str(event_type)))
+        raise MockApiError(
+            status.HTTP_400_BAD_REQUEST,
+            f"정의되지 않은 event_type 입니다: {event_type}",
+            "UNDEFINED_EVENT_TYPE",
+            vendor_code=40001,
+        )
+
+
 # ── POST /v1/videovlm-klid/describe ──────────────────────────────
 @router.post(
     "/v1/videovlm-klid/describe",
@@ -188,8 +244,10 @@ def _resolve_request_id(provided: str | None) -> str:
 )
 async def describe(request: Request, background_tasks: BackgroundTasks) -> AcceptedResponse:
     """이벤트 묘사 접수 — 즉시 202 accepted 반환 후 콜백으로 서술 발사."""
+    _assert_api_key(request)
     payload = await _parse_payload(request)
     req = _validate(DescribeRequest, payload)
+    _assert_known_event_type(req.event_type)
     request_id = _resolve_request_id(req.request_id)
     _assert_allowed_callback(str(req.callback_url), request_id)
 
@@ -235,8 +293,10 @@ async def describe_sub(
     질문 문장은 이벤트별로 서버가 관리하며 연동 시스템이 지정하지 않는다(규격 §3.3).
     영상 길이에 의존하지 않으므로 묘사와 달리 ffprobe 조회를 하지 않는다.
     """
+    _assert_api_key(request)
     payload = await _parse_payload(request)
     req = _validate(DescribeSubRequest, payload)
+    _assert_known_event_type(req.event_type)
     request_id = _resolve_request_id(req.request_id)
     _assert_allowed_callback(str(req.callback_url), request_id)
 
@@ -250,6 +310,41 @@ async def describe_sub(
         callback = vlm_sim.build_failed_callback(request_id)
     else:
         callback = vlm_sim.build_describe_sub_callback(request_id, req.event_type)
+    _enqueue_callback(background_tasks, str(req.callback_url), callback)
+    return AcceptedResponse(request_id=request_id, status="accepted")
+
+
+# ── POST /v1/videovlm-klid/custom ────────────────────────────────
+@router.post(
+    "/v1/videovlm-klid/custom",
+    response_model=AcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def custom(request: Request, background_tasks: BackgroundTasks) -> AcceptedResponse:
+    """사용자 프롬프트 접수 — 규격 v1.2.0 §3.4.
+
+    저작도구가 **추가 질문 축**에 실제로 쓰는 창구다(사업자 가이드로 구 describe-sub 를 대체).
+    ``event_type`` 을 받지 않고 ``prompt`` 에 실린 질문 문구로 분석한다 — 그 문구는 연동 시스템이
+    보관하는 값이며 마킹에서 고른 질문이다.
+
+    영상 길이에 의존하지 않으므로 묘사와 달리 ffprobe 조회를 하지 않는다.
+    """
+    _assert_api_key(request)
+    payload = await _parse_payload(request)
+    req = _validate(CustomRequest, payload)
+    request_id = _resolve_request_id(req.request_id)
+    _assert_allowed_callback(str(req.callback_url), request_id)
+
+    logger.info(
+        "[MOCK][VLM] custom accepted request_id=%s prompt_len=%d callback_url=%s",
+        sanitize_for_log(request_id),
+        len(req.prompt),
+        sanitize_for_log(req.callback_url),
+    )
+    if vlm_sim.is_failure_trigger(request_id, req.media.path):
+        callback = vlm_sim.build_failed_callback(request_id)
+    else:
+        callback = vlm_sim.build_custom_callback(request_id, req.prompt)
     _enqueue_callback(background_tasks, str(req.callback_url), callback)
     return AcceptedResponse(request_id=request_id, status="accepted")
 

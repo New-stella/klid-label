@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-09-07T13:27:10.935Z |
+| Last sync | 2026-09-07T15:21:40.436Z |
 | Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 104 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -85,7 +85,7 @@
 | [[DFEAT-059]] | domain_feature | 6 | UNCHANGED |
 | [[DFEAT-060]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-017]] | domain | 1 | UNCHANGED |
-| [[ERD-010]] | erd | 36 | UNCHANGED |
+| [[ERD-010]] | erd | 37 | UNCHANGED |
 | [[ERD-012]] | erd | 51 | UNCHANGED |
 | [[ERD-017]] | erd | 25 | UNCHANGED |
 | [[ERD-019]] | erd | 23 | UNCHANGED |

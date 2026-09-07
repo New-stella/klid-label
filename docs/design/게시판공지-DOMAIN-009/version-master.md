@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-09-05T00:45:19.606Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 73 |
+| Last sync | 2026-09-07T15:21:49.841Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 75 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 47건
   ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 213건
-  ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
+  ℹ️  erd: 이번 키트 1건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 1건 / 스코프 밖 35건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 80건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 84건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 2건 / 스코프 밖 54건 (그중 domain_id 없음 11건)
+  ℹ️  adr: 이번 키트 2건 / 스코프 밖 56건 (그중 domain_id 없음 12건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-022]]
-- NEW [[CDIAG-040]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -51,7 +50,7 @@
 | [[AC-1050]] | acceptance | 7 | UNCHANGED |
 | [[AC-1051]] | acceptance | 5 | UNCHANGED |
 | [[ADR-014]] | adr | 6 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-095]] | api_endpoint | 6 | UNCHANGED |
 | [[API-096]] | api_endpoint | 7 | UNCHANGED |
 | [[API-097]] | api_endpoint | 7 | UNCHANGED |
@@ -59,11 +58,11 @@
 | [[API-099]] | api_endpoint | 6 | UNCHANGED |
 | [[API-100]] | api_endpoint | 8 | UNCHANGED |
 | [[API-101]] | api_endpoint | 8 | UNCHANGED |
-| [[API-106]] | api_endpoint | 9 | UNCHANGED |
+| [[API-106]] | api_endpoint | 10 | UNCHANGED |
 | [[API-107]] | api_endpoint | 7 | UNCHANGED |
 | [[API-108]] | api_endpoint | 6 | UNCHANGED |
-| [[CDIAG-022]] | class_diagram | 1 | NEW |
-| [[CDIAG-040]] | class_diagram | 1 | NEW |
+| [[CDIAG-022]] | class_diagram | 1 | UNCHANGED |
+| [[CDIAG-040]] | class_diagram | 1 | UNCHANGED |
 | [[DFEAT-037]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-038]] | domain_feature | 16 | UNCHANGED |
 | [[DOMAIN-009]] | domain | 13 | UNCHANGED |

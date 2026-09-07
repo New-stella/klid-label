@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-004
 type: external_system
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:51:57.080Z
+synced_at: 2026-09-07T15:15:41.969Z
 status: CHANGED
-prev_version: 9
-content_hash: fb428c790bf419e65c9643992a2ecc83fafb4551b125e736c90521df9d13dc09
+prev_version: 10
+content_hash: 4a14101630ca2e6f92fa405975e9bc892eb57af4ad59d8abd0a1d103a9d55601
 stale: false
 raw: ./_raw/EXTSYS-004.json
 links:
@@ -50,7 +50,7 @@ ADR-004
 
 ## owner_team
 
-저작도구 연동팀
+타 시스템
 
 ## criticality
 

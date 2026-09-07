@@ -201,12 +201,12 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `event_id` | **인입 `LS_DATA_INGEST.EVNT_ID`**(예 `ABA_0001`) | ⚠ **2026-08-05 정정** — 구 원천 `EVNT_TYPE_CD` 는 **축이 다른 값**(유형코드)이라 결함이었다. 관제 `video.event_id` 와 같은 축인 `EVNT_ID` 로 교체. **미제공 시 폴백 없이 `null`**(지어내지 않는다) |
 | `event_name` | EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
-| `vd_description` | **① `LS_DATA_META['vlm.description']`(외부 VLM verify 서술) → ② `manual-timeseries`(사람이 직접 쓴 전문) → ③ 보존된 레거시 구간 행(`0-8`·`8-16` …)을 `start_sec` 오름차순 이어붙임 → ④ 없으면 `null`** | ⚠ **2026-08-06 신설(@req R10)** — 구 동작 "항상 null 하드코딩" **폐기**. 판정 단일 원천 `VlmDescriptionPolicy`(§24.4.3) |
+| `vd_description` | **① `LS_DATA_META['vlm.description']`(외부 시계열 **묘사(`describe`)** 서술) → ② `manual-timeseries`(사람이 직접 쓴 전문) → ③ 보존된 레거시 구간 행(`0-8`·`8-16` …)을 `start_sec` 오름차순 이어붙임 → ④ 없으면 `null`** | ⚠ **2026-08-06 신설(@req R10)** — 구 동작 "항상 null 하드코딩" **폐기**. 판정 단일 원천 `VlmDescriptionPolicy`(§24.4.3) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log` | — | **미보유 → null** (키 유지) |
 
 > **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 **필드 자체를 제거**했다 — 정본 샘플에 없으며, VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event`**(§24.3.1)으로 분리한다. 정본 샘플에 있는 `vd_description`(영상 서술) 키는 추가했다. (확정·구현 완료)
 >
-> ⚠ 구 서술 **"`vd_description` 은 현재 원천 미보유 → null" 은 폐기**(2026-08-06) — 외부 VLM `verify` 콜백이 서술 전문을 `LS_DATA_META` 에 적재하면서 원천이 생겼다(§24.4.3).
+> ⚠ 구 서술 **"`vd_description` 은 현재 원천 미보유 → null" 은 폐기**(2026-08-06) — 외부 시계열 콜백이 서술 전문을 `LS_DATA_META` 에 적재하면서 원천이 생겼다(§24.4.3). ⚠ **표기 정정(2026-09-07)** — 그 서술을 만드는 창구는 **묘사(`POST /v1/videovlm-klid/describe`)** 다. 판정 창구 `verify` 는 연동하지 않는다 → [09 §9.5](09-vlm-timeseries.md).
 
 ### 24.4.3 `vd_description` — VLM 서술 조달 규칙 (@req R10, 2026-08-06 확정)
 
@@ -214,7 +214,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 | 우선순위 | 원천 | 값 |
 |:--:|------|-----|
-| 1 | `LS_DATA_META` 의 `vlm.description`(외부 VLM `verify` 서술 전문) | 그 값 |
+| 1 | `LS_DATA_META` 의 `vlm.description`(외부 시계열 **묘사(`describe`)** 서술 전문) | 그 값 |
 | 2 | `manual-timeseries`(**사람이 직접 쓴 전문** — 라벨링 화면 시계열 패널의 신규 등록 슬롯) | 그 값 |
 | 3 | 보존된 **레거시 구간 행**(구 describe 산출물, metaKey `{start_sec}-{end_sec}`) | **`start_sec` 숫자 오름차순**으로 개행 이어붙임 |
 | 4 | 모두 없음 | **`null`** — 키는 유지(`@JsonInclude(ALWAYS)`), 값을 지어내지 않는다 |

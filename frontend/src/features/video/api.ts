@@ -11,6 +11,7 @@ import type {
   FrameLabels,
   ResolutionChangeResult,
   ResolutionPreset,
+  SelectableVrfcEvntType,
   StageBundle,
   Video,
   VideoDetail,
@@ -89,6 +90,26 @@ function isVrfcEvntQuestion(q: unknown): q is VrfcEvntQuestion {
   if (typeof q !== 'object' || q === null) return false;
   const { vrfcEvntQstnSn, qstnCn } = q as Partial<VrfcEvntQuestion>;
   return typeof vrfcEvntQstnSn === 'number' && typeof qstnCn === 'string' && qstnCn.trim() !== '';
+}
+
+/**
+ * 고를 수 있는 검증 이벤트 유형 1건인지 판정한다. [@design API-043] [@design SCREEN-006]
+ *
+ * 코드가 없으면 마킹 등록 요청에 실을 것이 없고, 이름이 비어 있으면 드롭다운에 빈 줄이 그려져
+ * 무엇을 고르는지 알 수 없다 — 질문 항목과 같은 이유로 경계에서 걸러낸다.
+ *
+ * ⚠ <b>코드값을 이름으로 대신 채우지 않는다</b>. 그렇게 하면 작업자에게 사업자 내부 코드가
+ * 이름인 것처럼 보이고, 그 화면을 보고 만든 다음 판단이 코드 체계를 이름으로 오해한다.
+ */
+function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
+  if (typeof t !== 'object' || t === null) return false;
+  const { vrfcEvntTypeCd, vrfcEvntTypeNm } = t as Partial<SelectableVrfcEvntType>;
+  return (
+    typeof vrfcEvntTypeCd === 'string' &&
+    vrfcEvntTypeCd.trim() !== '' &&
+    typeof vrfcEvntTypeNm === 'string' &&
+    vrfcEvntTypeNm.trim() !== ''
+  );
 }
 
 export function listVideos(params: VideoListParams) {
@@ -184,6 +205,17 @@ export function getVideo(id: number) {
         //   ⚠ 항목 형태 검증을 여기서 한 번만 한다 — 일련번호가 없거나 문구가 빈 항목은 고를 수도
         //     보낼 수도 없는 값이라 그대로 두면 화면이 빈 옵션을 그리고 요청에 null 이 실린다.
         vrfcEvntQuestions: (d.vrfcEvntQuestions ?? []).filter(isVrfcEvntQuestion),
+        // [@design API-043] [@design SCREEN-006] 작업자가 고를 수 있는 검증 이벤트 유형 목록.
+        //   ★ 관제 값이 있는 영상에서는 **빈 배열**이며 그것이 곧 「선택을 노출하지 않는다」는
+        //     신호다. 값을 못 내리는 구 응답도 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        //   ⚠ 항목 안의 질문 목록도 같은 판정기로 한 번만 거른다 — 걸러내지 않으면 화면이 빈
+        //     옵션을 그리고 요청에 null 이 실린다(질문 축과 같은 이유).
+        selectableVrfcEvntTypes: (d.selectableVrfcEvntTypes ?? [])
+          .filter(isSelectableVrfcEvntType)
+          .map((t) => ({
+            ...t,
+            questions: t.questions ? t.questions.filter(isVrfcEvntQuestion) : undefined,
+          })),
       } as VideoDetail;
     });
 }

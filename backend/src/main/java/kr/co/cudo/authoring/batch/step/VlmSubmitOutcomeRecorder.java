@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
@@ -36,6 +37,19 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class VlmSubmitOutcomeRecorder {
+
+    /**
+     * 벤더 오류 코드 — <b>정의되지 않은 이벤트 유형</b>. 규격 §2.10.
+     *
+     * <p>규격은 <b>그 사유일 때만</b> 본문에 코드를 싣는다고 못 박으므로, 이 값이 곧 「미지원 이벤트
+     * 유형」 판정의 <b>단일 근거</b>다. 우리는 이벤트 유형을 허용목록으로 사전 차단하지 않고
+     * <b>벤더 응답이 판정하게</b> 하는데, 이 구분이 없으면 실패 기록이 "4xx 응답"으로만 남아
+     * <b>왜 거부됐는지 알 수 없다</b>.
+     *
+     * <p>★ <b>적용 축은 묘사 하나다</b> — 추가 질문 축은 이벤트 유형을 보내지 않아 나올 수 없다.
+     * [design: INTSPEC-003] [design: INT-002]
+     */
+    static final int VENDOR_CODE_UNDEFINED_EVENT_TYPE = 40001;
 
     private final BatchStatusService batchStatusService;
     private final VlmMarkingTxService markingTxService;
@@ -99,6 +113,19 @@ public class VlmSubmitOutcomeRecorder {
      * 어느 기록이 실패해도 예외를 밖으로 던지지 않는다 — 여기서 던져도 받을 곳이 없고(비동기),
      * 원장의 ISSUED 행이 그대로 남아 미결 스위퍼가 회수한다.
      *
+     * <h3>★ 「미지원 이벤트 유형」 구분 (규격 §2.10)</h3>
+     * <p>벤더가 {@value #VENDOR_CODE_UNDEFINED_EVENT_TYPE} 을 실어 보내면 그것은 <b>정의되지 않은
+     * 이벤트 유형</b>이라는 뜻이다. 그 사유를 <b>로그로 구분</b>해 남긴다 — 우리가 이벤트 유형을
+     * 사전 차단하지 않는 이상 이 코드가 거부 사유를 아는 유일한 근거이기 때문이다.
+     *
+     * <p>⚠ <b>DB 에 적재하는 사유 문자열은 바꾸지 않는다</b>. {@link VlmTimeseriesStep#SKIP_REASON_SUBMIT_FAILED}
+     * 값 자체가 {@code LS_BATCH_PROC_LOG} 재개 판정의 키이며 이미 적재된 과거 행과의 대조 키다 —
+     * 「더 정확하게」 다듬는 순간 그 행들의 재개 배선이 끊긴다. 그래서 구분은 <b>그 값을 건드리지 않는
+     * 방식</b>(로그 필드)으로만 한다.
+     *
+     * <p>⚠ <b>재시도 분류는 불변</b>이다 — 이 핸들러가 도는 시점에는 이미 재시도 판정이 끝나 있고,
+     * 재시도 대상은 여전히 429 하나뿐이다. 이 구분은 <b>기록의 정밀도</b>만 올린다.
+     *
      * @param markingSn 선커밋으로 VLM_REQUESTED 로 올린 마킹(없으면 null)
      */
     public void onSubmitFailed(Long rawSn, Long markingSn, Throwable cause) {
@@ -106,8 +133,18 @@ public class VlmSubmitOutcomeRecorder {
             return;
         }
         // CWE-117/209 — 외부 예외 메시지 원문은 남기지 않고 타입만 기록한다.
-        log.error("[Batch][VlmTimeseries] submit failed (no status demotion) rawSn={} cause={}",
-                rawSn, cause == null ? "unknown" : cause.getClass().getSimpleName());
+        Integer vendorCode = vendorCodeOf(cause);
+        if (vendorCode != null && vendorCode == VENDOR_CODE_UNDEFINED_EVENT_TYPE) {
+            log.error("[Batch][VlmTimeseries] submit failed — undefined event_type rejected by vendor "
+                            + "(no status demotion) rawSn={} vendorCode={} cause={}",
+                    rawSn, vendorCode, cause.getClass().getSimpleName());
+        } else if (vendorCode != null) {
+            log.error("[Batch][VlmTimeseries] submit failed (no status demotion) rawSn={} vendorCode={} cause={}",
+                    rawSn, vendorCode, cause.getClass().getSimpleName());
+        } else {
+            log.error("[Batch][VlmTimeseries] submit failed (no status demotion) rawSn={} cause={}",
+                    rawSn, cause == null ? "unknown" : cause.getClass().getSimpleName());
+        }
         try {
             batchStatusService.recordVlmSkippedInNewTx(rawSn, VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED);
         } catch (RuntimeException e) {
@@ -120,5 +157,23 @@ public class VlmSubmitOutcomeRecorder {
             log.warn("[Batch][VlmTimeseries] marking failure transition failed rawSn={} cause={}",
                     rawSn, e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * 실패 원인 사슬에서 <b>벤더 오류 코드</b>만 꺼낸다. 없으면 {@code null}.
+     *
+     * <p>메시지를 파싱하지 않는다 — 문구가 바뀌면 조용히 오분류된다(그 예외가 코드를 <b>값</b>으로
+     * 들고 다니는 이유다). 사슬을 훑는 것은 제출 경로가 예외를 감싸 전달할 수 있기 때문이며,
+     * 순환 참조에 대비해 깊이를 제한한다.
+     */
+    private static Integer vendorCodeOf(Throwable cause) {
+        Throwable t = cause;
+        for (int depth = 0; t != null && depth < 8; depth++) {
+            if (t instanceof NonRetryableExternalException nre && nre.getVendorCode() != null) {
+                return nre.getVendorCode();
+            }
+            t = t.getCause() == t ? null : t.getCause();
+        }
+        return null;
     }
 }

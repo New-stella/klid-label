@@ -177,11 +177,42 @@ class VlmResultServiceTest {
 
         // then — 시계열 서술 자리를 건드리지 않는다(두 축이 같은 키를 쓰면 한쪽이 유실된다).
         assertThat(applied).isTrue();
-        verify(resultApplier).applySubDescription(212L, "네, 근거는 ...");
+        verify(resultApplier).applySubDescription(212L, "네, 근거는 ...", null);
         verify(metaRepository, org.mockito.Mockito.never())
                 .upsertMetaReturning(org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("★위탁_시점에_보낸_질문_문구가_원장에서_그대로_협력자에게_넘어간다")
+    void subChannelCallbackHandsOverTheQuestionActuallySent() {
+        // given — 추가 질문 축은 위탁 시점에 보낸 문구를 상관키 행에 함께 남긴다.
+        //  콜백은 그 행을 역조회하므로 「보낸 값」이 곧 「기록될 값」이 된다(재조달 없음).
+        String sent = "연기가 관측됩니까? 근거를 서술하십시오.";
+        ledger.recordIssued("REQ-SUB-Q", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-SUB-Q", 213L,
+                null, sent);
+        when(videoRepository.existsById(213L)).thenReturn(true);
+
+        // when
+        service.handle(completed("REQ-SUB-Q", BigDecimal.ZERO, "네, 연기가 보입니다."));
+
+        // then
+        verify(resultApplier).applySubDescription(213L, "네, 연기가 보입니다.", sent);
+    }
+
+    @Test
+    @DisplayName("★보관값이_없는_과거_행은_질문을_지어내지_않고_그대로_비워_넘긴다")
+    void legacyRowWithoutStoredQuestionHandsOverNull() {
+        // given — 보관 도입 이전에 발급된 행. 그때 무엇을 보냈는지 알 수 없다.
+        ledger.recordIssued("REQ-SUB-L", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-SUB-L", 215L);
+        when(videoRepository.existsById(215L)).thenReturn(true);
+
+        // when
+        service.handle(completed("REQ-SUB-L", BigDecimal.ZERO, "네, 근거는 ..."));
+
+        // then — 소급해 조달하지 않는다(지어내면 사업자가 받지 않은 질문이 산출물에 남는다).
+        verify(resultApplier).applySubDescription(215L, "네, 근거는 ...", null);
     }
 
     @Test

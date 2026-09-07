@@ -1,13 +1,13 @@
 ---
 logicraft_item: SHELL-001
 type: app_shell
-version: 11
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-03T07:41:32.061Z
-status: NEW
-prev_version: null
-content_hash: e8bd9633b2ab4d4ce148fc0da6ec3980b9bb16a3da4f72bee48aa3f052a24005
+synced_at: 2026-09-07T15:15:43.075Z
+status: CHANGED
+prev_version: 11
+content_hash: 8623127b4c0da1c31ed4ee28e690a2a813e10fb1e5cc2339b460c1a04445e6f9
 stale: true
 raw: ./_raw/SHELL-001.json
 links:
@@ -61,12 +61,14 @@ true
 
 #### [3]
 
+- **note**: 이니셜은 표시하는 이름의 첫 글자이므로 이름과 같은 조달원을 따른다. 이름이 「내 정보」 조회 응답으로 정해지면 이니셜도 그 이름의 첫 글자로 함께 바뀐다. 이름을 어디에서도 얻지 못해 대체 표기로 내려간 경우에만 그 대체 표기의 첫 글자를 쓴다.
 - **type**: Avatar
 - **align**: end
 - **label**: 사용자 아바타 — 이름 첫 글자 원형 이니셜
 
 #### [4]
 
+- **note**: 표시하는 이름의 진실원은 세션 진입 시 조회하는 「내 정보」 응답이며, 인계 토큰의 이름 클레임은 보조 조달원이다. 토큰에 이름이 실려 오지 않아도 「내 정보」가 알려 준 이름을 표시한다. 그러려면 진입 처리가 그 응답에서 역할만 취하지 않고 이름도 함께 보관해야 한다. 두 조달원 모두에서 이름을 얻지 못했을 때만 대체 표기 '사용자'로 내려간다 — 이름이 정말 없을 수 있으므로 이 대체 표기 자체는 유지하되, 서버가 이름을 아는 상태에서 이 표기가 나타나면 결함이다. 인가의 진실원을 토큰 클레임이 아니라 저작도구가 보관한 값으로 두는 역할 표시와 같은 축이다.
 - **type**: Text
 - **align**: end
 - **label**: 사용자 이름
@@ -121,6 +123,10 @@ _(empty)_
 - **device**: desktop
 - **orientation**: vertical
 - **source_nav_id**: NAV-001
+
+## attached_files
+
+_(empty)_
 
 ## applies_to_screens
 

@@ -50,7 +50,8 @@ public record VlmTimeseriesRequest(
         @JsonProperty("request_id") String requestId,
         @JsonProperty("event_type") String eventType,
         @JsonProperty("media") Media media,
-        @JsonProperty("callback_url") String callbackUrl
+        @JsonProperty("callback_url") String callbackUrl,
+        @JsonProperty("prompt") String prompt
 ) {
 
     /** 미디어 서술 — 비식별 영상 경로 기반 path 소스(§2.4). */
@@ -110,7 +111,7 @@ public record VlmTimeseriesRequest(
                 requestId, eventType,
                 new Media("video", "path", path,
                         new FramePolicy(MODE_FRAME_INTERVAL, null)),
-                callbackUrl);
+                callbackUrl, null);
     }
 
     /**
@@ -130,6 +131,39 @@ public record VlmTimeseriesRequest(
                 requestId, eventType,
                 new Media("video", "path", path,
                         new FramePolicy(MODE_FRAME_SELECTED, List.copyOf(selectedFrames))),
-                callbackUrl);
+                callbackUrl, null);
     }
+
+    /**
+     * <b>추가 질문 축</b> 요청으로 바꾼다 — 창구가 {@code custom} 으로 교체되면서 생긴 변환.
+     *
+     * <p>두 축은 {@code request_id} 를 빼면 <b>미디어·프레임 정책·콜백 주소가 같다</b>(규격 §3.4 —
+     * "그 외 요청 형식은 나머지 세 API 와 같다"). 그래서 묘사 축 요청에서 <b>두 가지만 바꾼다</b>:
+     *
+     * <ul>
+     *   <li><b>{@code event_type} 을 싣지 않는다</b> — 이 창구는 그 필드를 쓰지 않는다. 그 덕에 추가
+     *       질문 축에서는 <b>이벤트 유형 미수신·미지원으로 인한 4xx 가 구조적으로 사라진다</b>
+     *       (묘사 축에는 그대로 남는다).</li>
+     *   <li><b>{@code prompt} 에 질문 문구를 직접 싣는다</b> — 최대 {@value #MAX_PROMPT_LENGTH}자.
+     *       그 문구는 저작도구가 검증 이벤트 유형별로 보관하는 값이며, <b>위탁 시점에 조달</b>해
+     *       원장에 보관하고 결과 수신 시 재조달하지 않는다.</li>
+     * </ul>
+     *
+     * <p>⚠ <b>{@code request_id} 는 반드시 달라야 한다</b> — 콜백 바디에 창구 구분자가 없어 원장 채널로
+     * 역조회하므로, 같은 값을 쓰면 한쪽 결과가 유실된다.
+     *
+     * @param base       묘사 축 요청(미디어·프레임 정책·콜백 주소의 원본)
+     * @param requestId  추가 질문 축 전용 상관키 — 묘사 축과 <b>다른</b> 값
+     * @param prompt     보낼 질문 문구. <b>비어 있으면 이 축을 위탁하지 않는다</b>(호출자가 판단)
+     */
+    public static VlmTimeseriesRequest toCustom(VlmTimeseriesRequest base, String requestId, String prompt) {
+        return new VlmTimeseriesRequest(requestId, null, base.media(), base.callbackUrl(), prompt);
+    }
+
+    /**
+     * {@code prompt} 길이 상한 — 규격 §2.4. 초과하면 벤더가 400 으로 거부한다.
+     *
+     * <p>같은 값이 질문 보관 칸의 폭이기도 하다 — 우리가 보관할 수 없는 길이는 애초에 보낼 수 없다.
+     */
+    public static final int MAX_PROMPT_LENGTH = 4000;
 }

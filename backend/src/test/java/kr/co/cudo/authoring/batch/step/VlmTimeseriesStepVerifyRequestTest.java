@@ -75,7 +75,9 @@ class VlmTimeseriesStepVerifyRequestTest {
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), Schedulers.immediate(),
                 mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class),
-                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class),
+                mock(kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver.class),
+                mock(kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader.class));
             // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
@@ -220,13 +222,16 @@ class VlmTimeseriesStepVerifyRequestTest {
         // when
         step.runWithMarking(650L, manualMarking(650L, marks(1, 2)));
 
-        // then — 창구마다 한 번씩, 서로 다른 상관키로
+        // then — 창구마다 한 번씩, 서로 다른 상관키로.
+        //   ★ 추가 질문 축은 <b>보낸 질문 문구</b>까지 같은 행에 남기므로 발급 오버로드가 다르다
+        //     (묘사 축 5-인자 / 추가 질문 축 6-인자). 한쪽 계약이 바뀌면 여기서 먼저 터진다.
         ArgumentCaptor<String> keyCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> chCap = ArgumentCaptor.forClass(String.class);
-        verify(ledger, times(2)).recordIssued(keyCap.capture(), chCap.capture(), any(),
+        verify(ledger).recordIssued(keyCap.capture(), org.mockito.ArgumentMatchers.eq("VLM"), any(),
                 org.mockito.ArgumentMatchers.eq(650L), any());
-        assertThat(chCap.getAllValues()).containsExactlyInAnyOrder("VLM", "VLM_SUB");
-        assertThat(keyCap.getAllValues()).doesNotHaveDuplicates();
+        ArgumentCaptor<String> subKeyCap = ArgumentCaptor.forClass(String.class);
+        verify(ledger).recordIssued(subKeyCap.capture(), org.mockito.ArgumentMatchers.eq("VLM_SUB"), any(),
+                org.mockito.ArgumentMatchers.eq(650L), any(), any());
+        assertThat(keyCap.getValue()).isNotEqualTo(subKeyCap.getValue());
 
         // 그리고 실제 위탁 바디의 request_id 도 그 상관키와 같아야 한다(등록만 하고 다른 값을
         // 보내면 콜백이 미발급으로 401 이 된다).
@@ -235,8 +240,8 @@ class VlmTimeseriesStepVerifyRequestTest {
         verify(vlmClient).submitDescribe(descCap.capture(), any());
         verify(vlmClient).submitDescribeSub(subCap.capture(), any());
         assertThat(descCap.getValue().requestId()).isNotEqualTo(subCap.getValue().requestId());
-        assertThat(keyCap.getAllValues())
-                .containsExactlyInAnyOrder(descCap.getValue().requestId(), subCap.getValue().requestId());
+        assertThat(keyCap.getValue()).isEqualTo(descCap.getValue().requestId());
+        assertThat(subKeyCap.getValue()).isEqualTo(subCap.getValue().requestId());
     }
 
     @Test
@@ -389,12 +394,10 @@ class VlmTimeseriesStepVerifyRequestTest {
         //        (구 동작은 여기서 게이트에 걸려 두 배선을 건너뛰었다.)
         //        ★상관키는 창구마다 하나씩, 즉 <b>두 번</b> 등록된다 — 콜백이 어느 창구의 결과인지
         //         되짚는 축이 채널이므로 한 번만 등록하면 나머지 창구의 콜백이 미발급으로 거부된다.
-        verify(ledger, org.mockito.Mockito.times(2))
-                .recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L), any());
         verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM"), any(),
                 org.mockito.ArgumentMatchers.eq(623L), any());
         verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM_SUB"), any(),
-                org.mockito.ArgumentMatchers.eq(623L), any());
+                org.mockito.ArgumentMatchers.eq(623L), any(), any());
         verify(markingTxService).persistVlmRequested(any());
     }
 

@@ -4,7 +4,7 @@ type: class_diagram
 version: 2
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T13:24:03.749Z
+synced_at: 2026-09-07T15:15:40.620Z
 status: CHANGED
 prev_version: 1
 content_hash: 38276cebddcf2f18de6c239b4339422f6b3dfe859ec1ba496ba101fd990b8199

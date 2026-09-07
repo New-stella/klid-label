@@ -243,7 +243,7 @@ def resolve_describe_duration(
 
 
 def build_describe_callback(request_id: str, duration_sec: object = None) -> dict:
-    """묘사 성공 콜백 페이로드 — KLID 연동 API v1.1.0 §2.7·§2.8.
+    """묘사 성공 콜백 페이로드 — KLID 연동 API v1.2.0 §2.7·§2.8.
 
     ``results`` 는 **단일 객체**이고 항목은 ``description`` 하나다. 구 규격의 구간 배열
     (``[{start_sec,end_sec,description}]``)은 폐기됐다. 판정 항목(detected/accuracy)은 판정
@@ -299,6 +299,30 @@ def mock_describe_text(duration_sec: object = None) -> str:
     lines.append(f"- 환경: {environment}")
     lines.append(f"- 심각성: {severity}/10점 — {_severity_comment(severity)}")
     return "\n".join(lines)
+
+
+def build_custom_callback(request_id: str, prompt: str) -> dict:
+    """사용자 프롬프트 성공 콜백 페이로드 — 규격 v1.2.0 §3.4.
+
+    ★ 저작도구의 **추가 질문 축**이 쓰는 창구다. 받은 질문 문구에 답하는 형태로 서술한다 —
+    실벤더도 프롬프트에 답하므로, 목이 질문과 무관한 고정문을 돌려주면 「질문이 실제로 전달됐는가」를
+    로컬에서 확인할 수 없다.
+
+    판정 항목은 제공되지 않는다 — 출력 형식을 서버가 알 수 없으므로 모델 출력을 description 에
+    그대로 담는다(규격 §3.4).
+    """
+    asked = (prompt or "").strip()
+    # 질문을 그대로 되비추어 <무엇을 받았는지>가 콜백에 드러나게 한다(로컬 검증용).
+    return {
+        "request_id": request_id,
+        "status": "completed",
+        "results": {
+            "description": (
+                f"네, 확인됩니다. 질문 「{asked[:120]}」에 대해 영상에서 관련 정황이 관측됩니다 — "
+                "두 사람이 근접해 접촉하는 장면이 이어지고 주변 보행자가 물러납니다."
+            )
+        },
+    }
 
 
 def build_describe_sub_callback(request_id: str, event_type: object = None) -> dict:

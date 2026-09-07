@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-005
 type: external_system
-version: 15
+version: 16
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:57.544Z
+synced_at: 2026-09-07T15:15:45.312Z
 status: CHANGED
-prev_version: 14
-content_hash: 9529b0a9d3d776b2e6d73b302dfa6e5a89034730018bf91b9ae4d810fb8c02db
+prev_version: 15
+content_hash: 074fd5571961b71bc5af76e7c8875495da5e5375e64f6cb676f2d1789a46d2a3
 stale: false
 raw: ./_raw/EXTSYS-005.json
 links:
@@ -60,7 +60,7 @@ other
 
 ## owner_team
 
-관제서버팀
+타 시스템
 
 ## criticality
 
@@ -104,6 +104,10 @@ JWT 는 관제서버가 발급한 것을 사용하며 저작도구는 발급하�
 - B-4: INT-007 auth_type — x-access-token 발급 주체 미확정.
 
 ## environments
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

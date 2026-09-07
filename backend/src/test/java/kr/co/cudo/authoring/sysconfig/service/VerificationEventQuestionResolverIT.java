@@ -31,6 +31,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *       교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이다).</li>
  *   <li><b>없으면 예외가 아니라 비어 있음</b> — 유형이 카탈로그에 없거나 질문이 0건이어도 예외를
  *       던지지 않는다. 이 카탈로그는 <b>허용목록이 아니며</b>, 여기서 막으면 위탁·마킹이 막힌다.</li>
+ *   <li>★ <b>유형 미수신이어도 작업자가 고른 질문은 살린다</b> — 그 문구가 추가 질문 축 위탁 요청
+ *       본문에 그대로 실려 나가므로 비우면 그 영상은 위탁 자체가 못 나간다. 다만 <b>가리키던 행이
+ *       사라졌으면 비어 있음</b>이다 — 없는 질문을 지어내지 않는다.</li>
  * </ul>
  *
  * <p>시드 7종을 건드리지 않도록 {@code itq} 접두 유형만 만들고 테스트 트랜잭션 롤백으로 정리한다.
@@ -195,14 +198,56 @@ class VerificationEventQuestionResolverIT {
     }
 
     @Test
-    @DisplayName("유형이_미지정이면_선택값이_있어도_비어_있음이다")
-    void 유형이_미지정이면_선택값이_있어도_비어_있음이다() {
+    @DisplayName("유형이_미지정이어도_작업자가_고른_질문을_쓴다_구_비움_폐기")
+    void 유형이_미지정이어도_작업자가_고른_질문을_쓴다_구_비움_폐기() {
         long question = seedQuestion(TYPE_A, 1, "알파 첫 번째");
 
-        // 유형을 모르면 소속을 판정할 축이 없다 — 선택값만 믿고 내보내면 다른 유형의 질문이 실린다.
-        assertThat(resolver.resolve(question, null)).isEmpty();
-        assertThat(resolver.resolve(question, "   ")).isEmpty();
+        // 구 동작: 유형을 모르면 선택값이 있어도 버리고 비어 있음이었다. 그 판단은 질문이 우리 기록일
+        // 뿐이던 동안 옳았으나, 이제 이 문구가 추가 질문 축 위탁 요청 본문에 그대로 실려 나간다 —
+        // 비우면 그 영상은 추가 질문 축 위탁 자체가 못 나간다. 그 창구는 이벤트 유형을 받지 않으므로
+        // 「다른 유형의 질문이 간다」는 우려가 위탁 축에서 성립하지 않고, 작업자가 고른 값이 유일한
+        // 판단 축이다.
+        assertThat(resolver.resolve(question, null).orElseThrow().qstnCn()).isEqualTo("알파 첫 번째");
+        assertThat(resolver.resolve(question, "   ").orElseThrow().qstnCn()).isEqualTo("알파 첫 번째");
+        assertThat(resolver.resolveQuestionText(question, null)).contains("알파 첫 번째");
+
+        // 유형 없이 「첫 번째」를 물으면 여전히 비어 있음이다 — 되돌릴 대상 자체가 없다.
         assertThat(resolver.firstQuestion(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("유형이_미지정이면_선택값의_소속을_따지지_않는다")
+    void 유형이_미지정이면_선택값의_소속을_따지지_않는다() {
+        seedQuestion(TYPE_A, 1, "알파 첫 번째");
+        long betaQuestion = seedQuestion(TYPE_B, 1, "베타 질문");
+
+        // 되돌릴 유형이 없으므로 첫 번째 폴백이 끼어들어선 안 된다 — 작업자가 고른 그 값이 나가야 한다.
+        assertThat(resolver.resolve(betaQuestion, null).orElseThrow().vrfcEvntQstnSn())
+                .isEqualTo(betaQuestion);
+    }
+
+    @Test
+    @DisplayName("유형이_미지정이고_선택값도_없으면_비어_있음이다")
+    void 유형이_미지정이고_선택값도_없으면_비어_있음이다() {
+        seedQuestion(TYPE_A, 1, "알파 첫 번째");
+
+        assertThatCode(() -> {
+            assertThat(resolver.resolve(null, null)).isEmpty();
+            assertThat(resolver.resolve(null, "   ")).isEmpty();
+            assertThat(resolver.resolveQuestionText(null, null)).isEmpty();
+        }).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("유형이_미지정일_때_사라진_질문번호는_지어내지_않고_비어_있음이다")
+    void 유형이_미지정일_때_사라진_질문번호는_지어내지_않고_비어_있음이다() {
+        long removed = seedQuestion(TYPE_A, 1, "곧 사라질 것");
+        seedQuestion(TYPE_B, 1, "베타 질문");
+        jdbc.update("DELETE FROM ls_vrfc_evnt_qstn WHERE vrfc_evnt_qstn_sn = ?", removed);
+
+        // 존재하지 않는 질문을 아무 값으로나 채우지 않는다. 질문 목록은 전체 교체로 저장되어
+        // 가리키던 행이 사라지는 것이 정상 동선이다.
+        assertThat(resolver.resolve(removed, null)).isEmpty();
     }
 
     @Test

@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-013
 type: class_diagram
-version: 9
+version: 12
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:40:04.286Z
+synced_at: 2026-09-07T15:15:45.308Z
 status: CHANGED
-prev_version: 8
-content_hash: 2d524d0db4c199fc62bd7deeb2b7ade513dbb9f379695875a570e8568bedd9c6
-stale: true
+prev_version: 9
+content_hash: fc7c1610cb5f5bc7e45a830b0694b87f1334d4b127806763b46524268bdd9775
+stale: false
 raw: ./_raw/CDIAG-013.json
 links:
   belongs_to_domain: ["[[DOMAIN-016]]"]
@@ -871,6 +871,40 @@ _(empty)_
 
 _(empty)_
 
+#### qstnCn
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 위탁 시점에 외부 분석 서버로 보낸 질문 문구 전문. 추가 질문 축 위탁이 질문 문구를 요청 본문에 직접 싣게 되면서, 결과 수신 시 재조달하지 않고 이 값을 읽어 이벤트 어노테이션의 질문 칸을 채운다 — 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이라, 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문이다. 묘사 축 위탁 행에는 값이 없다. (QSTN_CN)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
 - **description**: 외부 위탁(비식별/VLM/증강) 시 발급 멱등키 영속 원장. 재시작·멀티 인스턴스 중복 적재 차단. (LS_WEBHOOK_IDEMPOTENCY)
 
 **enum_values**:
@@ -1246,7 +1280,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 관제 수정 통지의 디바운스 누적 창을 영속하는 루트. 영상 1건의 수정을 창으로 모아 한 번만 내보낸다. 열린 창은 영상당 최대 1개이고, 창이 만료돼도 그 영상에 재검토 표식이 서 있는 동안에는 아무 노드도 가져가지 못한다. 표식이 해제된 뒤에야 한 노드만 조건부 갱신으로 가져가 발송·재산출을 위임한 뒤 행을 지운다. 창을 노드 메모리에 두면 두 노드에 축적이 나뉘어 통지가 두 번 나가고 노드가 죽을 때 축적분이 통째로 사라지므로 영속화한다. (LS_MON_NOTI_ACML)
+- **description**: 관제 수정 통지의 디바운스 누적 창을 영속하는 루트. 영상 1건의 수정을 창으로 모아 한 번만 내보낸다. 열린 창은 영상당 최대 1개이고, 창이 만료돼도 그 영상에 재검토 표식이 서 있는 동안에는 아무 노드도 가져가지 못한다. 표식이 해제된 뒤에야 한 노드만 조건부 갱신으로 가져가 발송·재산출을 위임한 뒤 행을 지운다. 창을 노드 메모리에 두면 여러 노드에 축적이 나뉘어 통지가 두 번 나가고 노드가 죽을 때 축적분이 통째로 사라지므로 영속화한다. (LS_MON_NOTI_ACML)
 
 **enum_values**:
 
@@ -1892,6 +1926,8 @@ _(empty)_
 [changed_items 범위] TaskModified 의 exportRegenerated 플래그가 범위를 결정한다 — true 면 전 프레임, false 면 빈 목록(관제가 뷰를 재조회). 발행처 클래스명으로 추정하지 않고 이벤트가 직접 싣는다.
 
 [★멱등 원장 범위 정정] LS_WEBHOOK_IDEMPOTENCY 의 증강 채널(CHANNEL_AUGMENT) 선행 write 는 어디서도 읽히지 않아 제거됐고, 증강 위탁의 request_id 선기록은 LS_DATA_AUG_JOB.IDMP_KEY 가 담당한다.
+
+[★의도적 부재 — 웹훅 요청 방어 원장] 밖에서 들어오는 웹훅 요청을 막고 걸러 내는 원장 LS_WHK_SIGN_USE(이미 쓰인 서명을 기억해 재사용을 막는다)와 LS_WHK_FAIL_NMTM(호출한 쪽 주소별 실패를 창 단위로 센다)에 대응하는 클래스를 이 모델에 두지 않는다. 이 모델의 클래스는 모두 영속 클래스를 가진 것들인데 그 둘은 영속 클래스가 없고 질의문을 직접 쓰는 저장소 구현이 다루므로, 애그리거트로 넣으면 코드에 없는 도메인 객체를 있다고 말하게 된다. 결손이 아니다 — 두 원장은 데이터 계층 산출물에 정식으로 등재돼 있고 여기에 없는 것은 판단의 결과다. 다시 넣자는 제안이 오면 이 근거를 먼저 볼 것.
 
 ## module_name
 

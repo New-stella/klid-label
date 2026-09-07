@@ -94,7 +94,7 @@
     "schema_version": 1,
     "current_version": 14,
     "stale": true,
-    "stale_reason": "SCREEN-044의 2개 필드 변경 — granted_on",
+    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
     "change_summary": "포털의 라벨링 화면 둘이 하나로 합쳐졌다. 남는 포털 라벨링 항목이 두 자산 출처를 모두 담도록 넓히고, 없어지는 업로드 라벨링 항목이 갖고 있던 행위(생성·삭제)를 그 항목의 행위에 합쳤다 — 합치지 않으면 업로드 자산에서 하던 라벨 생성·삭제 권한이 어느 항목에도 없게 된다. 업로드 라벨링 항목은 지우지 않고 폐기 표기로 남겼다 — 지우면 어느 권한이 왜 없어졌는지가 함께 사라진다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-09-02T08:44:07.529Z",

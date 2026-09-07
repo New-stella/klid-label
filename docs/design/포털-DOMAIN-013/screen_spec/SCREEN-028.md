@@ -4,10 +4,10 @@ type: screen_spec
 version: 38
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-06T06:29:44.355Z
+synced_at: 2026-09-07T15:15:54.468Z
 status: CHANGED
-prev_version: 34
-content_hash: d44bfcb9ec00a8ed0c01a3a78e61b51afe14f334d245aadc447d4dc41b010174
+prev_version: 38
+content_hash: de2c3d3f696af4ece50f75e9f13f790cbb56734f39ad163e645ee7fdb0852a47
 stale: true
 raw: ./_raw/SCREEN-028.json
 links:
@@ -222,6 +222,7 @@ implemented
 ### records
 
 - IMPREC-023
+- IMPREC-399
 
 ### progress
 
@@ -233,7 +234,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-17T22:48:30.526Z
+2026-09-06T06:50:21.379Z
 
 ### module_paths
 

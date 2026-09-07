@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-003
 type: external_system
-version: 12
+version: 13
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:43:42.717Z
+synced_at: 2026-09-07T15:15:53.259Z
 status: CHANGED
-prev_version: 10
-content_hash: c35ae2692e1321efb8f41b845c98e3b227975cf32411228210031887182ce4ed
+prev_version: 12
+content_hash: 35f64794d4ee90d0366794e60f29865051f1c3a33a459cf13fbea14af2a4043e
 stale: false
 raw: ./_raw/EXTSYS-003.json
 links:
@@ -50,7 +50,7 @@ ADR-006
 
 ## owner_team
 
-저작도구 연동팀
+타 시스템
 
 ## criticality
 

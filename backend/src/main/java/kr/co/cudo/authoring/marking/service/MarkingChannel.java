@@ -34,11 +34,30 @@ public interface MarkingChannel extends MarkingChannelGuard {
     double resolveFps(Long rawSn);
 
     /**
+     * 이 마킹에 쓸 <b>검증 이벤트 유형</b> 조달 — 관제 인입값이 진실원이고, 없을 때만 작업자 선택값.
+     *
+     * <p>그 축이 없는 채널(포털)은 {@link MarkingEventType#NONE} 이다 — 관제 인입 검증 이벤트 유형이
+     * 그 경로로 오지 않고, 화면도 유형 선택을 내보내지 않는다. 그래서 기본 구현이 곧 정답이다.
+     *
+     * @param requestedTypeCd 요청이 실어 온 작업자 선택값(정규화 완료 또는 {@code null})
+     * @design API-047
+     */
+    default MarkingEventType resolveEventType(Long rawSn, String requestedTypeCd) {
+        return MarkingEventType.NONE;
+    }
+
+    /**
      * 마킹 행에 남길 <b>검증 이벤트 질문</b> 일련번호. 그 축이 없는 채널은 {@code null}.
      *
      * <p>포털에는 관제 인입 검증 이벤트 유형이 오지 않으므로 고를 축 자체가 없다 — 지어내지 않는다.
+     *
+     * <p>★ <b>유형은 인자로 받는다 — 채널이 다시 조달하지 않는다.</b> 조달은 위
+     * {@link #resolveEventType} 한 번뿐이고, 그 결과를 그대로 넘겨야 「질문을 고른 유형」과 「마킹 행에
+     * 저장되는 유형」이 구조적으로 같은 값이 된다. 여기서 다시 인입을 읽으면 두 값이 갈릴 수 있다.
+     *
+     * @param eventType {@link #resolveEventType} 가 조달한 유형 — 판정에 쓸 유효 유형이 여기 담긴다
      */
-    Long resolveQuestionSn(Long rawSn, Long requestedQstnSn);
+    Long resolveQuestionSn(Long rawSn, Long requestedQstnSn, MarkingEventType eventType);
 
     /**
      * 실제로 저장할 지점을 확정한다 — <b>추출 장수 상한</b>이 있는 채널은 여기서 자른다.

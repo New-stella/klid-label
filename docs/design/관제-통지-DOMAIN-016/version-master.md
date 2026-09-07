@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-05T00:45:16.054Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 92 |
+| Last sync | 2026-09-07T15:21:45.539Z |
+| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 93 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-016 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 11건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 7건 / 스코프 밖 42건
   ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 220건
-  ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
+  ℹ️  erd: 이번 키트 2건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 13건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 37건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 80건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 81건 (그중 domain_id 없음 3건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 10건 / 스코프 밖 46건 (그중 domain_id 없음 9건)
+  ℹ️  adr: 이번 키트 10건 / 스코프 밖 48건 (그중 domain_id 없음 10건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -41,7 +41,9 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-044]]
+- NEW [[AC-1095]]
+- NEW [[AC-1096]]
+- NEW [[AC-1097]]
 
 ## ITEM 표
 
@@ -49,43 +51,46 @@
 |---|---|---|---|
 | [[AC-1077]] | acceptance | 6 | UNCHANGED |
 | [[AC-1078]] | acceptance | 8 | UNCHANGED |
+| [[AC-1095]] | acceptance | 1 | NEW |
+| [[AC-1096]] | acceptance | 1 | NEW |
+| [[AC-1097]] | acceptance | 1 | NEW |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-012]] | adr | 13 | UNCHANGED |
-| [[ADR-013]] | adr | 20 | UNCHANGED |
+| [[ADR-013]] | adr | 23 | UNCHANGED |
 | [[ADR-020]] | adr | 11 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
 | [[ADR-046]] | adr | 14 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
 | [[API-076]] | api_endpoint | 9 | UNCHANGED |
-| [[CDIAG-013]] | class_diagram | 9 | UNCHANGED |
-| [[CDIAG-044]] | class_diagram | 1 | NEW |
-| [[CMP-009]] | diagram_c4_component | 19 | UNCHANGED |
+| [[CDIAG-013]] | class_diagram | 12 | UNCHANGED |
+| [[CDIAG-044]] | class_diagram | 1 | UNCHANGED |
+| [[CMP-009]] | diagram_c4_component | 21 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 9 | UNCHANGED |
-| [[DFEAT-043]] | domain_feature | 17 | UNCHANGED |
-| [[DFEAT-044]] | domain_feature | 19 | UNCHANGED |
+| [[DFEAT-043]] | domain_feature | 18 | UNCHANGED |
+| [[DFEAT-044]] | domain_feature | 26 | UNCHANGED |
 | [[DFEAT-046]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-047]] | domain_feature | 7 | UNCHANGED |
-| [[DFEAT-053]] | domain_feature | 20 | UNCHANGED |
+| [[DFEAT-053]] | domain_feature | 21 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-016]] | domain | 12 | UNCHANGED |
-| [[ERD-021]] | erd | 15 | UNCHANGED |
-| [[ERD-027]] | erd | 6 | UNCHANGED |
+| [[ERD-021]] | erd | 19 | UNCHANGED |
+| [[ERD-027]] | erd | 7 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
 | [[EVT-004]] | domain_event | 10 | UNCHANGED |
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
 | [[EVT-010]] | domain_event | 4 | UNCHANGED |
-| [[EXTSYS-005]] | external_system | 15 | UNCHANGED |
+| [[EXTSYS-005]] | external_system | 16 | UNCHANGED |
 | [[FEAT-003]] | feature | 11 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[INT-010]] | integration_point | 12 | UNCHANGED |
 | [[INT-011]] | integration_point | 2 | UNCHANGED |
-| [[INTSPEC-004]] | integration_spec | 11 | UNCHANGED |
+| [[INTSPEC-004]] | integration_spec | 13 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
@@ -136,7 +141,7 @@
 | [[SEQ-010]] | diagram_sequence | 18 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
-| [[SEQ-023]] | diagram_sequence | 9 | UNCHANGED |
+| [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 6 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[UC-009]] | use_case | 23 | UNCHANGED |
+| [[UC-009]] | use_case | 25 | UNCHANGED |

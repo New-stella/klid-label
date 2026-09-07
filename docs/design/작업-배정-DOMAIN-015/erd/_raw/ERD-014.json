@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "배정아이디"
             },
@@ -42,7 +43,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "배정대상사용자번호"
             },
@@ -63,7 +65,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원본영상아이디"
             },
@@ -83,7 +86,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "작업유형코드"
             },
@@ -99,7 +103,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록자사용자번호"
             },
@@ -116,7 +121,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -126,7 +132,7 @@
               "unique": false,
               "default": "0",
               "nullable": false,
-              "description": "낙관적 잠금 버전(V134 신설, DEFAULT 0). 재배정(PATCH /v1/assignments/{id})은 기존 행 UPDATE 라 UNIQUE 제약이 발화하지 않아 동시 요청이 모두 통과하며 이력이 중복 적재되던 결함을 DB 수준에서 직렬화한다 — 2노드 Active-Active 배포라 JVM 락(synchronized)으로는 방어되지 않는다.",
+              "description": "낙관적 잠금 버전(V134 신설, DEFAULT 0). 재배정(PATCH /v1/assignments/{id})은 기존 행 UPDATE 라 UNIQUE 제약이 발화하지 않아 동시 요청이 모두 통과하며 이력이 중복 적재되던 결함을 DB 수준에서 직렬화한다 — 4노드 Active-Active 배포라 JVM 락(synchronized)으로는 방어되지 않는다.",
               "primary_key": false,
               "logical_column_name": "버전"
             }
@@ -179,7 +185,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이벤트아이디"
             },
@@ -200,7 +207,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원본영상아이디"
             },
@@ -229,7 +237,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이벤트유형코드"
             },
@@ -245,7 +254,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "행위자사용자번호"
             },
@@ -261,7 +271,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "대상사용자번호"
             },
@@ -277,7 +288,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이전사용자번호"
             },
@@ -293,7 +305,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "사유"
             },
@@ -310,7 +323,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "발생일시"
             }
@@ -361,23 +375,25 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "낙관적 잠금 버전 컬럼 설명에서 내부 결함 관리 코드를 걷어낸다. 동시 재배정 직렬화 근거 서술은 사양이라 그대로 둔다.",
+    "change_summary": "노드 수 표기를 사실에 맞춘다. 저작도구 앱 서버는 실제로 네 대인데 본문이 아직 두 대로 말하고 있었다 — 인프라 항목은 이미 네 대로 고쳐져 있었고 이 문서가 따라가지 못한 상태였다. 동시성 방어 논리와 구조는 하나도 바꾸지 않았다. 여러 노드가 함께 도는 형상이라 애플리케이션 락으로는 방어되지 않아 저장소 수준 조건부 갱신으로 해결한다는 근거는 노드가 둘이든 넷이든 그대로 참이므로, 재검토가 아니라 표기 정정이다. 폐기 표기 안에 인용된 옛 서술은 그대로 두었다 — 그것을 함께 바꾸면 구 서술이 무엇이었는지가 사라져 왜 네 대인지 근거를 찾을 수 없게 된다. 둘이 동시에 부딪히는 상황을 말하는 자리도 그대로 두었다. 그 자리의 두 노드는 대수가 아니라 동시에 충돌하는 두 주체를 뜻하므로 네 대 형상에서도 참이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:53:02.419Z",
+    "last_updated_at": "2026-09-07T03:03:24.900Z",
     "created_at": "2026-06-01T02:46:00.925Z"
   }
 }

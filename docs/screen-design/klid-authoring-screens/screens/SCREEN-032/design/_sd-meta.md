@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-021 v6 |
+| SD | SD-021 v8 |
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-032 |

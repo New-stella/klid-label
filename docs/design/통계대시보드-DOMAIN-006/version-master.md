@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-09-05T00:45:18.718Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 73 |
+| Last sync | 2026-09-07T15:21:48.632Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 75 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -21,14 +21,14 @@
 ```
   ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 46건
   ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 216건
-  🚨 erd: 이번 키트 0건 / 프로젝트 전역 23건 — 전량 누락
+  🚨 erd: 이번 키트 0건 / 프로젝트 전역 24건 — 전량 누락
   ℹ️  diagram_sequence: 이번 키트 1건 / 스코프 밖 35건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 35건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 79건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 83건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 4건 / 스코프 밖 52건 (그중 domain_id 없음 10건)
+  ℹ️  adr: 이번 키트 4건 / 스코프 밖 54건 (그중 domain_id 없음 11건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[CDIAG-020]]
-- NEW [[CDIAG-038]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -54,8 +53,8 @@
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
-| [[ADR-055]] | adr | 5 | UNCHANGED |
-| [[API-001]] | api_endpoint | 8 | UNCHANGED |
+| [[ADR-055]] | adr | 6 | UNCHANGED |
+| [[API-001]] | api_endpoint | 10 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
 | [[API-055]] | api_endpoint | 6 | UNCHANGED |
 | [[API-056]] | api_endpoint | 7 | UNCHANGED |
@@ -63,8 +62,8 @@
 | [[API-058]] | api_endpoint | 4 | UNCHANGED |
 | [[API-072]] | api_endpoint | 10 | UNCHANGED |
 | [[CDIAG-009]] | class_diagram | 5 | UNCHANGED |
-| [[CDIAG-020]] | class_diagram | 1 | NEW |
-| [[CDIAG-038]] | class_diagram | 1 | NEW |
+| [[CDIAG-020]] | class_diagram | 1 | UNCHANGED |
+| [[CDIAG-038]] | class_diagram | 1 | UNCHANGED |
 | [[DFEAT-026]] | domain_feature | 3 | UNCHANGED |
 | [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
 | [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |

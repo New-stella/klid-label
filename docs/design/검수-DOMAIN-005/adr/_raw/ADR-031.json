@@ -8,13 +8,13 @@
     "sub_id": null,
     "status": "approved",
     "data": {
-      "context": "구 설계는 콜백에 HMAC 서명을 요구했으나, 벤더(IntelliVIX VLM, 생성형AI 증강)의 확정 계약이 무서명 규격임이 드러났다.",
+      "context": "구 설계는 콜백에 HMAC 서명을 요구했으나, 벤더(IntelliVIX VLM, 생성형AI 증강)의 확정 계약이 무서명 규격임이 드러났다. ★이 무서명 판정은 우리가 받는 콜백(인바운드) 축에 한한다 — 우리가 보내는 위탁(아웃바운드)에는 별도 인증이 있으며 그것은 이 결정의 대상이 아니다.",
       "decision": {
         "chosen_option": "무서명 전환 + IP allowlist/rate limit/request_id 3계층 방어(채택)",
         "justification": "VLM 콜백(POST /v1/vlm/callback)·증강 콜백(POST /v1/genai/callback) 모두 무서명으로 전환한다(HMAC 제거). 대신 IP allowlist + rate limit + request_id 발급 게이트 3계층으로 방어하며, 증강은 IP allowlist 미설정 시 fail-closed, VLM은 미설정 시 완화된다. '2026-07-07 승인'으로 명시된 공식 승인 결정이다."
       },
       "brownfield": {
-        "notes": "HmacWebhookFilter는 원시URI 정확일치→MVC와 동일 RequestPath판정 강화, nonce 1회성 소비(V131)로 강화. 웹훅 실패카운터는 공유DB로 승격(2노드).",
+        "notes": "HmacWebhookFilter는 원시URI 정확일치→MVC와 동일 RequestPath판정 강화, nonce 1회성 소비(V131)로 강화. 웹훅 실패카운터는 공유DB로 승격(4노드).",
         "status": "new",
         "change_kind": [
           "decision-record",
@@ -49,6 +49,7 @@
         ]
       },
       "decision_date": "2026-07-07",
+      "attached_files": [],
       "decision_drivers": [
         "벤더 규격을 강제로 서명 요구할 수 없음 — 계약을 따라야 함"
       ],
@@ -78,12 +79,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문에서 저장소 내부 표기를 걷어내고 설계 서술만 남긴다. 제거 축: 파일 경로.",
+    "change_summary": "무서명 판정이 인바운드 콜백 축에 한한다는 한정을 명확히 했다. 벤더 규격에 아웃바운드 위탁 인증이 신설되면서 「벤더의 확정 계약이 무서명」을 벤더 전체에 인증이 없다는 뜻으로 읽을 여지가 생겼기 때문이다. 3계층 방어 결정 자체는 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:20:44.370Z",
+    "last_updated_at": "2026-09-07T11:09:33.292Z",
     "created_at": "2026-07-30T06:52:25.516Z"
   }
 }

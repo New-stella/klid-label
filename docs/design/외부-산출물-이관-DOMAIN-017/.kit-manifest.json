@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-09-07T13:27:10.935Z",
+  "synced_at": "2026-09-07T15:21:40.436Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -267,8 +267,8 @@
     "ERD-010": {
       "type": "erd",
       "domain_id": "DOMAIN-010",
-      "version": 36,
-      "content_hash": "4aaec017affa714dea59ef48469bdcfd447ba7306929aee9fc408138f5bf098f"
+      "version": 37,
+      "content_hash": "d3852cd8351ca83aad2e4fa54ff55216f36de7215600c36f865d2328e6bbc84f"
     },
     "ERD-012": {
       "type": "erd",

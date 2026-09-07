@@ -898,7 +898,7 @@
           "name": "VlmResultRequest",
           "methods": [],
           "attributes": [],
-          "description": "VLM 결과 인계 페이로드(POST /v1/vlm/callback). idempotencyKey/externalJobId/status(SUCCESS|FAILED|PARTIAL)/rawSn/results/resultFilePath. results 는 배열이 아니라 단일 객체 {description} 다 — 서술 전문만 받는다(일치도·판정은 검증 전용이라 이 연동으로 오지 않는다). 구 배열 규격(마킹별 서술 항목 배열)은 폐기됐고, 벤더가 배열을 보내면 관대 파싱 없이 400 으로 거부한다. 콜백은 describe(CoT)·describe-sub(VQA) 두 축을 공용 수신하며, 콜백 바디에 API 종류 식별자가 없어 요청 식별자(request_id)로 축을 역조회한다.",
+          "description": "VLM 결과 인계 페이로드(POST /v1/vlm/callback). idempotencyKey/externalJobId/status(SUCCESS|FAILED|PARTIAL)/rawSn/results/resultFilePath. results 는 배열이 아니라 단일 객체 {description} 다 — 서술 전문만 받는다(일치도·판정은 검증 전용이라 이 연동으로 오지 않는다). 구 배열 규격(마킹별 서술 항목 배열)은 폐기됐고, 벤더가 배열을 보내면 관대 파싱 없이 400 으로 거부한다. 콜백은 묘사(describe)·추가 질문(custom) 두 축을 공용 수신하며, 콜백 바디에 API 종류 식별자가 없어 요청 식별자(request_id)로 축을 역조회한다.",
           "enum_values": [],
           "stereotypes": [
             "<<DTO>>"
@@ -983,7 +983,7 @@
               ],
               "is_static": false,
               "visibility": "public",
-              "description": "추가 질문(describe-sub) 결과를 초안으로 반영한다. 서술은 같은 캡션 후보의 캡션 본문 칸에 넣는다. 답변 칸은 자동으로 채우지 않는다. 질문 문장 칸은 이 계약이 채우지 않는다 — 그 값의 조달원은 저작도구가 보관하는 검증 이벤트 유형별 질문 문구 목록이며, 어노테이션 도메인이 마킹에서 고른 질문(없으면 그 유형의 첫 번째)을 읽어 채운다. 메서드 이름의 추가 질문 표기는 어느 창구의 결과인지를 가리키는 것이라 그대로 둔다.",
+              "description": "추가 질문(custom) 결과를 초안으로 반영한다. 서술은 같은 캡션 후보의 캡션 본문 칸에 넣는다. 답변 칸은 자동으로 채우지 않는다. 질문 문장 칸은 이 계약이 채우지 않는다 — 그 값의 조달원은 저작도구가 보관하는 검증 이벤트 유형별 질문 문구 목록이며, 어노테이션 도메인이 마킹에서 고른 질문(없으면 그 유형의 첫 번째)을 읽어 채운다. 메서드 이름의 추가 질문 표기는 어느 창구의 결과인지를 가리키는 것이라 그대로 둔다.",
               "is_abstract": true,
               "return_type": "boolean"
             }
@@ -1028,7 +1028,7 @@
           "stereotypes": []
         }
       ],
-      "description": "UC-022(VLM 시계열 메타 검토·수정) 전용 클래스도. 외부 VLM 서비스에 시계열 메타 분석을 위탁(VlmTimeseriesStep→VlmClient)하고, 결과를 콜백(VlmResultController→VlmResultService)으로 수신해 LS_DATA_META(K/V) 적재 + LS_DATA_META_REVIEW 검수큐(PENDING) 진입시킨 뒤, REVIEWER 가 MetaController→MetaService 로 조회·수정·승인/반려한다. 메타 본체 생성은 외부 책임이고 저작도구는 시계열 정보 획득 연동 + 검수만 보유한다(FEAT-009).\n\n[★위탁은 논블로킹 제출] VlmTimeseriesStep 은 .block(45s) 로 파이프라인 스레드를 붙잡지 않고 subscribe() 로 제출만 개시한다. 스텝이 확정적으로 말하는 사실은 '제출을 개시했다' 뿐이고, 수락(ACK)은 완료 핸들러가 원장·LS_BATCH_PROC_LOG 에 비동기 기록한다(명시적 디스패치 — publishOn 은 풀 포화 시 거부가 이벤트 루프로 흘러 JPA 쓰기를 거기서 실행시킨다).\n\n[★미결 회수 — 임계가 두 개] 아무 신호도 없으면 in-memory subscription 은 노드가 죽을 때 통째로 사라져 실패 행조차 없다 — 미결 스위퍼가 유일한 회수 경로다. 임계는 ACK 창(stale-timeout, 기본 30분 — 원장 ISSUED)과 콜백 창(callback-timeout, 기본 360분 — 원장 ACCEPTED)으로 나뉘며 하나로 덮으면 정상 위탁을 빼앗는다. 2노드 중복 재위탁은 조건부 UPDATE 원자 클레임으로 막는다.\n\n[신고 구간 보류] media.path 가 비식별본인데 신고는 바로 그 비식별본의 마스킹 실패를 뜻하므로, 신고 구간에는 위탁을 실패가 아니라 보류(SKIPPED + 사유 적재)한다. 보류는 스스로 재개되지 않으므로 해소 시 DeidentGateReopenedEvent(EVT-007) → VlmResumeBridge → VlmWithheldResumeRunner 가 그 SKIPPED 기록을 근거로 재위탁한다(멱등 조건: 시계열 메타 0건).\n\nentity LS_DATA_META 는 batch 패키지, 검수 상태 LS_DATA_META_REVIEW 는 meta 패키지에 위치한다.\n\n[★어노테이션 초안 조달 — 창구별로 들어가는 자리가 다르다] 외부 시계열 분석 두 창구의 결과는 이벤트 어노테이션의 서로 다른 칸으로 간다. 묘사(describe) 전문은 영상 서술 칸(video.vd_description)으로 그대로 가고 이는 기존과 같다. 그 전문 가운데 「상황」 항목만 뽑은 값이 캡션 후보 c1 의 사고 단계 첫 칸(event.caption.c1.cot 의 1단계 키)에 초안으로 들어간다. 추가 질문(describe-sub) 결과는 같은 후보의 캡션 본문 칸(event.caption.c1.caption_text)으로 간다. 질문 문장 칸(event.question)은 이 결과가 아니라 저작도구가 보관하는 검증 이벤트 유형별 질문 문구 목록에서 조달한다. 답변 칸은 자동으로 채우지 않고, 사고 단계는 1단계 키만 만들며 그 뒤는 사람이 채울 공란으로 둔다. 두 창구는 같은 캡션 후보를 공유하는데 도착 순서가 보장되지 않으므로, 후보를 통째로 교체하지 않고 자기 칸만 채워 먼저 도착한 축의 값을 지우지 않는다.\n\n[책임 경계] 콜백 수신부는 어느 창구의 결과인지 되짚어 협력자에게 넘기는 일까지만 한다. 어노테이션을 어떻게 채우는지 — 「상황」 항목을 뽑는 파싱, 기존 값과의 병합, 사람이 고친 값과 동결된 값을 덮지 않는 보호 경계 — 는 어노테이션 도메인이 소유한다. 그 규칙을 수신부에 복제하면 한쪽만 갱신돼 조용히 어긋난다. 초안 채움이 실패해도 시계열 서술 전문의 적재를 롤백시키지 않는다 — 초안 하나 때문에 주 축을 잃는 것이 더 나쁘다.",
+      "description": "UC-022(VLM 시계열 메타 검토·수정) 전용 클래스도. 외부 VLM 서비스에 시계열 메타 분석을 위탁(VlmTimeseriesStep→VlmClient)하고, 결과를 콜백(VlmResultController→VlmResultService)으로 수신해 LS_DATA_META(K/V) 적재 + LS_DATA_META_REVIEW 검수큐(PENDING) 진입시킨 뒤, REVIEWER 가 MetaController→MetaService 로 조회·수정·승인/반려한다. 메타 본체 생성은 외부 책임이고 저작도구는 시계열 정보 획득 연동 + 검수만 보유한다(FEAT-009).\n\n[★위탁은 논블로킹 제출] VlmTimeseriesStep 은 .block(45s) 로 파이프라인 스레드를 붙잡지 않고 subscribe() 로 제출만 개시한다. 스텝이 확정적으로 말하는 사실은 '제출을 개시했다' 뿐이고, 수락(ACK)은 완료 핸들러가 원장·LS_BATCH_PROC_LOG 에 비동기 기록한다(명시적 디스패치 — publishOn 은 풀 포화 시 거부가 이벤트 루프로 흘러 JPA 쓰기를 거기서 실행시킨다).\n\n[★미결 회수 — 임계가 두 개] 아무 신호도 없으면 in-memory subscription 은 노드가 죽을 때 통째로 사라져 실패 행조차 없다 — 미결 스위퍼가 유일한 회수 경로다. 임계는 ACK 창(stale-timeout, 기본 30분 — 원장 ISSUED)과 콜백 창(callback-timeout, 기본 360분 — 원장 ACCEPTED)으로 나뉘며 하나로 덮으면 정상 위탁을 빼앗는다. 다중 노드 중복 재위탁은 조건부 UPDATE 원자 클레임으로 막는다.\n\n[신고 구간 보류] media.path 가 비식별본인데 신고는 바로 그 비식별본의 마스킹 실패를 뜻하므로, 신고 구간에는 위탁을 실패가 아니라 보류(SKIPPED + 사유 적재)한다. 보류는 스스로 재개되지 않으므로 해소 시 DeidentGateReopenedEvent(EVT-007) → VlmResumeBridge → VlmWithheldResumeRunner 가 그 SKIPPED 기록을 근거로 재위탁한다(멱등 조건: 시계열 메타 0건).\n\nentity LS_DATA_META 는 batch 패키지, 검수 상태 LS_DATA_META_REVIEW 는 meta 패키지에 위치한다.\n\n[★어노테이션 초안 조달 — 창구별로 들어가는 자리가 다르다] 외부 시계열 분석 두 창구의 결과는 이벤트 어노테이션의 서로 다른 칸으로 간다. 묘사(describe) 전문은 영상 서술 칸(video.vd_description)으로 그대로 가고 이는 기존과 같다. 그 전문 가운데 「상황」 항목만 뽑은 값이 캡션 후보 c1 의 사고 단계 첫 칸(event.caption.c1.cot 의 1단계 키)에 초안으로 들어간다. 추가 질문(custom) 결과는 같은 후보의 캡션 본문 칸(event.caption.c1.caption_text)으로 간다. 질문 문장 칸(event.question)은 이 결과가 아니라 위탁 시점에 조달해 요청 본문에 실어 보낸 그 문구를 원장 보관값에서 읽어 채운다 — 콜백 시점에 재조달하지 않는다. 답변 칸은 자동으로 채우지 않고, 사고 단계는 1단계 키만 만들며 그 뒤는 사람이 채울 공란으로 둔다. 두 창구는 같은 캡션 후보를 공유하는데 도착 순서가 보장되지 않으므로, 후보를 통째로 교체하지 않고 자기 칸만 채워 먼저 도착한 축의 값을 지우지 않는다.\n\n[책임 경계] 콜백 수신부는 어느 창구의 결과인지 되짚어 협력자에게 넘기는 일까지만 한다. 어노테이션을 어떻게 채우는지 — 「상황」 항목을 뽑는 파싱, 기존 값과의 병합, 사람이 고친 값과 동결된 값을 덮지 않는 보호 경계 — 는 어노테이션 도메인이 소유한다. 그 규칙을 수신부에 복제하면 한쪽만 갱신돼 조용히 어긋난다. 초안 채움이 실패해도 시계열 서술 전문의 적재를 롤백시키지 않는다 — 초안 하나 때문에 주 축을 잃는 것이 더 나쁘다.",
       "module_name": "meta",
       "relationships": [
         {
@@ -1153,6 +1153,7 @@
           "kind": "realization"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [],
       "implementation": {
         "status": "implemented",
@@ -1172,12 +1173,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 16,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "묘사 축 초안 반영 호출을 수신부에 연결 — 주 축 적재 뒤·마킹 전이 앞, 별도 트랜잭션 격리로 초안 실패가 서술 적재를 되돌리지 않는다",
+    "change_summary": "질문 칸 조달의 <시점>을 명시했다 — 위탁 시점에 조달해 요청 본문에 실어 보내고 그 문구 전문을 원장에 보관하며, 결과 수신 시 재조달하지 않고 보관값을 읽는다. 질문 목록이 전체 교체로 저장되어 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문이다. 조달 규칙(선택값→첫 번째) 자체는 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T09:58:41.903Z",
+    "last_updated_at": "2026-09-07T11:18:48.116Z",
     "created_at": "2026-06-11T01:14:26.957Z"
   }
 }

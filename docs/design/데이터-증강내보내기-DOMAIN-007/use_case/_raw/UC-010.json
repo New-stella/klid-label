@@ -41,7 +41,7 @@
         }
       ],
       "brownfield": {
-        "notes": "2026-07-30: 해상도 파생 통합 노출 + accept/reject 차단 명시(ADR-018). 2026-07-31: ★두 상태축 분리 반영(ADR-045) — 생성 결과 축(AUG_PROC_STTS_CD, 웹훅 소유)과 사람의 사용/폐기 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)을 분리했다. 계기: 외부 증강은 웹훅이 항상 먼저 도착해 aug 행을 ACCEPTED 로 옮기는데 상태 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409로 막혀 있었다(워크플로 자체가 도달 불가). 등재 게이트도 리뷰 축으로 판정하며, 반려 후 유예(기본 7일) 경과 시 실삭제·유예 내 복구(restore)가 함께 도입됐다.",
+        "notes": "2026-07-30: 해상도 파생 통합 노출 + accept/reject 차단 명시(ADR-018). 2026-07-31: ★두 상태축 분리 반영(ADR-045) — 생성 결과 축(AUG_PROC_STTS_CD, 웹훅 소유)과 사람의 사용/폐기 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)을 분리했다. 계기: 외부 증강은 웹훅이 항상 먼저 도착해 aug 행을 ACCEPTED 로 옮기는데 상태 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409로 막혀 있었다(워크플로 자체가 도달 불가). 등재 게이트도 리뷰 축으로 판정하며, 반려 후 유예(기본 7일) 경과 시 실삭제·유예 내 복구(restore)가 함께 도입됐다.\n\n[폐기 기록] — 구 서술 'PENDING 이외 상태' 는 폐기됐다",
         "status": "new",
         "decided_by": "ADR-004",
         "change_kind": [
@@ -73,7 +73,7 @@
         {
           "name": "재결정 시도",
           "steps": [
-            "409 CONFLICT 반환 — 리뷰 행의 '재결정 금지' 불변식(LsDataAugRvw.ensurePending)에 의한다. ⚠ 판정 기준은 aug 상태(AUG_PROC_STTS_CD)가 아니다 — 구 서술 'PENDING 이외 상태' 는 폐기됐다"
+            "409 CONFLICT 반환 — 리뷰 행의 '재결정 금지' 불변식(LsDataAugRvw.ensurePending)에 의한다. ⚠ 판정 기준은 aug 상태(AUG_PROC_STTS_CD)가 아니다"
           ],
           "trigger": "이미 채택/폐기 판단이 끝난 결과에 다시 요청"
         },
@@ -127,12 +127,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 16,
-    "stale": true,
-    "stale_reason": "SCREEN-023의 data.sections 변경 — references",
-    "change_summary": "미사용 파생영상 실삭제 조건에 「검수 승인 이력이 있으면 제외한다」를 더한다. 주 흐름 마지막 단계가 삭제 대상을 파생·반려·유예 경과만으로 고착해 놓아, 이대로 구현하면 이미 검수 완료·통지된 파생을 지우게 되고 그 삭제는 되돌릴 수 없다. 개수 표기는 층마다 숫자가 갈리는 문제를 낳으므로 쓰지 않고 조건을 열거하며, 판정이 조회 후 삭제가 아니라 최종 DELETE 문 자체에 함께 걸려 검사와 삭제 사이의 창을 단일 문장으로 닫는다는 성질도 함께 적었다. 근거 결정은 ADR-045 이며 본문 서술도 같은 축으로 맞췄다.",
+    "current_version": 17,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T02:04:39.309Z",
+    "last_updated_at": "2026-09-07T04:05:51.391Z",
     "created_at": "2026-06-01T06:25:50.390Z"
   }
 }

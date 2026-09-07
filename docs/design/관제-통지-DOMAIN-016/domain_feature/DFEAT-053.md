@@ -1,20 +1,20 @@
 ---
 logicraft_item: DFEAT-053
 type: domain_feature
-version: 20
+version: 21
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-03T07:39:12.962Z
+synced_at: 2026-09-07T15:15:45.311Z
 status: CHANGED
-prev_version: 19
-content_hash: b1ae7f4efc9e665a1596b94f832645e429f4576358f92e5434b034e163720bf4
+prev_version: 20
+content_hash: b65e41fc48e54175f7f4f86e585396a385e7b8f697450aa26a5f357b10f2b14a
 stale: false
 raw: ./_raw/DFEAT-053.json
 links:
   based_on: ["[[ADR-013]]"]
   belongs_to_domain: ["[[DOMAIN-013]]"]
   consumes: ["[[EVT-012]]"]
-  implements: ["[[API-139]]", "[[API-140]]", "[[API-142]]", "[[API-147]]", "[[API-149]]", "[[API-151]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-231]]", "[[API-232]]", "[[API-233]]", "[[IMPREC-372]]"]
+  implements: ["[[API-140]]", "[[API-142]]", "[[API-147]]", "[[API-149]]", "[[API-151]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-231]]", "[[API-232]]", "[[API-233]]", "[[IMPREC-372]]"]
   triggers: ["[[EVT-012]]"]
   depicts_backward: ["[[CDIAG-011]]", "[[CMP-009]]"]
   realizes_backward: ["[[UC-027]]"]
@@ -147,7 +147,6 @@ _(empty)_
 
 ## implemented_by_endpoints
 
-- API-139
 - API-140
 - API-142
 - API-147

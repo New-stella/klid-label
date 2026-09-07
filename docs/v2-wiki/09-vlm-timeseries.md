@@ -16,15 +16,21 @@
 
 ```
 [배치] BatchOrchestrator → VlmTimeseriesStep
-   ① 사전조건 — 검증이벤트유형(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD) 조달·정규화 (판정 아님)
-                ※ 없거나 목록 밖이어도 그대로 실어 위탁한다 — 수용 여부는 벤더 응답이 정한다
-                ※ 값을 지어내지는 않는다(미조달이면 null 전송 → 벤더 4xx → 확정 실패로 기록)
+   ① 사전조건 — 묘사 축 event_type 조달·정규화 (판정 아님)
+                관제 인입 LS_DATA_INGEST.VRFC_EVNT_TYPE_CD
+                  → 없으면 작업자가 마킹에서 고른 LS_MARKING.VRFC_EVNT_TYPE_CD → 없으면 null
+                ※ 없거나 우리가 아는 목록 밖이어도 그대로 실어 위탁한다 — 수용 여부는 사업자 응답이 정한다
+                ※ 값을 지어내지는 않는다(미조달이면 null 전송 → 사업자 4xx → 확정 실패로 기록)
+             추가 질문 축 prompt 조달 — 마킹에서 고른 질문 문구(없으면 그 유형의 첫 번째)
+                ※ 조달 시점이 콜백이 아니라 위탁이다 — 보낸 값이 곧 기록되는 값이다 (§9.4-2)
    ② 선커밋 — 상관키 등록(LS_WEBHOOK_IDEMPOTENCY = ISSUED) + 마킹 PENDING→VLM_REQUESTED
                 ※ 둘 다 REQUIRES_NEW 독립 커밋. 제출 <앞>에 수행한다
    ③ 논블로킹 이중 제출 — 두 창구에 각각 subscribe 만 하고 즉시 반환(status="submitted")
-                POST /v1/videovlm-klid/describe      (묘사 — 서술 전문 축)
-                POST /v1/videovlm-klid/describe-sub  (추가 질문 — 어노테이션 초안 축)
+                POST /v1/videovlm-klid/describe   (묘사 — 서술 전문 축.  event_type 을 싣는다)
+                POST /v1/videovlm-klid/custom     (추가 질문 — 어노테이션 초안 축.
+                                                   event_type 대신 질문 문구를 prompt 로 싣는다)
                 ※ 창구마다 별개 request_id + 원장 채널(VLM / VLM_SUB). ACK 왕복도 기다리지 않는다
+                ※ 보낸 질문 문구는 그 원장 행에 함께 보관한다(콜백이 재조달하지 않고 그것을 읽는다)
    ④ 완료 핸들러 VlmSubmitOutcomeRecorder (전용 풀 vlmSubmitScheduler)
         ACK 수신  → 원장 ISSUED→ACCEPTED + LS_BATCH_PROC_LOG 기록
         제출 실패 → VLM/SKIPPED(사유) 기록 후 재개 대기  ※ 배치·작업 상태는 강등하지 않는다
@@ -37,7 +43,12 @@
    → 마킹 ACTIVE(PENDING|VLM_REQUESTED) → VLM_COMPLETED  ※ 판정 축은 묘사 창구다
 ```
 
-- 마킹 정보는 **`frame_policy` 로만** 반영된다 → [06](06-marking.md). `rawSn`·`eventName`·`marks` 배열은 규격 밖이라 요청 바디에 싣지 않는다
+- 마킹 정보는 **`frame_policy`** 와 **추가 질문 축의 `prompt`(작업자가 고른 질문 문구)**, 그리고 **관제가 유형을 보내지 않은 영상에서 작업자가 고른 `event_type`** 으로 반영된다 → [06 §6.3-2](06-marking.md). `rawSn`·`eventName`·`marks` 배열은 규격 밖이라 요청 바디에 싣지 않는다
+  - ⚠ **구 서술 폐기(2026-09-07)** — *"마킹 정보는 `frame_policy` 로만 반영된다"* 는 창구가 `describe-sub` 이던 시절의 것이다. 그 창구는 질문을 사업자가 골랐고 우리는 **어느 질문이 쓰이는지 지정할 수 없었다.** 새 창구 `custom` 은 **질문 문구를 요청 본문에 직접** 받는다
+- ★ **추가 질문 축의 창구가 `describe-sub` → `custom` 으로 바뀌었다 (2026-09-07 · 사업자 가이드 · 규격 v1.2.0)** — 창구 이름이 아니라 **성질이 바뀐 것**이 핵심이다. 구 창구는 사업자가 이벤트 유형별로 질문을 관리해 **우리가 어느 질문이 쓰이는지 지정할 수 없었고**, 그래서 우리가 보관한 질문은 **기록일 뿐**이었다. 새 창구는 **질문 문구를 `prompt` 로 직접** 받으므로 **마킹에서 고른 질문이 곧 보내는 값**이다 → §9.5
+  - **묘사 축(`describe`)은 그대로 유지**되고, **판정 창구(`verify`)는 여전히 연동하지 않는다.** 규격 §2.1 이 인증 대상을 분석 요청 네 가지로 적은 것은 **사업자 쪽 적용 범위**이지 우리 연동면이 아니다 — `custom` 을 여는 것이 `verify` 를 열 근거가 **아니다**
+  - ⚠ **원장 채널 문자열 `VLM_SUB` 는 그대로다** — 창구가 바뀐 것이지 **축이 바뀐 게 아니다.** 그 값은 이미 적재된 행의 **콜백 역조회 키**이자 미결 회수 대상 목록이라, 이름이 창구명과 안 맞아 보여도 `SKIP_REASON_*` 과 **같은 이유로 유지**한다
+  - ⚠ **이미 `describe-sub` 로 적재된 결과는 보존**한다(작업 결과다). 화면·산출물이 계속 읽는다
 - **판정 창구(`/verify`)는 연동하지 않는다** — 그 창구만 제공하는 발생 여부·일치도는 우리 확정 경로 어디에도 쓰이지 않는다. 되살리지 말 것
 - 코드: `VlmClient`, `VlmTimeseriesStep`/`VlmSubmitOutcomeRecorder`, `batch/vlm/{VlmSubmitPendingSweeper,VlmSubmitReclaimTxService}`, `webhook/VlmResultController`/`VlmResultService`
 
@@ -315,21 +326,34 @@
 
 | 어노테이션 칸 | 조달처 |
 |---|---|
-| `event.caption.c1.caption_text` | 추가 질문(describe-sub) 응답 서술 |
+| `event.caption.c1.caption_text` | 추가 질문(`custom`) 응답 서술 |
 | `event.caption.c1.cot["1단계"]` | 묘사(describe) 전문에서 **「상황」 라벨 줄만** 파싱 |
-| `event.question` | **저작도구가 보관하는 검증 이벤트 유형별 질문 문구**(`LS_VRFC_EVNT_QSTN`) |
+| `event.question` | ★**위탁 시점에 실제로 보낸 질문 문구** — 멱등 원장에 보관해 둔 값을 콜백이 읽는다(2026-09-07) |
 
 - **「상황」 파싱**: 줄 단위로 훑어 그 라벨 줄을 찾고 값은 **그 줄의 줄바꿈까지**다. 다음 라벨 줄로
   이어붙이지 않는다. 줄이 없으면 **채우지 않는다**(빈 값도 넣지 않는다). 여러 번 나오면 첫 번째.
   ⚠ **라벨 목록에 의존하지 않는다** — 규격이 "장소·날씨·상황 등"이라고만 쓰고 전체 목록·순서·필수
   여부를 정의하지 않는다. 그 줄 하나만 찾는 방식이라야 사업자가 항목을 늘려도 안 깨진다.
 - **CoT 는 1단계 키만** 만든다. 2단계 이후는 사람이 채울 공란이다.
-- **질문 조달**: 마킹에서 고른 질문이 1순위, 없거나 그 유형 소속이 아니면 **그 유형의 첫 번째**.
-  읽는 마킹 행은 **활성 마킹**이고 없으면 **최신 한 건**이다 — 두 창구의 도착 순서가 보장되지 않는데
-  **마킹을 전이시키는 것은 묘사 축뿐**이라, 활성만 보면 도착 순서에 따라 기록되는 질문이 달라진다.
-  ⚠ 질문 문장은 **사업자 응답에 실려 오지 않는다**(사업자 서버가 이벤트별로 관리). 그래서 우리가 보관한다.
-  ⚠ **위탁 요청에 그 질문을 실을 자리가 아직 없어**, 첫 번째가 아닌 질문을 고르면 **기록된 질문과 사업자가
-  실제로 쓴 질문이 달라진다** — 인지·수용한 위험이다.
+- ★**질문 조달 시점이 콜백에서 위탁으로 옮겨졌다 (2026-09-07 확정, 구속)** — `custom` 요청의 `prompt` 를
+  채우려면 **위탁 시점에** 조달해야 하고, 그 순간의 값이 **실제로 사업자에게 나간 값**이 된다.
+  콜백은 **재조달하지 않고** 그때 보낸 값을 읽어 `event.question` 을 채운다.
+  - **보관 자리는 멱등 원장**(`LS_WEBHOOK_IDEMPOTENCY.QSTN_CN`, V34 — 질문 **문구 전문**). 콜백이 이미
+    요청 식별자로 그 행을 역조회하므로, 보낸 값을 그 행에 붙이면 **재위탁·도착순서 문제가 구조적으로
+    해결된다**(위탁 1건 = 원장 1행).
+  - ⚠ **질문 식별자가 아니라 문구 전문을 보관한다** — 질문 목록은 **전체 교체**로 저장되고 가리키던 행이
+    사라지는 것이 **정상 동선**이라, 식별자만 두면 다시 읽을 수 없어 보장이 성립하지 않는다.
+  - ⚠ **보관값이 없는 과거 행은 소급해 채우지 않는다**(지어내지 않는다).
+  - ⚠ **인지·수용한 대가**: 멱등 원장은 본래 중복 판정용인데 **업무 값이 한 종류 섞인다.**
+  - **어느 질문을 보내는가**: 마킹에서 고른 질문이 1순위, 없거나 그 유형 소속이 아니면 **그 유형의
+    첫 번째**. 자동 마킹은 그 첫 번째가 자동 선택되므로 **어느 마킹 방식에서도 값이 있다**.
+    읽는 마킹 행은 **활성 마킹**이고 없으면 **최신 한 건**이다. 판정의 단일 진실원은
+    `VerificationEventQuestionResolver` 이며 배치·화면이 복제하지 않는다.
+  - ⚠ **구 서술 폐기(2026-09-07)** — *"저작도구가 보관하는 검증 이벤트 유형별 질문 문구를 (콜백 시점에)
+    조달한다 · 질문 문장은 사업자 응답에 실려 오지 않고 **연동 시스템이 지정할 수도 없다** · **위탁 요청에
+    그 질문을 실을 자리가 아직 없어** 첫 번째가 아닌 질문을 고르면 기록된 질문과 사업자가 실제로 쓴 질문이
+    달라진다(인지·수용한 위험)"*. **`custom` 의 `prompt` 가 바로 그 자리이며 그 위험은 닫혔다.**
+    되살리면 「보낸 값 ≠ 기록된 값」이 다시 열린다.
 - **채우지 않는 것**: `answer` · `evidence` · CoT 2단계 이후. 근거 서술은 자유 서술이라 쪼개려면 파싱이
   필요한데 규격 §5.3 이 파싱 의존을 금한다. `event_class` 는 관제 인입의 검증 이벤트 유형만 쓰고,
   그 값이 없으면 **행을 만들지 않는다**.
@@ -404,40 +428,65 @@
 - `REJECTED` 검토행도 되돌린다 — 반려 판단은 *바뀌기 전 본문*에 대한 것이라 새 본문에 적용되지 않는다(`autoApproveOnVideoApproval` 의 "반려 존중"은 본문이 그대로일 때의 규칙이다).
 - 회귀 가드: `VlmResultServiceTest`(R13 5건 · mutation 실증 완료) · `VlmVerifyCallbackFlowIntegrationTest` · `VlmMarkingTransitionPersistenceIntegrationTest`
 
-## 9.5 외부 확정 계약 — KLID 연동 API v1.1.0
+## 9.5 외부 확정 계약 — KLID 연동 API v1.2.0
 
-> 원문: `docs/연동규격서/video_vlm_klid_api_v1.1.0.pdf` (IntelliVIX, 2026-08-13 "이벤트 추가 질문(describe-sub) API 추가"). 비동기 콜백 모델.
-> ⚠ **구 규격 `video_vlm_api_ v2.0.1.docx` 는 이 문서로 대체됐다** — 그쪽을 근거로 계약을 되돌리지 말 것.
+> 원문: `docs/연동규격서/video_vlm_klid_api_v1.2.0_pre.pdf` (IntelliVIX, 개정일 2026-09-07). 비동기 콜백 모델.
+> ⚠ **구 규격 `video_vlm_klid_api_v1.1.0.pdf`(2026-08-13)·`video_vlm_api_ v2.0.1.docx` 는 이 문서로 대체됐다** — 그쪽을 근거로 계약을 되돌리지 말 것.
+> ⚠ 파일명 접미가 **`_pre`**(사전배포판)다. 개정이력 표에 승인자까지 적혀 확정본처럼 보이나 그렇지 않다 — **인지한 상태에서 정본으로 채택**했고, 문의 항목이 회신되면 재확인한다.
+>
+> **v1.2.0 델타 — 우리에게 영향이 있는 것** ①추가 질문 축 창구가 **`custom`** 으로 바뀌었다(사업자 가이드) ②인증 헤더가 **`X-API-Key`** 로 신설됐다 ③오류 본문 코드 **`40001`** 이 생겼다 ④`frame_policy` 의 **`uniform` 모드가 삭제**돼 두 종류가 됐다 ⑤영상 허용 확장자가 명시됐다 ⑥900초 기준이 「프레임 추출 이후 추론 대기부터」로 정정됐다.
 
 **엔드포인트와 우리 사용**
 
 | 기능 | Endpoint | 콜백 결과 항목 | 우리 사용 |
 |------|----------|---------------|:--------:|
-| 이벤트 묘사 | `POST /v1/videovlm-klid/describe` | `{description}` | **○ 시계열 서술 축** |
-| 이벤트 추가 질문 | `POST /v1/videovlm-klid/describe-sub` | `{description}` | **○ 어노테이션 초안 축** |
+| 이벤트 묘사 | `POST /v1/videovlm-klid/describe` | `{description}` | **○ 시계열 서술 축** (`event_type` 을 싣는다) |
+| **자유 질의** | **`POST /v1/videovlm-klid/custom`** | `{description}` | **○ 어노테이션 초안 축** — `event_type` 대신 **`prompt`(질문 문구)** 를 싣는다 |
+| ~~이벤트 추가 질문~~ | ~~`POST /v1/videovlm-klid/describe-sub`~~ | ~~`{description}`~~ | **✕ 더 이상 부르지 않는다** — 2026-09-07 `custom` 으로 전환(아래) |
 | 지원 이벤트 조회 | `GET /v1/videovlm-klid/events` | `{version, events[], describe_events, describe_sub_events}` | ○ 위탁 전 확인 |
 | 서버 상태 조회 | `GET /v1/videovlm-klid/status` | `{status(ready\|busy\|loading), queue, pending}` | ○ 위탁 전 관측 |
 | 이벤트 판정 | `POST /v1/videovlm-klid/verify` | `{detected, accuracy, description}` | **✕ 연동하지 않는다** |
+
+> ★★ **추가 질문 축을 `custom` 으로 갈아끼운 이유 (2026-09-07 · 사업자 가이드)** — 구 창구는 사업자가
+> 이벤트 유형별로 질문을 관리했고 **연동 시스템이 어느 질문이 쓰이는지 지정할 수 없었다.** 그래서 우리가
+> 보관한 질문은 **기록일 뿐**이었고, 첫 번째가 아닌 질문을 고르면 **기록된 질문과 사업자가 실제로 쓴 질문이
+> 갈리는** 위험을 안고 있었다. `custom` 은 **질문 문구를 요청 본문(`prompt`)에 직접** 받으므로 그 위험이
+> 닫힌다 — **마킹에서 고른 질문이 곧 보내는 값**이다(§9.4-2 · [06 §6.3-2](06-marking.md)).
+>
+> - **`custom` 요청에는 `event_type` 을 싣지 않는다**(규격 §5.2 — 지원 이벤트 목록과 무관하게 호출한다).
+>   ⇒ 그 축에서는 **`event_type` 미수신·미지원으로 인한 4xx 가 구조적으로 사라진다.** 묘사 축에는 그대로 남는다.
+> - `prompt` 는 **문자열 · 최대 4,000자**이며 `custom` 에서는 **필수**다. 나머지 요청 형식(`request_id`·
+>   `callback_url`·`media`+`frame_policy`)은 묘사 축과 **같다**.
+> - **`describe-sub` 를 사업자가 언제까지 유지하는지는 미확인**이다 — 우리는 부르지 않으나 **이미 그 창구로
+>   적재된 결과의 해석 근거**로 남는다.
 
 > **판정 창구를 쓰지 않는 이유**: 우리가 채우려는 두 자리(시계열 서술 전문 · 이벤트 어노테이션)는 둘 다
 > 사람이 읽고 고쳐 검수 승인으로 확정하는 **자연어 서술**이다. 판정 수치는 화면 참고 표시 외에 쓰인 적이
 > 없고 학습데이터 산출물에도 데이터마트 노출면에도 들어가지 않는다 — 받아도 쓰이지 않고 유지 비용만 남는다.
 > 근거 결정은 ADR-051.
 
-**요청 규격 (두 창구 공통, §2.3~§2.5)**: `{request_id, event_type, media:{type, source_type(path|upload), path, frame_policy:{mode(frame_interval|uniform|frame_selected), selected_frames≤600}}, callback_url}`.
+**요청 규격 (두 창구 공통, §2.3~§2.6)**: `{request_id, event_type | prompt, media:{type, source_type(path|upload), path, frame_policy:{mode(frame_interval|frame_selected), selected_frames≤600}}, callback_url}`.
 접수 응답은 **HTTP 202** + `{request_id, status:"accepted"}` → 완료 후 `callback_url` 로 결과 POST.
-실패 콜백은 `{request_id, status:"failed", error:"..."}` — ★**`error` 는 객체가 아니라 문자열**이다.
-- ★ `frame_policy` 에 **`framerate` 필드가 없다** — mode 만 연동 시스템이 지정하고 간격·장수는 서버가 관리한다(§2.5)
-- `event_type` 7종: `fire`·`smoke`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping`. **창구마다 사용 가능한 목록이 다를 수 있어** `GET /events` 의 `describe_events`/`describe_sub_events` 로 확인한다
+실패 콜백은 `{request_id, status:"failed", error:"..."}` — ★**`error` 는 객체가 아니라 문자열**이다(2026-09-07 사업자 실서버 응답으로 **실증**했다. 구 `{code, message}` 객체 표기로 되돌리면 실패 콜백이 전량 400 이라 **실패 사실 자체를 잃는다**).
+- ★ `frame_policy` 에 **`framerate` 필드가 없다** — mode 만 연동 시스템이 지정하고 간격·장수는 서버가 관리한다(`frame_policy` 절 — v1.2.0 **§2.6**. v1.1.0 에서는 §2.5 였다)
+- ★ **`mode` 는 두 종류다 — `frame_interval` · `frame_selected`.** v1.2.0 개정이력이 *"frame_policy uniform 삭제"* 로 명시했다. **구 서술의 `uniform` 은 폐기**이며 되살리면 정의되지 않은 값이 실린다. `frame_policy` 는 **`custom` 에도 그대로 적용**된다(영상일 때 필수)
+- `event_type` 은 **묘사 축에만** 싣는다. 사업자가 지원하는 값은 **7종**(`fire`·`smoke`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping`) — 2026-09-07 사업자 서버 조회로 실측 확인했다. **창구마다 사용 가능한 목록이 다를 수 있어** `GET /events` 로 확인한다
+  - ⚠ **우리가 목록으로 사전 차단하지 않는다** — 조달값을 그대로 실어 위탁하고 **판정의 단일 진실원은 사업자 응답**이다(2026-08-06 확정). 우리 쪽 상수 6종은 **허용목록이 아니라 프리셋**(자주 쓰는 값·화면 드롭다운 소스)이며, 사업자 7종과의 차이(`smoke`)를 상수에 반영하는 것은 별도 작업이다 → [05 §5.2](05-video-management.md)
+- ★ **영상 허용 확장자가 명시됐다(§2.5)** — `.mp4` `.avi` `.mov` `.mkv` `.webm` 만 받고 그 밖은 `path`·`upload` 어느 방식이든 400. **우리는 위탁 전 확장자 게이트를 두지 않는다** — 사본 허용목록을 들면 사업자가 목록을 넓힐 때 **정상 위탁을 우리가 먼저 막는다**(`event_type` allowlist 폐기와 같은 축). 2026-09-07 dev 실측에서 비허용 확장자는 **3개 원장 모두 0건**이었다
 - 판정 항목(`detected`·`accuracy`)은 **판정 창구 전용**이라 우리 두 창구에는 오지 않는다(§2.8)
 - `source_type=upload` 은 파일당 4GB, `=path` 는 서버가 허용한 경로 하위만 접근 가능
-- 인증 헤더는 규격서에 **미명시**
+- ★ **인증 헤더가 신설됐다 — `X-API-Key: <발급받은 키>` (§2.1).** 구 `Authorization: Bearer` 는 **폐기**이며 **접두사를 붙이지 않는다**
+  - ⚠⚠ **키가 틀리면 401 이고 이때 콜백이 오지 않는다** — 위탁이 **아무 신호 없이 사라진다**. 헤더명이 어긋난 채로 두면 그 자체가 잠복 결함이다
+  - ⚠ **키 사용 여부와 값은 규격 밖에서 별도 전달**이며 **아직 받지 못했다.** 배선만 해 두고 값이 비면 **헤더를 붙이지 않는다**(= 기존 동작)
+  - 주소가 바뀌면 자격증명을 떼어내는 가드와 평문 http 경고는 **새 헤더에도 그대로 걸린다**(CWE-522/319). 키 값은 로그에 남기지 않는다
 
 **오류 코드 (§2.9)** — 요청 시점에 판별 가능한 문제는 콜백이 아니라 HTTP 응답으로 즉시 온다.
 
 | 코드 | 상황 | 우리 처리 |
 |:---:|------|------|
-| 400 | 필수 누락·형식 오류·미지원 `event_type`·미지원 mode·허용되지 않은 경로·`selected_frames` 600 초과 | **비재시도** |
+| 400 | 필수 누락·형식 오류·미지원 `event_type`·미지원 mode·허용되지 않은 경로·허용되지 않은 확장자·`selected_frames` 600 초과 | **비재시도** |
+| **400 + `code:40001`** | ★**정의되지 않은 `event_type`** — 응답 본문에 `{"code": 40001, "detail": "…"}` 가 실린다(§2.10). **본문에 `code` 가 실리는 것은 이 경우뿐**이고 그 밖의 오류는 사유 문장만 온다 | **비재시도** — 다만 **왜 거부됐는지 구분해 기록**한다. 적용 축은 **묘사 하나**(`custom` 은 `event_type` 을 보내지 않아 이 코드가 나올 수 없다) |
+| **401** | ★**인증 실패**(`X-API-Key` 누락·불일치) | **비재시도**. ⚠ **콜백이 오지 않는다** — 위탁이 아무 신호 없이 사라진다 |
 | 415 | 지원하지 않는 Content-Type | **비재시도** |
 | 429 | 서버 동시 처리 한도(32건) 초과 | ★**재시도 대상** — 잠시 뒤 다시 보내면 되는 일시 상태다 |
 | 503 | 서버 미준비 | 재시도(5xx 기본 정책) |
@@ -452,6 +501,7 @@
 - 같은 `request_id` 의 콜백을 **여러 번 받을 수 있다** → 멱등 처리(원장이 담당)
 - **요청 순서와 콜백 도착 순서는 일치하지 않는다** → `request_id` 로 대응시킨다
 - 서술은 **자연어 평문이고 형식이 고정돼 있지 않다** → 문자열 파싱에 의존하는 로직을 두지 않는다
+- **분석 제한 900초의 기준이 정정됐다(§2.3·§5.2)** — *"프레임 추출을 마치고 **추론 대기열에 올라간 뒤부터**"* 재며 프레임 추출 시간은 별도로 더해진다. ⚠ 이것을 「전체 소요 900초」로 읽고 **ACK 창·콜백 창을 좁히지 말 것** — 두 창은 서로 다른 것을 재며 하나로 덮으면 정상 위탁을 뺏는다(§9.2)
 - 동일 `request_id` 중복 요청을 서버는 **별개 작업으로 처리**한다 → 중복 방지는 우리 책임이다
 
 ## 9.6 구현 정합 상태 — ✅ 정렬 완료 (2026-08-06)
@@ -464,16 +514,24 @@
 | `callback_url` 미전송 → 벤더가 콜백 보낼 대상 없음 | **해소** — 고정 base URL + `HmacWebhookFilter.PATH_VLM` 로 조립해 전송(사용자 입력 미반영, SSRF 차단) |
 | 동기응답 검증 거부(우리 `externalJobId` 필수 요구 vs 벤더 `{request_id, status:"accepted"}`) | **해소** — `VlmClient` 가 `request_id` echo 일치 + `status="accepted"` 만 검증 |
 | 콜백 HMAC 강제(`POST /v1/vlm/result`) → 벤더 미서명이라 401 위험 | **해소** — 경로 `POST /v1/vlm/callback` **무서명**, 대신 IP allowlist + rate limit/size cap + **`request_id` 발급 게이트** 3계층(§9.2, [03 인증·역할](03-auth-roles.md)) |
-| 단일 `/v1/timeseries/submit`(추정) | **해소** — `POST /v1/videovlm-klid/describe` + `/describe-sub` 이중 위탁 |
-| `eventName`(자유 문자열) | **해소** — `event_type` enum 6종. 조달처는 관제 인입 `LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`(우리가 매핑표를 만들지 않는다), 허용목록 밖·미수신은 외부 호출 없이 SKIPPED |
+| 단일 `/v1/timeseries/submit`(추정) | **해소** — `POST /v1/videovlm-klid/describe` + **`/custom`** 이중 위탁(2026-09-07 창구 전환 · 구 `/describe-sub` 폐기) |
+| `eventName`(자유 문자열) | **해소** — 묘사 축의 `event_type`. 조달 순서는 **관제 인입 `LS_DATA_INGEST.VRFC_EVNT_TYPE_CD` → 마킹에서 작업자가 고른 값 → `null`**(우리가 매핑표를 만들지 않는다). ⚠ **구 서술 폐기(2026-08-06)** — *"enum 6종 · 허용목록 밖·미수신은 외부 호출 없이 SKIPPED"* 는 사실과 다르다. **목록으로 사전 차단하지 않고 그대로 실어 위탁**하며 판정의 단일 진실원은 사업자 응답이다 |
 | `frame_policy` 미전송 | **해소** — `mode`(+`selected_frames`≤600)를 **마킹에서 도출**해 전송(도출 규칙 표 = **§9.2-0**). 추출 간격은 서버가 관리하므로 우리가 싣지 않는다 |
-| 콜백 필드 `idempotencyKey·rawSn·vlmMetaItems[]` | **해소** — `request_id`·`results{accuracy, description}`. rawSn 은 바디에 없고 `request_id` 로 역조회 |
+| 콜백 필드 `idempotencyKey·rawSn·vlmMetaItems[]` | **해소** — `request_id`·`results{description}`(우리 두 창구에는 판정 항목이 오지 않는다). rawSn 은 바디에 없고 `request_id` 로 역조회 |
 | 구간(초) ↔ `metaKey`(frameIndex) 변환 필요 | **소멸** — 결과 항목이 서술 하나라 구간 개념이 없다. metaKey 는 `vlm.description` 고정(§9.4-1) |
 
-**남은 미확정**: IntelliVIX **실서버**(목 아님) 대조. 현재 정합 근거는 규격서 원문 + `klid-mock-server` 왕복이며,
-실 벤더 서버와의 완전 일치(오류코드 카탈로그·재시도 정책 등)는 실연동 시점에 확인한다 → `docs/test-cases/UNCERTAINTIES.md` #13.
+**★ 실서버 왕복이 성립했다 (2026-09-07)** — 우리 실제 클라이언트 배선으로 사업자 개발 서버를 호출해
+①`GET /status` 정상 ②`GET /events` **7종**(`smoke` 포함) ③`event_type` 없이 **`prompt` 만 실은
+`POST /custom` 이 202 수용** ④**결과 콜백 실제 수신**(본문의 `error` 가 **문자열**)을 확인했다.
+그 콜백이 `failed` 였던 것은 보낸 표본이 1프레임 더미였기 때문이며 **연동 방향 자체는 성립**한다.
 
-**과도기 방어**: 벤더가 구 describe **배열**을 계속 보내면 Jackson 이 400 으로 거부한다(관대한 파싱은 두지 않는다 —
+**남은 미확정** — ①API 키 사용 여부와 값(규격 밖 별도 전달, **아직 미수신**) ②`_pre` 판이 확정본인지
+③**비식별 영상의 사업자측 허용 경로**(우리는 `path` 방식을 쓰는데 실측에서 *"허용되지 않은 경로"* 로
+거부됐다 — 공유 저장소가 사업자 서버에서 보이는 경로를 합의해야 한다) ④**배포 형상에서 사업자 →
+저작도구 방향 콜백 도달 경로**(주소·방화벽) ⑤사업자가 `describe-sub` 를 언제까지 유지하는지
+→ `docs/test-cases/UNCERTAINTIES.md` #13.
+
+**과도기 방어**: 사업자가 구 describe **배열**을 계속 보내면 Jackson 이 400 으로 거부한다(관대한 파싱은 두지 않는다 —
 무단 하위호환은 벤더 버그를 숨긴다). 다만 전역 400 메시지만으로는 원인이 보이지 않아, `VlmResultController` 가
 그 엔드포인트에 한해 **구조 힌트**("results 가 배열입니다 — 신규 규격은 객체")를 서버 로그에 남긴다.
 요청 바디 원문은 남기지 않는다(CWE-117/359). 응답 계약은 전역 핸들러와 동일하다(CWE-209).

@@ -260,7 +260,7 @@
     "schema_version": 1,
     "current_version": 8,
     "stale": true,
-    "stale_reason": "AC-1070의 data.scenario 변경 — covered_by",
+    "stale_reason": "DFEAT-053의 data.implemented_by_endpoints 변경이 realizes로 2-hop 전파",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.8KB)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-09-02T23:25:56.306Z",

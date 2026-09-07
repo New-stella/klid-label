@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
+import kr.co.cudo.authoring.marking.service.MarkingEventType;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.event.PortalMarkingCompletedEvent;
 import kr.co.cudo.authoring.portal.service.PortalUploadMarkingChannel;
@@ -162,7 +163,7 @@ class PortalUploadMarkingChannelTest {
     @Test
     @DisplayName("검증_이벤트_질문은_고를_축이_없어_비운다 — 지어내지_않는다")
     void questionIsAlwaysEmpty() {
-        assertThat(channel.resolveQuestionSn(ULD_SN, 99L)).isNull();
+        assertThat(channel.resolveQuestionSn(ULD_SN, 99L, MarkingEventType.NONE)).isNull();
     }
 
     // ======================== 저장 후속 ========================

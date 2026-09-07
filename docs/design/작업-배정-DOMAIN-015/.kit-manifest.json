@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-015",
-  "synced_at": "2026-09-05T00:45:15.132Z",
+  "synced_at": "2026-09-07T15:21:44.492Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -39,14 +39,14 @@
     "ADR-055": {
       "type": "adr",
       "domain_id": null,
-      "version": 5,
-      "content_hash": "cde8b2307c34b0738679a8ca72a37e7824b62db705ef7955829dbcc4fe11d5c7"
+      "version": 6,
+      "content_hash": "1d3d44c9b7d35d2e2c8d48d7afdf3f47856d2807c204b762b3283436592ecf64"
     },
     "API-001": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-001",
-      "version": 8,
-      "content_hash": "aefd711deb1c7d67dab93d1aa80a9fc28e787b6abc034db6103724720324e30c"
+      "version": 10,
+      "content_hash": "4838ab37d25d3e01afe28bde624ae8647cbb61b4a1a0af951c70d0b7b19fd14c"
     },
     "API-002": {
       "type": "api_endpoint",
@@ -57,8 +57,8 @@
     "API-070": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-015",
-      "version": 9,
-      "content_hash": "c13e613273693d072659ca9d1eec288050563b979d03dafb7d11bcb622f66243"
+      "version": 10,
+      "content_hash": "7df5d64b25773d591c2616476dc0f60021f1f6356bb7f1b11bbe630dd893414e"
     },
     "API-071": {
       "type": "api_endpoint",
@@ -117,8 +117,8 @@
     "CMP-009": {
       "type": "diagram_c4_component",
       "domain_id": "DOMAIN-016",
-      "version": 19,
-      "content_hash": "12c48434481ec200e498bccbaa5f7b685142a69925108c2956987d7e6cc241e6"
+      "version": 21,
+      "content_hash": "1741568c02d7af4dcb014ea5ffd8b63ce92b3a5e74aa3c4ebd2d3cafc6550768"
     },
     "SEQ-017": {
       "type": "diagram_sequence",
@@ -147,8 +147,8 @@
     "ERD-014": {
       "type": "erd",
       "domain_id": "DOMAIN-015",
-      "version": 12,
-      "content_hash": "2e92176873a4e4b34781be360d46888c3fd476bf4afa58838b3c593613231e00"
+      "version": 13,
+      "content_hash": "cf64733644525ea860cabbd290ad0bd58e027502de467ce0e955c02202557670"
     },
     "NFR-008": {
       "type": "nfr",

@@ -38,8 +38,19 @@ public interface WebhookIdempotencyLedger {
      * @param channel  위탁이 나간 채널({@code LsWebhookIdempotency.CHANNEL_*}). 콜백 바디에 <b>창구
      *                 구분자가 없는</b> 규격에서 어느 창구의 결과인지 되짚는 유일한 축이다. 알 수 없으면
      *                 null(= 종전 동작).
+     * @param qstnCn   위탁 시점에 <b>실제로 외부로 보낸 질문 문구 전문</b>. 추가 질문 축에만 있고 묘사 축
+     *                 행에는 없다(null). 결과 수신부는 이 값을 그대로 넘겨 <b>재조달하지 않는다</b> —
+     *                 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 <b>정상 동선</b>이라,
+     *                 재조달하면 <b>보낸 질문과 기록된 질문이 갈린다</b>. 이 컬럼이 생기기 전에 발급된
+     *                 행도 null 이며, 그때 무엇을 보냈는지는 알 수 없으므로 <b>지어내지 않는다</b>.
      */
-    record Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt, String channel) {
+    record Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt, String channel,
+                 String qstnCn) {
+
+        /** 보낸 질문을 모르는 호출부용 축약 생성자(종전 5-인자 계약 유지). */
+        public Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt, String channel) {
+            this(state, externalJobId, rawSn, issuedAt, channel, null);
+        }
 
         /** 채널을 모르는 호출부용 축약 생성자(종전 4-인자 계약 유지). */
         public Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt) {
@@ -99,6 +110,28 @@ public interface WebhookIdempotencyLedger {
      */
     default void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
                               String srvrId) {
+        recordIssued(idempotencyKey, channel, externalJobId, rawSn, srvrId, null);
+    }
+
+    /**
+     * 추가 질문 축 — <b>보낸 질문 문구</b>까지 함께 남기는 발급 기록. [@design ERD-021]
+     *
+     * <p>그 축의 위탁은 이벤트 유형 대신 <b>질문 문구를 요청 본문에 직접</b> 싣는다. 그래서 위탁 시점의
+     * 그 문구가 곧 <b>실제로 외부로 나간 값</b>이며, 결과 수신부는 이 행에서 그 값을 읽어
+     * <b>재조달하지 않는다</b>.
+     *
+     * <p>★ 왜 재조달하면 안 되는가 — 질문 목록은 <b>전체 교체</b>로 저장되어 가리키던 행이 사라지는 것이
+     * <b>정상 동선</b>이다. 재조달하면 그 사이에 <b>보낸 질문과 기록된 질문이 갈린다</b>. 콜백이 이미
+     * 요청 식별자로 이 행을 역조회하므로 보관 자리로 자연스럽고, 재위탁·도착순서 문제가 구조적으로
+     * 해결된다(위탁 1건 = 원장 1행).
+     *
+     * <p>디폴트 구현은 질문을 버리고 5-인자로 위임한다(구 호환 — 질문 개념이 없는 in-memory 구현).
+     *
+     * @param qstnCn 위탁 시점에 보낸 질문 문구 전문. 묘사 축이거나 실을 문구가 없었으면 {@code null}
+     *               (지어내지 않는다 — 없는 것을 채우면 보낸 적 없는 질문이 산출물에 남는다)
+     */
+    default void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
+                              String srvrId, String qstnCn) {
         recordIssued(idempotencyKey, channel, externalJobId, rawSn);
     }
 

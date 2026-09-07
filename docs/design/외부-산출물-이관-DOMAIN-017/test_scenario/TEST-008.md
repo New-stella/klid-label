@@ -4,7 +4,7 @@ type: test_scenario
 version: 4
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T13:23:46.581Z
+synced_at: 2026-09-07T15:15:39.610Z
 status: CHANGED
 prev_version: 3
 content_hash: 285a98d62dced1f64250f74ee23b8e239c07dd390f8fe219de6220b0760a1a0e

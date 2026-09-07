@@ -3,7 +3,7 @@
     "id": "ERD-021",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "erd",
-    "title": "관제 통지·외부 위탁 멱등 ERD (고도화, PostgreSQL)",
+    "title": "관제 통지·외부 위탁 멱등·웹훅 수신 방어 ERD (고도화, PostgreSQL)",
     "slug": "관제-통지-erd-고도화-postgresql",
     "sub_id": null,
     "status": "draft",
@@ -438,9 +438,18 @@
               "type": "varchar(20)",
               "unique": false,
               "nullable": true,
-              "description": "위탁을 보낸 AI 서버(장비) 식별자. 외부 시계열 분석 서버가 장비 두 대에 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. ★부하로 세는 것은 ACCEPTED 행뿐이다 — ISSUED 는 벤더가 아직 받지 않아 장비 부하가 0이고, 세면 제출 직후 몰린 장비를 과대평가해 요청이 반대편으로 쏠린다. ★nullable 이라 도입 전 행은 장비 미상인데, 미결 회수 경로에 장비 조건을 걸면 그 행들과 죽은 장비의 몫이 영영 회수되지 않는다 — 그 스윕이 무증상 영구 결손을 막는 유일한 경로다.",
+              "description": "위탁을 보낸 AI 서버(장비) 식별자. 외부 시계열 분석 서버가 장비 두 대에 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. ★부하로 세는 것은 ACCEPTED 행뿐이다 — ISSUED 는 벤더가 아직 받지 않아 장비 부하가 0이고, 세면 제출 직후 몰린 장비를 과대평가해 요청이 반대편으로 쏠린다. ★nullable 이라 도입 전 행은 장비 미상인데, 미결 회수 경로에 장비 조건을 걸면 그 행들과 죽은 장비의 몫이 영영 회수되지 않는다 — 그 스윕이 무증상 영구 결손을 막는 유일한 경로다. 이 값이 가리키는 곳은 AI 추론 장비 등록부 LS_AI_SRVR 의 장비 식별자다.",
               "primary_key": false,
               "logical_column_name": "AI서버아이디"
+            },
+            {
+              "name": "QSTN_CN",
+              "type": "varchar(4000)",
+              "unique": false,
+              "nullable": true,
+              "description": "위탁 시점에 외부 벤더로 보낸 질문 문구. 추가 질문 창구는 이벤트 유형 대신 질문 문구를 요청 본문에 직접 실으므로, 그때 실제로 보낸 값이 곧 벤더가 받은 질문이다. 콜백은 위탁 시 발급한 멱등키로 이 행을 역조회하므로 보낸 문구를 같은 행에 두면 위탁 1건과 기록 1건이 어긋나지 않는다. ★질문 식별자가 아니라 문구 전문을 보관한다 — 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이라, 콜백 시점에 다시 조달하면 보낸 질문과 기록된 질문이 갈릴 수 있다. 묘사 축 위탁 행에는 값이 없다(null). 폭 4000자는 벤더 요청 본문 상한과 같다.",
+              "primary_key": false,
+              "logical_column_name": "질문내용"
             }
           ],
           "indexes": [
@@ -464,8 +473,142 @@
             "notes": "고도화 신규 — 관제 단방향 통지(TASK_COMPLETED/MODIFIED) dead-letter·멱등",
             "status": "new"
           },
-          "description": "외부 시스템(비식별 SW/VLM/증강) 위탁 시 본 도구가 발급한 멱등키를 추적하는 영속 원장. 인메모리(ConcurrentHashMap) 구현을 영속화하여 재시작·멀티 인스턴스 allowlist 손실 및 중복 적재를 차단. 진실원: 베이스라인 마이그레이션의 CREATE TABLE + LsWebhookIdempotency 엔티티(신설 세대 V39).",
+          "description": "외부 시스템(비식별 SW/VLM/증강) 위탁 시 본 도구가 발급한 멱등키를 추적하는 영속 원장. 인메모리(ConcurrentHashMap) 구현을 영속화하여 재시작·멀티 인스턴스 allowlist 손실 및 중복 적재를 차단. 위탁 시점에 벤더로 보낸 질문 문구도 이 행에 함께 보관한다 — 그 목록은 전체 교체로 저장되어 나중에 다시 조달하면 보낸 값과 갈릴 수 있으므로, 위탁 1건이 곧 1행인 이 원장이 보낸 값을 그대로 지키는 자리다. 진실원: 베이스라인 마이그레이션의 CREATE TABLE + LsWebhookIdempotency 엔티티(신설 세대 V39).",
           "logical_table_name": "Webhook멱등원장"
+        },
+        {
+          "name": "LS_WHK_SIGN_USE",
+          "columns": [
+            {
+              "name": "SIGN_HASH",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": false,
+              "description": "이미 쓰인 서명의 해시값. 기본키이므로 같은 서명이 두 번 기록될 수 없고, 그 성질이 곧 재사용 차단의 수단이다.",
+              "primary_key": true,
+              "logical_column_name": "서명해시"
+            },
+            {
+              "name": "WHK_PATH_NM",
+              "type": "varchar(200)",
+              "unique": false,
+              "nullable": false,
+              "description": "그 서명이 실려 들어온 웹훅 경로명. 어느 창구로 들어온 서명인지를 남긴다.",
+              "primary_key": false,
+              "logical_column_name": "웹훅경로명"
+            },
+            {
+              "name": "EXPD_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "그 서명이 유효한 만료 일시. 지난 행을 걷어 내는 조회가 이 컬럼의 인덱스를 탄다.",
+              "primary_key": false,
+              "logical_column_name": "만료일시"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "서명 사용 기록 등록 일시. 기본값 CURRENT_TIMESTAMP.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LS_WHK_SIGN_USE_EXPD",
+              "unique": false,
+              "columns": [
+                "EXPD_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신규 — 웹훅 수신 방어. 이미 쓰인 서명을 기억해 같은 서명의 재사용을 막는 원장.",
+            "status": "new"
+          },
+          "description": "외부에서 들어오는 웹훅 요청의 서명 재사용을 막는 원장. 이미 쓰인 서명을 기억해 같은 서명으로 다시 들어오는 요청을 걸러 낸다. 서명 해시가 기본키이며, 어느 경로로 들어온 서명인지와 그 서명이 언제까지 유효한지를 함께 갖는다. 만료 일시에 인덱스를 두어 지난 행을 걷어 내는 조회가 그 축을 탄다.",
+          "logical_table_name": "웹훅서명사용"
+        },
+        {
+          "name": "LS_WHK_FAIL_NMTM",
+          "columns": [
+            {
+              "name": "CALL_IP_ADDR",
+              "type": "varchar(45)",
+              "unique": false,
+              "nullable": false,
+              "description": "실패를 낸 호출 측 IP 주소. 창 시작 일시와 함께 복합 기본키를 이룬다. ⚠ 물리명의 CALL 은 표준용어상 「통화」(전화)를 뜻해 이 컬럼의 실제 의미(호출한 쪽)와 어긋난다. 실재하는 물리명이라 그대로 두며 「통화IP주소」로 고치지 말 것 — 고치면 DB 와 어긋난다.",
+              "primary_key": true,
+              "logical_column_name": "호출IP주소"
+            },
+            {
+              "name": "BGNG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "실패를 세는 창의 시작 일시. 호출 IP 주소와 함께 복합 기본키를 이룬다.",
+              "primary_key": true,
+              "logical_column_name": "시작일시"
+            },
+            {
+              "name": "FAIL_NMTM",
+              "type": "integer",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "그 주소로부터 해당 창에 쌓인 실패 횟수. 기본값 0.",
+              "primary_key": false,
+              "logical_column_name": "실패횟수"
+            },
+            {
+              "name": "EXPD_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "이 집계 행의 만료 일시. 지난 행을 걷어 내는 조회가 이 컬럼의 인덱스를 탄다.",
+              "primary_key": false,
+              "logical_column_name": "만료일시"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "집계 행 등록 일시. 기본값 CURRENT_TIMESTAMP.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "최종 수정 일시. 기본값 CURRENT_TIMESTAMP, 실패 횟수가 오를 때 갱신.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LS_WHK_FAIL_NMTM_EXPD",
+              "unique": false,
+              "columns": [
+                "EXPD_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신규 — 웹훅 수신 방어. 호출한 쪽 주소별로 실패가 몇 번 쌓였는지를 창 단위로 세는 원장.",
+            "status": "new"
+          },
+          "description": "외부에서 들어오는 웹훅 요청의 실패를 호출한 쪽 주소별로 창 단위로 세는 원장. 주소와 창 시작 시각이 복합 기본키라 같은 주소라도 창이 다르면 별개 행으로 쌓인다. 만료 일시에 인덱스를 두어 지난 행을 걷어 내는 조회가 그 축을 탄다.",
+          "logical_table_name": "웹훅실패횟수"
         }
       ],
       "brownfield": {
@@ -476,7 +619,7 @@
         ],
         "diff_summary": "2차 신규 두 테이블 — 관제 통지 재시도·사장 큐, 외부 위탁 멱등 원장. 1차에 대응 테이블이 없다."
       },
-      "description": "저작도구 → 관제서버 단방향 outbound 통지(TASK_COMPLETED/TASK_MODIFIED)의 영속 fallback 큐 + 외부 위탁 webhook 멱등 원장. 인메모리 구현을 영속화하여 재시작·멀티 인스턴스 환경에서 dead-letter·중복 적재를 방어한다. 진실원: 베이스라인 마이그레이션의 CREATE TABLE + JPA 엔티티(@Column). 신설 세대는 control_notify_fallback V44 · webhook_idempotency V39 이며 그 원문은 마이그레이션 아카이브에 보존된다.",
+      "description": "저작도구 → 관제서버 단방향 outbound 통지(TASK_COMPLETED/TASK_MODIFIED)의 영속 fallback 큐 + 외부 위탁 webhook 멱등 원장. 인메모리 구현을 영속화하여 재시작·멀티 인스턴스 환경에서 dead-letter·중복 적재를 방어한다. 진실원: 베이스라인 마이그레이션의 CREATE TABLE + JPA 엔티티(@Column). 신설 세대는 control_notify_fallback V44 · webhook_idempotency V39 이며 그 원문은 마이그레이션 아카이브에 보존된다. 이 ERD 는 방향이 다른 두 축을 함께 담는다 — 위 서술은 우리가 밖으로 내보내는 나가는 쪽이고, 여기에 외부에서 우리 쪽으로 도착하는 웹훅 요청을 막고 걸러 내는 들어오는 쪽 원장 둘이 함께 있다. 두 축을 「멱등」 한 낱말로 뭉뚱그리지 말 것 — 나가는 쪽의 위탁 멱등은 우리가 발급한 키로 우리 요청이 두 번 처리되는 것을 막고, 들어오는 쪽의 서명 재사용 차단은 남이 보낸 서명을 기억해 같은 서명이 다시 오는 것을 막는다. 방향도 대상도 다르다.",
       "relationships": [
         {
           "label": "outbound 통지 재시도 대상 영상 (원본 삭제 시 CASCADE 함께 정리)",
@@ -498,23 +641,25 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-100"
+          "IMPREC-100",
+          "IMPREC-404",
+          "IMPREC-413"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:31.604Z",
+        "last_updated": "2026-09-07T13:43:09.236Z",
         "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
+    "current_version": 19,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "외부 위탁 멱등 원장에 위탁을 보낸 AI 서버 식별 컬럼을 더한다. 외부 시계열 분석 서버가 장비 두 대에 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. 함께, 상태 코드값에 빠져 있던 수락 상태와 채널 코드값에 빠져 있던 추가 질문 창구를 보정한다 — 둘 다 실제로 쓰이는데 설계에 없었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T07:33:23.886Z",
+    "change_summary": "외부 시계열 위탁의 추가 질문 창구가 바뀌면서 위탁 시점에 벤더로 보낸 질문 문구를 멱등 원장에 보관한다 — LS_WEBHOOK_IDEMPOTENCY 에 컬럼 QSTN_CN(질문내용) varchar(4000) nullable 1개를 더한다.\n\n추가 질문 축의 창구가 이벤트 유형을 싣던 방식에서 질문 문구를 요청 본문에 직접 싣는 방식으로 바뀐다. 그러면 위탁 시점의 값이 곧 벤더가 실제로 받은 질문이 되는데, 지금은 그 질문을 콜백 수신 이후에 다시 조달해 이벤트 어노테이션의 질문 칸을 채운다. 질문 목록은 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이라, 나중에 다시 조달하면 보낸 질문과 기록된 질문이 갈릴 수 있다.\n\n콜백은 위탁 시 발급한 멱등키로 이 원장의 행을 역조회하므로, 보낸 문구를 그 행에 함께 두면 위탁 1건과 기록 1건이 구조적으로 어긋나지 않는다. 재위탁이나 도착 순서에도 영향을 받지 않는다. 질문 식별자가 아니라 문구 전문을 보관하는 이유는, 식별자만 두면 그 행이 사라졌을 때 다시 읽을 수 없어 이 보장이 성립하지 않기 때문이다.\n\n물리명·자료형은 행안부 공통표준용어의 「질문내용 = QSTN_CN = 도메인 내용V4000」을 그대로 따랐다(구성 단어 질문 QSTN·내용 CN 도 공통표준단어). 같은 프로젝트의 검증 이벤트 질문 원장이 쓰는 폭과 같고 벤더 요청 본문 상한 4000자와도 일치한다. 신규 용어 등록은 필요 없다.\n\nnullable 로 더해 기존 행과 묘사 축 위탁에는 영향이 0 이다(묘사 축 행에는 값이 없다). 기존 9개 컬럼(IDMP_KEY·CHNL_CD·STTS_CD·OTSD_JOB_ID·APLCN_DT·REG_DT·MDFCN_DT·RAW_SN·SRVR_ID)과 인덱스 2개는 무변경이고, 이 ERD 의 다른 세 표도 건드리지 않았다.\n\n표 설명에는 이 원장이 보낸 값을 지키는 자리라는 한 문장을 더했다 — 컬럼만 더하고 표 서술을 옛것으로 두면 같은 ITEM 안에서 앞뒤가 어긋난다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-07T13:43:09.236Z",
     "created_at": "2026-06-01T02:47:35.456Z"
   }
 }

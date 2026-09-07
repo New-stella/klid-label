@@ -24,85 +24,6 @@
       ],
       "triggers": [],
       "responses": {
-        "200": {
-          "schema": {
-            "type": "object",
-            "properties": {
-              "data": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "라벨명"
-                  },
-                  "type": {
-                    "type": "string",
-                    "description": "라벨 형태 코드(BBOX/POLYGON/POINT/SKELETON)"
-                  },
-                  "color": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "표시 색상. 라벨 색상의 단일 진실원이다"
-                  },
-                  "useYn": {
-                    "enum": [
-                      "Y",
-                      "N"
-                    ],
-                    "type": "string",
-                    "description": "사용 여부"
-                  },
-                  "sortNo": {
-                    "type": "integer",
-                    "nullable": true,
-                    "description": "정렬 순서"
-                  },
-                  "labelId": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "라벨 마스터 PK"
-                  },
-                  "dtctTypeCd": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "COCO 검출 클래스 매핑. 비어 있으면 AI 탐지 대상이 되지 않는다"
-                  }
-                },
-                "description": "생성된 라벨 마스터"
-              },
-              "message": {
-                "type": "string",
-                "nullable": true,
-                "description": "응답 메시지 (성공 시 null)"
-              },
-              "success": {
-                "type": "boolean",
-                "description": "성공 여부"
-              },
-              "errorCode": {
-                "type": "string",
-                "nullable": true,
-                "description": "에러 코드 (성공 시 null)"
-              }
-            }
-          },
-          "example": {
-            "data": {
-              "name": "보행자",
-              "type": "BBOX",
-              "color": "#EF4444",
-              "useYn": "Y",
-              "sortNo": 1,
-              "labelId": 11,
-              "dtctTypeCd": "person"
-            },
-            "message": null,
-            "success": true,
-            "errorCode": null
-          },
-          "description": "[폐기] 이 엔드포인트는 200 을 반환하지 않는다 — 성공은 201 하나뿐이다. 옛 기록으로만 남기며 아래 스키마·예시는 201 과 같은 내용의 잔존물이다.",
-          "content_type": "application/json"
-        },
         "201": {
           "schema": {
             "type": "object",
@@ -369,6 +290,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -378,7 +300,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:38.609Z"
+        "last_updated": "2026-08-29T01:23:38.609Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -386,12 +309,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:38.609Z",
+    "change_summary": "반환하지 않는 응답 코드를 계약에서 뺀다. 이 창구는 성공이 생성 하나뿐인데 200 항목을 들고 있었고, 그 설명 자리에 「이 코드는 반환하지 않는다」는 편집 지시문이 들어가 있었다. 설명으로 남길 것이 아니라 항목 자체가 없어야 맞다 — 남겨 두면 설계 산출물의 사후조건 칸에 그 지시문이 그대로 실리고, 계약을 읽는 쪽은 반환하지 않는 코드를 반환 가능한 것으로 읽는다. 다른 응답 코드와 본문은 건드리지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-07T04:01:54.285Z",
     "created_at": "2026-05-30T07:20:12.972Z"
   }
 }

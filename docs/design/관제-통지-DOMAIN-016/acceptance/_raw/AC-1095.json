@@ -1,0 +1,65 @@
+{
+  "item": {
+    "id": "AC-1095",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "관제 통지 x-access-token 은 발송 시점에 관제 규칙으로 발급된다",
+    "slug": "관제-통지-x-access-token-은-발송-시점에-관제-규칙으로-발급된다",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "근거: ADR-063 v4 결정 ⑥, CO-20260905-관제통지-토큰-발송시점발급 §3, 구현 ControlNotifyTokenProvider(발송 시점 ExchangeFilterFunction 동적 발급), QA HS256 실단언, 246 실왕복 notify-completed=422(인증 통과)·무토큰=401.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "각 요청의 x-access-token 은 발송 시점에 새로 발급된 JWT 다",
+          "토큰 헤더/클레임이 alg=HS256, iss=klid-auth, exp=now+token-ttl-seconds(기본 300s, 미래)를 만족한다",
+          "토큰은 공유 JWT_SECRET 로 HMAC 서명돼 있다",
+          "두 통지의 토큰 문자열이 서로 다르다(jti 고유)",
+          "관제 실왕복에서 notify-completed 는 422(인증 통과)이고 무토큰 요청은 401 이다"
+        ],
+        "when": [
+          "저작도구가 notify-completed 와 notify-updated 를 각각 발송한다"
+        ],
+        "given": [
+          "관제 통지가 활성화되어 있다(authoring.control-notify.enabled=true)",
+          "정적 토큰 override(authoring.control-notify.token)가 설정돼 있지 않다",
+          "공유 서명 시크릿(JWT_SECRET)이 설정돼 있다"
+        ]
+      },
+      "statement": "관제 아웃바운드 통지(notify-completed/notify-updated)의 x-access-token 은 발송 시점에 매번 새로 발급되며 alg=HS256(HS512 아님)·iss=klid-auth·exp=now+token-ttl-seconds(설정, 기본 300s, 미래)·공유 JWT_SECRET HMAC 서명을 만족한다.",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-063",
+        "diff_summary": "아웃바운드 통지 토큰 발급 규칙 검증 AC 신설."
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-016"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-009"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-009의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "ADR-063 결정 ⑥(아웃바운드 통지 x-access-token 발송 시점 동적 발급) 대응 AC 신설 — 발급 규칙(HS256·iss=klid-auth·exp=now+ttl·공유 시크릿 HMAC·jti 고유) 검증. 부모 UC-009 파생, 근거 ADR-063.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T14:53:58.274Z",
+    "created_at": "2026-09-05T14:53:58.274Z"
+  }
+}

@@ -78,17 +78,51 @@ class ControlMarkingChannel implements MarkingChannel {
         return fpsResolver.resolveFps(rawSn);
     }
 
+    /**
+     * 검증 이벤트 유형 조달 — <b>관제 인입값 → 작업자 선택값 → 없음</b> 순서. [design: API-047]
+     *
+     * <p>관제 인입이 진실원이라 값이 있으면 요청이 실어 온 유형은 <b>쓰지도 저장하지도 않는다</b>.
+     * 화면이 그 경우 유형 선택을 아예 노출하지 않으므로 실제로는 필드가 오지 않으며, 이 자리는 그
+     * 전제가 깨져도 인입이 이기게 하는 방어다(요청이 실어 왔다고 400 을 내지는 않는다 — 그 값을 무시하는
+     * 것으로 충분하고, 거부하면 화면이 잠깐 낡은 목록을 들고 있을 때 정상 마킹이 막힌다).
+     *
+     * <p>⚠ 이 우선순위는 {@code API-047} 본문이 명시하지 않은 <b>구현 판단</b>이다(CO-20260907 §6-A 의
+     * 「관제 값이 있으면 유형 선택을 노출하지 않는다」에서 따온 것이며, 설계 반영은 별도 판단 대상).
+     */
     @Override
-    public Long resolveQuestionSn(Long rawSn, Long requestedQstnSn) {
+    public MarkingEventType resolveEventType(Long rawSn, String requestedTypeCd) {
         IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
-        String vrfcEvntTypeCd = LsDataIngest.normalizeVrfcEvntType(
+        String fromControl = LsDataIngest.normalizeVrfcEvntType(
                 source == null ? null : source.getVrfcEvntTypeCd());
-        if (vrfcEvntTypeCd == null) {
-            // 유형이 없으면 고를 축이 없다 — 비워 둔다(지어내지 않는다). 마킹은 그대로 진행한다.
-            log.info("[Marking] verification event type missing — question left empty rawSn={}", rawSn);
-            return null;
+        if (fromControl != null) {
+            return MarkingEventType.fromControl(fromControl);
         }
-        return questionResolver.resolve(requestedQstnSn, vrfcEvntTypeCd)
+        // 관제 미수신 — 작업자가 마킹 화면에서 고른 값이 유일한 조달처다. 정규화는 인입 엔티티의 함수
+        // 하나를 재사용한다(복제 금지 — 복제하면 인입이 실어 보낸 표기가 이쪽에서만 조달에 실패한다).
+        String selected = LsDataIngest.normalizeVrfcEvntType(requestedTypeCd);
+        if (selected == null) {
+            log.info("[Marking] verification event type missing and not selected rawSn={}", rawSn);
+            return MarkingEventType.NONE;
+        }
+        return MarkingEventType.selectedByWorker(selected);
+    }
+
+    /**
+     * 질문 조달 — <b>판정을 하지 않고 그대로 위임</b>한다. [design: ERD-033] [design: AC-1013]
+     *
+     * <h3>★ 여기에 판정 사본이 있었다 — 되살리지 말 것</h3>
+     * <p>종전 구현은 인입 유형이 비면 <b>판정기를 호출하지 않고 {@code null} 을 조기 반환</b>했다. 그래서
+     * 조달 판정기의 계약이 「유형이 미수신이어도 작업자가 고른 질문이 있으면 그 질문을 쓴다」로 뒤집힌
+     * 뒤에도 <b>마킹 저장 경로에서만 그 반전이 발동하지 않았다</b> — 작업자가 질문을 골라도 원장에 빈
+     * 값이 저장됐다.
+     *
+     * <p><b>발견 단서가 「깨졌어야 할 시험이 안 깨졌다」였다.</b> 판정기 계약을 뒤집었는데 소비자 시험이
+     * 하나도 죽지 않으면 그것은 안전 신호가 아니라 <b>사본 존재 신호</b>다. 이 도메인은 「유형이 비면
+     * 어떻게 되는가」를 <b>스스로 판정하지 않는다</b> — 그 판정의 단일 진실원은 조달 판정기 하나다.
+     */
+    @Override
+    public Long resolveQuestionSn(Long rawSn, Long requestedQstnSn, MarkingEventType eventType) {
+        return questionResolver.resolve(requestedQstnSn, eventType.typeCd())
                 .map(VerificationEventQuestionResponse::vrfcEvntQstnSn)
                 .orElse(null);
     }

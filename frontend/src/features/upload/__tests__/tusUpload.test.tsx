@@ -404,12 +404,15 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     // 직접 입력 칸은 그 옵션을 고르기 전에는 없다.
     expect(screen.queryByLabelText('검증이벤트유형 직접 입력')).toBeNull();
 
-    // then — 미지정 + 벤더 enum 6종 + 직접 입력(2026-08-06 신설)
+    // then — 미지정 + 벤더 enum 프리셋 7종 + 직접 입력(2026-08-06 신설)
+    //   ⚠ 이 배열은 BE `LsDataIngest.VRFC_EVNT_TYPES` 의 <b>손 복제본</b>이라 BE 가 값을 늘려도
+    //     자동으로 따라오지 않는다 — 이 단언이 그 어긋남을 잡는 자리다(smoke 2026-09-07 추가).
     await user.click(select);
     const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
     expect(optionLabels).toEqual([
       '미지정 (AI 검증 위탁 생략)',
       '화재 (fire)',
+      '연기 (smoke)',
       '쓰러짐 (fall)',
       '폭력 (violence)',
       '침수 (flooding)',
@@ -473,6 +476,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     // 전송 경로는 다른 테스트가 검증하고, 여기는 화면 표기만 본다)
     const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent ?? '');
     expect(optionLabels.some((t) => t.includes('화재'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('연기'))).toBe(true);
     expect(optionLabels.some((t) => t.includes('쓰러짐'))).toBe(true);
     expect(optionLabels.some((t) => t.includes('폭력'))).toBe(true);
     expect(optionLabels.some((t) => t.includes('침수'))).toBe(true);
@@ -480,9 +484,11 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     expect(optionLabels.some((t) => t.includes('납치'))).toBe(true);
     // 라벨에 enum 원문을 병기해 전송값을 화면에서도 확인할 수 있게 한다
     expect(optionLabels.some((t) => t.includes('car_accident'))).toBe(true);
-    // 단일 진실원(VRFC_EVNT_TYPES)이 그대로 렌더된다 — 리터럴을 화면에 복제하지 않는다
+    // FE 단일 지점(VRFC_EVNT_TYPES)이 그대로 렌더된다 — 리터럴을 화면에 복제하지 않는다.
+    //   ★ 값은 BE 프리셋 7종의 손 복제본이며 순서·표기는 질문 카탈로그 시드 정렬순서를 따른다.
     expect(VRFC_EVNT_TYPES.map((o) => o.value)).toEqual([
       'fire',
+      'smoke',
       'fall',
       'violence',
       'flooding',
