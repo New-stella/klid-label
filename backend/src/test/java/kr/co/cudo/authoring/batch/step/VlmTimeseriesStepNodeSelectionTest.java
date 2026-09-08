@@ -100,7 +100,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         // 제출은 신호 없이 매달아 둔다 — 이 시험의 관심은 "어디로 보냈는가" 뿐이다.
         lenient().when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
+        lenient().when(vlmClient.submitCustom(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
         lenient().when(vlmClient.fetchStatus()).thenReturn(Mono.never());
     }
@@ -144,7 +144,7 @@ class VlmTimeseriesStepNodeSelectionTest {
 
         // then
         verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class), eq(NODE_ADDR));
-        verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), eq(NODE_ADDR));
+        verify(vlmClient).submitCustom(any(VlmTimeseriesRequest.class), eq(NODE_ADDR));
     }
 
     @Test
@@ -160,7 +160,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         ArgumentCaptor<String> describeAddr = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> subAddr = ArgumentCaptor.forClass(String.class);
         verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class), describeAddr.capture());
-        verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), subAddr.capture());
+        verify(vlmClient).submitCustom(any(VlmTimeseriesRequest.class), subAddr.capture());
         // ★ 두 값이 "서로 같은지"만 보면 배선이 통째로 끊겨 양쪽 다 null 일 때도 null==null 로
         //   통과한다(약한 가드). 고른 장비의 주소라는 <b>기댓값</b>까지 단언한다.
         assertThat(describeAddr.getValue()).isEqualTo(NODE_ADDR);
@@ -183,7 +183,7 @@ class VlmTimeseriesStepNodeSelectionTest {
                 eq(RAW_SN), isNull());
         // 주소를 지어내지 않는다 — 배포 기본 주소로 그대로 나간다(기존 동작).
         verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class), isNull());
-        verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), isNull());
+        verify(vlmClient).submitCustom(any(VlmTimeseriesRequest.class), isNull());
     }
 
     /**
@@ -211,7 +211,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM_SUB), isNull(),
                 eq(RAW_SN), isNull(), any());
         verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class), isNull());
-        verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), isNull());
+        verify(vlmClient).submitCustom(any(VlmTimeseriesRequest.class), isNull());
     }
 
     /**
@@ -237,7 +237,7 @@ class VlmTimeseriesStepNodeSelectionTest {
         // then — 기록만 남기고 진행한다. 다른 창구는 그대로 시도된다(고아 미결 방지).
         assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
         verify(outcomeRecorder).onSubmitFailed(eq(RAW_SN), any(), any(Throwable.class));
-        verify(vlmClient).submitDescribeSub(any(VlmTimeseriesRequest.class), eq(NODE_ADDR));
+        verify(vlmClient).submitCustom(any(VlmTimeseriesRequest.class), eq(NODE_ADDR));
     }
 
     @Test

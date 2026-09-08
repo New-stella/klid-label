@@ -116,7 +116,7 @@ class VlmClientNodeTargetTest {
         chosenNode.enqueue(accepted("req-sub"));
 
         // when
-        plainClient().submitDescribeSub(req("req-sub"), chosenNode.url("/").toString())
+        plainClient().submitCustom(req("req-sub"), chosenNode.url("/").toString())
                 .block(Duration.ofSeconds(5));
 
         // then

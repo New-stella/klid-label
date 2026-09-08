@@ -15,7 +15,7 @@ import static org.mockito.Mockito.verify;
  * <p>{@code verify(vlmClient, never()).submitDescribe(any(), any())} 는 <b>2-인자 오버로드만</b> 본다.
  * 스텝이 1-인자 오버로드로 바뀌거나 새 경로가 그것을 쓰면, 위탁이 <b>실제로 나가는데</b> 이 단언은
  * 그대로 초록이다 — 게이트(신고·미결·중복 위탁 차단)가 통째로 뚫려도 시험이 알려 주지 않는다.
- * 추가 질문 창구({@code submitDescribeSub})에 대한 {@code never()} 는 아예 없었다.
+ * 추가 질문 창구({@code submitCustom})에 대한 {@code never()} 는 아예 없었다.
  *
  * <p>같은 함정이 원장 발급 기록에도 있다 — 5-인자 {@code never()} 는 4-인자 호출을 잡지 못한다.
  */
@@ -28,8 +28,8 @@ public final class VlmSubmitAssertions {
     public static void neverSubmitted(VlmClient vlmClient) {
         verify(vlmClient, never()).submitDescribe(any(VlmTimeseriesRequest.class));
         verify(vlmClient, never()).submitDescribe(any(VlmTimeseriesRequest.class), any());
-        verify(vlmClient, never()).submitDescribeSub(any(VlmTimeseriesRequest.class));
-        verify(vlmClient, never()).submitDescribeSub(any(VlmTimeseriesRequest.class), any());
+        verify(vlmClient, never()).submitCustom(any(VlmTimeseriesRequest.class));
+        verify(vlmClient, never()).submitCustom(any(VlmTimeseriesRequest.class), any());
     }
 
     /** 어떤 오버로드로도 상관키가 선커밋되지 않았다(고아 미결 방지). */

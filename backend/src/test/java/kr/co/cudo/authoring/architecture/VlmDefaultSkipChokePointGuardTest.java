@@ -68,13 +68,19 @@ class VlmDefaultSkipChokePointGuardTest {
     /**
      * 외부 전송 호출 심볼 — <b>창구가 늘면 여기에 반드시 더한다.</b>
      *
-     * <p>★ 단일 문자열이던 구 형태는 `.submitDescribe(` 하나만 봤는데, 그 접두는
-     * `.submitDescribeSub(` 를 <b>부분일치로 잡지 못한다</b>(뒤가 `Sub(` 라 여는 괄호가 어긋난다).
-     * 그 결과 추가 질문 창구를 choke point 밖에서 불러도 이 가드가 초록불이었다 —
-     * 가드가 조용히 감시를 멈추는 형태다. 목록으로 바꿔 창구마다 각각 단언한다.
+     * <p>★ 단일 문자열이던 구 형태는 `.submitDescribe(` 하나만 봤는데, 그때 추가 질문 창구의
+     * 이름이 `.submitDescribeSub(` 라 그 접두가 <b>부분일치로 잡지 못했다</b>(뒤가 `Sub(` 라
+     * 여는 괄호가 어긋난다). 그 결과 추가 질문 창구를 choke point 밖에서 불러도 이 가드가
+     * 초록불이었다 — 가드가 조용히 감시를 멈추는 형태다.
+     *
+     * <p>⚠ <b>그 이름 함정 자체는 사라졌다</b> — 창구가 벤더 규격 v1.2.0 에서 `custom` 으로
+     * 바뀌면서 메서드도 {@code submitCustom} 으로 개명돼, 이제 두 접두가 서로를 삼키지 않는다.
+     * <b>그래도 목록 형태를 되돌리지 마라</b> — 이 목록의 존재 이유는 그 우연한 접두 관계가
+     * 아니라 <b>창구가 늘 때마다 각각 단언한다</b>는 규칙이고, 다음 창구의 이름이 또 서로를
+     * 삼킬지는 미리 알 수 없다.
      */
     private static final List<String> VENDOR_SUBMITS =
-            List.of(".submitDescribe(", ".submitDescribeSub(");
+            List.of(".submitDescribe(", ".submitCustom(");
     /** 자동 표식 적용 — choke point 의 표식이다. */
     private static final String AUTO_SKIP_MARK = "vlmDefaultSkipMarker.applyBeforeStage(";
     /** 건너뛰기 게이트 — 표식을 <b>읽는</b> 쪽. */
