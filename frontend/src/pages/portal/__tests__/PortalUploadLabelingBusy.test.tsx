@@ -1,11 +1,11 @@
-// Phase 4 (N-4) — 포털 업로드 라벨링 화면의 **진행 표시·취소 대칭**.
+// 포털 라벨링 화면 — **업로드 자산 갈래**의 진행 표시·취소. @design SCREEN-029
 //
-// 이 화면은 Phase 2 에서 편집 차단만 배선됐고 진행 오버레이가 없었다. 그래서 저장이 늘어지면
-// 사용자에게 남는 단서는 버튼 스피너뿐이고, **취소 수단이 아예 없어** 5분 fail-safe 까지 캔버스가
-// 잠긴 채로 남는다. 내부 라벨링(LabelingPage)과 인지·취소 축을 대칭으로 맞춘다.
+// ★이 파일은 승계본이다. 예전에는 업로드 갈래만 별도의 미니멀 화면이 그렸고 그 화면의 시험이
+//   여기 있는 단정(진행 오버레이·취소·편집 차단·busy 종류가 SAVE 뿐)을 지켰다. 그 화면이
+//   관제용 라벨링 도구로 흡수됐으므로 **같은 단정을 통합 화면 주소에서 그대로 이어받는다.**
 //
-// ⚠ 이 화면은 ADR-013 별도 경로(LS_PORTAL_*)라 AI 작업이 없다 — busy 종류는 SAVE 뿐이다.
-//   그 전제를 테스트로 고정한다(AI 도구가 새어 들어오면 여기서 깨진다).
+// ⚠ 포털에는 AI 보조가 없다 — busy 종류는 SAVE 뿐이다. 그 전제를 여기서 고정한다
+//   (AI 도구가 새어 들어오면 이 파일이 깨진다).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -20,7 +20,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore, type BusyKind } from '@/stores/useLabelStore';
 
-import { PortalUploadLabelingView } from '../PortalUploadLabelingView';
+import { PortalLabelingPage } from '../PortalLabelingPage';
 
 // 테스트용 더미 인증값(비밀 아님 — 시크릿 스캐너 오탐 회피용 조합).
 const FAKE_TOKEN = ['t', 'o', 'k'].join('');
@@ -60,9 +60,9 @@ function bboxLabel(): Label {
 }
 
 function renderPage() {
-  return renderWithProviders(<PortalUploadLabelingView uldSn={1} />, {
+  return renderWithProviders(<PortalLabelingPage />, {
     initialEntries: ['/portal/label/1?source=upload'],
-    routes: [{ path: '/portal/label/:id', element: <PortalUploadLabelingView uldSn={1} /> }],
+    routes: [{ path: '/portal/label/:id', element: <PortalLabelingPage /> }],
   });
 }
 
@@ -75,7 +75,7 @@ function ageBusyPastOverlayDelay() {
   });
 }
 
-describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레이·취소 (N-4)', () => {
+describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레이·취소', () => {
   let mock: MockAdapter;
   let releasePut: (() => void) | null;
 
@@ -97,6 +97,8 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
           releasePut = () => resolve([200, ok([])]);
         }),
     );
+    // 관심 축 밖의 조회(시스템 설정 등)는 조용히 흘려보낸다 — **가장 마지막**에 등록해야 한다.
+    mock.onAny().reply(200, ok(null));
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn(() => 'blob:x'),
       revokeObjectURL: vi.fn(),
@@ -121,6 +123,28 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(useLabelStore.getState().busy?.kind).toBe('SAVE'));
   }
+
+  /*
+   * ★승계 — 폐기 시험 `포털업로드_저장중에는_캔버스_편집이_차단된다` 의 **핵심 단언**이다.
+   *
+   * ⚠ 이 화면의 저장은 현재 프레임 **전체교체 PUT** 이라, 저장 스냅샷을 뜬 뒤에 그린 라벨은
+   *   저장에도 담기지 않고 저장 성공 후 재조회에 덮여 사라진다. 차단이 그 창 자체를 없앤다.
+   * ⚠ **「차단이 걸린다」와 「차단이 풀린다」는 다른 축이다** — 아래 취소 케이스가 «풀린다» 만
+   *   보고 있어, 이 케이스가 없으면 **차단을 통째로 걷어내도 전건 초록**이 된다(걸린 적이 없는
+   *   것과 풀린 것이 구분되지 않는다).
+   */
+  it('★포털업로드_저장중에는_캔버스_도구_저장이_모두_차단된다', async () => {
+    // given / when: 저장 PUT 이 아직 응답하지 않은 in-flight 상태
+    await startSave();
+
+    // then: 캔버스가 잠긴다(편집 차단 + 읽기 전용).
+    const shell = screen.getByTestId('canvas-shell');
+    expect(shell.getAttribute('data-edit-blocked')).toBe('true');
+    expect(shell.getAttribute('data-read-only')).toBe('true');
+    // then: 그리기 도구와 저장이 함께 잠긴다 — 버튼만 남으면 차단이 그대로 우회된다.
+    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
+  });
 
   it('포털업로드_저장_중_진행_오버레이가_뜨고_취소할_수_있다', async () => {
     // given: 저장이 지연 창(300ms)을 넘겨 진행 중
@@ -188,6 +212,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
       // AI 도구 진입점 자체가 없다(툴바·모달 어디에도).
       expect(screen.queryByRole('button', { name: /AI/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /추적|분할|키포인트/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /AI 탐지/ })).not.toBeInTheDocument();
       // 오버레이 문구도 AI 작업이 아니다.
       expect(overlay).toHaveTextContent('저장 중');
       expect(seen).toEqual(['SAVE']);

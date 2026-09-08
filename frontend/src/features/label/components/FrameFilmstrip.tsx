@@ -43,6 +43,13 @@ interface FrameFilmstripProps {
   discardedSrcSns?: Set<number>;
   /** R16 — 포털 모드면 썸네일도 포털 전용 이미지 엔드포인트로 fetch (내부 API 403 회피). */
   portalMode?: boolean;
+  /**
+   * SCREEN-029 — 포털 라벨링의 <b>업로드 자산 출처</b>. 썸네일도 자산 축 창구를 쓴다.
+   *
+   * ★ 이 전파가 빠지면 메인 캔버스는 뜨는데 <b>썸네일만</b> 데이터마트 창구를 불러 전부 404/403
+   *   이 된다 — 화면이 반쯤 살아 있어 발견이 늦다.
+   */
+  uploadSource?: boolean;
   /** 프레임 전환 차단(장시간 작업 진행 중) — 썸네일 선택을 비활성화한다. */
   disabled?: boolean;
 }
@@ -58,6 +65,7 @@ interface FrameThumbnailProps {
   discarded?: boolean;
   onSelect: (index: number) => void;
   portalMode?: boolean;
+  uploadSource?: boolean;
   disabled?: boolean;
 }
 
@@ -75,9 +83,10 @@ function FrameThumbnail({
   discarded = false,
   onSelect,
   portalMode,
+  uploadSource,
   disabled = false,
 }: FrameThumbnailProps) {
-  const { url } = useImageBlob(srcSn, { portalMode });
+  const { url } = useImageBlob(srcSn, { portalMode, uploadSource });
   return (
     <button
       type="button"
@@ -146,6 +155,7 @@ export function FrameFilmstrip({
   savedSrcSns,
   discardedSrcSns,
   portalMode,
+  uploadSource,
   disabled = false,
 }: FrameFilmstripProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -198,6 +208,7 @@ export function FrameFilmstrip({
             discarded={discardedSrcSns?.has(f.srcSn) ?? false}
             onSelect={onSelect}
             portalMode={portalMode}
+            uploadSource={uploadSource}
             disabled={disabled}
           />
         );

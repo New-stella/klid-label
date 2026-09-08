@@ -38,6 +38,34 @@ export interface UseImageBlobOptions {
    * /portal/frames/{id}/image 로 비식별 프레임 이미지를 요청한다.
    */
   portalMode?: boolean;
+  /**
+   * 포털 라벨링의 **업로드 자산 출처**. true 면 자산 축 창구
+   * (`/portal/uploads/frames/{id}/image`)로 요청한다. @design SCREEN-029
+   *
+   * ★ 이 축은 <b>필름스트립 썸네일까지</b> 전파돼야 한다 — 메인 캔버스만 고치면 화면은 뜨는데
+   *   썸네일이 데이터마트 창구를 불러 전부 404/403 이 된다(가장 놓치기 쉬운 지점).
+   *
+   * ⚠ 기본값은 <b>현행 동작</b>(false)이다 — 데이터마트·내부 갈래는 한 글자도 바뀌지 않는다.
+   */
+  uploadSource?: boolean;
+}
+
+/**
+ * 프레임 이미지 창구 경로 — <b>판정의 단일 지점</b>.
+ *
+ * 세 갈래가 서로 다른 창구를 쓴다. 호출부가 각자 문자열을 조립하면 축이 늘 때 한쪽만 갱신돼
+ * 「메인 캔버스는 뜨는데 썸네일만 깨지는」 어긋남이 생긴다(실제로 그 형태의 결함이 잦다).
+ *
+ * ⚠ 업로드 축이 포털 축보다 <b>앞</b>이다 — 업로드는 언제나 포털 채널 안에서만 성립하므로
+ *   두 표기가 함께 서며, 순서를 뒤집으면 업로드 자산이 데이터마트 창구로 나간다.
+ */
+export function resolveFrameImagePath(
+  srcSn: number,
+  opts: { portalMode?: boolean; uploadSource?: boolean } = {},
+): string {
+  if (opts.uploadSource === true) return `/portal/uploads/frames/${srcSn}/image`;
+  if (opts.portalMode === true) return `/portal/frames/${srcSn}/image`;
+  return `/frames/${srcSn}/image`;
 }
 
 /**
@@ -55,6 +83,7 @@ export function useImageBlob(
   const [error, setError] = useState<Error | null>(null);
   const raw = opts?.raw === true;
   const portalMode = opts?.portalMode === true;
+  const uploadSource = opts?.uploadSource === true;
 
   // 현재 화면에 노출 중인 blob URL — 새 URL 이 도착할 때까지 revoke 를 지연시키기 위해
   // ref 로 보관한다. effect cleanup 에서 즉시 revoke 하지 않는다.
@@ -79,11 +108,12 @@ export function useImageBlob(
     // raw=true 일 때만 쿼리 파라미터 첨부. 미지정/false 는 axios config 에 params 자체를 넣지 않아
     // 기존 동작(쿼리 없음)을 그대로 유지 — 테스트의 'raw 미지정' 케이스 보장.
     const config =
-      raw && !portalMode
+      raw && !portalMode && !uploadSource
         ? { responseType: 'blob' as const, params: { raw: true } }
         : { responseType: 'blob' as const };
     // R16 — 포털 모드는 포털 전용 이미지 엔드포인트 (내부 /frames/{id}/image 는 PORTAL 채널 403)
-    const path = portalMode ? `/portal/frames/${srcSn}/image` : `/frames/${srcSn}/image`;
+    // SCREEN-029 — 업로드 자산 출처는 자산 축 창구. 판정은 아래 단일 지점에 위임한다.
+    const path = resolveFrameImagePath(srcSn, { portalMode, uploadSource });
     // 해상도/증강 파생 프레임은 원본 픽셀(SRC_FILE_PATH_NM)이 실재하지 않아 위 경로가 404 를
     // 낸다 — 비식별 전용 경로로 폴백한다. PORTAL_USER 는 이 경로에 접근 권한이 없어(403)
     // 대상에서 제외한다(§B8#3, 구 버그: deid-image 가 코드 전체에서 미사용이라 파생
@@ -119,7 +149,7 @@ export function useImageBlob(
       .catch((e: unknown) => {
         if (cancelled) return;
         const is404 = e instanceof ApiError && e.status === 404;
-        if (is404 && !portalMode) {
+        if (is404 && !portalMode && !uploadSource) {
           apiClient
             .get<Blob>(deidFallbackPath, { responseType: 'blob' as const })
             .then((res) => applyBlob(res.data as unknown as Blob))
@@ -134,7 +164,7 @@ export function useImageBlob(
     return () => {
       cancelled = true;
     };
-  }, [srcSn, raw, portalMode]);
+  }, [srcSn, raw, portalMode, uploadSource]);
 
   // 컴포넌트 완전 unmount 시점에만 마지막 live URL 을 즉시 해제 (메모리 누수 방지).
   useEffect(() => {

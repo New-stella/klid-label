@@ -14,19 +14,26 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { useLocation } from 'react-router-dom';
 import MockAdapter from 'axios-mock-adapter';
 
 vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 /*
- * 데이터마트 갈래의 본문은 대역으로 세운다 — 여기서 지켜야 하는 것은 «어느 갈래를 그리는가» 이지
- * 그 본문의 동작이 아니다(그쪽 동작은 라벨링 화면 시험이 따로 지킨다). 대역을 쓰면 두 갈래가
- * 실제로 갈리는지가 드러난다 — 한쪽으로 고정하는 변이가 곧바로 빨간불이 된다.
+ * 라벨링 본문은 대역으로 세운다 — 여기서 지켜야 하는 것은 «어느 출처로 읽는가» 이지 그 본문의
+ * 동작이 아니다(그쪽 동작은 라벨링 화면 시험이 따로 지킨다).
+ *
+ * ★두 출처가 **같은 본문**을 쓴다 — 갈리는 것은 화면이 아니라 조회·이미지·저장 창구이고, 그
+ *   판정 결과가 `source` 로 내려온다. 그래서 대역은 «어느 컴포넌트가 섰는가» 가 아니라 **그
+ *   본문이 받은 출처 값**을 드러낸다. 값을 한쪽으로 고정하는 변이가 곧바로 빨간불이 된다.
+ * ⚠ 기본값(`source` 미전달)도 함께 드러낸다 — 판정 자체를 떼어내는 변이를 잡으려면 «전달되지
+ *   않았다» 와 «datamart 를 전달했다» 가 구분돼야 한다.
  */
 vi.mock('@/pages/label/LabelingPage', () => ({
-  LabelingPage: () => <div data-testid="datamart-branch" />,
+  LabelingPage: ({ source }: { source?: string }) => (
+    <div data-testid="labeling-branch" data-source={source ?? '(미전달)'} />
+  ),
 }));
 
 import { apiClient } from '@/lib/api/client';
@@ -98,20 +105,18 @@ describe('포털 라벨링 화면 통합', () => {
   });
 
   // ── 1·2. 한 주소가 두 출처를 연다 ───────────────────────────────────────
-  it('업로드_출처_표기가_있으면_업로드_자산_갈래를_연다', async () => {
+  it('업로드_출처_표기가_있으면_업로드_출처로_읽는다', async () => {
     // given / when
     renderWithProviders(<PortalLabelingPage />, {
       initialEntries: ['/portal/label/1?source=upload'],
       routes: [{ path: '/portal/label/:id', element: <PortalLabelingPage /> }],
     });
 
-    // then: 업로드 자산 갈래가 서고 데이터마트 갈래는 서지 않는다
-    await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
-    expect(screen.getByText('clip.mp4')).toBeInTheDocument();
-    expect(screen.queryByTestId('datamart-branch')).toBeNull();
+    // then
+    expect(await screen.findByTestId('labeling-branch')).toHaveAttribute('data-source', 'upload');
   });
 
-  it('출처_표기가_없으면_데이터마트_갈래를_연다', async () => {
+  it('출처_표기가_없으면_데이터마트로_읽는다', async () => {
     // given / when
     renderWithProviders(<PortalLabelingPage />, {
       initialEntries: ['/portal/label/1'],
@@ -119,7 +124,7 @@ describe('포털 라벨링 화면 통합', () => {
     });
 
     // then
-    expect(await screen.findByTestId('datamart-branch')).toBeInTheDocument();
+    expect(await screen.findByTestId('labeling-branch')).toHaveAttribute('data-source', 'datamart');
     // then: 업로드 자산 창구는 건드리지 않는다
     expect(mock.history.get.some((r) => r.url === '/portal/uploads/1')).toBe(false);
   });
@@ -132,7 +137,30 @@ describe('포털 라벨링 화면 통합', () => {
     });
 
     // then
-    expect(await screen.findByTestId('datamart-branch')).toBeInTheDocument();
+    expect(await screen.findByTestId('labeling-branch')).toHaveAttribute('data-source', 'datamart');
+  });
+
+  /*
+   * ★출처는 **화면 본문이 아니라 데이터 계층**으로 내려간다. 이 화면이 두 벌의 본문을 고르는
+   *   구조로 되돌아가면(업로드 갈래만 다른 컴포넌트를 그리는 형태) 같은 화면이 영구히 갈려
+   *   다음 변경마다 한쪽만 갱신된다 — 그 회귀를 여기서 막는다.
+   */
+  it('★두_출처가_같은_본문을_쓴다_갈래마다_다른_화면을_그리지_않는다', async () => {
+    // given / when
+    const { unmount } = renderWithProviders(<PortalLabelingPage />, {
+      initialEntries: ['/portal/label/1?source=upload'],
+      routes: [{ path: '/portal/label/:id', element: <PortalLabelingPage /> }],
+    });
+    expect(await screen.findByTestId('labeling-branch')).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(<PortalLabelingPage />, {
+      initialEntries: ['/portal/label/1'],
+      routes: [{ path: '/portal/label/:id', element: <PortalLabelingPage /> }],
+    });
+
+    // then: 같은 본문이 선다(출처 값만 다르다)
+    expect(await screen.findByTestId('labeling-branch')).toBeInTheDocument();
   });
 
   // ── 3. 폐기된 주소로 들어와도 막히지 않는다 ────────────────────────────
