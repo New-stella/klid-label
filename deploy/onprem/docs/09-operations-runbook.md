@@ -197,6 +197,21 @@ timedatectl            # NTP service: active
 chronyc tracking       # System time offset 이 1초 이내인지
 ```
 
+```bash
+# ★ 상태점검 잡 — 계통별로 <둘>이어야 한다 (2026-09-09 회차부터)
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "select job_name from ${DB_SCHEMA:-klid_at}.qrtz_job_details where job_group='aiserver' order by 1;"
+```
+
+기대값은 **정확히 둘**이다 — `aiSrvrHealthPollJobInference` · `aiSrvrHealthPollJobTimeseries`.
+
+- **`aiSrvrHealthPollJob`(계통 없는 이름)이 남아 있으면** 이행 조치가 안 끝난 것이다.
+  자동으로 사라지지 않는다 — `13-patch-deploy-guide.md` **§8-1** 로 한 번 걷어낸다.
+  ⚠ 급하지 않다. 그 정의는 계통을 몰라 **아무 일도 하지 않는다**(장비를 읽지도, 상태 창구를
+  부르지도 않는다). 다만 **주기마다 깨어나 경고만 남겨** 정작 봐야 할 경고를 묻는다.
+- **둘 중 하나가 없으면** 그 계통의 장비가 죽어도 목록에서 내려가지 않는다. 배포가 반쪽이다.
+
+
 - 노드가 떠 있는데 `qrtz_scheduler_state` 에 행이 **0개** → 클러스터링이 꺼져 있다(설정 확인).
   stg/prd 는 `QUARTZ_CLUSTERED=false` 면 기동 자체가 거부되므로, 프로파일/`ENV` 표식부터 확인한다.
 - `last_checkin` 이 `checkin_interval` 의 수 배 이상 정체된 행 → 죽은 노드의 잔여 행(다른 노드가 곧 회수).
