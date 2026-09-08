@@ -18,10 +18,10 @@ set -euo pipefail
 #     복사 전에 `rm -f ${OUT}/*.war` 를 하므로 앞 향이 지워진다.
 #
 #   사용법
-#     ./scripts/make-patch-media.sh --baseline <커밋>            # 필수: 현장에 깔린 판
-#     ./scripts/make-patch-media.sh --baseline <커밋> --id klid-at-patch-YYYYMMDD
-#     ./scripts/make-patch-media.sh --baseline <커밋> --out <디렉터리>
-#     ./scripts/make-patch-media.sh --baseline <커밋> --no-tar   # tar.gz 생략
+#     ./scripts/make-patch-media.sh --baseline=<커밋>            # 필수: 현장에 깔린 판
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --id klid-at-patch-YYYYMMDD
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --out <디렉터리>
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --no-tar   # tar.gz 생략
 #
 #   ⚠ 기준선은 <추측하지 않는다>. 현장에 실제로 깔린 판이며, 모르면 만들지 않는다.
 #     증분 목록이 그 값에서 나오므로 틀리면 적용해야 할 스키마 변경이 <조용히 빠진다>.
