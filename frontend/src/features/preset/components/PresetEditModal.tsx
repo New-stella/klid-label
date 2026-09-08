@@ -66,7 +66,20 @@ const EMPTY_FORM: PresetFormValues = {
  *   ⚠ 이 확인은 아래 「전부 미매핑」 경고와 <b>서로 다른 상태</b>를 맡는다 — 그 경고는 라벨을 하나
  *   이상 고른 프리셋의 것이고, 라벨이 비면 그 경고 대신 이 확인이 뜬다(둘이 함께 나오지 않는다).
  *
+ * <h3>진입 모드별 초기 상태</h3>
+ * <ul>
+ *   <li><b>수정</b> — 저장돼 있는 이벤트유형과 라벨이 <b>둘 다 선택된 상태</b>로 열린다. 그 시점에
+ *       필수 입력 오류 안내가 없고 저장 수단이 곧바로 활성이다. 초기 선택 상태는 목록 응답이 이미
+ *       내려준 값이라 <b>다시 조회하지 않는다</b>.</li>
+ *   <li><b>신규</b> — 두 축 모두 미선택이고, 이벤트유형 자리는 placeholder 로 미선택을 드러낸다.
+ *       저장 수단은 이벤트유형이 미선택이라 쓸 수 없고 <b>고르는 순간 곧바로 활성</b>이 된다 —
+ *       라벨 개수는 그 조건에 들어가지 않는다(그 구분은 저장 전 확인이 가른다).</li>
+ * </ul>
+ *
  * @design SCREEN-026
+ * @design UC-032
+ * @design AC-1061
+ * @design SEQ-022
  * @design API-038
  * @design API-039
  * @design API-185
@@ -186,16 +199,39 @@ export function PresetEditModal({
     }
   }, [open, initial, reset]);
 
+  // ⚠ 「옵션이 도착하면 편집 대상의 이벤트를 select 에 다시 반영한다」는 두 번째 효과를 두지
+  //   않는다. 그 효과는 위 reset 이 넣은 값이 곧바로 지워지는 것을 뒤늦게 되돌리려던 것이었는데,
+  //   지운 주체가 아래 handleEventTypeChange 로 올라오던 「빈 값 되쏨」이라 그 되쏨을 막으면
+  //   되살릴 값이 애초에 사라지지 않는다.
+  // ★되살리지 말 것 — 그 효과의 의존성에는 옵션 목록이 들어가는데, 그 목록은 내용이 바뀐 채로
+  //   재조회되면 새 참조가 되어 효과가 다시 돈다. 그러면 편집 중인 사람이 방금 고른 이벤트유형이
+  //   저장돼 있던 값으로 조용히 되돌아간다.
+
   /**
-   * 이벤트 옵션은 비동기로 로드되므로, 옵션이 준비된 뒤 편집 대상의 이벤트를 select 에 다시
-   * 반영한다. 옵션이 아직 없는 시점에 값만 넣으면 Radix 가 매칭되는 항목을 찾지 못해
-   * <b>트리거가 placeholder 로 남는다</b>(편집 중인 이벤트가 화면에서 사라진 것처럼 보인다).
+   * 이벤트유형 선택 반영 — <b>빈 값은 받지 않는다</b>.
+   *
+   * 이 셀렉트에는 '선택 안 함' 옵션이 없다(이벤트유형은 필수). 따라서 `''` 는 사람이 어떤
+   * 클릭으로도 만들 수 없는 값이며, 올라온다면 그것은 선택이 아니라 <b>되쏨</b>이다.
+   *
+   * <h3>되쏨이 무엇인가 (이 결함의 원인)</h3>
+   * Radix 셀렉트는 폼 제출을 위해 숨은 native `select` 를 함께 그리고, 값이 바뀌면 그 select 에
+   * 새 값을 대입한 뒤 `change` 를 스스로 발생시켜 그 이벤트의 `target.value` 를 다시 올려 보낸다.
+   * 그런데 <b>옵션이 아직 등록되지 않은 시점</b>에는 대입이 조용히 실패해 select 의 값이 `''`
+   * 로 남고, 그래서 <b>`''` 가 선택된 것처럼 되돌아온다</b>.
+   *
+   * 편집으로 모달을 열면 정확히 그 순서가 된다 — 값 복원이 옵션 등록보다 한 박자 앞서므로,
+   * 되쏨을 그대로 폼에 쓰면 방금 복원한 이벤트유형이 지워지고 `shouldValidate` 때문에 필수 입력
+   * 오류까지 함께 떠서 <b>열자마자 저장이 잠긴다</b>. 그 되쏨을 여기서 버린다.
+   *
+   * ⚠ 사람이 고른 값은 언제나 비어 있지 않으므로 이 가드가 정상 선택을 막지 않는다.
+   *
+   * @design UC-032
+   * @design AC-1061
    */
-  useEffect(() => {
-    if (open && initial && eventTypes) {
-      setValue('eventTypeCd', initial.eventTypeCd ?? '');
-    }
-  }, [open, initial, eventTypes, setValue]);
+  const handleEventTypeChange = (next: string) => {
+    if (next === '') return;
+    setValue('eventTypeCd', next, { shouldValidate: true, shouldDirty: true });
+  };
 
   const toggleLabel = (labelId: number) => {
     const next = selectedIds.includes(labelId)
@@ -273,10 +309,7 @@ export function PresetEditModal({
               (오토라벨 시 이 이벤트의 영상에 본 프리셋 적용)
             </span>
           </FieldLabel>
-          <Select
-            value={eventTypeCd}
-            onValueChange={(v) => setValue('eventTypeCd', v, { shouldValidate: true, shouldDirty: true })}
-          >
+          <Select value={eventTypeCd} onValueChange={handleEventTypeChange}>
             <SelectTrigger id="preset-event">
               {/* '선택 안 함(미매핑)' 옵션을 두지 않는다 — 이벤트는 필수다. 아무것도 고르지 않은
                   상태는 옵션이 아니라 placeholder 로 표현한다. */}

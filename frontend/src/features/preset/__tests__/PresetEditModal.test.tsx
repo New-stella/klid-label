@@ -1,8 +1,10 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EVENT_TYPE_ADMIN_KEY } from '@/features/eventType/adminHooks';
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import type { Preset } from '@/features/preset/types';
 import { apiClient } from '@/lib/api/client';
@@ -420,5 +422,242 @@ describe('PresetEditModal — AI 매핑 표시 · 라벨 없이 저장 (CO-014)'
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('라벨을 하나도 고르지 않았습니다')).toBeNull();
+  });
+});
+
+/**
+ * CO-20260908 — 「수정」으로 편집 모달을 열면 저장돼 있던 이벤트유형이 복원되지 않던 결함.
+ *
+ * <h3>왜 기존 가드가 이 결함을 통과시켰나 (진입 순서 미재현)</h3>
+ * 기존 가드는 `<PresetEditModal open initial={...} />` 로 <b>처음부터 열린 채</b> 마운트했다.
+ * 실사용은 그렇지 않다 — 목록 화면이 이 컴포넌트를 <b>닫힌 채 계속 마운트해 두고</b>(그래서
+ * 이벤트유형·라벨 마스터 조회가 <b>모달을 열기 전에 이미 끝나 있다</b>) 「수정」 클릭으로
+ * `open=false·initial=undefined` → `open=true·initial=preset` 로 <b>전이</b>한다.
+ * 그 전이에서만 값 복원이 옵션 등록보다 앞서고, 그때 Radix 의 숨은 native select 가
+ * <b>빈 값 change 를 되쏘아</b> 방금 복원한 값을 지우고 필수 오류까지 세웠다.
+ *
+ * ⇒ 아래 가드는 전부 <b>그 전이</b>를 실제로 지난다. 옵션 조회를 먼저 끝내 두는 것이
+ *   `warmUp()` 이며, 이 준비가 빠지면 같은 결함이 다시 통과한다.
+ *
+ * <h3>「걸리는 쪽」도 함께 단언한다</h3>
+ * 「오류가 없다 / 저장이 활성이다」만 보면 <b>애초에 그 상태가 된 적이 없어도</b> 통과한다.
+ * 그래서 신규 모드에서 <b>잠기는</b> 것과 <b>고르는 순간 풀리는</b> 것을 짝으로 둔다.
+ */
+describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    mock.onGet('/manage/event-types').reply(200, ok(ADMIN_EVENT_TYPES));
+    mock.onGet('/manage/labels').reply(200, ok(MASTERS));
+  });
+
+  afterEach(() => mock.restore());
+
+  const closedModal = (onSubmit = vi.fn()) =>
+    renderWithProviders(
+      <PresetEditModal open={false} onClose={() => undefined} onSubmit={onSubmit} />,
+    );
+
+  /**
+   * 실사용 재현의 핵심 — 모달이 <b>닫혀 있는 동안</b> 옵션·마스터 조회가 끝난 상태를 만든다.
+   * 이 컴포넌트는 목록 화면에 상시 마운트돼 있어 두 조회가 모달을 열기 전에 이미 완료된다.
+   */
+  const warmUp = async (queryClient: QueryClient) => {
+    await waitFor(() => {
+      expect(mock.history.get.some((c) => c.url === '/manage/event-types')).toBe(true);
+      expect(mock.history.get.some((c) => c.url === '/manage/labels')).toBe(true);
+    });
+    // 이 시점에 <b>진행 중인 조회가 없다</b>는 것을 확인한다 — 실사용 진입 순서(모달을 열기
+    // 전에 옵션·마스터가 이미 있다)가 실제로 만들어졌다는 뜻이다.
+    //
+    // ⚠ 구 단언(`mock.history.get.length >= 2`)은 <b>위 waitFor 가 통과한 시점에 이미 참</b>이라
+    //   아무것도 확인하지 않았다 — 「요청이 나갔다」와 「응답이 반영됐다」는 다른 축인데 둘 다
+    //   요청 이력만 보고 있었다. 아래는 응답 축을 본다.
+    // ⚠ 다만 <b>기다리는 장치로 읽지 말 것</b> — 실측상 첫 평가에서 이미 0이라 대기 시간이 0이다.
+    //   이 줄의 값은 「전제가 성립한다」를 못박는 자기검사이지 동기화가 아니다.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+  };
+
+  /** 편집 진입 직후의 세 축을 함께 본다 — 값·오류·저장 수단. */
+  const expectRestored = async (label: string) => {
+    const trigger = await screen.findByLabelText(/이벤트유형/);
+    await waitFor(() => expect(trigger).toHaveTextContent(label));
+    // 오류가 서 있으면 `Field` 가 트리거에 aria-invalid 를 건다. 문구로 판정하지 않는 이유는
+    // 필수 오류 문구와 placeholder 문구가 같은 문장이라 서로 구분되지 않기 때문이다.
+    expect(trigger).not.toHaveAttribute('aria-invalid');
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false);
+  };
+
+  it('★수정_진입시_저장된_이벤트가_선택된_채로_열린다_실사용_전이_순서', async () => {
+    // 제외 대분류(배회)라 필터 옵션 축이었다면 옵션에 없어 표시조차 되지 않았다.
+    const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+
+    // when: 「수정」 클릭 — 닫힘·미지정에서 열림·대상지정으로 전이한다.
+    rerender(
+      <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+
+    await expectRestored('배회 (EV08000101)');
+  });
+
+  it('★수정_진입_직후에는_필수_입력_오류가_서_있지_않는다', async () => {
+    // ⚠ 대기를 「오류가 없다」와 같은 축으로 걸면, 회귀했을 때 대기가 먼저 만료돼 정작 이 단언이
+    //   실행되지 않는다. 그래서 여기서는 <b>렌더 정착</b>(옵션 등록 완료)을 대기 축으로 쓰고
+    //   오류 유무는 단언으로만 본다.
+    const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+    rerender(
+      <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+
+    const trigger = await screen.findByLabelText(/이벤트유형/);
+    await screen.findByRole('checkbox', { name: /사람/ });
+    await waitFor(() =>
+      expect(document.querySelector('select')?.options.length ?? 0).toBeGreaterThan(1),
+    );
+
+    // 이 픽스처에는 미연결·전부 미매핑 배너가 없으므로 alert 이 있다면 그것은 필수 입력 오류다.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(trigger).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('★수정_진입_복원은_모달을_닫았다_다시_열어도_같다', async () => {
+    const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+
+    const openIt = () =>
+      rerender(
+        <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+      );
+
+    openIt();
+    await expectRestored('배회 (EV08000101)');
+
+    // when: 닫았다 다시 연다(2회차) — 실측 결함이 2회차에서도 그대로 재현됐다.
+    rerender(
+      <PresetEditModal open={false} onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+    await waitFor(() => expect(screen.queryByLabelText(/이벤트유형/)).toBeNull());
+    openIt();
+
+    await expectRestored('배회 (EV08000101)');
+  });
+
+  it('★수정_진입시_저장된_라벨_체크가_함께_복원된다', async () => {
+    // 값 복원은 이벤트유형과 라벨 <두 축>이다 — 한 축만 보면 나머지가 조용히 빠져도 통과한다.
+    const initial = presetOf({
+      id: 3,
+      eventTypeCd: 'EV08000101',
+      eventTypeNm: '배회',
+      codes: [
+        {
+          labelId: 10,
+          code: null,
+          labelName: '사람',
+          labelType: 'BBOX',
+          linked: true,
+          bboxEnabled: true,
+          polygonEnabled: false,
+        },
+      ],
+    });
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+    rerender(
+      <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+
+    await expectRestored('배회 (EV08000101)');
+    const person = (await screen.findByRole('checkbox', { name: /사람/ })) as HTMLInputElement;
+    await waitFor(() => expect(person.checked).toBe(true));
+    expect((screen.getByRole('checkbox', { name: /차량/ }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('★옵션이_아직_도착하지_않은_채로_수정_진입해도_복원된다', async () => {
+    // warmUp 없이 곧바로 연다 — 값 복원이 옵션 도착보다 <앞서는> 순서다.
+    // ⚠ 이 축을 「옵션 도착 후 값 재반영」 효과로 메우지 말 것. 그 효과는 옵션 목록이 재조회될
+    //   때마다 다시 돌아 사용자가 고른 값을 되돌린다(아래 가드가 그것을 잡는다).
+    const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
+    const { rerender } = closedModal();
+    rerender(
+      <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+
+    await expectRestored('배회 (EV08000101)');
+  });
+
+  it('★옵션_목록이_다시_조회돼도_사용자가_고른_이벤트가_되돌아가지_않는다', async () => {
+    const user = userEvent.setup();
+    const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+    rerender(
+      <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
+    );
+    await expectRestored('배회 (EV08000101)');
+
+    // given: 편집 중에 다른 이벤트유형으로 바꾼다
+    await selectRadixOption(user, screen.getByLabelText(/이벤트유형/), '화재 (EV02000101)');
+    await waitFor(() =>
+      expect(screen.getByLabelText(/이벤트유형/)).toHaveTextContent('화재 (EV02000101)'),
+    );
+
+    // when: 옵션 목록이 다시 조회된다(창 복귀·무효화·프리셋 저장 후 등).
+    // ⚠ 응답이 <b>이전과 완전히 같으면</b> 캐시가 참조를 그대로 유지해(구조 공유) 목록을 의존성으로
+    //   삼는 효과가 아예 돌지 않는다 — 그 상태로는 이 축이 검증되지 않는다. 그래서 목록이 실제로
+    //   달라진 응답(다른 화면에서 유형이 하나 늘어난 상황)을 돌려준다.
+    mock.onGet('/manage/event-types').reply(
+      200,
+      ok([
+        ...ADMIN_EVENT_TYPES,
+        { evntTypeCd: 'EV09000101', dsplNm: '연기', dsplNmSource: 'category', clctYn: 'Y' },
+      ]),
+    );
+    const before = mock.history.get.filter((c) => c.url === '/manage/event-types').length;
+    await queryClient.invalidateQueries({ queryKey: EVENT_TYPE_ADMIN_KEY });
+    await waitFor(() =>
+      expect(mock.history.get.filter((c) => c.url === '/manage/event-types').length).toBeGreaterThan(
+        before,
+      ),
+    );
+
+    // then: 방금 고른 값이 저장돼 있던 값으로 되돌아가지 않는다
+    await expectRestored('화재 (EV02000101)');
+  });
+
+  // ── 신규 모드 — 「걸리는 쪽」 ────────────────────────────────────────
+
+  it('★신규_진입은_두_축이_모두_미선택이고_저장이_잠긴다', async () => {
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+    rerender(<PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />);
+
+    const trigger = await screen.findByLabelText(/이벤트유형/);
+    expect(trigger).toHaveTextContent('이벤트유형을 선택하세요');
+    expect((await screen.findByRole('checkbox', { name: /사람/ })) as HTMLInputElement).not.toBeChecked();
+    // ★잠기는 쪽 — 이것이 없으면 「활성이다」 단언이 애초에 잠긴 적 없어도 통과한다.
+    expect((screen.getByRole('button', { name: '만들기' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('★신규_모드에서_이벤트유형을_고르는_순간_저장이_활성된다_라벨_0건은_막지_않는다', async () => {
+    const user = userEvent.setup();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
+    rerender(<PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />);
+    await screen.findByRole('checkbox', { name: /사람/ });
+
+    const save = () => screen.getByRole('button', { name: '만들기' }) as HTMLButtonElement;
+    expect(save().disabled).toBe(true);
+
+    await selectRadixOption(user, screen.getByLabelText(/이벤트유형/), '화재 (EV02000101)');
+
+    // 라벨을 하나도 고르지 않았지만 저장 수단은 활성이다 — 라벨 개수는 이 조건에 들어가지 않는다.
+    await waitFor(() => expect(save().disabled).toBe(false));
+    expect((screen.getByRole('checkbox', { name: /사람/ }) as HTMLInputElement).checked).toBe(false);
   });
 });

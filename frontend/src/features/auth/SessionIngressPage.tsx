@@ -3,14 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Alert } from '@/components/common/Alert';
 import { Spinner } from '@/components/common/Spinner';
-import { ApiError } from '@/lib/api/errors';
 import type { Channel, Role } from '@/lib/api/types';
 import { isPortalEmbedChannel, IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 
-import { getMe } from './api';
 import { detectChannel, isUpstreamLoginConfigured, redirectToUpstream } from './redirectToUpstream';
+import {
+  ensureServerRole,
+  SERVER_ROLE_UNKNOWN_DESC,
+  SERVER_ROLE_UNKNOWN_TITLE,
+} from './sessionBootstrap';
 import { getAccessToken } from './tokenHandoff';
 import { UpstreamLoginConfigHint } from './UpstreamLoginConfigHint';
 import { resolveToken } from './tokenIngress';
@@ -60,8 +63,8 @@ const ERROR_EXPIRED: IngressError = {
  * 역할을 <b>확인하지 못한 상태</b>와 역할이 <b>없는 상태</b>는 다르다.
  */
 const ERROR_ROLE_UNKNOWN: IngressError = {
-  title: '사용자 정보를 확인할 수 없습니다',
-  description: '잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.',
+  title: SERVER_ROLE_UNKNOWN_TITLE,
+  description: SERVER_ROLE_UNKNOWN_DESC,
 };
 
 /**
@@ -157,60 +160,59 @@ export function SessionIngressPage() {
       return;
     }
 
-    // 포털 채널은 종전 그대로 /portal — PORTAL_USER 는 토큰 발급 시점에 role 이 확정되므로
-    // 서버 role 을 다시 묻지 않는다. (관제 채널 동작만 이번에 확장한다.)
-    if (claims.channel === 'PORTAL') {
-      navigate('/portal', { replace: true });
-      return;
-    }
-
-    // [@design SCREEN-002] [@design ADR-063] [@design UC-041] [@design SEQ-034] [@design AC-1098]
-    // 관제(INTERNAL) 채널: 서버 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다.
-    // 관제 진입자는 진입 순간 userNo 를 발급받고 role=null(무권한)로 진입할 수 있으며, 토큰의
-    // role 클레임만으로 판정하면 역할 보유자를 무권한으로 오인한다.
-    //   role 있음  → 종전대로 /dashboard
-    //   role=null  → 관리자 등록 화면(/role-claim) — 그 화면이 창구 개폐를 조회해 열림·닫힘 두
-    //                모습 중 하나를 그린다. 「역할 없음」만으로 <등록 모습>이 뜨지 않는다.
+    // [@design SCREEN-001] [@design SCREEN-002] [@design ADR-063] [@design UC-041]
+    // [@design SEQ-034] [@design AC-1016] [@design AC-1017] [@design AC-1098] [@design API-006]
+    // 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다. 관제 진입자는 진입 순간
+    // userNo 를 발급받고 role=null(무권한)로 진입할 수 있으며, 관제 토큰의 role 클레임은
+    // 관제 자신의 역할값이라 우리 역할 집합과 겹치지 않을 수 있다 — 그것만으로 판정하면
+    // 역할 보유자를 무권한으로 오인한다.
+    //
+    // ★<b>채널을 가리지 않고 묻는다</b> (2026-09-08). 예전에는 포털 채널이 여기서 곧바로
+    //   되돌아 나가 서버 역할을 <한 번도> 묻지 않았다. 포털 토큰에 역할이 늘 실려 튕기지
+    //   않았을 뿐, 서버가 역할을 바꾸거나 회수해도 화면은 옛 역할로 계속 움직였다.
+    //   ⚠ 조회 시점을 채널마다 다르게 만들지 말 것 — 두 벌이 되면 한쪽만 낡는다.
     //
     // ★조회가 <실패>했을 때 role=null 로 뭉개지 않는다 (2026-09-07). 실패는 세 갈래다:
     //   ① 401(인증 실패·만료)  → 상위 시스템 재로그인. 기존 만료 처리와 <같은 결말>이다.
-    //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로 /dashboard. ★유효 세션을 막지 않는다는 폴백의
-    //                            취지는 그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
-    //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가 /role-claim
-    //                            으로 떨어져 서버 장애가 "관리자가 없습니다"로 표시됐다.
-    //   ⚠ 구 동작 폐기 — *"조회 실패 시에는 토큰 클레임 role 로 폴백"* 을 <전 갈래>에 적용하던 것.
-    //     ②만 남고 ①③은 갈라졌다. 되돌리면 오류가 다시 사양으로 위장된다.
-    const routeInternal = async (fallbackRole: Role | null) => {
-      let serverRole: Role | null;
-      try {
-        const me = await getMe();
-        serverRole = me.role;
-        // 서버 진실원 role 을 claims 에 주입한다 — 이후 RoleGuard(claims.role 을 읽음)가
-        // 서버 LS_USER_ROLE 을 보게 되어 관제 재방문 role 보유자가 정상 진입한다.
-        //
-        // ★이름도 함께 넘긴다 (@design SHELL-001) — 헤더 이름의 진실원이 이 응답이다. 역할만
-        //   취하고 이름을 버리면 관제 토큰처럼 이름 클레임이 없는 세션에서 헤더가 대체 표기
-        //   「사용자」에 고착된다. 빈 값은 스토어가 무시하므로 토큰 클레임 폴백이 살아 있다.
-        useAuthStore.getState().setServerRole(serverRole, me.name);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          // ① 인증이 유효하지 않다 — 역할 없음이 아니다. HTTP 계층이 이미 토큰을 비웠으나
-          //    여기서도 명시적으로 비워 이 갈래를 자족적으로 만든다(중복 호출은 무해).
-          useAuthStore.getState().clear();
-          handleAuthFailure(claims.channel, ERROR_EXPIRED);
-          return;
-        }
-        if (fallbackRole == null) {
-          // ③ 역할을 <확인하지 못했다>. 관리자 등록 화면으로 보내지 않는다.
-          setError(ERROR_ROLE_UNKNOWN);
-          return;
-        }
+    //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로. ★유효 세션을 막지 않는다는 폴백의 취지는
+    //                            그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
+    //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가
+    //                            /role-claim 으로 떨어져 서버 장애가 "관리자가 없습니다"로
+    //                            표시됐다.
+    //   ⚠ 구 동작 폐기 — *"조회 실패 시에는 토큰 클레임 role 로 폴백"* 을 <전 갈래>에 적용하던
+    //     것. ②만 남고 ①③은 갈라졌다. 되돌리면 오류가 다시 사양으로 위장된다.
+    //
+    // ⚠ 조회는 `ensureServerRole` 한 곳이 소유한다 — 여기서 `getMe` 를 직접 부르면 새로고침
+    //   복원 경로와 조회·주입 규약이 두 벌이 되고, 같은 부팅에서 `/me` 가 두 번 나간다.
+    const routeAfterHandoff = async (channel: Channel, fallbackRole: Role | null) => {
+      const outcome = await ensureServerRole();
+      let effectiveRole: Role | null;
+      if (outcome.kind === 'resolved') {
+        effectiveRole = outcome.role;
+      } else if (outcome.kind === 'unauthorized') {
+        // ① 인증이 유효하지 않다 — 역할 없음이 아니다. HTTP 계층이 이미 토큰을 비웠으나
+        //    여기서도 명시적으로 비워 이 갈래를 자족적으로 만든다(중복 호출은 무해).
+        useAuthStore.getState().clear();
+        handleAuthFailure(channel, ERROR_EXPIRED);
+        return;
+      } else if (fallbackRole == null) {
+        // ③ 역할을 <확인하지 못했다>. 관리자 등록 화면으로 보내지 않는다.
+        setError(ERROR_ROLE_UNKNOWN);
+        return;
+      } else {
         // ② 유효 세션 폴백 — 종전 동작.
-        serverRole = fallbackRole;
+        effectiveRole = fallbackRole;
       }
-      navigate(serverRole != null ? '/dashboard' : '/role-claim', { replace: true });
+
+      // 포털 채널의 도착지는 종전 그대로다 — <바뀐 것은 도착지가 아니라 「묻고 나서 간다」는
+      // 순서>다. PORTAL 은 서버도 역할을 고정 부여하므로 무권한 온보딩 갈래가 없다.
+      if (channel === 'PORTAL') {
+        navigate('/portal', { replace: true });
+        return;
+      }
+      navigate(effectiveRole != null ? '/dashboard' : '/role-claim', { replace: true });
     };
-    void routeInternal(claims.role);
+    void routeAfterHandoff(claims.channel, claims.role);
   }, [params, navigate]);
 
   if (error !== null) {
