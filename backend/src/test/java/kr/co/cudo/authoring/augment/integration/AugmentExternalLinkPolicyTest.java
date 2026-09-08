@@ -12,6 +12,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>이 판정은 <b>위탁 WebClient 의 base-url 과 짝</b>이다. 두 자리가 다른 프로퍼티를 보면
  * "판정은 연동인데 클라이언트가 보는 주소는 비었다" 같은 어긋남이 열린다.
+ *
+ * <p>⚠ 여기서는 리졸버를 {@code null} 로 두어 <b>배포 기본값 축만</b> 고정한다(재작성 필터의
+ * {@code resolver == null} 관용과 같은 구성). 화면에서 <b>저장한</b> 주소가 이 판정을 뒤집는지는
+ * {@link AugmentEndpointOverrideEffectTest} 가 문다 — 두 축을 한 시험에 섞지 않는다.
  */
 class AugmentExternalLinkPolicyTest {
 
@@ -19,13 +23,13 @@ class AugmentExternalLinkPolicyTest {
     @ValueSource(strings = {"", " ", "   ", "\t"})
     @DisplayName("위탁_주소가_비면_미연동이다")
     void blankBaseUrlIsNotLinked(String baseUrl) {
-        assertThat(new AugmentExternalLinkPolicy(baseUrl).isNotLinked()).isTrue();
+        assertThat(new AugmentExternalLinkPolicy(baseUrl, null).isNotLinked()).isTrue();
     }
 
     @Test
     @DisplayName("위탁_주소가_null_이어도_미연동이다")
     void nullBaseUrlIsNotLinked() {
-        assertThat(new AugmentExternalLinkPolicy(null).isNotLinked()).isTrue();
+        assertThat(new AugmentExternalLinkPolicy(null, null).isNotLinked()).isTrue();
     }
 
     @ParameterizedTest(name = "주소=[{0}] → 연동")
@@ -35,7 +39,7 @@ class AugmentExternalLinkPolicyTest {
             "http://10.0.0.5:9400"})
     @DisplayName("위탁_주소가_주입되면_연동이다")
     void injectedBaseUrlIsLinked(String baseUrl) {
-        assertThat(new AugmentExternalLinkPolicy(baseUrl).isNotLinked()).isFalse();
+        assertThat(new AugmentExternalLinkPolicy(baseUrl, null).isNotLinked()).isFalse();
     }
 
     @Test

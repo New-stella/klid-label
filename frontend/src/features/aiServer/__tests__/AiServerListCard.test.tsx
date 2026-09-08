@@ -69,7 +69,7 @@ function openWindow() {
   useAdminSessionStore.getState().open({ token: DUMMY_SESSION, expiresAt: FUTURE() });
 }
 
-describe('AiServerListCard — AI 장비 목록 (SCREEN-042)', () => {
+describe('AiServerListCard — 추론·외부 시계열 분석 장비 목록 (SCREEN-042)', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {

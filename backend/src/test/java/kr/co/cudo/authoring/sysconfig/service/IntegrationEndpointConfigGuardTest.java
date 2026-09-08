@@ -275,8 +275,8 @@ class IntegrationEndpointConfigGuardTest {
     }
 
     @Test
-    @DisplayName("연동_주소_4종이_모두_같은_게이트를_지난다 — 하나만_열려_있으면_우회된다")
-    void allFourEndpointsGated() {
+    @DisplayName("연동_주소_키가_모두_같은_게이트를_지난다 — 하나만_열려_있으면_우회된다")
+    void allEndpointsGated() {
         when(repository.findByConfigKey(anyString())).thenReturn(Optional.empty());
 
         for (IntegrationEndpoint endpoint : IntegrationEndpoint.values()) {

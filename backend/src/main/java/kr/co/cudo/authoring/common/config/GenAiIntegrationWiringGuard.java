@@ -24,7 +24,16 @@ import org.springframework.stereotype.Component;
  * <p>구 동작은 이 조합에서 <b>기동 자체를 실패</b>시켰다. 그 자리가 틀렸다 — 주소를 제대로 넣은
  * <b>정상 배포가 다른 설정 한 줄이 비었다는 이유로</b> 뜨지 못했고, 그러면 증강과 무관한 저작 업무
  * 전체가 함께 멈춘다. 그래서 <b>판정 규칙은 한 줄도 바꾸지 않고 걸리는 자리만</b>
- * {@link #commissionRejectionLabel()} 로 옮겼다({@code AugmentTransportGuard} 가 위탁 요청을 거부한다).
+ * {@link #commissionRejectionLabel(String)} 로 옮겼다({@code AugmentTransportGuard} 가 위탁 요청을 거부한다).
+ *
+ * <h3>★★ 2026-09-08 — 「언제 보는가」가 한 번 더 옮겨졌다(예고가 실현됐다)</h3>
+ * <p>증강 위탁 주소가 <b>운영 화면 교체 대상</b>이 되면서 이 판정도 <b>기동 시점 한 번</b>에서
+ * <b>요청 시점 재평가</b>로 바뀌었다. 아래 {@code commissionVerdict} 필드가 <i>"등록되는 날 이 판정은
+ * 요청 시점 재평가로 바뀌어야 한다"</i> 고 그날을 예고해 두었고, <b>그날이 와서 그렇게 바꾼 것</b>이다.
+ *
+ * <p><b>규칙은 여전히 한 줄도 바뀌지 않았다</b> — 바뀐 것은 첫 번째 입력(위탁 주소)을 어디서
+ * 가져오는가뿐이다. 고정 값으로 두면 배포 기본값이 빈 배포에서 「미연동 → 요구 없음」으로 계산되어
+ * <b>허용 대역이 비었는데도 위탁이 나간다</b>(= 이 가드가 없어진 것과 같다).
  *
  * <p><b>보호가 유지되는 근거</b> — 이 가드가 지키는 것은 <b>위탁을 건 뒤 열리는 결과 수신구</b>다.
  * 위탁을 걸지 않으면 그 수신구가 열리지 않으므로 <b>위험 자체가 성립하지 않는다</b>. 따라서
@@ -64,13 +73,33 @@ public class GenAiIntegrationWiringGuard {
     public static final String REJECTION_LABEL = "콜백 수신 대역 미설정";
 
     private final String baseUrl;
+
     /**
-     * 위탁 시점에 쓰는 판정 결과 — 위반이면 사유({@link #REJECTION_LABEL})가 붙은 거부다.
+     * 콜백 수신 대역 설정값 — <b>배포 설정</b>이라 재기동 없이 바뀌지 않는다(운영 화면 교체 대상이 아니다).
+     * 요청 시점 재평가에서 「짝의 반대쪽」 입력으로 그대로 쓰인다.
+     */
+    private final String allowedCidrs;
+
+    /** 주소 판정 원천 — 요청 시점 재평가도 <b>같은 판정기</b>를 쓴다(규칙 사본을 만들지 않는다). */
+    private final AugmentUrlPolicy urlPolicy;
+
+    /**
+     * <b>기동 시점</b> 판정 결과 — 위반이면 사유({@link #REJECTION_LABEL})가 붙은 거부다.
      *
-     * <p>두 입력({@code base-url} · allowlist)이 모두 <b>배포 설정값</b>이라 재기동 없이 바뀌지 않으므로
-     * 여기서 한 번 판정해 들고 있는다({@code ExternalEndpointAddress} 와 같은 형태). ⚠ 증강은 아직
-     * {@code IntegrationEndpoint} 에 등록돼 있지 않아 <b>운영 화면 주소 override 대상이 아니다</b> —
-     * 등록되는 날 이 판정은 <b>요청 시점 재평가</b>로 바뀌어야 한다.
+     * <p>★ <b>구 서술 폐기(2026-09-08)</b> — <i>"두 입력(base-url · allowlist)이 모두 배포 설정값이라
+     * 재기동 없이 바뀌지 않으므로 여기서 한 번 판정해 들고 있는다. ⚠ 증강은 아직
+     * {@code IntegrationEndpoint} 에 등록돼 있지 않아 운영 화면 주소 override 대상이 아니다 —
+     * 등록되는 날 이 판정은 <b>요청 시점 재평가</b>로 바뀌어야 한다"</i>.
+     *
+     * <p>★★ <b>그날이 왔고 그렇게 바꿨다.</b> 증강이 {@code IntegrationEndpoint.AUGMENT} 로 등록되어
+     * 운영 화면에서 위탁 주소를 저장할 수 있게 됐고, 위탁 클라이언트도 <b>호출 시점 해석</b>이 됐다.
+     * 그래서 입력 둘 중 <b>base-url 은 더 이상 배포 설정값이 아니며</b>, 이 필드에 고정된 값으로
+     * 판정하면 <b>배포 기본값이 비어 있는 배포</b>에서 「미연동 → 요구 없음」으로 계산되어
+     * <b>허용 대역이 비었는데도 위탁이 나간다</b>(= 이 가드가 존재하는 이유가 무력화된다).
+     * 위탁 시점 판정은 {@link #commissionRejectionLabel(String)} 이 소유한다.
+     *
+     * <p>이 필드는 이제 <b>기동 로그({@link #check()})와 「배포 설정만 놓고 본 상태」 조회 전용</b>이다.
+     * 그 로그를 없애지 말 것 — 잘못 배선된 배포가 조용히 뜨는 것을 알리는 유일한 신호다.
      */
     private final Verdict commissionVerdict;
 
@@ -80,6 +109,8 @@ public class GenAiIntegrationWiringGuard {
             @Value("${webhook.genai.allowed-ip-cidrs:}") String allowedCidrs,
             AugmentUrlPolicy urlPolicy) {
         this.baseUrl = baseUrl;
+        this.allowedCidrs = allowedCidrs;
+        this.urlPolicy = urlPolicy;
         this.commissionVerdict = inspect(commissionableBaseUrl(baseUrl, urlPolicy), allowedCidrs);
     }
 
@@ -120,14 +151,39 @@ public class GenAiIntegrationWiringGuard {
     }
 
     /**
-     * ★ <b>위탁 시점에 쓰는 판정</b> — 위반이면 사유, 통과면 {@code null}.
+     * <b>배포 설정값만</b> 놓고 본 판정 — 위반이면 사유, 통과면 {@code null}.
      *
-     * <p>{@code AugmentApiWebClientConfig} 가 이 값을 전송 가드에 넘겨 <b>위탁 요청만</b> 거부한다.
-     * 조회·취소는 대상이 아니다 — 그 둘은 새 수신구를 열지 않으며, 오히려 <b>이미 걸려 있는 위탁을
-     * 회수·정리하는 경로</b>라 함께 막으면 복구 수단을 잃는다.
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"★ 위탁 시점에 쓰는 판정. {@code AugmentApiWebClientConfig}
+     * 가 이 값을 전송 가드에 넘겨 위탁 요청만 거부한다"</i>. 위탁 시점 판정은
+     * {@link #commissionRejectionLabel(String)} 로 옮겼다 — 이 무인자 판정은 <b>운영 화면에서 저장한
+     * 주소를 보지 못해</b> 배포 기본값이 빈 배포에서 「요구 없음」으로 통과시킨다.
+     * <b>전송 가드에 이 값을 다시 넘기지 말 것.</b>
+     *
+     * <p>남는 쓰임은 기동 로그와 <b>배포 설정 회귀 검증</b>이다.
      */
     public String commissionRejectionLabel() {
         return commissionVerdict.rejectionLabel();
+    }
+
+    /**
+     * ★★ <b>위탁 시점에 쓰는 판정</b> — 그 요청이 <b>실제로 나가는 주소</b>로 다시 본다 (2026-09-08).
+     *
+     * <p>{@code AugmentApiWebClientConfig} 가 이 메서드를 전송 가드에 넘겨 <b>위탁 요청만</b> 거부한다.
+     * 조회·취소는 대상이 아니다 — 그 둘은 새 수신구를 열지 않으며, 오히려 <b>이미 걸려 있는 위탁을
+     * 회수·정리하는 경로</b>라 함께 막으면 복구 수단을 잃는다.
+     *
+     * <h3>왜 입력만 바뀌고 규칙은 그대로인가</h3>
+     * <p>판정은 {@link #inspect(String, String)}·{@link #commissionableBaseUrl(String, AugmentUrlPolicy)}
+     * <b>그대로</b>이고, 바뀐 것은 첫 번째 입력이 「기동 시점 배포 기본값」에서 「이 요청의 유효 주소」로
+     * 옮겨간 것뿐이다. 허용 대역 쪽 규칙을 호출자(증강 축)가 다시 읽지 않게 하는 것이 이 메서드의
+     * 존재 이유다 — 다시 읽으면 그 사본이 <b>두 번째 진실원</b>이 되어 한쪽만 갱신되는 순간 갈린다.
+     *
+     * @param effectiveBaseUrl 이 요청이 실제로 향하는 주소(재작성된 최종 주소의 {@code scheme://authority}).
+     *                         비었으면 「아직 연동 안 됨」이라 요구하지 않는다 — 위탁이 나갈 수 없으면
+     *                         콜백도 오지 않으므로 allowlist 를 요구할 이유가 없다(무인자 판정과 같은 근거).
+     */
+    public String commissionRejectionLabel(String effectiveBaseUrl) {
+        return inspect(commissionableBaseUrl(effectiveBaseUrl, urlPolicy), allowedCidrs).rejectionLabel();
     }
 
     /**

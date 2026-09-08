@@ -165,7 +165,17 @@ spring:
     properties:
       org.quartz.scheduler.instanceName: KlidAuthoringScheduler
       org.quartz.scheduler.instanceId: AUTO
-      org.quartz.threadPool.threadCount: '3'
+      # ★ 반복 잡이 <여덟>인데 이 값이 셋이다 — 그 셋은 <잡이 하나뿐이던 시절>에 정한 값이고
+      #   그 뒤로 갱신된 적이 없다(바로 위 주석의 「Phase 3 는 부트스트랩 잡 1개만」이 그 흔적이다).
+      #   지금 등록되는 반복 잡: 상태점검(추론) · 상태점검(시계열) · 비식별 폴링 · 배치 파이프라인 ·
+      #   관제 인입 스캔 · 배치 재시도 · 산출 미결 스윕 · 산출 실패 회수.
+      # ⚠ 60초의 배수마다 다섯이 동시에 발화하고, 더 긴 주기가 겹치는 시점에는 여덟까지 간다.
+      #   모자라면 밀린 틱은 <몰아서 발화하지 않고 건너뛴다>(상태점검의 미스파이어 정책) —
+      #   즉 죽은 장비 배제가 그만큼 늦어진다. 오류로 드러나지 않으므로 관측이 필요하다.
+      # ★ 기본값은 <바꾸지 않았다> — 동작을 그대로 두고 손잡이만 냈다. 올리는 것은 이제 코드가
+      #   아니라 설정 변경이다. 올릴 때는 <커넥션 여력과 함께> 판단할 것:
+      #   상용은 maximum-pool-size 20 이라 여유가 있고, 그 밖 환경은 <명시가 없어 기본값>이다.
+      org.quartz.threadPool.threadCount: '${QUARTZ_THREAD_COUNT:3}'
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       # ★ QRTZ_* 는 저작도구 스키마에 있다(V2 가 생성). initialize-schema=never 라 Quartz 는
       #   테이블을 만들지 않고 <찾기만> 하므로, 스키마가 어긋나면 기동이 그 자리에서 깨진다.

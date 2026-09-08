@@ -70,15 +70,21 @@ function formatDateTime(value: string | null): string {
 }
 
 /**
- * AI 장비 목록 — 추론·시계열 노드. [@design SCREEN-042]
+ * 추론·외부 시계열 분석 장비 목록. [@design SCREEN-042]
  * [@design API-226] [@design API-227] [@design API-228] [@design API-229] [@design API-230]
  * [@design AC-1088] [@design AC-1089] [@design AC-1090] [@design AC-1091]
  * [@design ADR-046] [@design ADR-057]
  *
  * <h3>왜 이 자리인가</h3>
  * 장비 주소의 진실원이 설정값에서 <b>노드 원장</b>으로 옮겨졌다. 그래서 이 화면은 «주소 한 칸을
- * 고치는 화면»이 아니라 «장비 목록을 관리하는 화면»이 된다. 위의 연동 주소 네 칸 중 비식별 서버와
- * 관제 통지 수신처는 <b>여전히 한 칸 그대로</b>이며, 여기서 다루는 것은 추론·시계열 둘뿐이다.
+ * 고치는 화면»이 아니라 «장비 목록을 관리하는 화면»이 된다. 위의 주소 칸(비식별 서버 · 외부 증강
+ * 벤더 · 관제 통지 수신처)은 <b>한 칸 그대로</b>이며, 여기서 다루는 것은 추론·시계열 둘뿐이다.
+ *
+ * <h3>★ 이름을 「AI 장비 목록」으로 되돌리지 말 것</h3>
+ * 외부 증강도 AI 위탁이라 그 이름이면 <b>여기 있어야 할 것처럼 읽힌다</b>(실제로 그 질문이 나왔다).
+ * 이 목록이 담는 것은 AI 서버 전부가 아니라 «장비를 여러 대 두고 골라 보내는 계통»이며, 가르는
+ * 축은 「AI 인가」가 아니라 <b>「고를 대상이 여럿인가」</b>다. 증강은 보낼 곳이 한 곳뿐이라
+ * 고를 일이 없어 위 주소 칸에 앉는다.
  *
  * <h3>조회는 열려 있고 쓰기에만 유효창이 가산된다</h3>
  * 이 화면(`/admin/endpoints`)은 통째로 관리자 전용이라 여기까지 들어온 사람은 이미 관리자다.
@@ -258,7 +264,7 @@ export function AiServerListCard() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
           <div className="flex items-center gap-2">
             <h3 id="ai-server-list-heading" className="text-title-sm font-semibold text-gray-700">
-              AI 장비 목록
+              추론·외부 시계열 분석 장비 목록
             </h3>
             {session.unlocked ? (
               <span
@@ -322,7 +328,7 @@ export function AiServerListCard() {
             </div>
           )}
 
-          {error && <ErrorState title="AI 장비 목록을 불러올 수 없습니다" />}
+          {error && <ErrorState title="장비 목록을 불러올 수 없습니다" />}
 
           {data && servers.length === 0 && (
             <EmptyState message={`${AI_SRVR_TYPE_LABEL[type]} 유형으로 등록된 장비가 없습니다.`} />
