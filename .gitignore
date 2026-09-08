@@ -30,6 +30,8 @@ dist/
 node_modules/
 .next/
 
+.omc
+
 # Python
 __pycache__/
 *.pyc
