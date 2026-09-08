@@ -13,6 +13,7 @@
       "title": "라벨 편집·임시저장",
       "status": "approved",
       "priority": "must",
+      "frequency": "상시(고빈도) — 라벨링 작업의 본체라 작업자가 배정받은 영상을 작업하는 내내 프레임마다 반복한다.",
       "main_flow": [
         {
           "step": 1,
@@ -127,7 +128,9 @@
       "extension_points": [],
       "secondary_actors": [],
       "extends_use_cases": [],
-      "realizes_features": [],
+      "realizes_features": [
+        "FEAT-013"
+      ],
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
@@ -137,12 +140,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
-    "stale": true,
-    "stale_reason": "SCREEN-005의 data.sections 변경 — references",
-    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
+    "current_version": 25,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "발생 빈도 기입 — 비어 있어 산출물 칸이 공란으로 나갔다. 값은 본문에서 도출했다. 배정받은 영상의 프레임에 라벨과 속성값을 편집하고 작업본을 임시저장한다는 목표에서, 작업 단위가 프레임이고 한 영상에 여러 프레임이 있으므로 고빈도 반복 작업이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T04:05:52.598Z",
+    "last_updated_at": "2026-09-08T06:12:00.827Z",
     "created_at": "2026-06-05T09:45:01.992Z"
   }
 }

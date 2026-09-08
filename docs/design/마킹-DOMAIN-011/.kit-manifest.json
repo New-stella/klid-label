@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-011",
-  "synced_at": "2026-09-08T06:19:45.400Z",
+  "synced_at": "2026-09-08T12:01:43.260Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -117,8 +117,8 @@
     "CDIAG-002": {
       "type": "class_diagram",
       "domain_id": "DOMAIN-011",
-      "version": 10,
-      "content_hash": "6e41a2f391194ab3b84b79536da6900ef801352fb3b6e38053241a44559a3acf"
+      "version": 11,
+      "content_hash": "564d127937e25715d493e6c67262b02a3a8d578fc50362910741d83f94a4e4ac"
     },
     "CDIAG-024": {
       "type": "class_diagram",
@@ -225,8 +225,8 @@
     "INTSPEC-003": {
       "type": "integration_spec",
       "domain_id": null,
-      "version": 18,
-      "content_hash": "b393f9e503606039624ad0e8e806c9e14195be76eed5f7d2374a08beeeff327a"
+      "version": 20,
+      "content_hash": "dd63696e5b58f9cd62c98c692d0c8985a9a1abcc06ecdcbbd690db169066f03c"
     },
     "NFR-008": {
       "type": "nfr",
@@ -303,8 +303,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "50d34fdf974bb8431266790a0d4c9ae7135f4b8a8d3d083e95ddc61c779f226b"
+      "version": 11,
+      "content_hash": "2bd5e74ecd484e7a9a8f62894af974900c322f87ba55cdbad4d3bb031a108c1e"
     },
     "NFR-021": {
       "type": "nfr",
@@ -483,14 +483,14 @@
     "ROLE-002": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4"
+      "version": 10,
+      "content_hash": "d25feb867c3d7a56f398563768712549b991ef7be1dd3c2dd6bbc3472903fea9"
     },
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "35113bf55eda3c02cf18c5d4c8d73e235a4c518ef1fa924a764425f62f1ceef8"
+      "version": 15,
+      "content_hash": "1c09ac4b7db7068039c9259dfd23eb07e9bebe190fd133451654e537c9e4e45a"
     },
     "ROLE-004": {
       "type": "permission_role",

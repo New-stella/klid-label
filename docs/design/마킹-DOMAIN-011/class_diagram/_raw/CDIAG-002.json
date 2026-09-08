@@ -16,39 +16,12 @@
           "name": "Marking",
           "methods": [
             {
-              "name": "complete",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제 상태 전이는 markVlmRequested/markVlmCompleted/markVlmFailed/markSkipped 가 개별로 담당한다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "requestVlm",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제 메서드명은 markVlmRequested() 다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
               "name": "markVlmCompleted",
               "params": [],
               "is_static": false,
               "visibility": "public",
               "is_abstract": false,
               "return_type": "void"
-            },
-            {
-              "name": "toVlmCallbackPayload",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 마킹→VLM 은 위탁(제출)이고 콜백은 VLM→저작도구 방향에만 존재한다. 위탁 요청은 frame_policy 와 event_type 으로 구성되며 별도 페이로드 조립 메서드를 두지 않는다.",
-              "is_abstract": false,
-              "return_type": "VlmCallbackPayload"
             },
             {
               "name": "markVlmRequested",
@@ -137,22 +110,6 @@
               }
             },
             {
-              "name": "evntNm",
-              "type": "String",
-              "is_static": false,
-              "visibility": "private",
-              "description": "[폐기] 이 값을 마킹이 보유하지 않는다 — 영상 행에 이미 있는 값을 마킹 행에 베껴 두던 중복이라 영상 쪽이 바뀌면 두 값이 어긋난다(원장도 같은 결정으로 EVNT_NM 칸을 두지 않는다). 마킹 응답의 이벤트 유형 코드는 영상 행을 조인해 조달하므로 화면과 외부 계약은 바뀌지 않는다. VLM 위탁 요청에도 실리지 않는다 — 마킹이 위탁에 기여하는 축은 프레임 선택·질문 선택·검증 이벤트 유형 선택 셋이며 이벤트명은 그 어디에도 들어가지 않는다.",
-              "is_readonly": false,
-              "implementation": {
-                "status": "planned",
-                "modules": [],
-                "records": [],
-                "progress": 0,
-                "subtasks": [],
-                "module_paths": []
-              }
-            },
-            {
               "name": "markModeCd",
               "type": "MarkMode",
               "is_static": false,
@@ -172,22 +129,6 @@
               "type": "Integer",
               "is_static": false,
               "visibility": "private",
-              "is_readonly": false,
-              "implementation": {
-                "status": "planned",
-                "modules": [],
-                "records": [],
-                "progress": 0,
-                "subtasks": [],
-                "module_paths": []
-              }
-            },
-            {
-              "name": "videoFilePathNm",
-              "type": "String",
-              "is_static": false,
-              "visibility": "private",
-              "description": "[폐기] 이 값을 마킹이 보유하지 않는다 — 영상 행에 이미 있는 값을 마킹 행에 베껴 두던 중복이라 영상 쪽이 바뀌면 두 값이 어긋난다(원장도 같은 결정으로 VIDEO_FILE_PATH_NM 칸을 두지 않는다). 마킹 응답의 영상 파일 경로는 영상 행을 조인해 조달하므로 화면과 외부 계약은 바뀌지 않는다. VLM 위탁 요청에도 실리지 않는다 — media.path 는 비식별 처리 이력에서 별도 조달한다.",
               "is_readonly": false,
               "implementation": {
                 "status": "planned",
@@ -435,12 +376,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "그림이 원장의 확정 결정 둘을 표현하지 못하던 결손을 회수한다. 삭제 0 — 클래스 4·관계 3·메서드 10·마킹 속성 14 는 그대로이고 상태 값역만 5→6 으로 늘었다.\n\n첫째, 마킹이 보유하지 않기로 한 두 값(evntNm·videoFilePathNm)을 속성 목록에서 지우지 않고 폐기 표기로 남겼다. 원소째 지우면 그 결정이 그림에서 읽히지 않고 「원래 없었다」와 구분되지 않는다. 두 설명은 그 값이 영상 행에 이미 있는데 마킹 행에 베껴 두던 중복이라 영상 쪽이 바뀌면 두 값이 어긋난다는 결정 근거와, 마킹 응답의 두 값을 영상 행을 조인해 조달한다는 사실을 담는다. 위탁 요청에 실리지 않는다는 점도 함께 적었다 — 이벤트명은 마킹이 위탁에 기여하는 세 축 어디에도 들어가지 않고, 영상 경로는 비식별 처리 이력에서 별도 조달한다.\n\n둘째, 마킹 상태 값역에 RESERVED 를 더하고(시작 상태라 목록 맨 앞) 전이 서술을 두 자리에서 보정했다 — 상태 열거 설명과 도메인 설명 모두 RESERVED→PENDING 과 RESERVED→SKIPPED(적용하지 못한 예약 마감)를 담고, 그 상태가 활성 마킹을 세는 부분 유니크 제약(UK_LS_MARKING_RAW_ACTVTN)이 보는 값이 아니라는 성질도 적었다. 그 제약은 PENDING 과 VLM_REQUESTED 만 본다.\n\n도메인 설명에는 「예약 상태와 영상 행 조달」 절을 새로 두어 예약의 쓰임(외부에서 받은 마킹을 영상 적재 시점에 담아 두는 시작 상태)·전이·제약 미점유·포털 업로드 경로 미사용을 담았다. 마킹 클래스 설명은 462/500 자라 여유가 38자뿐이어서 손대지 않았고, 상세는 전부 도메인 설명 쪽에 두었다.\n\n값 이름·전이·제약 성질은 지어내지 않고 마킹 ERD 본문에서 확인한 것만 옮겼다. 요청 스키마의 필수 목록과 원장 컬럼의 널 허용은 이번에도 건드리지 않았다.",
+    "change_summary": "마킹 클래스에서 실재하지 않는 연산 3개와 속성 2개를 제거. 설명에 \"[폐기] 이 클래스에서 만들지 않는다\"라고 적혀 있었으나 선언 자체는 남아 있어, 클래스 설계서를 생성하면 이름에서 자명한 설명이 붙어 존재하지 않는 연산이 정상 사양처럼 실렸다(실제로 complete → \"마킹을 완료 처리한다.\"로 발주처 제출본에 나갈 뻔했다). 제거 대상과 현행 대체는 다음과 같다 — complete·requestVlm·toVlmCallbackPayload 는 markVlmRequested/markVlmCompleted/markVlmFailed/markSkipped 가 개별로 담당하고 콜백은 VLM→저작도구 방향에만 있다. evntNm·videoFilePathNm 은 영상 행에 이미 있는 값을 마킹 행에 베껴 두던 중복이라 원장(ERD-013)도 같은 결정으로 칸을 두지 않는다. 폐기 사유 자체의 기록은 이 요약과 ERD-013 컬럼 설명에 남는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T14:59:04.700Z",
+    "last_updated_at": "2026-09-08T07:20:17.582Z",
     "created_at": "2026-06-02T08:48:08.331Z"
   }
 }

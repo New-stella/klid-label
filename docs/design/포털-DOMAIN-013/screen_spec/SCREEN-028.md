@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 38
+version: 41
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:54.468Z
+synced_at: 2026-09-08T12:01:45.724Z
 status: CHANGED
 prev_version: 38
-content_hash: de2c3d3f696af4ece50f75e9f13f790cbb56734f39ad163e645ee7fdb0852a47
-stale: true
+content_hash: 5c25fbf5a54b350429dd04d87d6aaab210a3515d845aa5b93547ab9a35543e14
+stale: false
 raw: ./_raw/SCREEN-028.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
-  consumes: ["[[API-203]]", "[[API-225]]"]
+  consumes: ["[[API-203]]", "[[API-225]]", "[[UI-146]]", "[[UI-147]]", "[[UI-150]]", "[[UI-151]]", "[[UI-152]]", "[[UI-153]]"]
   covered_by: ["[[AC-1068]]", "[[AC-1069]]"]
-  implements: ["[[IMPREC-023]]"]
+  implements: ["[[IMPREC-023]]", "[[IMPREC-399]]"]
   realizes: ["[[UC-024]]"]
   references: ["[[API-203]]"]
   requires: ["[[ROLE-003]]"]
@@ -161,6 +161,34 @@ _(empty)_
 
 _(empty)_
 
+#### [7]
+
+- **note**: 바로 위 0건 안내와 함께 놓인다. 이 화면에는 영상을 고르는 목록이 없고(포털이 자기 화면에서 제공한다) 이 화면 안에는 새 작업을 시작할 자리도 없다. 그래서 버튼을 두지 않고 어떻게 하면 이 목록이 채워지는지를 한 줄로 알린다.
+- **type**: Text
+- **label**: 포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [8]
+
+- **note**: 목록 아래에 항상 놓인다. 이용자가 읽는 자리라 구현 말투를 쓰지 않는다 — 「저장 행」·「응답에 실려 옵니다」처럼 서버 사정을 드러내는 말은 이용자가 할 일을 알려 주지 않는다. 알려야 할 것은 「기한이 지나면 사라진다」와 「그 전에 내려받아 두라」 둘이다.
+- **type**: Text
+- **label**: 보존기간 안내 — 기간이 지나면 저장한 작업과 파일이 함께 삭제된다는 사실과 만료 전에 내려받아 두라는 권유
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
 **description**:
 
 본인이 저장한 작업을 행 단위로 보여 준다. 각 행은 대상 영상 식별자와 이름, 저장 시각, 만료 예정일, 그리고 이어서 작업·내려받기 두 액션으로 이루어진다. '이어서 작업'은 그 작업의 대상 영상 라벨링 화면(/portal/label/{srcSn})으로 이동하며 같은 배포본 안에서의 이동이다.
@@ -273,7 +301,12 @@ _(empty)_
 
 ## uses_components
 
-_(empty)_
+- UI-146
+- UI-147
+- UI-150
+- UI-151
+- UI-152
+- UI-153
 
 ## external_designs
 

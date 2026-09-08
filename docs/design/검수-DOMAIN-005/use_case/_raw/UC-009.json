@@ -13,6 +13,7 @@
       "title": "검수 완료·수정 통지",
       "status": "approved",
       "priority": "must",
+      "frequency": "이벤트성(검수 완료·수정마다) — 검수가 승인될 때와 완료된 영상이 재검수에서 다시 승인될 때 각각 한 번씩 보낸다.",
       "main_flow": [
         {
           "step": 1,
@@ -116,12 +117,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 25,
+    "current_version": 26,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
+    "change_summary": "발생 빈도 기입 — 비어 있어 산출물 칸이 공란으로 나갔다. 검수 완료 시와 완료 영상의 수정이 재검수에서 승인될 때 각각 통지한다는 목표 서술이 근거다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T04:05:50.835Z",
+    "last_updated_at": "2026-09-08T06:14:13.254Z",
     "created_at": "2026-06-01T06:25:20.231Z"
   }
 }

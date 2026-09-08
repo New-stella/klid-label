@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-033
 type: screen_spec
-version: 38
+version: 43
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-06T06:29:44.494Z
+synced_at: 2026-09-08T12:01:45.809Z
 status: CHANGED
-prev_version: 37
-content_hash: 43ba7150b415c73c202a5ec49b6b3e2347d7e8d5054594b358ff73cd9e94c138
-stale: true
+prev_version: 38
+content_hash: ab5487817e9ca6f5fe1e7ec0af1b102112cf1a895eccba8f92ce731c5246df9c
+stale: false
 raw: ./_raw/SCREEN-033.json
 links:
   based_on: ["[[ADR-013]]"]
   belongs_to_domain: ["[[DOMAIN-013]]"]
-  consumes: ["[[API-140]]", "[[API-142]]", "[[API-151]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-231]]"]
+  consumes: ["[[API-140]]", "[[API-142]]", "[[API-151]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-231]]", "[[UI-131]]", "[[UI-146]]", "[[UI-147]]", "[[UI-148]]", "[[UI-149]]", "[[UI-153]]", "[[UI-154]]", "[[UI-155]]"]
   covered_by: ["[[AC-1070]]", "[[AC-1071]]"]
   implements: ["[[IMPREC-024]]"]
   realizes: ["[[UC-027]]"]
@@ -133,6 +133,7 @@ _(empty)_
 
 #### [1]
 
+- **note**: 한 줄이 자산 하나다. 줄은 파일명과 상태 배지를 먼저 보이고, 그 아래에 다음에 무슨 일이 일어나는지와 실패 사유를 놓고 유형·크기·프레임을 칩으로 흔는다. 오른쪽에는 올린 일시와 만료 예정일, 그 아래에 그 자산에서 할 수 있는 조작을 둔다. 표를 쓰지 않는 이유는 폭이다 — 여덟 칸이 요구하는 최소 폭이 본문 최대 폭을 넘어 파일명과 상태 부제가 반드시 접히거나 잘렸다. 파일명은 자르지 않고 줄바꿈해 확장자까지 보인다 — 거부 사유가 「지원하지 않는 형식」이라 그 꼬리가 곳 근거다. 프레임 수처럼 아직 없는 값은 칩을 두지 않는다 — 열이 없으므로 빈 자리가 「열이 밀렸나」로 읽힐 염려가 없다.
 - **type**: List
 - **label**: 업로드 자산 목록
 
@@ -660,7 +661,14 @@ _(empty)_
 
 ## uses_components
 
-_(empty)_
+- UI-131
+- UI-146
+- UI-147
+- UI-148
+- UI-149
+- UI-153
+- UI-154
+- UI-155
 
 ## external_designs
 

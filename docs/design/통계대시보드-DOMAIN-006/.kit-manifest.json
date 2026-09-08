@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-006",
-  "synced_at": "2026-09-07T15:21:48.632Z",
+  "synced_at": "2026-09-08T12:01:39.670Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -99,8 +99,8 @@
     "CDIAG-009": {
       "type": "class_diagram",
       "domain_id": "DOMAIN-006",
-      "version": 5,
-      "content_hash": "9bf6a8a0895bf56aa1bb46ecd1f6dddd48b43609e2dc3c387dc2273b8688ca90"
+      "version": 6,
+      "content_hash": "aa29ebbb96ace871249d1a81f3bd1462f8424a0907e44e058d9dede28952759a"
     },
     "CDIAG-020": {
       "type": "class_diagram",
@@ -219,8 +219,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "50d34fdf974bb8431266790a0d4c9ae7135f4b8a8d3d083e95ddc61c779f226b"
+      "version": 11,
+      "content_hash": "2bd5e74ecd484e7a9a8f62894af974900c322f87ba55cdbad4d3bb031a108c1e"
     },
     "NFR-021": {
       "type": "nfr",
@@ -399,14 +399,14 @@
     "ROLE-002": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4"
+      "version": 10,
+      "content_hash": "d25feb867c3d7a56f398563768712549b991ef7be1dd3c2dd6bbc3472903fea9"
     },
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "35113bf55eda3c02cf18c5d4c8d73e235a4c518ef1fa924a764425f62f1ceef8"
+      "version": 15,
+      "content_hash": "1c09ac4b7db7068039c9259dfd23eb07e9bebe190fd133451654e537c9e4e45a"
     },
     "ROLE-004": {
       "type": "permission_role",
@@ -459,8 +459,8 @@
     "UC-033": {
       "type": "use_case",
       "domain_id": "DOMAIN-006",
-      "version": 7,
-      "content_hash": "97c6f772fb80911d50ad551400ef70071f703eca7c788ea48fff5a436604dc88"
+      "version": 8,
+      "content_hash": "edd5c1effb85f97629f3d560c817fd32ba931c88b23bebe322a8d8974d976383"
     }
   }
 }
