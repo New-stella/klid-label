@@ -2,6 +2,10 @@ import { ReactNode, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 
 import { redirectToUpstream } from '@/features/auth/redirectToUpstream';
+import {
+  SERVER_ROLE_UNKNOWN_DESC,
+  SERVER_ROLE_UNKNOWN_TITLE,
+} from '@/features/auth/sessionBootstrap';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { roleSatisfiesAny } from '@/lib/authz';
 import type { Channel, Role } from '@/lib/api/types';
@@ -59,6 +63,29 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
   );
 }
 
+// [@design ADR-063] [@design AC-1017] [@design SCREEN-002] [@design SCREEN-003]
+/**
+ * 서버 인가 역할을 <b>확인하지 못했을 때</b>의 제자리 안내.
+ *
+ * ★<b>이 자리에 「역할이 없습니다」를 두지 않는다.</b> 역할을 <b>확인하지 못한 상태</b>와
+ * 역할이 <b>없는 상태</b>는 다르다. 둘을 뭉치면 인증 실패·서버 장애가 최초 관리자 등록
+ * 화면으로 떨어져 *"이 시스템에는 아직 관리자가 없습니다"* 로 표시된다 — 진입 화면이 이미
+ * 한 번 고친 결함이며(`SessionIngressPage` 의 `ERROR_ROLE_UNKNOWN`), 복원 경로에서 같은
+ * 실수를 되풀이하지 않는다.
+ *
+ * ⚠ 문구는 진입 화면과 <b>같은 상수</b>를 쓴다 — 두 곳에 각각 적으면 한쪽만 고쳐진다.
+ */
+function ServerRoleUnknownNotice() {
+  return (
+    <div
+      className="flex h-full items-center justify-center py-10"
+      data-testid="server-role-unknown-notice"
+    >
+      <ErrorState title={SERVER_ROLE_UNKNOWN_TITLE} message={SERVER_ROLE_UNKNOWN_DESC} />
+    </div>
+  );
+}
+
 interface RoleGuardProps {
   /**
    * 그 자리가 요구하는 역할. 내부 채널 라우트는 `@/lib/routeAccess` 의 선언에서
@@ -76,12 +103,20 @@ interface RoleGuardProps {
  * - isHydrated false → 토큰 복원 대기 (스피너)
  * - claims 없음 → /ingress (재인계 시도)
  * - exp 만료 → 상위 시스템 redirect
+ * - 서버 역할 확보 중 → 판정 보류 (스피너)
+ * - 서버 역할 확보 실패 + 토큰에도 역할 없음 → 제자리 오류 안내 (★/role-claim 아님)
  * - role 미부여(null) → /role-claim (Phase 2 — 권한 자가 부여 화면)
  * - 역할 불일치 → /forbidden
+ *
+ * [@design ADR-063] [@design UC-041] [@design AC-1016] [@design AC-1017]
+ * ★<b>역할 판정을 하는 유일한 가드</b>라 서버 역할 확보 상태를 읽는 것도 여기뿐이다.
+ * `ChannelGuard` 는 토큰이 싣고 온 채널만 보고, `AuthenticatedGuard` 는 역할 미부여
+ * 사용자를 <b>일부러 통과시키는</b> 자리다 — 둘에 대기를 붙이면 지킬 것 없는 대기가 된다.
  */
 export function RoleGuard({ allow, children }: RoleGuardProps) {
   const claims = useAuthStore((s) => s.claims);
   const isHydrated = useAuthStore((s) => s.isHydrated);
+  const serverRoleStatus = useAuthStore((s) => s.serverRoleStatus);
   const expired = isExpired(claims?.exp);
 
   useEffect(() => {
@@ -109,6 +144,30 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
         <Spinner label="인증 확인 중" />
       </div>
     );
+  }
+  // [@design ADR-063] [@design SEQ-034] [@design AC-1016]
+  // ★서버 인가 역할을 <아직 확보하지 못했으면 판정하지 않는다>. 새로고침 복원 직후가 그
+  //   순간이다 — 저장소는 토큰만 되살리고 서버 역할은 화면 수명과 함께 사라지므로, 여기서
+  //   기다리지 않으면 역할 보유자가 <역할 없음>으로 판정돼 권한 요청 안내로 튕긴다.
+  //
+  //   ⚠ 조회 자체를 이 자리로 끌어올리지 말 것. 가드는 렌더 시점에 동기로 판정하는 자리라
+  //     여기에 비동기 조회를 넣으면 <역할을 가진 사용자의 모든 라우트 전환>까지 그 조회를
+  //     기다린다. 조회는 부팅 1회(`features/auth/sessionBootstrap`)에서 끝내고 여기서는
+  //     그 결과만 읽는다.
+  if (serverRoleStatus === 'pending') {
+    return (
+      <div className="flex h-full items-center justify-center py-10">
+        <Spinner label="인증 확인 중" />
+      </div>
+    );
+  }
+  // ★확인하지 <못한> 것과 역할이 <없는> 것을 가른다 (@design AC-1017).
+  //   토큰에 역할이 남아 있으면 종전 폴백대로 통과시킨다 — 유효 세션을 막다른 길에 빠뜨리지
+  //   않는다는 취지는 그대로이고, 인가의 최종 판정은 어차피 서버가 소유한다. 토큰에도 역할이
+  //   없을 때만 <오류로 드러낸다> — 그 갈래를 /role-claim 으로 보내면 서버 장애가
+  //   *"아직 관리자가 없습니다"* 로 위장된다.
+  if (serverRoleStatus === 'failed' && !claims.role) {
+    return <ServerRoleUnknownNotice />;
   }
   // 인증은 되었으나 role 이 부여되지 않은 사용자는 /role-claim 으로 안내.
   // INTERNAL 채널에만 적용 (PORTAL_USER 은 토큰 발급 시점에 항상 role 이 부여됨).
