@@ -80,7 +80,7 @@ class VlmTimeseriesStepMarkingTest {
             // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
+        lenient().when(vlmClient.submitCustom(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
 }
 

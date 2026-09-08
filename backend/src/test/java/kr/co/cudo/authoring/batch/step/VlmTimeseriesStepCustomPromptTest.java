@@ -92,7 +92,7 @@ class VlmTimeseriesStepCustomPromptTest {
         lenient().when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenAnswer(inv -> Mono.just(new VlmTimeseriesResponse(
                         ((VlmTimeseriesRequest) inv.getArgument(0)).requestId(), "accepted")));
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
+        lenient().when(vlmClient.submitCustom(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
     }
 
@@ -116,7 +116,7 @@ class VlmTimeseriesStepCustomPromptTest {
 
     private VlmTimeseriesRequest captureCustom() {
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribeSub(captor.capture(), any());
+        verify(vlmClient).submitCustom(captor.capture(), any());
         return captor.getValue();
     }
 

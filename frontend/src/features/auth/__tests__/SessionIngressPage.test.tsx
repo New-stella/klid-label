@@ -77,11 +77,61 @@ describe('SessionIngressPage', () => {
       { alg: 'HS256', typ: 'JWT' },
       { sub: 'u2', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
     );
+    mock.onGet('/me').reply(200, {
+      success: true,
+      data: { sub: 'u2', role: 'PORTAL_USER', channel: 'PORTAL' },
+      message: null,
+      errorCode: null,
+    });
     renderWithRoutes([`/ingress?token=${tok}`]);
 
     await waitFor(() => {
       expect(screen.getByText('PORTAL_HOME')).toBeInTheDocument();
     });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // ★서버 인가 역할 확보는 <채널을 가리지 않는다> (2026-09-08 · @design ADR-063 · UC-041)
+  //
+  //   구 동작 폐기 — 포털 채널이 여기서 곧바로 되돌아 나가 서버 역할을 <한 번도> 묻지 않던
+  //   것. 포털 토큰에 역할이 늘 실려 튕기지 않았을 뿐, 서버가 역할을 바꾸거나 회수해도 화면은
+  //   옛 역할로 계속 움직였다 — 시끄럽게 깨지지 않았을 뿐 같은 결함이다.
+  // ─────────────────────────────────────────────────────────────────
+  it('★PORTAL_채널도_me_를_물어_서버가_아는_값을_claims_에_주입한다', async () => {
+    const tok = buildJwt(
+      { alg: 'HS256', typ: 'JWT' },
+      { sub: 'u2b', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
+    );
+    mock.onGet('/me').reply(200, {
+      success: true,
+      data: { sub: 'u2b', role: 'PORTAL_USER', channel: 'PORTAL', name: '포털사용자' },
+      message: null,
+      errorCode: null,
+    });
+    renderWithRoutes([`/ingress?token=${tok}`]);
+
+    await waitFor(() => {
+      expect(screen.getByText('PORTAL_HOME')).toBeInTheDocument();
+    });
+    // 조회가 <실제로> 나갔는지 본다 — 도착지만 보면 묻지 않고 가는 변이가 통과한다.
+    expect(mock.history.get.filter((r) => r.url === '/me')).toHaveLength(1);
+    // 서버가 아는 이름이 주입된다(토큰에는 없다).
+    expect(useAuthStore.getState().claims?.name).toBe('포털사용자');
+  });
+
+  it('PORTAL_채널은_me_조회가_실패해도_도착지를_잃지_않는다', async () => {
+    // 포털 토큰은 역할을 늘 싣는다 — ② 폴백 갈래가 그대로 살아 있어야 한다.
+    const tok = buildJwt(
+      { alg: 'HS256', typ: 'JWT' },
+      { sub: 'u2c', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
+    );
+    mock.onGet('/me').reply(503);
+    renderWithRoutes([`/ingress?token=${tok}`]);
+
+    await waitFor(() => {
+      expect(screen.getByText('PORTAL_HOME')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('사용자 정보를 확인할 수 없습니다')).toBeNull();
   });
 
   // DEV 빌드(Vitest 기본 import.meta.env.DEV=true) 에서는 토큰 없음/만료 시

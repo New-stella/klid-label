@@ -717,7 +717,7 @@ public class VlmTimeseriesStep implements BatchStep {
         //    ③파이프라인 전체가 FAILED 로 마감된다 — 「예외를 위로 던지지 않는다」는 이 메서드의
         //    성질이 이 경로에서만 깨져 있었다.
         submitOne(() -> vlmClient.submitDescribe(req, srvrAddr), rawSn, requestId, markingSn, "describe");
-        submitOne(() -> vlmClient.submitDescribeSub(subReq, srvrAddr), rawSn, subRequestId, null,
+        submitOne(() -> vlmClient.submitCustom(subReq, srvrAddr), rawSn, subRequestId, null,
                 "custom");
 
         // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는

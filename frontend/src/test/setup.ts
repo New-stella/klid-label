@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 import { useAdminSessionStore } from '@/features/adminSession/store';
+import { resetServerRoleResolution } from '@/features/auth/sessionBootstrap';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -96,6 +97,9 @@ if (typeof Element.prototype.scrollIntoView !== 'function') {
 // 각 테스트의 `clear()` 호출은 token/claims 만 비우고 isHydrated 는 유지하므로 안전하다.
 beforeEach(() => {
   useAuthStore.setState({ isHydrated: true });
+  // 서버 인가 역할 확보 이력은 <모듈 스코프>이고 토큰으로 키를 잡는다. 앞 시험이 남기면
+  // 뒤 시험의 같은 토큰이 조회 없이 통과해, 확보 경로를 지우는 변이가 살아남는다.
+  resetServerRoleResolution();
   // 차단 안내 dedupe 는 화면 단위 단일 저장소(useUiStore)에 있다. 테스트 간에 남으면 앞 테스트의
   // 안내가 뒤 테스트의 같은 문구를 삼켜 위양성 실패가 난다 — 매 테스트 시작 시 비운다.
   useUiStore.getState().resetBlockNotice();
