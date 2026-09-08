@@ -16,7 +16,7 @@
 
 - 기동 의존 순서: **PostgreSQL → ai-server → backend(WAS) → frontend(httpd)**.
   ⚠ 앞의 셋과 달리 **backend 의 기동 순서는 우리 유닛이 갖고 있지 않다** — WAS 소관이다(0절).
-- 설치 경로: `/opt/klid/{app,ai,web,runtime}` · 환경설정 `/etc/klid/` · 데이터 `/var/lib/klid` · 로그 `/var/log/klid`.
+- 설치 경로: `/GCLOUD/klid-at/{app,ai,web,runtime}` · 환경설정 `/etc/klid/` · 데이터 `/var/lib/klid` · 로그 `/var/log/klid`.
 
 ---
 
@@ -88,7 +88,7 @@ sudo systemctl restart "$WAS_UNIT"
 그대로 유효**하므로, 아래 각 절에 「베어메탈 토글일 때」로 병기해 보존했다.
 
 > ⚠ 그 형상은 **자바가 따로 필요하다** — 패키지는 2026-08-30 부터 JRE 를 반입하지 않아
-> 유닛의 `ExecStart` 가 가리키는 `/opt/klid/runtime/jre` 가 **없는 경로**다. 되살리는 방법은
+> 유닛의 `ExecStart` 가 가리키는 `/GCLOUD/klid-at/runtime/jre` 가 **없는 경로**다. 되살리는 방법은
 > `config/systemd/klid-backend.service` 헤더 주석 참조.
 
 ---
@@ -209,7 +209,7 @@ source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
 systemctl status "$WAS_UNIT" --no-pager | grep -E 'Memory|Tasks'    # backend = WAS 프로세스 메모리
 #   ⚠ 이 수치는 WAS 전체다. 같은 WAS 에 다른 애플리케이션이 함께 올라가 있으면 그 몫이 섞인다.
 #   (베어메탈 토글일 때: systemctl status klid-backend --no-pager | grep -E 'Memory|Tasks')
-df -h /opt/klid /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"     # 디스크 여유(앱·DB·로그·저장소)
+df -h /GCLOUD/klid-at /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"     # 디스크 여유(앱·DB·로그·저장소)
 # 저장소 경로는 설정값 STORAGE_RAW_PATH(기본 /nas-storage), DB 데이터는 /var/lib/pgsql/16/data
 #   설정 파일은 WAR 형상이 /etc/klid/application.properties, 베어메탈 토글이 /etc/klid/backend.env
 nvidia-smi                                                          # GPU 사용률(추론 서버, 해당 시)
@@ -735,7 +735,7 @@ SELECT to_regclass('klid_at.ls_output_ver_snpsh') AS v183_should_exist,
 ### 2-6. 디스크 부족 (저장소·로그)
 
 ```bash
-df -h /opt/klid /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"   # 앱·DB·로그·저장소
+df -h /GCLOUD/klid-at /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"   # 앱·DB·로그·저장소
 du -sh "$STORAGE_RAW_PATH"/* 2>/dev/null | sort -h | tail          # 저장소 상위 용량
 journalctl --disk-usage                                           # journald 사용량
 sudo journalctl --vacuum-time=14d                                 # 오래된 로그 정리(정책에 맞게)
@@ -856,7 +856,7 @@ sudo systemctl restart "$WAS_UNIT"
 source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
 sudo systemctl stop httpd; sudo systemctl stop "$WAS_UNIT"; sudo systemctl stop klid-ai-server
 #   … 패키지 교체(install.sh) …
-#   … ★ api.war 를 WAS 배포 디렉터리로 다시 복사 — install.sh 는 /opt/klid/app 에 두기만 한다 …
+#   … ★ api.war 를 WAS 배포 디렉터리로 다시 복사 — install.sh 는 /GCLOUD/klid-at/app 에 두기만 한다 …
 #     (WAS 가 풀어 둔 <WAS_BASE>/webapps/api/ 가 남아 있으면 함께 지워야 새 WAR 가 반영된다)
 sudo systemctl start klid-ai-server; sudo systemctl start "$WAS_UNIT"; sudo systemctl start httpd
 #   ★ DDL(V5)은 <DBA 가 수동 적용>한다 — 온프렘은 Flyway 를 쓰지 않으므로 기동해도 적용되지 않는다.
@@ -1288,7 +1288,125 @@ sudo systemctl restart "$WAS_UNIT"     # backend 재기동 = WAS 재기동
 
 ---
 
-## 5. 정기 점검 체크리스트 (권장 주기)
+## 5. AI 장비 설치 루트 옮기기 (`relocate-prefix.sh`)
+
+**AI 장비(`klid-ai-gpu-01~02`)의 설치 루트를 `/opt/klid` → `/GCLOUD/klid-at` 으로 옮긴다.**
+**설정(`/etc/klid`)·데이터(`/var/lib/klid`)·로그(`/var/log/klid`)·영상 저장소(NAS)는 옮기지
+않는다** — 그 넷은 설치 루트 밖이고 경로를 바꿀 이유가 다르다.
+
+### 5-0. 왜 AI 장비만인가
+
+현장은 이미 `/GCLOUD` 아래 서 있다.
+
+| 구성요소 | 현장 경로 | 비고 |
+|---|---|---|
+| WAS | `/GCLOUD/JBOSS/jboss-eap-8.1` | 현장이 준 자리(우리가 만들지 않았다) |
+| 웹 문서 루트 | `/GCLOUD/WebApp/label-studio` | 1차 도구가 있던 자리 |
+| **ai-server** | **`/opt/klid/ai`** | ← **혼자 다른 곳이었다** |
+
+그래서 AI 장비만 `/GCLOUD/klid-at` 으로 맞춘다. **다른 서버의 `KLID_PREFIX` 기본값은
+`/opt/klid` 그대로다** — 그 서버들에서 이 루트 아래 실제로 놓이는 것은 `api.war` 중간
+보관소(`app/`)뿐이고, 웹은 `KLID_WEB_ROOT` 로 현장 경로를 덮어 쓴다.
+
+AI 장비에는 **`runtime/python` 과 `ai/` 둘만** 깔린다(11·13 단계는 `role=ai` 전용).
+즉 이 이동이 곧 "ai-server 를 옮긴다"와 같다.
+
+> **신규 설치는 이 절차가 필요 없다.** `install.sh --role=ai` 가 `KLID_AI_PREFIX`
+> (기본 `/GCLOUD/klid-at`)를 자동으로 잡는다. 이 절차는 **이미 `/opt/klid` 에 선 장비**용이다.
+
+### 5-1. 왜 `mv` 하나로 끝나지 않는가
+
+**파이썬 venv 는 자기 절대경로를 안에 적어 둔다.** 옮기기만 하면 `bin/uvicorn` 의 shebang 이
+없는 경로를 가리켜 서비스가 죽는다. 그렇다고 venv 를 새로 만드는 것도 답이 아니다 —
+**GPU 전환을 마친 장비는 CUDA 판 휠 22개(약 3.6 GiB)를 담고 있고 그 휠은 GPU 델타 매체에만
+있다.** 현장에 매체가 없으면 재생성은 되돌릴 수 없는 파괴다. 그래서 이 스크립트는
+**venv 를 재생성하지 않고 경로만 고쳐서** 옮긴다.
+
+옮긴 뒤 조용히 깨지는 자리는 설치 루트 안팎에 흩어져 있다. 스크립트가 전부 처리한다:
+
+| 자리 | 무엇이 박혀 있나 | 안 고치면 |
+|---|---|---|
+| `ai/venv/pyvenv.cfg` | 번들 파이썬 경로 | venv 가 통째로 죽는다 |
+| `ai/venv/bin/*` | shebang · `VIRTUAL_ENV` | 서비스 기동 실패 |
+| `runtime/runtime.env` | `KLID_PYTHON=` | 재설치·단계 스크립트가 옛 경로를 본다 |
+| `bin/*` | 설치 루트 기본값 | 프론트 설정 재생성이 엉뚱한 곳을 고친다 |
+| `/etc/systemd/system/klid-*.service` | WorkingDirectory·ExecStart·ReadWritePaths | 기동 실패 |
+| **`/etc/klid/ai-server.env`** | `HF_HOME` | ★**기동은 되고 SAM2 만 조용히 mock 으로 떨어진다** |
+| `/etc/klid/*.properties`·`*.env` | ffmpeg 등 루트 기준 경로 | 해당 기능만 실패 |
+| `/etc/httpd/conf.d/klid-frontend.conf` | DocumentRoot | 404 |
+| SELinux fcontext | 옛 경로에 걸린 규칙 | 재부팅 뒤 웹 403 |
+
+### 5-2. 절차
+
+```bash
+# 0) 무엇을 할지 먼저 본다 — 아무것도 바꾸지 않는다
+sudo ./scripts/relocate-prefix.sh --dry-run          # --to 기본값이 /GCLOUD/klid-at 이다
+
+# 1) 실행 (서비스가 잠시 멈춘다 — 무중단이 아니다)
+sudo ./scripts/relocate-prefix.sh --to=/GCLOUD/klid-at
+
+#    출발지가 기본값(/opt/klid)이 아니면 명시한다
+sudo ./scripts/relocate-prefix.sh --from=/data/klid --to=/GCLOUD/klid-at
+
+#    원본을 남기고 싶으면(디스크 여유가 두 벌분 있어야 한다)
+sudo ./scripts/relocate-prefix.sh --to=/GCLOUD/klid-at --copy
+```
+
+스크립트가 하는 일: 서비스 정지 → 이동 → venv 경로 교정 → 설치 루트 안팎 참조 교정
+(설정 파일은 `*.bak-relocate-<시각>` 으로 백업) → 옛 경로를 가리키던 절대 심링크 재연결 →
+소유권·SELinux 문맥 → 기동 → 잔여 옛 경로 스캔.
+
+### 5-3. 검증 — 헬스체크 200 은 절반의 확인이다
+
+**`/health` 200 만 보고 끝내지 마라.** ai-server 는 모델을 못 찾아도 정상 기동하고 200 을 준다.
+YOLOX 는 `weights_missing` 사유로 **빈 detections** 를 돌려주고 SAM2 는 mock 으로 떨어져,
+**오토라벨링이 조용히 0 건**이 된다. 로그에도 오류가 남지 않는다.
+
+```bash
+# ① 설정이 새 경로를 가리키는가
+grep -E 'HF_HOME|YOLOX_WEIGHTS_PATH' /etc/klid/ai-server.env
+#    HF_HOME 이 /GCLOUD/klid-at/ai/.hf-cache 여야 한다
+#    YOLOX_WEIGHTS_PATH 는 ./weights/yolox_s.onnx (상대경로) 가 정상이다
+
+# ② 모델 파일이 실제로 있는가
+ls -l /GCLOUD/klid-at/ai/weights/yolox_s.onnx
+find /GCLOUD/klid-at/ai/.hf-cache -xtype l | head   # 출력이 있으면 캐시 링크가 끊긴 것
+
+# ③ GPU 판인가 (전환을 마친 장비) — 세 값이 모두 맞아야 GPU 로 돈다
+/GCLOUD/klid-at/ai/venv/bin/python -c \
+  "import torch, onnxruntime as ort; print(torch.__version__, torch.cuda.is_available()); \
+   print('CUDAExecutionProvider' in ort.get_available_providers())"
+#    → 2.12.0+cu126 / True / True
+
+# ④ ★실제로 추론을 한 번 돌려 detections 가 나오는지 본다.
+#    GPU 장비면 그 사이 nvidia-smi 에 프로세스가 잡혀야 한다.
+#    ①~③ 은 "돌 준비가 됐다"이고, 이것만이 "실제로 돌았다"이다.
+```
+
+### 5-4. 되돌리기
+
+`--copy` 로 돌렸다면 원본이 그대로 있다. 서비스를 멈추고 백업해 둔 `*.bak-relocate-*` 설정을
+되돌린 뒤 원본을 기동한다. `mv` 로 돌렸다면 원본은 없다 — 되돌리기도 이 스크립트를 반대 방향으로
+한 번 더 돌리는 것이다.
+
+```bash
+sudo ./scripts/relocate-prefix.sh --from=/GCLOUD/klid-at --to=/opt/klid
+```
+
+### 5-5. 주의
+
+- **`--yes` 로 자동화할 때는 목적지를 두 번 읽어라.** 확인 프롬프트가 없다. `--to=/GCLOUD` 처럼
+  한 칸을 빠뜨려도 스크립트는 거절하지 않는다(정당한 선택일 수 있어서 막지 않는다).
+  설치물이 그 아래로 흩어질 뿐 복구는 가능하다.
+- **SELinux**: 설치 스크립트가 라벨을 거는 것은 **웹 문서 루트뿐**이고 `ai`·`app`·`runtime` 은
+  원래 라벨을 건드리지 않는다. enforcing 장비에서 새 경로로 옮긴 뒤 기동이 막히면
+  `ausearch -m avc -ts recent` 로 확인한다.
+- 이 스크립트는 **설치 루트만** 옮긴다. `/etc/klid`·`/var/lib/klid`·`/var/log/klid`·NAS 저장소를
+  옮기려면 별개 작업이며, 그때는 설정 안의 경로도 함께 손봐야 한다.
+
+---
+
+## 6. 정기 점검 체크리스트 (권장 주기)
 
 | 주기 | 점검 항목 | 명령/방법 |
 |---|---|---|

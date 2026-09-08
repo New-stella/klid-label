@@ -11,6 +11,13 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "${SELF_DIR}/../lib/common.sh"
+
+# ★ 이 단계는 role=ai 에서만 돈다(install.sh _build_steps) — 즉 AI 장비 전용이다.
+#   그래서 설치 루트를 AI 전용 경로(KLID_AI_PREFIX, 기본 /GCLOUD/klid-at)로 바꾼다.
+#   ⚠ KLID_PREFIX 를 사람이 명시했으면 덮지 않는다(단일 서버 형상 배려).
+#   ⚠ 단독 실행에서도 같은 루트를 잡아야 하므로 install.sh 가 아니라 <여기서> 부른다.
+klid_use_ai_prefix
+klid_assert_prefix_sane
 require_root
 
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
@@ -143,9 +150,19 @@ ENV_DST="${KLID_ETC}/ai-server.env"
 if [[ -f "${ENV_DST}" ]]; then
   info "[ai-server] env 이미 존재(보존): ${ENV_DST}"
 else
-  install -m 0640 "${ONPREM}/config/ai-server/env.template" "${ENV_DST}"
+  # ★ @KLID_PREFIX@ 를 치환한다 — 종전에는 install(1) 로 <그대로 복사>했다 (2026-09-08 수정).
+  #   그래서 KLID_PREFIX 를 바꿔 설치해도 이 파일의 HF_HOME 만 옛 경로를 가리켰고,
+  #   서버는 정상 기동하면서 SAM2 만 조용히 mock 으로 떨어졌다(오류 로그 없음).
+  #   유닛 파일이 이미 같은 방식으로 치환되고 있었으므로(아래 UNIT_SRC 블록) 방식을 맞춘다.
+  sed -e "s#@KLID_PREFIX@#${KLID_PREFIX}#g" \
+      "${ONPREM}/config/ai-server/env.template" > "${ENV_DST}"
+  chmod 0640 "${ENV_DST}"
   chown root:"${KLID_GROUP}" "${ENV_DST}"
-  ok "[ai-server] env 템플릿 설치: ${ENV_DST}"
+  # 치환 누락은 조용히 지나가면 안 된다 — 남아 있으면 HF_HOME 이 문자 그대로 박힌다.
+  if grep -q '@KLID_PREFIX@' "${ENV_DST}"; then
+    die "[ai-server] env 치환 실패 — ${ENV_DST} 에 @KLID_PREFIX@ 가 남았습니다."
+  fi
+  ok "[ai-server] env 템플릿 설치: ${ENV_DST} (KLID_PREFIX=${KLID_PREFIX})"
 fi
 
 chown -R "${KLID_USER}:${KLID_GROUP}" "${AI_DIR}"
