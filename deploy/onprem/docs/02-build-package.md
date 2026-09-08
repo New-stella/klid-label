@@ -221,6 +221,16 @@ package.sh 가 N 단계에서 실패
 
 ## 오프라인 빌드 키트(60단계) — 타깃에서 "소스 재빌드"
 
+> ★★ **소스는 git 추적 목록으로 담는다 — 제외 목록은 폐기했다(2026-09-08).**
+> 구 방식(`tar --exclude` 나열)에 `backend/storage/` 가 빠져 있어, 소스를 담는 순간
+> **운영 영상 mp4 11,012개 · 프레임 jpg 6,380개(447MB 는 비식별 전)** 가 매체로 함께 나갈
+> 상태였다. 목록을 늘려 대응하지 않는다 — `.gitignore` 가 이미 정본이므로 추적된 것만
+> 담으면 그 부류가 **구조적으로** 빠진다. 판정은 `lib/common.sh` 의 `klid_export_source`
+> 한 곳이 갖는다. **되살리지 말 것.**
+>
+> ⚠ 그 헬퍼는 2026-09-05 에 만들어졌으나 **호출처가 없어 그동안 실제로 돌지 않았다.**
+> 고침이 쓰였다는 사실과 그 고침이 동작한다는 사실은 다르다.
+
 기존 1~5단계는 **사전 빌드 아티팩트(jar/dist)** 만 번들한다. 폐쇄망 타깃에서 인터넷 없이
 **소스에서 재빌드**까지 가능하게 하려면 6단계(`60-collect-buildtools.sh`)가 추가로 다음을 채운다.
 빌드 도구 바이너리만으로는 부족하고 **의존성 캐시까지** 번들해야 오프라인 빌드가 닫힌다.
@@ -232,7 +242,7 @@ package.sh 가 N 단계에서 실패
 | Gradle 8.8 dist | `buildtools/gradle/*.zip` | backend 가 gradle 8.8 사용(wrapper/Dockerfile/lockfile 확인). `GRADLE_DIST_*` |
 | **populated gradle-home** | `buildtools/gradle-home/` | `GRADLE_USER_HOME` 에 전 의존 jar 캐시(플랫폼 무관). `--offline` 빌드 전제 |
 | **frontend node_modules** | `buildtools/frontend-node_modules.tar.gz` | **⚠ Linux x64 전용**(esbuild 등 plat 바이너리). mac 산출물 금지 |
-| 빌드용 소스 | `src/{backend,frontend,ai-server}` | `.git`/`node_modules`/`build`/`dist` 제외, 플랫폼 무관 |
+| 빌드용 소스 | `src/{backend,frontend,ai-server}` | **git 추적 파일만**(`.gitignore` 가 정본) · 플랫폼 무관 · `SOURCE-INFO.txt` 동봉 |
 
 > **node_modules 는 반드시 Linux x64 에서 수집**한다(esbuild·rollup 등 네이티브 바이너리 포함).
 > `60-collect-buildtools.sh` 는 `uname -s` 가 `Darwin`(mac)이면 node_modules populate 단계만

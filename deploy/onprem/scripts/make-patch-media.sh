@@ -307,6 +307,35 @@ ok "[patch] 증분이 만드는 표·컬럼·제약이 통합 schema.sql 에 모
 [[ -z "${_unverif}" ]] || warn "[patch] 이름 대조로는 판정 불가(사람 확인 필요): ${_unverif}"
 info "[patch] 실린 증분과 대조 결과 — db/incremental/증분-대조-결과.txt"
 
+# ---- 소스 반입 ------------------------------------------------------------
+# ★ 산출물(WAR·정적자산)만으로는 <무엇으로 만들어졌는지>를 현장이 확인할 수 없다.
+#   반입물은 산출물과 그것을 만든 소스가 짝이어야 한다.
+# ★★ 담는 기준은 <git 추적>이다 — 제외 목록이 아니다. 근거는 lib/common.sh 의
+#   klid_export_source 주석에 있다(구 제외목록 방식은 backend/storage 의 운영 영상·프레임
+#   636MB 를 매체로 함께 내보낼 상태였다). 그 헬퍼가 그동안 <호출처가 없어> 실제로는
+#   돌지 않았다 — 여기가 첫 배선이다.
+SRC_DEST="${MEDIA}/onprem/src"
+klid_export_source backend   "${SRC_DEST}"
+klid_export_source frontend  "${SRC_DEST}"
+klid_export_source ai-server "${SRC_DEST}"
+klid_write_source_info "${SRC_DEST}"
+
+# 담지 말아야 할 것이 실제로 없는지 <열어서> 확인한다 — 「제외했다」가 아니라 「없다」를 본다.
+# ⚠ 경로 조각으로 훑지 말 것 — `*/storage/*` 는 정당한 자바 패키지(common/storage/…)에 걸려
+#   깨끗한 트리에서도 조립을 죽인다(실제로 그렇게 만들었다가 잡았다). 런타임 산출물은
+#   <컴포넌트 바로 아래>에만 생기므로 그 깊이만 본다.
+_src_bad="$(find "${SRC_DEST}" -mindepth 2 -maxdepth 2 -type d \
+             \( -name storage -o -name node_modules -o -name .gradle -o -name build \
+                -o -name dist -o -name venv -o -name .venv \) -print -quit)"
+[[ -z "${_src_bad}" ]] || die "[patch] 소스에 런타임 산출물이 있습니다: ${_src_bad}
+     이 매체를 그대로 내면 운영 데이터가 함께 나갑니다."
+_src_pyc="$(find "${SRC_DEST}" -name '*.pyc' -print -quit)"
+[[ -z "${_src_pyc}" ]] || die "[patch] 소스에 컴파일 잔재가 있습니다: ${_src_pyc}"
+_src_media="$(find "${SRC_DEST}" -type f \( -iname '*.mp4' -o -iname '*.jpg' -o -iname '*.jpeg' \
+               -o -iname '*.png' -o -iname '*.webp' \) ! -path '*/src/test/resources/*' -print -quit)"
+[[ -z "${_src_media}" ]] || die "[patch] 소스에 시험 픽스처가 아닌 미디어가 있습니다(개인정보 유출 위험): ${_src_media}"
+ok "[patch] 소스 반입 검증 통과 — 운영 데이터 0 · 픽스처 밖 미디어 0"
+
 # GPU — 이 회차와 무관하나 읽기 전용 점검 수단은 함께 싣는다.
 [[ -f "${REPO}/deploy/onprem-gpu-delta/scripts/check-gpu-readiness.sh" ]] \
   && cp "${REPO}/deploy/onprem-gpu-delta/scripts/check-gpu-readiness.sh" "${MEDIA}/gpu/"
@@ -336,6 +365,7 @@ _n_runtime="$(git -C "${REPO}" diff --name-only "${BASELINE}" HEAD -- backend/sr
   echo "db_increments_shipped=$(printf '%s\n' "${SHIP_MIGS}" | sed '/^$/d' | sed 's/__.*//' | paste -sd, - || true)"
   echo "war_flavors=api.war(${CTX_PASS}) api-strip.war(${CTX_STRIP})"
   echo "fe_channels=control,portal"
+  echo "source=onprem/src/{backend,frontend,ai-server}   # git 추적 파일만 · SOURCE-INFO.txt 참조"
   echo "gpu_delta_included=no   # 휠이 3.5GB 라 별도 매체"
 } > "${MEDIA}/VERSION.txt"
 
