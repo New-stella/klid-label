@@ -36,11 +36,18 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li><b>추론(INFERENCE)</b> — 관측값이다. 상태점검 폴러가 장비에 물어 원장
  *       ({@code LS_AI_SRVR_USG})에 남기고 평활 창을 채운다.</li>
- *   <li><b>시계열(TIMESERIES)</b> — <b>우리 원장의 미결 위탁 수</b>다. 폴러가 시계열 노드를 훑지
- *       않기 때문이다({@code AiSrvrHealthPoller} 가 추론 노드만 대상으로 삼는다 — 논블로킹 제출 +
- *       콜백이라 그 경로의 부하·상태 개념이 성립하지 않는다). 즉 이 축에서 장비가 얼마나 물려
- *       있는지를 아는 자리는 <b>우리가 보낸 것을 세는 것</b>뿐이다.</li>
+ *   <li><b>시계열(TIMESERIES)</b> — <b>우리 원장의 미결 위탁 수</b>다. 그 계통은 위탁을 제출하고
+ *       결과를 콜백으로 받는 방식이라 <b>「처리 대기」라는 개념이 성립하지 않아</b> 물어볼 대상이
+ *       없다. 즉 이 축에서 장비가 얼마나 물려 있는지를 아는 자리는 <b>우리가 보낸 것을 세는 것</b>
+ *       뿐이다.</li>
  * </ul>
+ *
+ * <p>⚠ <b>구 서술 정정(2026-09-08)</b> — 시계열의 근거가 <i>「폴러가 시계열 노드를 훑지 않기
+ * 때문이다({@code AiSrvrHealthPoller} 가 추론 노드만 대상으로 삼는다 — 논블로킹 제출 + 콜백이라 그
+ * 경로의 <b>부하·상태</b> 개념이 성립하지 않는다)」</i>로 적혀 있었다. <b>폴러는 이제 시계열도
+ * 훑는다</b> — 다만 <b>상태만</b> 재고 부하는 재지 않는다. 즉 부하 원천이 우리 원장이라는
+ * <b>결론은 그대로</b>이고 근거만 「훑지 않아서」에서 「부하 개념이 없어서」로 좁혀졌다. 두 축(살아
+ * 있는가 ↔ 여유가 있는가)을 한 문장에 묶은 것이 그 서술의 오류였다.
  * <p>★ 시계열 부하로 세는 것은 <b>수락된(ACCEPTED)</b> 위탁뿐이다 — 발급(ISSUED)은 벤더가 아직
  * 받지 않은 상태라 그 장비의 부하가 0이고, 세면 방금 제출이 몰린 장비를 과대평가해 다음 요청이
  * 반대편으로 쏠린다(값이 실제 부하가 아니라 <b>직전 배분의 메아리</b>가 된다).
@@ -202,6 +209,86 @@ public class AiSrvrSelector {
     }
 
     /**
+     * <b>이미 배정된 장비</b>를 지금도 고를 수 있는가 — 영상 고정 경로가 쓰는 얼굴. [@design ADR-057]
+     *
+     * <p>후보 판정을 호출부에 복제하지 않기 위한 자리다. 「가용인가 · 식별자 형식이 맞는가 · 목적지를
+     * 만들 수 있는가 · 주소 정책을 통과하는가」를 여기서 다시 쓰면 그 사본이 두 번째 진실원이 되어,
+     * 선택기는 거른 장비를 고정 경로는 그대로 쓰는 어긋남이 열린다. 그래서 <b>같은 후보 목록</b>에서
+     * 식별자로 찾기만 한다.
+     *
+     * <p>비어 있으면 <b>그 장비를 지금 쓸 수 없다</b>는 뜻이다 — 「없는 장비」와 「이용불가 장비」를
+     * 구분하지 않는다(호출자에게는 둘 다 「이 배정으로는 못 보낸다」로 같다).
+     *
+     * <h3>★★ 모집단이 {@link #select} 와 <b>다르다</b> — 정비중 장비는 여기서 살아남는다 [@design AC-1100]</h3>
+     * <p>「신규 배정을 받을 수 있는가」와 「이미 붙어 있는 배정을 유지하는가」는 <b>다른 술어</b>이고,
+     * 그 둘이 갈리는 자리가 정비중({@link kr.co.cudo.authoring.aiserver.entity.AiSrvrStatus#DRAINING})
+     * 하나다. 판정은 상태 열거형({@link
+     * kr.co.cudo.authoring.aiserver.entity.AiSrvrStatus#retainsPinnedAssignment})이 소유하며 여기서
+     * 다시 쓰지 않는다.
+     *
+     * <p>⚠ <b>구 동작 폐기(2026-09-08)</b> — 여기서도 {@code select} 와 같은 후보 목록
+     * ({@code registry.findAvailable()} 기반)을 썼다. 그래서 <b>정비중 장비에 고정된 영상이 곧바로
+     * 재배정</b>됐고, 「신규 배정만 막고 진행 중인 작업은 끝까지」라는 정비중의 정의가 깨졌다(YOLO 가
+     * gpu01 에 고정된 뒤 관리자가 gpu01 을 정비로 내리면, 이어지는 SAM2 가 gpu02 로 옮겨 가 앞 단계의
+     * 추적 상태를 이어받지 못한다). <b>되살리지 말 것.</b>
+     *
+     * <p>⚠⚠ 그 대신 <b>{@code select} 쪽 모집단을 넓히지 말 것</b> — 넓히면 정비중 장비가 신규 배정을
+     * 받아 정비가 끝나지 않는다(무중단 정비가 반대쪽에서 깨진다). 두 얼굴이 <b>모집단만 다르고 나머지
+     * 판정은 공유</b>하는 것이 이 구조의 요점이다.
+     *
+     * <p>이용불가·비활성은 <b>종전대로 재배정 대상</b>이다 — 그 장비의 추적 상태는 이미 사라졌고,
+     * 유지하면 그 영상이 영영 죽은 장비에 묶인다.
+     *
+     * <p>★ <b>여기서는 거부를 던지지 않는다.</b> 후보 0 판정은 {@link #select} 가 소유한다 —
+     * 고정 경로는 「고정된 장비를 못 쓴다」와 「그 계통에 쓸 장비가 없다」를 <b>갈라서</b> 처리해야
+     * 하고(앞은 재배정, 뒤는 거부), 여기서 던지면 그 구분이 사라진다.
+     */
+    public Optional<LsAiSrvr> selectPinned(LsAiSrvr.SrvrType srvrType, String srvrId) {
+        if (srvrType == null || srvrId == null) {
+            return Optional.empty();
+        }
+        return pinRetainable(srvrType).stream()
+                .filter(node -> srvrId.equals(node.getSrvrId()))
+                .findFirst();
+    }
+
+    /**
+     * 그 유형의 <b>신규 배정을 받을 수 있는</b> 장비들 — {@link #select} 의 모집단.
+     *
+     * <p>상태 축은 {@link AiSrvrRegistry#findAvailable()} 이 소유한다. ⚠ <b>여기를 넓혀 정비중을 넣지
+     * 말 것</b> — 정비 중인 장비가 새 영상을 계속 받아 정비가 끝나지 않는다. 고정 유지 축이 정비중을
+     * 살려야 하는 것은 {@link #pinRetainable} 이 <b>별도 모집단</b>으로 해결한다.
+     */
+    private List<LsAiSrvr> candidates(LsAiSrvr.SrvrType srvrType) {
+        return usableAmong(registry.findAvailable(), srvrType);
+    }
+
+    /**
+     * 그 유형의 <b>이미 붙은 배정을 유지할 수 있는</b> 장비들 — {@link #selectPinned} 의 모집단.
+     * [@design AC-1100]
+     *
+     * <p>모집단만 넓히고 <b>나머지 판정은 {@link #usableAmong} 으로 공유</b>한다. 여기서 형식·목적지·
+     * 주소 정책을 다시 쓰면 그 사본이 두 번째 진실원이 되어, 선택기가 거른 장비를 고정 경로가 그대로
+     * 쓰는 어긋남이 열린다(그것이 이 클래스에 얼굴을 하나 더 두는 이유다).
+     */
+    private List<LsAiSrvr> pinRetainable(LsAiSrvr.SrvrType srvrType) {
+        return usableAmong(registry.findAll().stream()
+                .filter(node -> node.getSrvrSttsCd() != null
+                        && node.getSrvrSttsCd().retainsPinnedAssignment())
+                .toList(), srvrType);
+    }
+
+    /** 모집단을 받아 <b>보낼 수 있는 장비</b>만 남긴다 — 상태 밖 판정의 단일 지점. */
+    private List<LsAiSrvr> usableAmong(List<LsAiSrvr> pool, LsAiSrvr.SrvrType srvrType) {
+        return pool.stream()
+                .filter(node -> node.getSrvrTypeCd() == srvrType)
+                .filter(this::wellFormedSrvrId)
+                .filter(this::pinnable)
+                .filter(node -> acceptedByEndpointPolicy(srvrType, node))
+                .toList();
+    }
+
+    /**
      * 한 번의 선택 — <b>원장 스냅샷을 그때그때 다시 걸러 낸다</b>. [@design ADR-062]
      *
      * <p>★ 형식 판정을 <b>필드에 담지 않는 것</b>이 이 메서드의 핵심 제약이다. 원장은 운영 화면에서
@@ -216,14 +303,7 @@ public class AiSrvrSelector {
      * 전부 이용불가가 된 원장을 폴백으로 흘려보내던 자리다. [@design AC-1093]
      */
     private Outcome choose(LsAiSrvr.SrvrType srvrType, AiSrvrUsageType usage) {
-        List<LsAiSrvr> ofType = registry.findAvailable().stream()
-                .filter(node -> node.getSrvrTypeCd() == srvrType)
-                .toList();
-        List<LsAiSrvr> candidates = ofType.stream()
-                .filter(this::wellFormedSrvrId)
-                .filter(this::pinnable)
-                .filter(node -> acceptedByEndpointPolicy(srvrType, node))
-                .toList();
+        List<LsAiSrvr> candidates = candidates(srvrType);
         if (candidates.isEmpty()) {
             // ★사유를 가리지 않는다 — 형식 위반이 걸러졌는지 세지 않고, 그 유형의 행이 0건이어도 같다.
             //  여기서 empty 를 돌려주면 호출자가 배포 기본 주소로 폴백해 실제 장애가 감춰진다.

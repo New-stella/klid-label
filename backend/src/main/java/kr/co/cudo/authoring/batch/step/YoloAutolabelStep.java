@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment;
 import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
@@ -181,6 +182,14 @@ public class YoloAutolabelStep implements BatchStep {
     private final Path baseRawPath;
     /** G-ISSUE-02 — 배포 환경(stg/prd) 여부. 정적 설정만 읽는 순수 판정(외부 호출 없음). */
     private final DeployedEnvironmentDetector deployedEnvironment;
+    /**
+     * <b>같은 영상은 같은 장비로</b> — 배치 경로의 영상 고정. [@design ADR-057]
+     *
+     * <p>ai-server 는 영상 단위 추적 상태를 <b>메모리에</b> 들고 있어, 같은 영상의 프레임이 두 장비로
+     * 흩어지면 <b>객체 식별자가 어긋난다</b>. 이 스텝이 바로 그 프레임 순회의 주인이므로 여기서
+     * 한 번 정하고 <b>모든 프레임이 같은 주소</b>를 쓴다.
+     */
+    private final AiSrvrBatchAssignment batchAssignment;
 
     public YoloAutolabelStep(AiServerClient aiServerClient,
                              LsDataSrcRepository srcRepository,
@@ -193,7 +202,8 @@ public class YoloAutolabelStep implements BatchStep {
                              FrameBoundsResolver frameBoundsResolver,
                              ObjectMapper objectMapper,
                              @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
-                             DeployedEnvironmentDetector deployedEnvironment) {
+                             DeployedEnvironmentDetector deployedEnvironment,
+                             AiSrvrBatchAssignment batchAssignment) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
@@ -206,6 +216,7 @@ public class YoloAutolabelStep implements BatchStep {
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.deployedEnvironment = deployedEnvironment;
+        this.batchAssignment = batchAssignment;
     }
 
     @Override
@@ -325,6 +336,17 @@ public class YoloAutolabelStep implements BatchStep {
         // 두 영상이 연속 처리되어도 clip A 의 track_id 가 clip B 로 누수되지 않는다.
         final String clipId = String.valueOf(rawSn);
 
+        // ★영상 고정 — 프레임 순회 <전에> 한 번 정하고 모든 프레임이 같은 주소로 나간다.
+        //   [design: ADR-057] 추적 상태가 장비 프로세스의 메모리에 있어, 프레임마다 다시 고르면
+        //   같은 영상이 두 장비로 흩어져 <객체 식별자가 어긋난다>. 앞단 중계 방식이 기각된 사유가
+        //   바로 이 고정을 할 수 없다는 것이었으므로, 분산만 배선하고 고정을 빼면 그 결함을 그대로
+        //   들여오는 셈이다.
+        //   ⚠ 쓸 수 있는 후보가 0이면 여기서 <거부>가 던져진다(폴백 없음) — 프레임을 한 장도 읽기
+        //     전에 끝나므로 부분 적재가 남지 않는다. [design: AC-1093]
+        //   ⚠ 값이 비면(원장·부하 조회 실패) 분산만 포기하고 배포 기본 주소로 나간다. 저장소 순단이
+        //     정상 추론을 전량 죽이지 않게 하는 축이며 시계열 축과 같은 규약이다.
+        final String srvrAddr = batchAssignment.resolveAddress(rawSn);
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         // ── 재실행 멱등 (@req R1) — 이미 YOLO 자동 라벨이 적재된 프레임은 <b>적재(INSERT)만</b> 건너뛴다.
         //
@@ -393,7 +415,7 @@ public class YoloAutolabelStep implements BatchStep {
                 resp = aiServerClient.predictYoloTrack(
                                 new YoloTrackRequest(imageB64, clipId, frameIndex,
                                         confThreshold, imgsz, iou),
-                                AiWorkload.BATCH)
+                                AiWorkload.BATCH, srvrAddr)
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
                 log.error("[Batch][Yolo] failed srcSn={} frameIndex={} err={}",

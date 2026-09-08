@@ -176,6 +176,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       행에 베끼지 않는다). 화면에서 필수인 것과 저장에서 필수인 것은 다른 축이며, 여기를
  *       NOT NULL 로 올리면 관제 값이 있는 영상의 마킹 저장이 전부 실패한다.
  *       순수 신설이라 구 jar 에 무해하다</li>
+ *   <li>{@code V36} — {@code LS_AI_SRVR.SRVR_ID} 형식 제약을 {@code ^[a-z0-9]&#123;1,20&#125;$} 에서
+ *       {@code ^[a-z0-9_-]&#123;1,20&#125;$} 로 <b>넓힌다</b>. 장비를 등록할 때 {@code vlm-01} 처럼 읽을 수
+ *       있는 이름을 지을 수 없던 것을 푼다. ★<b>넓히는 변경이라 기존 식별자가 전부 그대로 유효</b>해
+ *       재적용이 기존 행을 거부할 수 없다(구 jar 에도 무해하다). ⚠ 반대 방향(다시 좁히기)은 그 성질이
+ *       없다 — 하이픈·밑줄을 쓴 장비가 등록된 뒤에는 그 행을 먼저 개명해야 좁힐 수 있다. 길이 20 은
+ *       컬럼 폭이라 그대로 둔다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -215,7 +221,7 @@ class FlywaySquashBaselineIT {
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
                         "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32",
-                        "33", "34", "35",
+                        "33", "34", "35", "36",
                         "9001", "9002");
     }
 
@@ -260,6 +266,7 @@ class FlywaySquashBaselineIT {
                         "V33__add_portal_user_meta_and_evnt_anno_overlay.sql",
                         "V34__add_qstn_cn_to_ls_webhook_idempotency.sql",
                         "V35__add_vrfc_evnt_type_cd_to_ls_marking.sql",
+                        "V36__relax_ls_ai_srvr_srvr_id_format.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",

@@ -268,10 +268,20 @@ class AiSrvrAdminApiIT {
     @Test
     @DisplayName("식별자_형식을_어기면_400_이고_원장에_남지_않는다")
     void 식별자_형식을_어기면_400_이고_원장에_남지_않는다() throws Exception {
-        // 실제 장비 호스트명을 그대로 쓰면 서킷 이름·메트릭 라벨이 조용히 어긋난다.
-        mockMvc.perform(adminPost(createBody("klid-ai-gpu-01", "http://10.0.0.11:9300", "INFERENCE")))
+        // ⚠구 표본 폐기(2026-09-08): "klid-ai-gpu-01" 이었다. 하이픈이 허용되면서 그 값은 <정상>이다.
+        //   여전히 위반인 것(대문자)으로 바꾼다 — 이 값은 기록·메트릭 라벨에 그대로 실린다.
+        mockMvc.perform(adminPost(createBody("KLID_GPU01", "http://10.0.0.11:9300", "INFERENCE")))
                 .andExpect(status().isBadRequest());
         assertThat(repository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("★하이픈_밑줄_식별자는_201_로_등록된다_구_거부_폐기")
+    void 하이픈_밑줄_식별자는_201_로_등록된다() throws Exception {
+        mockMvc.perform(adminPost(createBody("gpu-02", "http://10.0.0.12:9300", "INFERENCE")))
+                .andExpect(status().isCreated());
+        mockMvc.perform(adminPost(createBody("infer_gpu3", "http://10.0.0.13:9300", "INFERENCE")))
+                .andExpect(status().isCreated());
     }
 
     @Test

@@ -79,4 +79,28 @@ class AiSrvrStatusTest {
             assertThat(status.canTransitionTo(null)).isFalse();
         }
     }
+
+    /**
+     * ★ <b>「신규 배정을 받는가」와 「이미 붙은 배정을 유지하는가」는 다른 술어</b>이고, 그 둘이 갈리는
+     * 자리가 정비중 하나다. [@design AC-1100]
+     *
+     * <p>유지 축에서 정비중을 빼면 정비로 내려 둔 장비에 붙어 있던 영상이 곧바로 재배정되어 「진행 중인
+     * 작업은 끝까지」라는 정비중의 정의가 깨지고, 반대로 신규 배정 축에 정비중을 넣으면 정비가 끝나지
+     * 않는다. 두 방향을 함께 문다.
+     */
+    @Test
+    @DisplayName("★정비중은_고정된_배정을_유지한다_신규_배정만_막는다")
+    void 정비중은_고정된_배정을_유지한다() {
+        assertThat(AiSrvrStatus.AVAILABLE.retainsPinnedAssignment()).isTrue();
+        assertThat(AiSrvrStatus.DRAINING.retainsPinnedAssignment()).isTrue();
+    }
+
+    @Test
+    @DisplayName("★이용불가와_비활성은_고정된_배정을_유지하지_않는다_재배정_대상이다")
+    void 이용불가와_비활성은_고정된_배정을_유지하지_않는다() {
+        // 그 장비의 추적 상태는 이미 사라졌고, 유지하면 그 영상이 영영 죽은 장비에 묶인다
+        // (영상당 배정 한 건 + 자동 재개 장치 없음).
+        assertThat(AiSrvrStatus.UNAVAILABLE.retainsPinnedAssignment()).isFalse();
+        assertThat(AiSrvrStatus.DISABLED.retainsPinnedAssignment()).isFalse();
+    }
 }

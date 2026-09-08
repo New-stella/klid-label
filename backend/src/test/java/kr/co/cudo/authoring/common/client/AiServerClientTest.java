@@ -75,12 +75,85 @@ class AiServerClientTest {
         assertThat(batch.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
     }
 
+    // --- 목적지 고정 (ADR-057) ---------------------------------------------------------------
+
+    @Test
+    @DisplayName("★추론_요청이_원장에서_고른_장비로_나간다_구_단일설정값_축_폐기")
+    void 추론_요청이_원장에서_고른_장비로_나간다() throws Exception {
+        // given — 원장이 고른 장비(= 이 시험의 mock 서버). 빈의 기준 주소는 <절대 쓰이지 않는> 값으로 둔다.
+        server.enqueue(yoloOk());
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        AiServerClient client = new AiServerClient(
+                WebClient.builder().baseUrl("http://never-used.invalid").build(),
+                registry.circuitBreaker("b1"), registry.circuitBreaker("i1"),
+                registry.circuitBreaker("v1"), retryRegistry,
+                workload -> java.util.Optional.of(server.url("/").toString()));
+
+        // when
+        client.predictYolo(new YoloRequest("frame.jpg", 0.4, 1280, 0.5)).block(Duration.ofSeconds(2));
+
+        // then — 요청이 고른 장비에 실제로 도달했고 창구 경로가 그대로 붙었다.
+        RecordedRequest recorded = server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(recorded).isNotNull();
+        assertThat(recorded.getPath()).isEqualTo("/infer/yolo/predict");
+    }
+
+    @Test
+    @DisplayName("★호출자가_넘긴_장비가_있으면_원장을_다시_고르지_않는다_배치의_영상_고정")
+    void 호출자가_넘긴_장비가_있으면_원장을_다시_고르지_않는다() throws Exception {
+        // given — 원장이 <다른> 장비를 고르더라도 호출자가 정한 장비가 이긴다. 그러지 않으면 같은
+        //   영상의 프레임이 두 장비로 흩어져 객체 식별자가 어긋난다.
+        server.enqueue(yoloOk());
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        AiServerClient client = new AiServerClient(
+                WebClient.builder().baseUrl("http://never-used.invalid").build(),
+                registry.circuitBreaker("b2"), registry.circuitBreaker("i2"),
+                registry.circuitBreaker("v2"), retryRegistry,
+                workload -> java.util.Optional.of("http://other-node.invalid"));
+
+        // when — 고정된 장비를 명시한다
+        client.predictYoloTrack(new YoloTrackRequest("frame.jpg", "7", 0, 0.4, 1280, 0.5),
+                AiWorkload.BATCH, server.url("/").toString()).block(Duration.ofSeconds(2));
+
+        // then — 원장이 고른 쪽이 아니라 넘긴 장비로 갔다.
+        RecordedRequest recorded = server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(recorded).isNotNull();
+        assertThat(recorded.getPath()).isEqualTo("/infer/yolo/track");
+        assertThat(recorded.getHeader(AiWorkload.HEADER_NAME)).isEqualTo("batch");
+    }
+
+    @Test
+    @DisplayName("★후보가_0이면_요청을_보내지_않고_거부한다_배포_기본주소로_폴백하지_않는다")
+    void 후보가_0이면_요청을_보내지_않고_거부한다() {
+        // 원장이 거부를 던지면 그것이 그대로 호출자에게 간다. empty 로 낮추면 이 호출이 조용히
+        // 배포 기본 주소로 나가 실제 장애가 감춰진다.
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        AiServerClient client = new AiServerClient(
+                WebClient.builder().baseUrl(server.url("/").toString()).build(),
+                registry.circuitBreaker("b3"), registry.circuitBreaker("i3"),
+                registry.circuitBreaker("v3"), retryRegistry,
+                workload -> {
+                    throw new NonRetryableExternalException("쓸 수 있는 장비가 없습니다.");
+                });
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        client.predictYolo(new YoloRequest("frame.jpg", 0.4, 1280, 0.5))
+                                .block(Duration.ofSeconds(2)))
+                .isInstanceOf(NonRetryableExternalException.class);
+
+        // ★요청이 한 건도 나가지 않았다 — 이것이 「폴백 없음」의 실증이다.
+        assertThat(server.getRequestCount()).isZero();
+    }
+
     /** 용도별 서킷 2개를 주입한 클라이언트. 객체 검증 경로는 이 시험의 축이 아니라 화면 것을 재사용한다. */
     private AiServerClient newClient(CircuitBreaker batch, CircuitBreaker interactive) {
         WebClient webClient = WebClient.builder()
                 .baseUrl(server.url("/").toString())
                 .build();
-        return new AiServerClient(webClient, batch, interactive, interactive, retryRegistry);
+        // 장비 원장을 쓰지 않는 구성 — 목적지는 이 시험이 세운 mock 서버(빈 기준 주소)로 나간다.
+        //   [design: ADR-057] empty 는 「고르지 못했으나 막지 않는다」이며 이 시험의 관심사가 아니다.
+        return new AiServerClient(webClient, batch, interactive, interactive, retryRegistry,
+                workload -> java.util.Optional.empty());
     }
 
     private static MockResponse yoloOk() {
@@ -174,8 +247,11 @@ class AiServerClientTest {
     void circuitNamesComeFromSingleHelper() {
         assertThat(AiWorkload.BATCH.circuitName()).isEqualTo("ai-batch");
         assertThat(AiWorkload.INTERACTIVE.circuitName()).isEqualTo("ai-interactive");
-        // 이중화가 들어오면 노드 축이 이 뒤에 붙는다(ai-batch-{nodeId}). nodeId 에 하이픈이 들어가면
-        // 어디서 갈리는지 복원되지 않으므로 [a-z0-9]+ 로 제한하기로 합의돼 있다.
+        // ★이 이름에는 <노드 축이 붙지 않는다> — 이중화는 목적지를 원장에서 고르는 축이고 서킷
+        //   이름은 용도 축만 조립한다. ⚠구 근거 폐기(2026-09-08): 여기 「nodeId 는 [a-z0-9]+ 로
+        //   제한하기로 합의돼 있다」고 적혀 있었으나 장비 식별자 형식은 그날 하이픈·밑줄을 허용하도록
+        //   <넓혀졌다>. 노드 축을 이름에 넣게 되면 형식을 되좁히는 것이 아니라 구분자를 바꾸거나
+        //   태그로 둔다(판단 소유자는 AiSrvrIdPolicy 클래스 주석).
         assertThat(AiWorkload.BATCH.circuitName()).doesNotContain("_");
         assertThat(AiWorkload.INTERACTIVE.headerValue()).isNull();
         assertThat(AiWorkload.BATCH.headerValue()).isEqualTo("batch");

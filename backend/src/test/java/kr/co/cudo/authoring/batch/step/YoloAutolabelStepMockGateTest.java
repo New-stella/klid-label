@@ -146,7 +146,7 @@ class YoloAutolabelStepMockGateTest {
         return new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, batchStatusService, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
-                new DeployedEnvironmentDetector(env));
+                new DeployedEnvironmentDetector(env), mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
     }
 
     private LsDataSrc newSrc(Long srcSn) {
@@ -193,7 +193,7 @@ class YoloAutolabelStepMockGateTest {
     void stgBlocksWeightsMissing() {
         // given
         frames(1L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")));
 
         // when / then — 스텝 전체 실패(오케스트레이터가 FAILED 로 마킹)
@@ -210,7 +210,7 @@ class YoloAutolabelStepMockGateTest {
     void prdBlocksLoadFailed() {
         // given
         frames(2L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("load_failed")));
 
         // when / then
@@ -224,7 +224,7 @@ class YoloAutolabelStepMockGateTest {
     void prdBlocksOmittedMockMeta() {
         // given — mock=false + source 미전송(AiMockMeta 규약상 신뢰 불가, mockReason=null)
         frames(3L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new YoloResponse(List.of(), false, null, null)));
 
         // when / then
@@ -237,7 +237,7 @@ class YoloAutolabelStepMockGateTest {
     void midVideoSwitchAbortsWholeStep() {
         // given — 3프레임: 1번 정상 → 2번 mock(재기동) → 3번은 호출조차 되면 안 된다
         frames(4L, 10L, 11L, 12L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(realResponse()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")))
                 .thenReturn(Mono.just(realResponse()));
@@ -246,7 +246,7 @@ class YoloAutolabelStepMockGateTest {
         assertThatThrownBy(() -> stepFor("prd").run(4L))
                 .isInstanceOf(CustomException.class);
         // 첫 mock 즉시 중단 — 남은 프레임은 추론하지 않는다.
-        verify(aiServerClient, times(2)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(2)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any());
         // 라벨셋 버전 bump 는 정상 완주 시에만 — 부분 상태를 남기지 않는다.
         // (이미 저장된 1번 프레임 라벨은 run() 의 REQUIRES_NEW 트랜잭션 롤백으로 사라진다.)
         verify(srcRepository, never()).bumpLabelVersionIn(any());
@@ -261,7 +261,7 @@ class YoloAutolabelStepMockGateTest {
         //   먼저 평가되어 실제로 가중치가 없어도 사유가 env_mock 으로 보고되므로, 면제를 두면
         //   "가중치 미배포"가 면제 사유로 위장된다.
         frames(5L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new YoloResponse(
                         List.of(new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.9)),
                         true, "mock", "env_mock")));
@@ -280,7 +280,7 @@ class YoloAutolabelStepMockGateTest {
     void envMockStillAllowedOnDevProfile() {
         // given — 모델 없이 배치를 돌려보는 정상 개발 동선은 유지한다
         frames(9L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new YoloResponse(
                         List.of(new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.9)),
                         true, "mock", "env_mock")));
@@ -296,7 +296,7 @@ class YoloAutolabelStepMockGateTest {
     void deployedEnvMarkerWins() {
         // given
         frames(6L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")));
         MockEnvironment env = new MockEnvironment();
         env.setActiveProfiles("dev");
@@ -304,7 +304,7 @@ class YoloAutolabelStepMockGateTest {
         YoloAutolabelStep step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, batchStatusService, systemConfigService,
                 labelMasterService, frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
-                new DeployedEnvironmentDetector(env));
+                new DeployedEnvironmentDetector(env), mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
 
         // when / then
         assertThatThrownBy(() -> step.run(6L)).isInstanceOf(CustomException.class);
@@ -317,7 +317,7 @@ class YoloAutolabelStepMockGateTest {
     void devKeepsWarnOnlyBehaviour() {
         // given
         frames(7L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")));
 
         // when / then
@@ -332,7 +332,7 @@ class YoloAutolabelStepMockGateTest {
     void realResponseNotBlockedOnDeployedEnv() {
         // given
         frames(8L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(realResponse()));
 
         // when
@@ -350,7 +350,7 @@ class YoloAutolabelStepMockGateTest {
     void deployedEnvAbortsOnNullResponse() {
         // given — 빈 200 바디·무본문 프록시 응답 등으로 body 가 통째로 비는 경우
         frames(20L, 10L, 11L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.empty());
 
         // when / then — 구 구현은 게이트에 닿기 전에 continue 로 빠져나가 "라벨 0건 성공" 이 됐다.
@@ -358,7 +358,7 @@ class YoloAutolabelStepMockGateTest {
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXTERNAL_API_ERROR);
         // 첫 프레임에서 중단 — 남은 프레임은 추론하지 않는다.
-        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any());
         verify(srcRepository, never()).bumpLabelVersionIn(any());
     }
 
@@ -367,7 +367,7 @@ class YoloAutolabelStepMockGateTest {
     void deployedEnvAbortsOnNullDetections() {
         // given — source="model" 이라 untrusted() 는 false 인데 본문이 결측인 형상
         frames(21L, 10L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new YoloResponse(null, false, AiMockMeta.SOURCE_MODEL, null)));
 
         // when / then
@@ -381,12 +381,12 @@ class YoloAutolabelStepMockGateTest {
     void devSkipsNullResponse() {
         // given
         frames(22L, 10L, 11L);
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.empty());
 
         // when / then — 프레임을 건너뛰고 완주(기존 동작 보존)
         assertThatCode(() -> stepFor("dev").run(22L)).doesNotThrowAnyException();
-        verify(aiServerClient, times(2)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(2)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any());
         verify(lblRepository, never()).saveAll(any());
     }
 

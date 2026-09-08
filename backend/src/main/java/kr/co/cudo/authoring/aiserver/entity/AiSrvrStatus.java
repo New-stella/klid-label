@@ -56,6 +56,36 @@ public enum AiSrvrStatus {
         return next != null && allowedTransitions().contains(next);
     }
 
+    /**
+     * <b>이미 고정된 배정을 그대로 유지</b>할 수 있는 상태인가 — 「신규 배정 대상인가」와 <b>다른 술어</b>다.
+     * [@design ADR-057] [@design AC-1100]
+     *
+     * <h3>★ 두 술어를 하나로 합치지 말 것 (합치면 반대쪽이 깨진다)</h3>
+     * <table>
+     *   <caption>같은 상태를 두 축이 다르게 본다</caption>
+     *   <tr><th>상태</th><th>신규 배정을 받는가</th><th>고정된 배정을 유지하는가</th></tr>
+     *   <tr><td>{@link #AVAILABLE}</td><td>받는다</td><td>유지한다</td></tr>
+     *   <tr><td>{@link #DRAINING}</td><td><b>안 받는다</b></td><td><b>유지한다</b></td></tr>
+     *   <tr><td>{@link #UNAVAILABLE}</td><td>안 받는다</td><td>유지하지 않는다(재배정 대상)</td></tr>
+     *   <tr><td>{@link #DISABLED}</td><td>안 받는다</td><td>유지하지 않는다(재배정 대상)</td></tr>
+     * </table>
+     *
+     * <p><b>정비중이 갈리는 자리가 이것뿐이다.</b> 그 상태의 정의가 「신규 배정만 막고 진행 중인 배정은
+     * 끝까지 간다」이고 그것이 무중단 정비의 뜻이므로, 고정 유지 판정에서 정비중을 빼면 <b>정비로 내려
+     * 둔 장비에 붙어 있던 영상이 곧바로 다른 장비로 재배정</b>되어 그 정의가 깨진다(추론 두 단계가 서로
+     * 다른 장비로 가면 뒤 단계가 앞 단계의 추적 상태를 이어받지 못한다).
+     *
+     * <p>반대로 <b>「신규 배정 대상」 판정을 넓혀 정비중을 넣으면</b> 정비 중인 장비가 새 영상을 계속
+     * 받아 정비가 끝나지 않는다 — 무중단 정비가 반대쪽에서 깨진다. 그래서 술어를 <b>둘로 나눠</b> 둔다.
+     *
+     * <p>{@link #UNAVAILABLE} 이 유지 대상이 아닌 것은 종전 그대로다 — 그 장비의 추적 상태는 이용불가로
+     * 관측된 시점에 <b>이미 사라졌으므로</b> 지킬 연속성이 남아 있지 않고, 유지하면 그 영상이 영영 죽은
+     * 장비에 묶인다. {@link #DISABLED} 도 같다(관리자가 회전에서 뺀 장비다).
+     */
+    public boolean retainsPinnedAssignment() {
+        return this == AVAILABLE || this == DRAINING;
+    }
+
     private Set<AiSrvrStatus> allowedTransitions() {
         return switch (this) {
             case AVAILABLE -> FROM_AVAILABLE;

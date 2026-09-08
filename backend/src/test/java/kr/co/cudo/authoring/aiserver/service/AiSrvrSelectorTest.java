@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.aiserver.service;
 
+import kr.co.cudo.authoring.aiserver.entity.AiSrvrStatus;
 import kr.co.cudo.authoring.aiserver.entity.AiSrvrUsageType;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrAltmntRepository;
@@ -366,9 +367,12 @@ class AiSrvrSelectorTest {
      * 나가는 요청에는 표식이 붙어 자격증명 가드의 호스트 비교까지 면제되므로 <b>배포 기본값보다 느슨한
      * 경로</b>가 열린다.
      *
-     * <p>⚠ <b>식별자에 하이픈을 쓰지 말 것</b> — 고정값이 형식({@code ^[a-z0-9]{1,20}$})을 어기면
-     * <b>앞선 형식 필터에서 먼저 빠져</b> 이 시험이 검증하려던 주소 정책 축에 도달하지 못한다(그리고
-     * 후보가 전부 비어 위탁 거부로 끝난다). 하이픈은 <b>주소</b> 쪽에만 남겨 둔다. [@design ADR-062]
+     * <p>⚠ <b>고정값이 식별자 형식({@link AiSrvrIdPolicy#SRVR_ID_REGEX})을 어기지 않게 할 것</b> —
+     * 어기면 <b>앞선 형식 필터에서 먼저 빠져</b> 이 시험이 검증하려던 주소 정책 축에 도달하지 못한다
+     * (그리고 후보가 전부 비어 위탁 거부로 끝난다). ⚠ 구 서술 정정(2026-09-08): 여기 「식별자에
+     * <b>하이픈을 쓰지 말 것</b>」 + 낡은 정규식 {@code ^[a-z0-9]{1,20}$} 이 적혀 있었으나
+     * <b>하이픈·밑줄은 그날 허용으로 넓혀졌다</b>. 규칙 문자열을 여기 옮겨 적지 않는다 —
+     * 옮겨 적은 사본이 낡는 것이 이 정정의 원인이다. [@design ADR-062]
      */
     @Test
     @DisplayName("★연동_주소_정책을_통과하지_못하는_장비는_후보에서_빠진다")
@@ -430,7 +434,14 @@ class AiSrvrSelectorTest {
     //  원장 식별자 형식 — 기동에서 <선택 시점>으로 옮겨 온 판정 [@design ADR-062] [@design AC-1074]
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** 형식({@code ^[a-z0-9]{1,20}$})을 어긴 식별자의 장비 — 체크 제약을 우회해 들어온 행을 재현한다. */
+    /**
+     * 형식({@link AiSrvrIdPolicy#SRVR_ID_REGEX})을 어긴 식별자의 장비 — 체크 제약을 우회해 들어온
+     * 행을 재현한다.
+     *
+     * <p>⚠ 구 서술 정정(2026-09-08) — 여기 규칙을 {@code ^[a-z0-9]{1,20}$} 로 <b>옮겨 적고</b> 있었다.
+     * 하이픈·밑줄이 허용으로 넓혀진 뒤에도 그 사본이 남아 낡았다. 실제 입력(대문자·점)은 새 규칙에서도
+     * 여전히 위반이라 <b>시험이 공허해지지는 않았다</b> — 고친 것은 인용 문자열뿐이고 입력값은 그대로다.
+     */
     private LsAiSrvr malformed(String srvrId, LsAiSrvr.SrvrType type) {
         return LsAiSrvr.register(srvrId, null, "http://ts-ok:9500", type, NOW);
     }
@@ -438,17 +449,20 @@ class AiSrvrSelectorTest {
     /**
      * ★ <b>위반 행만 빠지고 나머지는 정상 사용된다</b> — 「하나가 잘못되면 전부 못 쓴다」가 아니다.
      *
-     * <p>이 값은 서킷브레이커 이름·메트릭 라벨로 <b>조립</b>되므로 그 장비를 고르는 순간부터 라벨이
-     * 조용히 어긋난다. 고르는 자리에서 빼면 잘못된 식별자가 나갈 길이 구조적으로 사라진다.
+     * <p>이 값은 기록·메트릭 라벨에 그대로 실리므로 그 장비를 고르는 순간부터 라벨이 조용히 어긋난다.
+     * 고르는 자리에서 빼면 잘못된 식별자가 나갈 길이 구조적으로 사라진다.
+     *
+     * <p>⚠ 위반 표본은 <b>대문자·점</b>이다 — 하이픈·밑줄은 2026-09-08 부터 허용이라 표본이 될 수 없다.
      */
     @Test
     @DisplayName("★식별자_형식을_위반한_장비는_후보에서_빠지고_정상_장비로_간다")
     void 식별자_형식을_위반한_장비는_후보에서_빠진다() {
         // given — 부하로는 위반 장비가 더 한가하고 식별자 순으로도 앞이라, 거르지 않으면 그쪽이 뽑힌다.
         available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
-                malformed("ts-02", LsAiSrvr.SrvrType.TIMESERIES),
+                malformed("TS.02", LsAiSrvr.SrvrType.TIMESERIES),
                 node("ok", LsAiSrvr.SrvrType.TIMESERIES));
-        acceptedCounts(Map.of("KLID-AI-01", 0L, "ts-02", 0L, "ok", 7L));
+        // ⚠구 표본 폐기(2026-09-08): "ts-02" 였다. 하이픈이 허용되면서 그 값은 <정상 후보>가 된다.
+        acceptedCounts(Map.of("KLID-AI-01", 0L, "TS.02", 0L, "ok", 7L));
 
         // when / then
         assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
@@ -470,7 +484,7 @@ class AiSrvrSelectorTest {
     @DisplayName("★★쓸_수_있는_장비가_하나도_없으면_폴백하지_않고_위탁을_거부한다")
     void 쓸_수_있는_장비가_없으면_위탁을_거부한다() {
         available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
-                malformed("ts-02", LsAiSrvr.SrvrType.TIMESERIES));
+                malformed("TS.02", LsAiSrvr.SrvrType.TIMESERIES));
 
         assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
                 .as("empty 를 돌려주면 호출자가 배포 기본 주소로 폴백해 fail-closed 가 조용히 열린다")
@@ -584,6 +598,90 @@ class AiSrvrSelectorTest {
         assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
                 .as("DB 순단을 원장 오류로 격상시키면 위탁이 전량 확정 실패로 마감된다")
                 .isEmpty();
+    }
+
+    // --- 고정 유지 축(selectPinned) — 「신규 배정 대상」과 <다른 술어>다 [@design AC-1100] ------------
+
+    /**
+     * ★ 정비중은 <b>신규 배정만</b> 막는다 — 이미 붙은 배정은 끝까지 그 장비에서 처리한다.
+     *
+     * <p>구 동작은 이 얼굴도 「신규 배정 대상」과 같은 후보 목록을 봐서, 관리자가 장비를 정비로 내리는
+     * 순간 그 장비에 고정돼 있던 영상이 <b>곧바로 다른 장비로 재배정</b>됐다. 그러면 추론 두 단계가 서로
+     * 다른 장비로 가 뒤 단계가 앞 단계의 추적 상태를 이어받지 못한다 — 무중단 정비의 정의가 깨진다.
+     */
+    @Test
+    @DisplayName("★고정된_장비가_정비중이어도_고정을_유지한다_신규배정만_막는다")
+    void 고정된_장비가_정비중이어도_고정을_유지한다() {
+        LsAiSrvr draining = statusOf(node("gpu01", LsAiSrvr.SrvrType.INFERENCE), AiSrvrStatus.DRAINING);
+        LsAiSrvr healthy = node("gpu02", LsAiSrvr.SrvrType.INFERENCE);
+        ledger(draining, healthy);
+
+        assertThat(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu01"))
+                .as("정비중 장비에 고정된 영상을 옮기면 그 장비의 진행 중 작업이 끝까지 가지 못한다")
+                .map(LsAiSrvr::getSrvrId)
+                .contains("gpu01");
+    }
+
+    /**
+     * ★ 대칭 — 이용불가는 <b>종전대로 재배정</b>한다. 옮기지 않으면 그 영상이 영영 죽은 장비에 묶인다
+     * (영상당 배정이 한 건이고 자동 재개 장치가 없다).
+     */
+    @Test
+    @DisplayName("★고정된_장비가_이용불가면_고정을_유지하지_않는다_재배정_대상이다")
+    void 고정된_장비가_이용불가면_고정을_유지하지_않는다() {
+        LsAiSrvr down = statusOf(node("gpu01", LsAiSrvr.SrvrType.INFERENCE), AiSrvrStatus.UNAVAILABLE);
+        ledger(down, node("gpu02", LsAiSrvr.SrvrType.INFERENCE));
+
+        assertThat(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu01")).isEmpty();
+    }
+
+    /** 비활성(관리자가 회전에서 뺀 장비)도 유지 대상이 아니다. */
+    @Test
+    @DisplayName("고정된_장비가_비활성이면_고정을_유지하지_않는다")
+    void 고정된_장비가_비활성이면_고정을_유지하지_않는다() {
+        ledger(statusOf(node("gpu01", LsAiSrvr.SrvrType.INFERENCE), AiSrvrStatus.DISABLED));
+
+        assertThat(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu01")).isEmpty();
+    }
+
+    /**
+     * ★★ 반대쪽 — <b>정비중은 신규 배정 후보가 아니다</b>.
+     *
+     * <p>고정 유지를 살리려고 「신규 배정 대상」 판정을 함께 넓히면 정비 중인 장비가 새 영상을 계속 받아
+     * <b>정비가 끝나지 않는다</b>. 두 시험이 짝으로 있어야 어느 쪽으로도 무너지지 않는다.
+     */
+    @Test
+    @DisplayName("★정비중_장비는_신규_배정_후보가_아니다_고정_유지와_모집단이_다르다")
+    void 정비중_장비는_신규_배정_후보가_아니다() {
+        // 신규 배정 축의 모집단은 가용만 담는다(원장에는 정비중 장비가 함께 있다).
+        when(registry.findAll()).thenReturn(List.of(
+                statusOf(node("gpu01", LsAiSrvr.SrvrType.INFERENCE), AiSrvrStatus.DRAINING)));
+        available();
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH))
+                .as("정비중 장비가 신규 배정을 받으면 잔여 배정이 줄지 않아 정비가 끝나지 않는다")
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /** 고정 유지 축도 <b>형식 위반</b>은 그대로 거른다 — 모집단만 다르고 나머지 판정은 공유한다. */
+    @Test
+    @DisplayName("고정_유지_축도_식별자_형식_위반은_거른다_판정을_복제하지_않는다")
+    void 고정_유지_축도_형식_위반은_거른다() {
+        ledger(statusOf(malformed("GPU01", LsAiSrvr.SrvrType.INFERENCE), AiSrvrStatus.DRAINING));
+
+        assertThat(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "GPU01")).isEmpty();
+    }
+
+    private void ledger(LsAiSrvr... nodes) {
+        when(registry.findAll()).thenReturn(Arrays.asList(nodes));
+        when(registry.findAvailable()).thenReturn(Arrays.stream(nodes)
+                .filter(n -> n.getSrvrSttsCd() == AiSrvrStatus.AVAILABLE)
+                .toList());
+    }
+
+    private LsAiSrvr statusOf(LsAiSrvr node, AiSrvrStatus status) {
+        org.springframework.test.util.ReflectionTestUtils.setField(node, "srvrSttsCd", status);
+        return node;
     }
 
     private boolean dependsOnAssignmentLedger(Class<?> type) {

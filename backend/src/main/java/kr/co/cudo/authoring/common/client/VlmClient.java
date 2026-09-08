@@ -90,7 +90,14 @@ public class VlmClient {
      */
     static final String DESCRIBE_SUB_PATH = "/v1/videovlm-klid/describe-sub";
 
-    /** 서버 상태 조회 경로 — 규격 §3.5. 위탁 전 처리 가능 여부 확인용. */
+    /**
+     * 서버 상태 조회 경로 — 규격 §3.5. 위탁 전 처리 가능 여부 확인용이자 <b>장비 상태점검 창구</b>다.
+     *
+     * <p>★ 이 경로가 시계열 계통의 상태점검 창구다 — 추론 계통의 창구({@code /health})와 다르며,
+     * 창구가 계통마다 다르다는 것은 근거 결정이 명시한 사양이다. 그 판정을 하는 자리는
+     * {@code HttpAiSrvrHealthProbe} 하나이고 <b>경로 문자열은 여기 하나뿐</b>이다(복제 금지).
+     * [@design ADR-057] [@design INTSPEC-003]
+     */
     static final String STATUS_PATH = "/v1/videovlm-klid/status";
 
     /**
@@ -185,8 +192,39 @@ public class VlmClient {
      * 파이프라인이 통째로 선다. 호출자는 실패 시 그대로 위탁을 진행한다.
      */
     public Mono<VlmServerStatus> fetchStatus() {
+        return fetchStatus(null);
+    }
+
+    /**
+     * 서버 상태를 <b>지정한 장비에게</b> 묻는다 — 노드 분산·상태점검. [@design ADR-057]
+     *
+     * <p>{@link #submit} 과 <b>같은 방식</b>으로 목적지를 고정한다(같은 술어 {@link PinnedTarget},
+     * 같은 표식 {@code EXPLICIT_TARGET_ATTRIBUTE}). 여기서 자기 기준으로 주소를 조립하면 「고를 때」와
+     * 「보낼 때」의 판정이 갈려 원장이 거짓말을 한다.
+     *
+     * <h3>★ 상태점검이 이것을 쓰는 것과 「이 조회는 게이트가 아니다」는 <b>양립한다</b></h3>
+     * <p>위 {@link #fetchStatus()} javadoc 이 못 박은 것은 <b>「한 번 조회에 실패했다고 그 위탁을
+     * 즉시 막지 않는다」</b>이다(위탁 직전 관측 축 — {@code VlmTimeseriesStep.observeServerStatus}).
+     * 반면 상태점검이 장비를 내리는 것은 <b>연속 실패가 임계에 닿았을 때</b>의 누적 판정이고, 그
+     * 판정으로 내려간 장비도 연속 성공이 복귀 임계에 닿으면 저절로 돌아온다. 추론 계통이 이미 그
+     * 구조이며 여기서 축이 하나 늘어난 것뿐이다.
+     *
+     * <p>⚠ 그러므로 <b>위탁 직전 관측의 「게이트 아님」 성질은 그대로 유지</b>한다 — 두 축을 하나로
+     * 합쳐 「상태 조회가 실패하면 위탁하지 않는다」로 만들지 말 것. 상태 창구가 잠깐 흔들려도
+     * 파이프라인이 서지 않게 하는 것이 그 축의 존재 이유다.
+     *
+     * @param srvrAddr 물어볼 장비의 기준 주소. {@code null}/공백이면 배포 기본 주소로 나간다
+     *                 (장비를 고르지 못한 구성 — 이 기능이 없던 때와 같은 동작)
+     */
+    public Mono<VlmServerStatus> fetchStatus(String srvrAddr) {
+        URI target = absoluteTarget(srvrAddr, STATUS_PATH);
         return webClient.get()
-                .uri(STATUS_PATH)
+                .uri(uriBuilder -> target == null ? uriBuilder.path(STATUS_PATH).build() : target)
+                .attributes(attrs -> {
+                    if (target != null) {
+                        attrs.put(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE, Boolean.TRUE);
+                    }
+                })
                 .retrieve()
                 .bodyToMono(VlmServerStatus.class)
                 .timeout(timeout);

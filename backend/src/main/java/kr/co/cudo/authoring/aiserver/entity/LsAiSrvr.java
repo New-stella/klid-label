@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * 설정과 원장을 둘 다 진실원으로 두면 "어느 쪽이 이기는가"가 코드 여기저기에 흩어진다.
  *
  * <h3>식별자와 이름을 가른 이유</h3>
- * <p>{@link #srvrId} 는 소문자·숫자만 허용하는 <b>기계용 식별자</b>다(서킷브레이커 이름과 메트릭
+ * <p>{@link #srvrId} 는 소문자·숫자·하이픈·밑줄만 허용하는 <b>기계용 식별자</b>다(기록과 메트릭
  * 라벨로 조립된다). 실제 장비 호스트명처럼 사람이 읽는 이름은 {@link #srvrNm} 이 따로 받는다.
  * 두 축을 하나로 합치면 라벨이 조용히 어긋난다 — 판정 규칙은
  * {@code AiSrvrIdPolicy} 가 단독으로 갖고 DB 체크 제약이 같은 규칙을 한 번 더 건다.
@@ -113,7 +113,7 @@ public class LsAiSrvr {
      * <p>등록 시점에 상태를 고르게 하지 않는 이유: 아직 상태점검을 한 번도 하지 않아 <b>우리가
      * 아는 것이 없기</b> 때문이다. 실제 상태는 첫 점검이 정한다.
      *
-     * @param srvrId 소문자·숫자 20자 이내({@code AiSrvrIdPolicy}). 위반 값은 DB 체크 제약이 막는다
+     * @param srvrId 소문자·숫자·하이픈·밑줄 20자 이내({@code AiSrvrIdPolicy}). 위반 값은 DB 체크 제약이 막는다
      * @param srvrNm 사람이 읽는 이름. 모르면 {@code null}(추측해 채우지 않는다)
      */
     public static LsAiSrvr register(String srvrId, String srvrNm, String srvrAddr,

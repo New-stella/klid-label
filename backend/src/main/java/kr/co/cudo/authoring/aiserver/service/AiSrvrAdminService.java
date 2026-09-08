@@ -101,7 +101,8 @@ public class AiSrvrAdminService {
         // DTO 가 이미 같은 규칙을 걸지만, 서비스가 다른 경로로 불릴 때를 위해 한 겹 더 둔다.
         if (!AiSrvrIdPolicy.isValid(srvrId)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "장비 식별자는 소문자와 숫자만 " + AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH + "자 이내로 사용할 수 있습니다.");
+                    "장비 식별자는 소문자·숫자·하이픈·밑줄만 " + AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH
+                            + "자 이내로 사용할 수 있습니다.");
         }
         AiSrvrAddressPolicy.requireValid(request.srvrAddr());
         if (repository.existsById(srvrId)) {

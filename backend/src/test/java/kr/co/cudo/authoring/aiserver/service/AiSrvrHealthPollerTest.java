@@ -160,17 +160,69 @@ class AiSrvrHealthPollerTest {
         verify(txService).applyHealth("gpu02", true, NOW);
     }
 
+    /**
+     * ⚠ <b>구 시험 폐기(2026-09-08)</b> — 여기 {@code 추론_서버가_아닌_노드는_상태점검_대상이_아니다}
+     * 가 있었고 시계열 노드에 대해 {@code verifyNoInteractions(healthProbe, ...)} 를 걸었다.
+     * <b>그 계약이 뒤집혔다</b> — 상태는 두 계통 다 잰다. 시험을 그대로 두면 새 계약이 RED 로 잡힌다.
+     * 아래 두 시험이 그 자리를 대신하며, <b>「상태는 잰다 / 부하는 안 잰다」를 갈라서</b> 고정한다.
+     */
     @Test
-    @DisplayName("추론_서버가_아닌_노드는_상태점검_대상이_아니다")
-    void 추론_서버가_아닌_노드는_상태점검_대상이_아니다() {
-        // given — 시계열 축은 논블로킹 제출 + 콜백이라 이 경로의 부하 개념이 성립하지 않는다
-        LsAiSrvr timeseries = LsAiSrvr.register("vendor1", null, "https://vendor.example",
-                LsAiSrvr.SrvrType.TIMESERIES, NOW);
+    @DisplayName("★시계열_노드도_상태점검_대상이다_구_제외필터_폐기")
+    void 시계열_노드도_상태점검_대상이다() {
+        // given — 시계열 장비가 죽어도 「가용」으로 남으면 위탁이 죽은 주소로 계속 나간다.
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
         given(repository.findAll()).willReturn(List.of(timeseries));
+        given(healthProbe.ping(any())).willReturn(false);
 
         poller(true).pollAll();
 
-        verifyNoInteractions(healthProbe, loadProbe, txService);
+        verify(healthProbe).ping(timeseries);
+        verify(txService).applyHealth("vendor1", false, NOW);
+    }
+
+    @Test
+    @DisplayName("★시계열_노드에는_부하를_묻지_않는다_상태와_부하는_다른_축이다")
+    void 시계열_노드에는_부하를_묻지_않는다() {
+        // given — 제출 후 콜백이라 「처리 대기」 개념이 없다. 그 축의 부하 원천은 우리 위탁 원장이다.
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(timeseries));
+        given(healthProbe.ping(any())).willReturn(true);
+
+        poller(true).pollAll();
+
+        verify(txService).applyHealth("vendor1", true, NOW);
+        verifyNoInteractions(loadProbe);
+    }
+
+    @Test
+    @DisplayName("★추론_노드에는_상태와_부하를_모두_묻는다")
+    void 추론_노드에는_상태와_부하를_모두_묻는다() {
+        LsAiSrvr inference = node("gpu01");
+        given(repository.findAll()).willReturn(List.of(inference));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).pollAll();
+
+        verify(healthProbe).ping(inference);
+        verify(loadProbe).probe(inference);
+    }
+
+    @Test
+    @DisplayName("★두_계통이_섞여_있어도_상태는_둘_다_재고_부하는_추론만_잰다")
+    void 두_계통이_섞여_있어도_상태는_둘_다_재고_부하는_추론만_잰다() {
+        LsAiSrvr inference = node("gpu01");
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(inference, timeseries));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).pollAll();
+
+        verify(txService).applyHealth("gpu01", true, NOW);
+        verify(txService).applyHealth("vendor1", true, NOW);
+        verify(loadProbe).probe(inference);
+        verify(loadProbe, never()).probe(timeseries);
     }
 
     @Test
@@ -185,8 +237,96 @@ class AiSrvrHealthPollerTest {
         verify(smoother).retainOnly(java.util.Set.of("gpu01"));
     }
 
+    // --- 계통별 틱 [@design AC-1099] --------------------------------------------------------------
+
+    /**
+     * ★ 계통을 지정하면 <b>그 계통만</b> 관측한다 — 주기를 계통마다 두려면 틱도 계통별이어야 한다.
+     */
+    @Test
+    @DisplayName("★계통을_지정하면_그_계통만_관측한다")
+    void 계통을_지정하면_그_계통만_관측한다() {
+        LsAiSrvr inference = node("gpu01");
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(inference, timeseries));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).poll(LsAiSrvr.SrvrType.TIMESERIES);
+
+        verify(healthProbe).ping(timeseries);
+        verify(healthProbe, never()).ping(inference);
+    }
+
+    /** 대칭 — 추론 틱은 시계열 장비를 건드리지 않는다(그쪽 벤더를 우리 주기로 두드리지 않는다). */
+    @Test
+    @DisplayName("★추론_틱은_시계열_장비를_두드리지_않는다")
+    void 추론_틱은_시계열_장비를_두드리지_않는다() {
+        LsAiSrvr inference = node("gpu01");
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(inference, timeseries));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).poll(LsAiSrvr.SrvrType.INFERENCE);
+
+        verify(healthProbe).ping(inference);
+        verify(healthProbe, never()).ping(timeseries);
+    }
+
+    /**
+     * ★★ 평활 표본 정리는 <b>전 계통</b> 기준이다 — 계통으로 좁히면 다른 계통 표본이 매 틱 지워진다.
+     *
+     * <p>부하 표본을 갖는 것은 추론뿐이라, 시계열 틱이 자기 계통만 기준으로 정리하면 <b>추론의 평활
+     * 창이 통째로 비고</b> 바쁜 장비가 가장 한가한 장비로 보여 요청을 빨아들인다(재기동 직후와 같은
+     * 상태가 시계열 주기마다 재현된다).
+     */
+    @Test
+    @DisplayName("★시계열_틱이_추론의_평활_표본을_지우지_않는다")
+    void 시계열_틱이_추론의_평활_표본을_지우지_않는다() {
+        given(repository.findAll()).willReturn(List.of(node("gpu01"), timeseriesNode("vendor1")));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).poll(LsAiSrvr.SrvrType.TIMESERIES);
+
+        verify(smoother).retainOnly(Set.of("gpu01", "vendor1"));
+    }
+
+    /** 그 계통에 장비가 하나도 없어도 정리는 <b>먼저</b> 한다(기존 성질을 계통 축에서도 유지). */
+    @Test
+    @DisplayName("그_계통에_장비가_없어도_평활_표본_정리는_수행한다")
+    void 그_계통에_장비가_없어도_평활_표본_정리는_수행한다() {
+        given(repository.findAll()).willReturn(List.of(node("gpu01")));
+
+        poller(true).poll(LsAiSrvr.SrvrType.TIMESERIES);
+
+        verify(smoother).retainOnly(Set.of("gpu01"));
+        verifyNoInteractions(healthProbe);
+    }
+
+    /** 계통을 모르면(구 등록 행) <b>전 계통</b>을 훑는다 — 안 도는 쪽이 더 위험하다. */
+    @Test
+    @DisplayName("계통을_주지_않으면_전_계통을_훑는다_구_등록행_하위호환")
+    void 계통을_주지_않으면_전_계통을_훑는다() {
+        LsAiSrvr inference = node("gpu01");
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(inference, timeseries));
+        given(healthProbe.ping(any())).willReturn(true);
+        given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
+
+        poller(true).poll(null);
+
+        verify(healthProbe).ping(inference);
+        verify(healthProbe).ping(timeseries);
+    }
+
     private static boolean anyBooleanArg() {
         return org.mockito.ArgumentMatchers.anyBoolean();
+    }
+
+    private static LsAiSrvr timeseriesNode(String srvrId) {
+        return LsAiSrvr.register(srvrId, null, "https://vendor.example",
+                LsAiSrvr.SrvrType.TIMESERIES, NOW);
     }
 
     private static LsAiSrvr node(String srvrId) {

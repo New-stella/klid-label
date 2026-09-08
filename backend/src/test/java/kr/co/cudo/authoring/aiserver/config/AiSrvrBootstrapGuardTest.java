@@ -39,16 +39,25 @@ class AiSrvrBootstrapGuardTest {
     @Test
     @DisplayName("형식을_위반한_아이디를_집어낸다 — 규칙은 그대로다")
     void 형식을_위반한_아이디를_집어낸다() {
-        assertThat(AiSrvrBootstrapGuard.srvrIdViolations(List.of("gpu01", "klid-ai-gpu-01")))
-                .containsExactly("klid-ai-gpu-01");
+        // ⚠구 시험 폐기(2026-09-08): 위반 표본이 "klid-ai-gpu-01" 이었다. 하이픈이 허용되면서
+        //   그 값은 <정상>이 됐다. 표본을 여전히 위반인 것(대문자·점)으로 바꾼다.
+        assertThat(AiSrvrBootstrapGuard.srvrIdViolations(List.of("gpu-01", "klid.ai.gpu.01")))
+                .containsExactly("klid.ai.gpu.01");
+    }
+
+    @Test
+    @DisplayName("★하이픈_밑줄_아이디는_위반이_아니다_구_표본_폐기")
+    void 하이픈_밑줄_아이디는_위반이_아니다() {
+        assertThat(AiSrvrBootstrapGuard.srvrIdViolations(
+                List.of("klid-ai-gpu-01", "infer_gpu2", "gpu01"))).isEmpty();
     }
 
     @Test
     @DisplayName("위반_아이디를_전부_모은다")
     void 위반_아이디를_전부_모은다() {
         // 하나만 알려주면 고치고 다시 보기를 반복하게 된다.
-        assertThat(AiSrvrBootstrapGuard.srvrIdViolations(List.of("GPU01", "gpu-02", "gpu03")))
-                .containsExactly("GPU01", "gpu-02");
+        assertThat(AiSrvrBootstrapGuard.srvrIdViolations(List.of("GPU01", "gpu 02", "gpu03")))
+                .containsExactly("GPU01", "gpu 02");
     }
 
     /**

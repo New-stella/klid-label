@@ -58,6 +58,12 @@ function wireList(mock: MockAdapter, inference: AiSrvr[], timeseries: AiSrvr[]) 
     .reply(() => ok(timeseries) as never);
 }
 
+/**
+ * 식별자 형식 거부 문구 — 판정은 `schemas.ts` 의 `SRVR_ID_PATTERN` 한 곳이 소유한다.
+ * 여기 값을 복제로 보지 말 것: 화면에 실제로 뜨는 문장을 고정하는 단언 대상이다.
+ */
+const SRVR_ID_MESSAGE = '식별자는 소문자·숫자·하이픈(-)·밑줄(_)만 20자 이내로 사용할 수 있습니다';
+
 /** 관리자 유효창을 미리 열어 둔다(쓰기 조작이 가능한 상태). */
 function openWindow() {
   useAdminSessionStore.getState().open({ token: DUMMY_SESSION, expiresAt: FUTURE() });
@@ -214,13 +220,99 @@ describe('AiServerListCard — AI 장비 목록 (SCREEN-042)', () => {
       await screen.findByTestId('ai-server-row-gpu01');
 
       fireEvent.click(screen.getByRole('button', { name: '장비 등록' }));
-      fireEvent.change(await screen.findByLabelText('장비 식별자'), { target: { value: 'GPU-09' } });
+      // ⚠ 대문자 하나만으로 거부되는 값이다 — 하이픈·밑줄은 이제 정상 문자라
+      //   구 픽스처(`GPU-09`)처럼 두 사유를 섞으면 어느 축이 걸렀는지 시험이 말해 주지 못한다.
+      fireEvent.change(await screen.findByLabelText('장비 식별자'), { target: { value: 'GPU09' } });
       fireEvent.change(screen.getByLabelText('주소'), { target: { value: 'http://10.0.0.9:9300' } });
       fireEvent.click(screen.getByRole('button', { name: '등록' }));
 
-      expect(
-        await screen.findByText('식별자는 소문자와 숫자만 20자 이내로 사용할 수 있습니다'),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(SRVR_ID_MESSAGE)).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * 식별자 형식 — 하이픈·밑줄을 받는다. [@design API-227] [@design SCREEN-042]
+   *
+   * ★ 넓히는 변경이라 **종전 식별자는 전부 그대로 유효**하다. 그래서 여기서 지켜야 하는 것은
+   *   ①새로 열린 문자가 실제로 통과해 **전송까지 되는가** ②길이 상한 20 과 **원래 막던 문자
+   *   (대문자·공백·개행)가 여전히 막히는가** 둘이다. 한쪽만 두면 「넓혔다」와 「다 열었다」가
+   *   구분되지 않는다.
+   *
+   * ⚠ 본문만 단언하면 **창구 주소를 바꾸는 변이**를 통과시킨다(본문은 그대로이므로) — 그래서
+   *   전송 주소도 함께 단언한다.
+   */
+  describe('식별자 형식 — 하이픈·밑줄을 받는다', () => {
+    /** 등록 창을 열어 식별자·주소를 채우고 등록을 누른다. 실제로 나간 요청을 돌려준다. */
+    async function submitId(srvrId: string) {
+      openWindow();
+      wireList(mock, [server()], []);
+      const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+      mock.onPost('/manage/ai-servers').reply((config) => {
+        posted.push({ url: config.url ?? '', body: JSON.parse(config.data ?? '{}') });
+        return ok(server({ srvrId })) as never;
+      });
+
+      renderWithProviders(<AiServerListCard />);
+      await screen.findByTestId('ai-server-row-gpu01');
+
+      fireEvent.click(screen.getByRole('button', { name: '장비 등록' }));
+      fireEvent.change(await screen.findByLabelText('장비 식별자'), { target: { value: srvrId } });
+      fireEvent.change(screen.getByLabelText('주소'), { target: { value: 'http://10.0.0.9:9300' } });
+      fireEvent.click(screen.getByRole('button', { name: '등록' }));
+
+      return posted;
+    }
+
+    it.each([
+      ['가운데 하이픈', 'gpu-09'],
+      ['가운데 밑줄', 'gpu_09'],
+      ['맨 앞 하이픈', '-gpu09'],
+      ['맨 뒤 하이픈', 'gpu09-'],
+      ['맨 앞 밑줄', '_gpu09'],
+      ['맨 뒤 밑줄', 'gpu09_'],
+      ['하이픈만', '-'],
+      ['상한 20자 — 맨 앞·맨 뒤가 하이픈·밑줄', `_${'a'.repeat(18)}-`],
+    ])('★%s 는 통과해 그대로 전송된다 (%s)', async (_label, srvrId) => {
+      const posted = await submitId(srvrId);
+
+      await waitFor(() => expect(posted).toHaveLength(1));
+      expect(posted[0].body).toMatchObject({ srvrId });
+      // 주소 축 — 본문이 같아도 창구가 바뀌면 다른 일이 일어난다
+      expect(posted[0].url).toBe('/manage/ai-servers');
+    });
+
+    /**
+     * ⚠ **개행은 이 홉에서 재현할 수 없다** — `input[type=text]` 의 값 정제(value sanitization)가
+     *   CR/LF 를 지워 화면에 닿기 전에 사라진다. 그 축은 판정 자체를 부르는 스키마 시험
+     *   (`schemas.test.ts`)이 지킨다. 여기서 억지로 넣으면 «거부된다»가 아니라 «애초에 들어가지
+     *   않는다»를 검증하게 되어 시험 이름이 거짓이 된다.
+     */
+    it.each([
+      ['21자 — 상한을 넘는다', `_${'a'.repeat(19)}-`],
+      ['대문자', 'GPU09'],
+      ['가운데 공백', 'gpu 09'],
+      ['마침표', 'gpu.09'],
+    ])('%s 는 여전히 거부된다 (%s)', async (_label, srvrId) => {
+      const posted = await submitId(srvrId);
+
+      expect(await screen.findByText(SRVR_ID_MESSAGE)).toBeInTheDocument();
+      expect(posted).toHaveLength(0);
+    });
+
+    it('안내 문구가 규칙보다 좁게 남지 않는다 — 하이픈·밑줄이 함께 적혀 있다', async () => {
+      openWindow();
+      wireList(mock, [server()], []);
+      renderWithProviders(<AiServerListCard />);
+      await screen.findByTestId('ai-server-row-gpu01');
+
+      fireEvent.click(screen.getByRole('button', { name: '장비 등록' }));
+      await screen.findByLabelText('장비 식별자');
+
+      // ⚠ 문구가 규칙보다 좁으면 사용자는 되는 것을 안 된다고 읽는다.
+      const hint = screen.getByText(/20자 이내입니다\. 등록 뒤에는 바꿀 수 없습니다\./);
+      expect(hint).toHaveTextContent('하이픈(-)');
+      expect(hint).toHaveTextContent('밑줄(_)');
+      expect(hint).not.toHaveTextContent('소문자와 숫자만');
     });
   });
 
