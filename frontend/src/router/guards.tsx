@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 
 import { redirectToUpstream } from '@/features/auth/redirectToUpstream';
 import {
+  retryServerRole,
   SERVER_ROLE_UNKNOWN_DESC,
   SERVER_ROLE_UNKNOWN_TITLE,
 } from '@/features/auth/sessionBootstrap';
@@ -63,7 +64,8 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
   );
 }
 
-// [@design ADR-063] [@design AC-1017] [@design SCREEN-002] [@design SCREEN-003]
+// [@design ADR-063] [@design AC-1017] [@design SCREEN-001] [@design SCREEN-002]
+// [@design SCREEN-003] [@design API-006]
 /**
  * 서버 인가 역할을 <b>확인하지 못했을 때</b>의 제자리 안내.
  *
@@ -74,6 +76,14 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
  * 실수를 되풀이하지 않는다.
  *
  * ⚠ 문구는 진입 화면과 <b>같은 상수</b>를 쓴다 — 두 곳에 각각 적으면 한쪽만 고쳐진다.
+ *
+ * <h3>★재시도 조작 (2026-09-08 · {@code ADR-063} ⑨)</h3>
+ * 확보 실패는 캐시되므로 그대로 두면 <b>문서를 새로 불러올 때까지 영구히 실패</b>다. 문구는
+ * "잠시 후 다시 시도해주세요"인데 사용자가 할 수 있는 시도가 없었다. 라벨은 확정 사양
+ * (`SCREEN-001`)이 정한 <b>"다시 시도"</b>이며 그 값이 {@code ErrorState} 의 기본값과 같다.
+ *
+ * ⚠ <b>자동 반복으로 만들지 말 것</b> — 사람이 누를 때만 다시 태운다. `useEffect` 로 재시도를
+ *   걸면 실패 → 렌더 → 재시도 → 실패 고리가 되어 장애 구간에 조회가 폭주한다.
  */
 function ServerRoleUnknownNotice() {
   return (
@@ -81,7 +91,13 @@ function ServerRoleUnknownNotice() {
       className="flex h-full items-center justify-center py-10"
       data-testid="server-role-unknown-notice"
     >
-      <ErrorState title={SERVER_ROLE_UNKNOWN_TITLE} message={SERVER_ROLE_UNKNOWN_DESC} />
+      <ErrorState
+        title={SERVER_ROLE_UNKNOWN_TITLE}
+        message={SERVER_ROLE_UNKNOWN_DESC}
+        onRetry={() => {
+          void retryServerRole();
+        }}
+      />
     </div>
   );
 }
@@ -103,8 +119,8 @@ interface RoleGuardProps {
  * - isHydrated false → 토큰 복원 대기 (스피너)
  * - claims 없음 → /ingress (재인계 시도)
  * - exp 만료 → 상위 시스템 redirect
- * - 서버 역할 확보 중 → 판정 보류 (스피너)
- * - 서버 역할 확보 실패 + 토큰에도 역할 없음 → 제자리 오류 안내 (★/role-claim 아님)
+ * - 서버 역할 미확보 / 확보 중 → 판정 보류 (스피너)
+ * - 서버 역할 확보 실패 + 토큰에도 역할 없음 → 제자리 오류 안내 (★/role-claim 아님, 재시도 제공)
  * - role 미부여(null) → /role-claim (Phase 2 — 권한 자가 부여 화면)
  * - 역할 불일치 → /forbidden
  *
@@ -145,16 +161,22 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
       </div>
     );
   }
-  // [@design ADR-063] [@design SEQ-034] [@design AC-1016]
+  // [@design ADR-063] [@design SEQ-034] [@design AC-1016] [@design AC-1098]
   // ★서버 인가 역할을 <아직 확보하지 못했으면 판정하지 않는다>. 새로고침 복원 직후가 그
   //   순간이다 — 저장소는 토큰만 되살리고 서버 역할은 화면 수명과 함께 사라지므로, 여기서
   //   기다리지 않으면 역할 보유자가 <역할 없음>으로 판정돼 권한 요청 안내로 튕긴다.
+  //
+  //   ★<b>미확보(`unacquired`)와 확보 중(`pending`)은 사유가 다르지만 판정은 같다</b> — 둘 다
+  //     <아직 결과가 없다>. 예전에는 미확보가 `idle` 과 한 값이라 <세션 없음>과 뭉쳐 있었고,
+  //     그래서 <조용히 통과>했다(서버 역할을 한 번도 확인하지 않은 채 화면이 열렸다).
+  //     ⚠ `idle` 을 여기에 끌어들이지 말 것 — 그건 <물을 것이 없다>는 뜻이라 통과가 맞다.
+  //       끌어들이면 로그인하지 않은 사용자가 진입 안내 대신 영구 스피너를 본다.
   //
   //   ⚠ 조회 자체를 이 자리로 끌어올리지 말 것. 가드는 렌더 시점에 동기로 판정하는 자리라
   //     여기에 비동기 조회를 넣으면 <역할을 가진 사용자의 모든 라우트 전환>까지 그 조회를
   //     기다린다. 조회는 부팅 1회(`features/auth/sessionBootstrap`)에서 끝내고 여기서는
   //     그 결과만 읽는다.
-  if (serverRoleStatus === 'pending') {
+  if (serverRoleStatus === 'unacquired' || serverRoleStatus === 'pending') {
     return (
       <div className="flex h-full items-center justify-center py-10">
         <Spinner label="인증 확인 중" />

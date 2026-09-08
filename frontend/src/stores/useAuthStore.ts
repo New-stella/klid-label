@@ -59,13 +59,25 @@ function readPersistedToken(): string | null {
  * `'pending'` 을 동기로 세우고, 그 세팅은 토큰 복원과 <b>같은 렌더 배치</b>에서 일어나므로
  * 「복원은 끝났는데 아직 조회를 시작하지 않은」 창은 화면에 나타나지 않는다.
  *
- * - `idle`     확보 절차가 이 세션에 대해 아직 시작되지 않았다(또는 세션이 없다).
- * - `pending`  조회 중 — <b>역할 판정을 미룬다</b>.
- * - `ready`    서버 값이 claims 에 주입됐다.
- * - `failed`   확인하지 <b>못했다</b>. ★「역할 없음」이 아니다 — 이 둘을 뭉개면 서버 장애가
- *              *"아직 관리자가 없습니다"* 로 표시된다(2026-09-07 에 고친 결함).
+ * <h3>★`'idle'` 과 `'unacquired'` 를 가른 이유 (2026-09-08)</h3>
+ * 예전에는 `'idle'` 하나가 <b>「세션이 없다」와 「세션은 있는데 확보가 누락됐다」를 겸했다</b>.
+ * 앞쪽은 통과시켜야 하고(로그인하지 않은 사용자를 스피너에 가두지 않는다) 뒤쪽은 판정을
+ * 멈춰야 하는데, 한 값이라 <b>뒤쪽이 조용히 통과</b>했다 — 서버 역할을 한 번도 확인하지 않은
+ * 채 화면이 열리는 fail-open 이다. 그래서 <b>세션이 실제로 수립되는 자리</b>
+ * (`setToken`·`setTokenAndClaims`·`hydrate` 의 복원 성공)에서만 `'unacquired'` 를 세운다.
+ *
+ * ⚠ <b>초기값을 `'unacquired'` 로 올리지 말 것.</b> 그러면 `'pending'` 초기값과 똑같은 사고가
+ *   난다 — 스토어에 상태를 직접 심는 화면 시험이 전부 영구 스피너에 걸린다. 이 값은
+ *   <b>세션 수립 행위가 남기는 표식</b>이지 기본 상태가 아니다.
+ *
+ * - `idle`        확보 대상이 아니다 — 세션이 없거나 아직 수립되지 않았다. <b>통과</b>.
+ * - `unacquired`  세션은 섰는데 확보 결과가 없다. <b>역할 판정에 도달하지 않는다</b>.
+ * - `pending`     조회 중 — <b>역할 판정을 미룬다</b>.
+ * - `ready`       서버 값이 claims 에 주입됐다.
+ * - `failed`      확인하지 <b>못했다</b>. ★「역할 없음」이 아니다 — 이 둘을 뭉개면 서버 장애가
+ *                 *"아직 관리자가 없습니다"* 로 표시된다(2026-09-07 에 고친 결함).
  */
-export type ServerRoleStatus = 'idle' | 'pending' | 'ready' | 'failed';
+export type ServerRoleStatus = 'idle' | 'unacquired' | 'pending' | 'ready' | 'failed';
 
 interface AuthState {
   token: string | null;
@@ -196,13 +208,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     const claims = decodeJwtPayload(token);
     if (!claims) return; // 유효하지 않은 토큰은 저장하지 않음
     persistToken(token);
-    set({ token, claims });
+    // ★세션을 세우는 것은 <확보 결과를 지우는 것>이기도 하다 — claims 를 토큰 디코드값으로
+    //   재구성하므로 주입해 둔 서버 역할이 함께 사라진다. 그 사실을 상태로 남기지 않으면
+    //   가드가 「역할 없음」으로 판정한다(2026-09-08 에 고친 결함).
+    set({ token, claims, serverRoleStatus: 'unacquired' });
   },
   setTokenAndClaims: (token: string) => {
     const claims = decodeJwtPayload(token);
     if (!claims) return;
     persistToken(token);
-    set({ token, claims });
+    set({ token, claims, serverRoleStatus: 'unacquired' });
   },
   setServerRole: (role: Role | null, name?: string | null) => {
     set((state) => {
@@ -230,7 +245,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       const claims = decodeJwtPayload(stored);
       // 만료된 토큰은 무시
       if (claims && claims.exp > Math.floor(Date.now() / 1000)) {
-        set({ token: stored, claims, isHydrated: true });
+        // 복원된 세션도 <확보 전>이다. 서버 역할은 저장소에 두지 않으므로 새로고침이면
+        // 통째로 사라져 있고, 그 사실을 표식으로 남겨야 가드가 판정을 미룬다.
+        set({ token: stored, claims, isHydrated: true, serverRoleStatus: 'unacquired' });
         return;
       }
       // 만료됐으면 스토리지에서도 제거

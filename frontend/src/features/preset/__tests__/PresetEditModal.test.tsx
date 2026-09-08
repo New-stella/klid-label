@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
@@ -462,13 +463,20 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
    * 실사용 재현의 핵심 — 모달이 <b>닫혀 있는 동안</b> 옵션·마스터 조회가 끝난 상태를 만든다.
    * 이 컴포넌트는 목록 화면에 상시 마운트돼 있어 두 조회가 모달을 열기 전에 이미 완료된다.
    */
-  const warmUp = async () => {
+  const warmUp = async (queryClient: QueryClient) => {
     await waitFor(() => {
       expect(mock.history.get.some((c) => c.url === '/manage/event-types')).toBe(true);
       expect(mock.history.get.some((c) => c.url === '/manage/labels')).toBe(true);
     });
-    // 응답 반영(쿼리 성공 → 리렌더)까지 흐르게 둔다.
-    await waitFor(() => expect(mock.history.get.length).toBeGreaterThanOrEqual(2));
+    // 이 시점에 <b>진행 중인 조회가 없다</b>는 것을 확인한다 — 실사용 진입 순서(모달을 열기
+    // 전에 옵션·마스터가 이미 있다)가 실제로 만들어졌다는 뜻이다.
+    //
+    // ⚠ 구 단언(`mock.history.get.length >= 2`)은 <b>위 waitFor 가 통과한 시점에 이미 참</b>이라
+    //   아무것도 확인하지 않았다 — 「요청이 나갔다」와 「응답이 반영됐다」는 다른 축인데 둘 다
+    //   요청 이력만 보고 있었다. 아래는 응답 축을 본다.
+    // ⚠ 다만 <b>기다리는 장치로 읽지 말 것</b> — 실측상 첫 평가에서 이미 0이라 대기 시간이 0이다.
+    //   이 줄의 값은 「전제가 성립한다」를 못박는 자기검사이지 동기화가 아니다.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
   };
 
   /** 편집 진입 직후의 세 축을 함께 본다 — 값·오류·저장 수단. */
@@ -484,8 +492,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
   it('★수정_진입시_저장된_이벤트가_선택된_채로_열린다_실사용_전이_순서', async () => {
     // 제외 대분류(배회)라 필터 옵션 축이었다면 옵션에 없어 표시조차 되지 않았다.
     const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
 
     // when: 「수정」 클릭 — 닫힘·미지정에서 열림·대상지정으로 전이한다.
     rerender(
@@ -500,8 +508,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
     //   실행되지 않는다. 그래서 여기서는 <b>렌더 정착</b>(옵션 등록 완료)을 대기 축으로 쓰고
     //   오류 유무는 단언으로만 본다.
     const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
     rerender(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
     );
@@ -519,8 +527,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
 
   it('★수정_진입_복원은_모달을_닫았다_다시_열어도_같다', async () => {
     const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
 
     const openIt = () =>
       rerender(
@@ -558,8 +566,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
         },
       ],
     });
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
     rerender(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
     );
@@ -587,7 +595,7 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
     const user = userEvent.setup();
     const initial = presetOf({ id: 3, eventTypeCd: 'EV08000101', eventTypeNm: '배회' });
     const { rerender, queryClient } = closedModal();
-    await warmUp();
+    await warmUp(queryClient);
     rerender(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} initial={initial} />,
     );
@@ -625,8 +633,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
   // ── 신규 모드 — 「걸리는 쪽」 ────────────────────────────────────────
 
   it('★신규_진입은_두_축이_모두_미선택이고_저장이_잠긴다', async () => {
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
     rerender(<PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />);
 
     const trigger = await screen.findByLabelText(/이벤트유형/);
@@ -638,8 +646,8 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
 
   it('★신규_모드에서_이벤트유형을_고르는_순간_저장이_활성된다_라벨_0건은_막지_않는다', async () => {
     const user = userEvent.setup();
-    const { rerender } = closedModal();
-    await warmUp();
+    const { rerender, queryClient } = closedModal();
+    await warmUp(queryClient);
     rerender(<PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />);
     await screen.findByRole('checkbox', { name: /사람/ });
 
