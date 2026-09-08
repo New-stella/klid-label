@@ -17,6 +17,11 @@
 //   본문 상단 탭(`PortalContentTabs`, 레이아웃이 그린다)이 맡으므로 이 화면은 자기 제목 밴드도 두지
 //   않는다(서비스 제목은 Host 머리 영역이, 화면 이름은 활성 탭이 이미 말한다).
 //
+// <h3>모양 — DS-002(포털 채널) 축</h3>
+// 관제 공통 부품(`components/common/*`)을 쓰지 않고 포털 전용 계층(`components/portal/ui/*`)을 쓴다.
+// 그 부품들은 관제 화면 여럿이 함께 쓰므로 포털 모양을 넣으면 관제 화면이 같이 바뀐다
+// (사용자 확정 구속: **관제향 화면·컴포넌트 불변**). 색·크기는 채널이 산출 시점에 정한다.
+//
 // ⚠ 행 마크업을 별도 컴포넌트로 빼지 않는다 — 표 표면 관례 가드가 `<table>` ~ `</table>` **구간의
 //   소스 문자열**로 행 hover 토큰을 판정해서, 행을 다른 함수로 옮기면 그 축이 구조적으로 검사
 //   밖이 된다(형제 화면 `PortalAugmentPage` 도 같은 이유로 행을 인라인으로 둔다).
@@ -25,12 +30,17 @@
 //   서버가 토큰 주체로 강제한다(CWE-639).
 
 import { useRef, useState } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, Inbox, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
-import { Badge } from '@/components/common/Badge';
 import { Pagination } from '@/components/common/Pagination';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { PortalAlert } from '@/components/portal/ui/PortalAlert';
+import { PortalBadge } from '@/components/portal/ui/PortalBadge';
+import { PortalCard } from '@/components/portal/ui/PortalCard';
+import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
+import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
+import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
+import { portalButtonSm } from '@/components/portal/ui/portalControl';
 import { cn } from '@/lib/cn';
 import {
   downloadDatamartVideoData,
@@ -42,18 +52,22 @@ import { formatExpiryDate } from '@/features/portal/expiry';
 import { buildPortalWorkLabelPath } from '@/features/portal/labelingEntry';
 import { downloadUploadExport } from '@/features/portal/uploads/api';
 import { useUserWorks } from '@/features/portal/hooks/useUserWorks';
-import { formatDateTime } from '@/features/review/formatDateTime';
+import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 
 const PAGE_SIZE = 20;
 
-/** 표 헤더 셀 — 표 표면 관례(14px/600 토큰 + 대문자화). `<th>` 에 직접 건다. */
+/**
+ * 표 헤더 셀 — DS-002 표 표면 관례.
+ *
+ * ★굵기가 아니라 **색으로 죽인다** — `text-table-header` 가 채널마다 굵기를 정한다(포털 500 /
+ *  관제 600). 이 한 칸이 두 채널이 정면으로 갈리는 자리다(`DS-002.do_rules`).
+ * ⚠ 글자색은 **600 이다. 500 으로 내리지 말 것** — DS-002 본문은 표 헤더를 slate-500 로 적지만
+ *   이 배경(`bg-secondary-50`) 위에서 500 은 4.23:1 로 AA 미달이고 600 이 통과한다. 두 채널
+ *   모두에서 그 경계를 못박은 회귀 가드가 있다(`tableSurfaceConvention`).
+ * ⚠ `<th>` 에 직접 건다 — `<tr>`/`<thead>` 에만 걸면 브라우저 기본 `th { font-weight: bold }` 가
+ *   상속값을 이긴다.
+ */
 const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
-
-const ACTION_BUTTON_CLASS =
-  'inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50';
-
-const CONTINUE_BUTTON_CLASS =
-  'inline-flex shrink-0 items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors';
 
 /** 자산 출처 표기 — 두 축이 한 목록에 섞이므로 행마다 어느 축인지 읽혀야 한다(사양 SCREEN-028). */
 const SOURCE_LABEL: Record<PortalWorkAssetSource, string> = {
@@ -74,9 +88,6 @@ const SOURCE_LABEL: Record<PortalWorkAssetSource, string> = {
  *   그래서 **두 사유 모두에 참인 표현**만 쓴다.
  *   ⚠ 구 문구 폐기 — *"열 수 있는 프레임이 없어 …"*. ②에서는 **프레임이 멀쩡히 있는데** 없다고
  *     말하게 되어, 사용자가 프레임이 사라진 줄 알고 엉뚱한 회복 경로로 간다.
- *   ⚠ 구 근거도 폐기 — *"화면이 아는 사실은 「열 프레임이 없다」 하나뿐이다"*. **경고 자체는 여전히
- *     옳고**(확인하지 않은 원인을 단정하면 안 된다) 바뀐 것은 그 전제다 — 지금은 화면이 아는 것이
- *     「지금 열 수 없다」뿐이고 그 이유는 아예 알 수 없다.
  *
  * ⚠ **잠정 문구다** — 시안이 이 문구와 그 자리를 아직 확정하지 않았다(사양 SCREEN-028 이 그렇게
  *   적는다). 확정 전까지 **최소한의 평이한 표기**로 둔다. 꾸미지 말 것.
@@ -190,44 +201,72 @@ export function PortalHomePage() {
   const isEmpty = !isLoading && works.length === 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <section aria-labelledby="portal-my-works" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="portal-my-works" className="text-section-title text-gray-800">
-            내 저장 작업
-          </h2>
-          {!isLoading && (
-            <span data-testid="portal-work-count" className="text-sub text-gray-600">
-              {totalElements}건
-            </span>
-          )}
-        </div>
+    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+      <section aria-labelledby="portal-my-works" className="flex flex-col gap-in-component">
+        <PortalSectionHead
+          id="portal-my-works"
+          title="내 저장 작업"
+          lead="내가 올린 자산과, 내가 라벨이나 메타를 더한 영상이 여기에 모입니다."
+          count={
+            isLoading ? undefined : (
+              <span data-testid="portal-work-count">{totalElements}건</span>
+            )
+          }
+        />
 
         {downloadError !== null && (
-          <p role="alert" data-testid="portal-work-download-error" className="text-sub text-danger">
-            {downloadError}
-          </p>
+          <PortalAlert
+            tone="error"
+            title="내려받지 못했습니다"
+            description={downloadError}
+            live
+            data-testid="portal-work-download-error"
+          />
         )}
 
         {isLoading ? (
-          <p role="status" className="text-sub text-gray-600">
-            저장한 작업을 불러오는 중입니다.
-          </p>
+          <>
+            <p role="status" className="text-body-sm text-gray-600">
+              저장한 작업을 불러오고 있습니다.
+            </p>
+            <PortalListSkeleton />
+          </>
         ) : isEmpty ? (
           /* 행이 하나도 없을 때만 나온다 — 라벨 건수가 0인 행은 작업물을 가진 정상 행이라
-             이 안내로 대신하지 않는다(사양 SCREEN-028). */
-          <p role="status" data-testid="portal-work-empty" className="text-sub text-gray-600">
-            저장한 작업이 없습니다.
-          </p>
+             이 안내로 대신하지 않는다(사양 SCREEN-028).
+             ★조작을 두지 않는다 — 영상을 고르는 자리가 **이 배포본 바깥**(Host 화면)이라
+               여기서 갈 수 있는 곳이 없다. 누를 수 없는 버튼을 두면 막다른 길이 하나 더 는다. */
+          <PortalEmptyState
+            data-testid="portal-work-empty"
+            icon={Inbox}
+            title="저장한 작업이 없습니다."
+            description="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다."
+          />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="w-full text-body-md" data-testid="portal-work-table">
+          <PortalCard ariaLabel="내 저장 작업 목록" bodyClassName="overflow-x-auto p-0">
+            {/*
+              * ★**열 폭을 표에 맡기지 않는다.** 자동 배분에 두면 브라우저가 「가장 잘 접히는 열」을
+              *   최소 폭까지 눌러 그 칸만 여러 줄로 흘러내린다(형제 화면 증강 목록에서 실제로
+              *   생성 조건 칸이 한 글자씩 세로로 접혔다). 폭을 못박고 넘치는 이름은 줄임표로 자른다.
+              * ⚠ 대상 영상만 남은 폭을 갖는다(`w-auto`) — 이름 길이가 제각각이라 고정 폭을 주면
+              *   짧은 이름에서 빈 자리가, 긴 이름에서 과도한 절단이 생긴다.
+              * ⚠ 작업 열은 조작 둘에 **못 누르는 사유 두 줄**까지 들어갈 수 있어 가장 넓다.
+              *   그 사유를 지우면 왜 못 누르는지 알 길이 사라지므로 폭으로 받아 준다.
+              */}
+            <table
+              className="w-full min-w-[52rem] table-fixed text-body-md"
+              data-testid="portal-work-table"
+            >
               <caption className="sr-only">
                 본인이 저장한 작업 목록. 대상 영상, 저장 시각, 만료 예정일, 작업 순서로 이루어집니다.
               </caption>
+              <colgroup>
+                <col />
+                <col className="w-[9.5rem]" />
+                <col className="w-[10.5rem]" />
+                <col className="w-[21rem]" />
+              </colgroup>
               <thead>
-                {/* 배경은 헤더 행에, 타이포·색은 각 <th> 에 직접 건다 — <tr>/<thead> 에만 걸면
-                    브라우저 UA 기본 `th { font-weight: bold }` 가 상속값을 이긴다. */}
                 <tr className="border-b border-gray-200 bg-secondary-50">
                   <th scope="col" className={TH_CLASS}>
                     대상 영상
@@ -273,21 +312,35 @@ export function PortalHomePage() {
                       data-testid={`portal-work-row-${work.rawSn}`}
                       className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-rowHover"
                     >
+                      {/*
+                        * ⚠ 시안(SD-024)은 이 칸을 `th scope=row` 로 그렸으나 **`td` 로 둔다.**
+                        *   표 표면 관례 가드가 파일 안의 `<th>` 를 **전부 열 머리로 보고** 헤더
+                        *   타이포·대문자화·굵기를 요구해서, 본문 행 머리를 `th` 로 두면 그 칸이
+                        *   열 머리 규격 위반으로 잡힌다(가드가 `scope` 를 가르지 않는다).
+                        *   형제 화면(포털 업로드 목록)도 같은 이유로 `td` 다 — 한 채널 안에서
+                        *   표 구조가 갈리지 않게 맞춘다. 가드가 `scope="col"` 만 보도록 좁히는 것은
+                        *   별건이며, 그때 시안대로 되돌린다.
+                        */}
                       <td className="px-3 py-3">
-                        <div className="flex min-w-0 flex-col gap-1">
-                          <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex min-w-0 flex-col gap-tight">
+                          <span className="flex flex-wrap items-center gap-inline">
                             {/* 서버가 준 이름 — 텍스트 노드(자동 escape). */}
-                            <span className="truncate font-medium text-gray-800">
+                            <span
+                              className="min-w-0 truncate text-body-md font-medium text-gray-900"
+                              title={work.videoName}
+                            >
                               {work.videoName}
                             </span>
-                            <Badge
-                              variant={work.assetSource === 'PORTAL_UPLOAD' ? 'info' : 'neutral'}
-                              label={SOURCE_LABEL[work.assetSource]}
+                            <PortalBadge
+                              tone={work.assetSource === 'PORTAL_UPLOAD' ? 'primary' : 'outline'}
                               data-testid={`portal-work-source-${work.rawSn}`}
-                            />
-                          </div>
-                          <span className="text-caption text-gray-500">#{work.rawSn}</span>
-                        </div>
+                            >
+                              {SOURCE_LABEL[work.assetSource]}
+                            </PortalBadge>
+                          </span>
+                          {/* 식별자는 자리폭 고정 글꼴로 — 숫자를 오독하지 않게. */}
+                          <span className="text-mono text-gray-400">#{work.rawSn}</span>
+                        </span>
                       </td>
                       {/*
                        * 저장 이력이 없으면 **자리를 비운다** — 정렬에는 자산이 생긴 시각이 대신
@@ -298,9 +351,9 @@ export function PortalHomePage() {
                       <td className="px-3 py-3">
                         <span
                           data-testid={`portal-work-saved-${work.rawSn}`}
-                          className="text-sub text-gray-600"
+                          className="text-body-sm tabular-nums whitespace-nowrap text-gray-600"
                         >
-                          {work.lastSavedAt !== null ? formatDateTime(work.lastSavedAt) : ''}
+                          {work.lastSavedAt !== null ? formatPortalDateTime(work.lastSavedAt) : ''}
                         </span>
                       </td>
                       {/* 만료도 값이 없으면 자리를 비운다. 만료가 가까운 행을 색·아이콘으로
@@ -308,95 +361,92 @@ export function PortalHomePage() {
                       <td className="px-3 py-3">
                         <span
                           data-testid={`portal-work-expiry-${work.rawSn}`}
-                          className="text-sub text-gray-500"
+                          className="text-body-sm tabular-nums whitespace-nowrap text-gray-500"
                         >
                           {expiresOn !== null ? `만료: ${expiresOn}` : ''}
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {entryPath !== null ? (
-                            <Link
-                              to={entryPath}
-                              data-testid={`portal-work-continue-${work.rawSn}`}
-                              className={cn(
-                                CONTINUE_BUTTON_CLASS,
-                                'hover:bg-primary-700',
-                                KRDS_FOCUS,
-                              )}
-                            >
-                              이어서 작업
-                            </Link>
-                          ) : (
-                            /* WCAG 2.1.1 — native `disabled` 는 Tab 순서에서 제거되어 왜 못 누르는지
-                               알 길이 사라진다. `aria-disabled` 로 포커스 순서는 유지하되 활성화만
-                               막고, 사유를 `aria-describedby` 로 이어 보조기술에도 읽히게 한다. */
+                        <span className="flex flex-col items-start gap-tight">
+                          <span className="flex flex-wrap items-center gap-inline">
+                            {entryPath !== null ? (
+                              <Link
+                                to={entryPath}
+                                data-testid={`portal-work-continue-${work.rawSn}`}
+                                className={portalButtonSm('primary')}
+                              >
+                                이어서 작업
+                              </Link>
+                            ) : (
+                              /* WCAG 2.1.1 — native `disabled` 는 Tab 순서에서 제거되어 왜 못 누르는지
+                                 알 길이 사라진다. `aria-disabled` 로 포커스 순서는 유지하되 활성화만
+                                 막고, 사유를 `aria-describedby` 로 이어 보조기술에도 읽히게 한다. */
+                              <button
+                                type="button"
+                                aria-disabled="true"
+                                aria-describedby={entryReasonId}
+                                data-testid={`portal-work-continue-${work.rawSn}`}
+                                onClick={(e) => e.preventDefault()}
+                                className={portalButtonSm('primary')}
+                              >
+                                이어서 작업
+                              </button>
+                            )}
+
+                            {/* 취소는 **진행 중일 때만** 나타난다. 멈출 것이 없는데 떠 있으면 무엇을
+                                멈추는지 알 수 없다. 진행 중 상호 비활성 대상에서 제외된다 — 취소는
+                                눌러야 동작한다. */}
+                            {downloading && (
+                              <button
+                                type="button"
+                                data-testid={`portal-work-download-cancel-${work.rawSn}`}
+                                aria-label={`${work.videoName} 작업 데이터 다운로드 취소`}
+                                onClick={onCancelDownload}
+                                className={portalButtonSm('danger')}
+                              >
+                                <X className="size-3.5" strokeWidth={2} aria-hidden />
+                                취소
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              aria-disabled="true"
-                              aria-describedby={entryReasonId}
-                              data-testid={`portal-work-continue-${work.rawSn}`}
-                              onClick={(e) => e.preventDefault()}
-                              className={cn(
-                                CONTINUE_BUTTON_CLASS,
-                                'cursor-not-allowed opacity-50',
-                                KRDS_FOCUS,
-                              )}
+                              data-testid={`portal-work-download-${work.rawSn}`}
+                              aria-label={`${work.videoName} 작업 데이터 내려받기`}
+                              /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은
+                                 보조기술에 읽히지 않는다. 이 요청은 GB 급일 수 있어 진행 중이라는
+                                 사실만은 전달해야 한다. */
+                              aria-busy={downloading || undefined}
+                              aria-describedby={canDownload ? undefined : downloadReasonId}
+                              disabled={downloading || downloadBlocked || !canDownload}
+                              onClick={() => onDownload(work)}
+                              className={portalButtonSm('secondary')}
                             >
-                              이어서 작업
+                              <Download className="size-3.5" strokeWidth={2} aria-hidden />
+                              {downloading ? '내려받는 중…' : '내려받기'}
                             </button>
-                          )}
+                          </span>
+
+                          {/* 못 누르는 사유는 버튼 아래 한 줄로 — 조작과 같은 칸에 나란히 두면
+                              행 하나가 두 줄로 벌어져 목록을 훑는 흐름이 끊긴다. */}
                           {entryPath === null && (
-                            <span id={entryReasonId} className="text-sub text-gray-600">
+                            <span id={entryReasonId} className="text-caption text-gray-500">
                               {NO_ENTRY_REASON}
                             </span>
                           )}
-
-                          {/* 취소는 **진행 중일 때만** 나타난다. 멈출 것이 없는데 떠 있으면 무엇을
-                              멈추는지 알 수 없다. 진행 중 상호 비활성 대상에서 제외된다 — 취소는
-                              눌러야 동작한다. */}
-                          {downloading && (
-                            <button
-                              type="button"
-                              data-testid={`portal-work-download-cancel-${work.rawSn}`}
-                              aria-label={`${work.videoName} 작업 데이터 다운로드 취소`}
-                              onClick={onCancelDownload}
-                              className={cn(ACTION_BUTTON_CLASS, KRDS_FOCUS)}
-                            >
-                              <X className="h-3.5 w-3.5" aria-hidden />
-                              취소
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            data-testid={`portal-work-download-${work.rawSn}`}
-                            aria-label={`${work.videoName} 작업 데이터 내려받기`}
-                            /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은
-                               보조기술에 읽히지 않는다. 이 요청은 GB 급일 수 있어 진행 중이라는
-                               사실만은 전달해야 한다. */
-                            aria-busy={downloading || undefined}
-                            aria-describedby={canDownload ? undefined : downloadReasonId}
-                            disabled={downloading || downloadBlocked || !canDownload}
-                            onClick={() => onDownload(work)}
-                            className={cn(ACTION_BUTTON_CLASS, KRDS_FOCUS)}
-                          >
-                            <Download className="h-3.5 w-3.5" aria-hidden />
-                            {downloading ? '내려받는 중…' : '내려받기'}
-                          </button>
                           {!canDownload && (
-                            <span id={downloadReasonId} className="text-sub text-gray-600">
+                            <span id={downloadReasonId} className="text-caption text-gray-500">
                               {NO_DOWNLOAD_REASON}
                             </span>
                           )}
-                        </div>
+                        </span>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
+          </PortalCard>
         )}
 
         {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
@@ -404,9 +454,16 @@ export function PortalHomePage() {
           <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
         )}
 
-        <p className="text-sub text-gray-600">
-          ※ 저장한 작업 데이터는 보존기간이 지나면 저장 행과 파일이 함께 삭제됩니다. 만료 예정일은
-          조회 시점 설정으로 계산되어 응답에 실려 옵니다.
+        {/*
+         * 보존기간 안내.
+         * ★**구현 말투를 쓰지 않는다** — 구 문구의 «저장 행»·«조회 시점 설정으로 계산되어 응답에
+         *   실려 옵니다» 는 서버 사정이라 이용자가 할 일을 알려 주지 않는다. 알려야 할 것은
+         *   「기한이 지나면 사라진다」와 「그 전에 내려받아 두라」 둘이다(사양 SCREEN-028 이 이
+         *   컴포넌트의 note 로 그렇게 규정한다).
+         */}
+        <p className={cn('text-body-sm text-pretty text-gray-500')}>
+          보존기간이 지나면 저장한 작업과 파일이 함께 삭제됩니다. 만료 예정일 전에 필요한 자료를
+          내려받아 두세요.
         </p>
       </section>
     </div>
