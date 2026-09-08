@@ -29,7 +29,7 @@
  *       (아래 {@link ServerRoleOutcome}).</li>
  * </ol>
  *
- * 회귀 가드: `features/auth/__tests__/sessionBootstrap.test.ts` ·
+ * 회귀 가드: `__tests__/AppSessionBootstrap.test.tsx` ·
  *            `features/auth/__tests__/sessionRefreshRoleRestore.test.tsx`
  */
 import { ApiError } from '@/lib/api/errors';

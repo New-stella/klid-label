@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -121,6 +124,44 @@ describe('새로고침 복원 — 서버 인가 역할 재확보', () => {
     expect(useAuthStore.getState().claims?.role).toBe('ADMIN');
   });
 
+  // ── 기각된 대안의 회귀 가드 (@design AC-1016) ────────────────────
+  it('★확보한_서버_역할을_브라우저_저장소에_보관하지_않는다', async () => {
+    // CO §2 가 <명시적으로 기각한 대안>이 「주입받은 역할을 저장소에 함께 보관한다」다.
+    // 되살아나면 서버가 역할을 회수해도 저장된 옛 값이 계속 읽히는 <b>stale 권한</b>이 된다.
+    // 이 저장소는 「철회된 정책이 다시 시도되는」 사고가 반복돼 왔고, 그것을 막는 자리가 여기다.
+    //
+    // ⚠ <b>키 이름을 특정하지 않는다.</b> 특정하면 <다른 키 이름으로 저장하는> 변이를 그대로
+    //   놓친다. 그래서 저장소의 <전 키>를 훑어 어느 값에도 그 역할이 실려 있지 않음을 본다.
+    // ⚠ `localStorage` 까지 훑는 이유는 「저장소를 바꾸는」 변이도 같은 결함이기 때문이다.
+    //   운영 코드는 그쪽에 <쓰지> 않는다 — 관제 인계 키를 읽기만 한다(`tokenIngress`).
+    localStorage.clear();
+    const serverRole = 'ADMIN';
+    // 픽스처 자기검사 — 토큰 문자열 자체에 그 값이 들어 있으면 아래 스캔이 <공허하게 실패>한다.
+    expect(CONTROL_JWT).not.toContain(serverRole);
+
+    sessionStorage.setItem('klid_jwt', CONTROL_JWT);
+    mock.onGet('/me').reply(200, meBody(serverRole, '시스템관리자'));
+
+    bootAsRefresh();
+    renderGuardedRoute();
+    await screen.findByText('VIDEOS_PAGE');
+
+    // ★<주입은 됐다>를 짝으로 단언한다. 이것이 없으면 「조회를 아예 하지 않는다」로 만들어도
+    //   「저장소에 없다」가 참이라 통과한다(해제만 단언 함정).
+    expect(useAuthStore.getState().claims?.role).toBe(serverRole);
+
+    const stored: Array<[string, string]> = [];
+    for (const storage of [sessionStorage, localStorage]) {
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (key === null) continue;
+        stored.push([key, storage.getItem(key) ?? '']);
+      }
+    }
+    // 실패 시 <어느 키가 범인인지>가 그대로 드러나도록 필터 결과를 비교한다.
+    expect(stored.filter(([, value]) => value.includes(serverRole))).toEqual([]);
+  });
+
   it('★확보가_끝나기_전에는_스피너를_보이고_권한요청_안내가_스치지_않는다', async () => {
     sessionStorage.setItem('klid_jwt', CONTROL_JWT);
     // 응답을 우리가 붙잡는다 — 붙잡지 않으면 「조회 중」 상태를 관측할 창이 없다.
@@ -179,6 +220,67 @@ describe('새로고침 복원 — 서버 인가 역할 재확보', () => {
 
     expect(await screen.findByText('VIDEOS_PAGE')).toBeInTheDocument();
     expect(screen.queryByText('사용자 정보를 확인할 수 없습니다')).toBeNull();
+  });
+
+  // ── 인증 만료 갈래 — 세 번째 갈래다 (@design AC-1017) ─────────────
+  it('★새로고침_경로의_인증_만료는_재로그인으로_보낸다_역할없음으로도_장애로도_뭉개지_않는다', async () => {
+    // 이 갈래는 <진입 화면>에서만 관측돼 있었다(`SessionIngressPage.test.tsx`). 새로고침 경로는
+    // 결과를 공통 인터셉터(`lib/api/client`)에 <위임>하는데, 그 위임이 실제로 성립하는지 보는
+    // 시험이 0건이었다 — 여기가 그 자리다.
+    //
+    // ★이번 결함의 본질이 「<확인 못 함>과 <역할 없음>이 뭉개지는 것」이고, 인증 만료는
+    //   그 둘 어느 쪽도 아닌 <세 번째 갈래>다. 그래서 「어디로 갔는가」만이 아니라
+    //   「어디로 가지 <않았는가>」를 함께 단언한다.
+    const assign = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      configurable: true,
+      value: { href: 'http://app.local/videos', pathname: '/videos', assign },
+    });
+    vi.stubEnv('VITE_CONTROL_LOGIN_URL', 'http://control.local/login');
+
+    try {
+      sessionStorage.setItem('klid_jwt', CONTROL_JWT);
+      mock.onGet('/me').reply(401, {
+        success: false,
+        data: null,
+        message: '인증이 필요합니다.',
+        errorCode: 'UNAUTHORIZED',
+      });
+
+      bootAsRefresh();
+      renderGuardedRoute();
+
+      // ⚠ <b>대기 조건을 「지키려는 축」으로 걸지 않는다.</b> 이동(assign)으로 기다리면 그 이동을
+      //   없애는 변이가 <b>대기에서 먼저 죽어</b> 실패가 「타임아웃」으로 나오고, 정작 아래 ③
+      //   단언이 한 번도 실행되지 않는다. 그래서 <판정이 끝났는가>라는 다른 축으로 기다린다.
+      await waitFor(() => {
+        expect(useAuthStore.getState().serverRoleStatus).not.toBe('pending');
+      });
+
+      // ③ 역할 요청 안내로도, 제자리 오류로도 가지 않는다. ★이 셋째가 핵심이라 먼저 본다.
+      expect(screen.queryByText('ROLE_CLAIM_PAGE')).toBeNull();
+      expect(screen.queryByTestId('server-role-unknown-notice')).toBeNull();
+      expect(screen.queryByText('사용자 정보를 확인할 수 없습니다')).toBeNull();
+
+      // ① 상위 시스템 로그인으로 되돌아간다.
+      await waitFor(() => {
+        expect(assign).toHaveBeenCalled();
+      });
+      expect(String(assign.mock.calls[0]?.[0])).toContain('http://control.local/login');
+      // ② 죽은 토큰을 붙잡지 않는다 — 저장소에도 스토어에도 남기지 않는다.
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(sessionStorage.getItem('klid_jwt')).toBeNull();
+      // 「아무것도 안 그렸다」와 구분하기 위한 양성 앵커 — 세션이 사라졌으므로 재인계 자리다.
+      expect(screen.getByText('INGRESS_PAGE')).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 
   // ── 수용기준 4 — 「보내는 쪽」의 양성 대조군 ──────────────────────
@@ -383,10 +485,21 @@ describe('확보 절차가 마주칠 수 있는 채널을 이 파일이 전부 �
   };
 
   it('★덮개_목록이_실제_채널_집합과_정확히_같다', () => {
+    // ★<b>절대값을 하나 고정한다.</b> 아래 집합 비교는 <두 목록을 서로> 대는 것이라
+    //   <b>양쪽에서 동시에 빠지면 여전히 같아서 통과</b>한다. 그때 이 가드는 아무것도 지키지
+    //   않는데 초록이다. 채널이 정말 늘거나 줄면 이 줄이 먼저 실패해 <사람이 판단>하게 된다.
+    expect(Object.keys(CHANNEL_COVERAGE)).toHaveLength(2);
     expect(Object.keys(CHANNEL_COVERAGE).sort()).toEqual(Object.values(Channel).sort());
-    // 이름이 빈 칸이면 「적어 두기만 하고 케이스가 없는」 상태다.
+  });
+
+  it('★덮개_목록이_가리키는_케이스가_이_파일에_실제로_있다', () => {
+    // ⚠ 이름 <길이>만 보던 구 단언은 「케이스를 지우거나 이름을 바꿔도 초록」이었다 —
+    //   목록은 지키는데 <목록이 가리키는 대상>은 아무도 지키지 않던 상태다.
+    //   목록의 이름은 이 파일 안에도 <문자열 리터럴>로 존재하므로 단순 포함 검사로는 갈리지
+    //   않는다. 그래서 <b>선언 형태(`it('...'`)</b>로 찾는다.
+    const selfSource = readFileSync(fileURLToPath(import.meta.url), 'utf8');
     for (const caseName of Object.values(CHANNEL_COVERAGE)) {
-      expect(caseName.length).toBeGreaterThan(0);
+      expect(selfSource).toContain(`it('${caseName}'`);
     }
   });
 });
