@@ -5,11 +5,11 @@ version: 38
 last_updated_at: 2026-09-05T07:24:36.293Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:22:15.531Z
+synced_at: 2026-09-08T00:20:31.858Z
 sync_session: 36
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 23
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-027]]"]
   acceptance: ["[[AC-1070]]", "[[AC-1071]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v23 → v38**
+> change_summary: 마킹 대기 자산에도 만료 예정일이 내려온다는 사실을 반영한다. 그 상태에는 자동 삭제 경로가 없어 값이 내려오지 않는다고 적고 있었는데, 2026-09-05 확정으로 등록일 기산 보존기간이 생겨 삭제 후보가 됐다. 이제 값이 비는 것은 처리중 자산 하나다. 기산점이 등록일이라는 것과 그 뜻(올린 뒤 마킹하지 않고 두면 그때부터 보존기간이 흐른다)을 함께 적어 사용자가 표시된 날짜를 해석할 수 있게 했다. 표기 형식과 임박 강조를 두지 않는다는 규칙은 그대로다. 본문은 두 문장만 제자리에서 고쳤고 나머지 구간은 읽어 온 값을 그대로 되돌려 보내 무손상이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 

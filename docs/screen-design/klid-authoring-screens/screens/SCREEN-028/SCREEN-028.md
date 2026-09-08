@@ -5,11 +5,11 @@ version: 38
 last_updated_at: 2026-09-06T06:50:21.379Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:22:15.523Z
+synced_at: 2026-09-08T00:20:31.853Z
 sync_session: 36
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 26
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-024]]"]
   acceptance: ["[[AC-1068]]", "[[AC-1069]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v26 → v38**
+> change_summary: 이어서 작업할 수 없는 행(열 프레임 없음·진입 거부)의 화면 처리를 정한다 — 그 행을 목록에서 빼지 않고 이어서 작업 버튼만 비활성 + 사유 표기(문구·자리 시안 미확정), 내려받기는 별개 축이라 함께 막지 않는다. 목록 정렬은 마지막 저장 시각, 없으면 자산이 생긴 시각으로 하되 표시하는 저장 시각은 비워 둔다(표시 값과 정렬 값이 다른 것이 의도 — 만료 예정일 열의 빈칸 규칙과는 다른 열).
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 내 작업 화면
 

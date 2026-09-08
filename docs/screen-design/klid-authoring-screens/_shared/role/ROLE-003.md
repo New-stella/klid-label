@@ -2,10 +2,14 @@
 logicraft_item: ROLE-003
 type: permission_role
 version: 14
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 10
 raw: ./_raw/ROLE-003.json
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v10 → v14**
+> change_summary: 포털의 라벨링 화면 둘이 하나로 합쳐졌다. 남는 포털 라벨링 항목이 두 자산 출처를 모두 담도록 넓히고, 없어지는 업로드 라벨링 항목이 갖고 있던 행위(생성·삭제)를 그 항목의 행위에 합쳤다 — 합치지 않으면 업로드 자산에서 하던 라벨 생성·삭제 권한이 어느 항목에도 없게 된다. 업로드 라벨링 항목은 지우지 않고 폐기 표기로 남겼다 — 지우면 어느 권한이 왜 없어졌는지가 함께 사라진다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 회원 (PORTAL_USER)
 

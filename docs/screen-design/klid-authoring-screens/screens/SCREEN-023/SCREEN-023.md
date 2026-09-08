@@ -5,11 +5,11 @@ version: 47
 last_updated_at: 2026-09-02T10:15:11.325Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:22:15.517Z
+synced_at: 2026-09-08T00:20:31.848Z
 sync_session: 36
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 41
 raw: ./_raw/SCREEN-023.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-002]]", "[[UC-010]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v41 → v47**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (21.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 증강 결과 화면
 

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-003",
-  "synced_at": "2026-09-07T15:21:41.422Z",
+  "synced_at": "2026-09-08T00:22:47.427Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -105,8 +105,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 14,
-      "content_hash": "fddf2c135bdbe39048a7aa694730f115f1a02b2eeb4a92971ff39af1d11e1e74"
+      "version": 16,
+      "content_hash": "307ae6f16ebe75b1f89b5700f59b8a4cb2254b37f5b9688dff3169baf31e8093"
     },
     "ADR-048": {
       "type": "adr",
@@ -178,7 +178,7 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
       "version": 27,
-      "content_hash": "13d2f687ffc8c27bc0a91d6035ab76aad1e0bd65ad5ec248ef1bb1b4c1d19fad"
+      "content_hash": "8a2e37ca3ea5cec2f5fe54bb37a71286903b33be5fdefdb88df1379ab101d0ab"
     },
     "API-044": {
       "type": "api_endpoint",
@@ -202,7 +202,7 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-011",
       "version": 16,
-      "content_hash": "6680df11a4cf03d9ce203f229205360334ae35e40633fb5396e466d2da2da92c"
+      "content_hash": "cf7d0d32af4a1f14e99c931625f16362a598260315b9759e4c762e357b1d8203"
     },
     "API-065": {
       "type": "api_endpoint",
@@ -603,8 +603,8 @@
     "DFEAT-045": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-014",
-      "version": 24,
-      "content_hash": "d5ec7c7fc3830ea5609980d64960c5e967ab1094ea080882bc1b56eecc55d295"
+      "version": 25,
+      "content_hash": "bfe9ffa9a789df664b1a498086edb890f64162c7816ef4cfe35ef533568cf197"
     },
     "DFEAT-051": {
       "type": "domain_feature",
@@ -645,8 +645,8 @@
     "INT-002": {
       "type": "integration_point",
       "domain_id": null,
-      "version": 21,
-      "content_hash": "aaa1ea4e2e635a5356dcfeb1aebd6cb540e3200fd976e402f21d4ae9849781b2"
+      "version": 22,
+      "content_hash": "30d60708d6b19f97bb16b1d4b1cee8c2860964d410ec529796a3c994850ee8d5"
     },
     "INT-003": {
       "type": "integration_point",
@@ -1005,8 +1005,8 @@
     "SCREEN-006": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-011",
-      "version": 51,
-      "content_hash": "8c12b35830fc7710e3207fedd0529e0c5c385ac73e11a829e94144fc1e31d81c"
+      "version": 52,
+      "content_hash": "40ddd1fc57fe69544500c0dc8e09fc7b8c5cee674fae7bbc64586d160bf8eeae"
     },
     "SCREEN-008": {
       "type": "screen_spec",

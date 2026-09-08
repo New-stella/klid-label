@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-014
 type: class_diagram
-version: 16
+version: 17
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:47.472Z
+synced_at: 2026-09-08T00:22:49.392Z
 status: CHANGED
-prev_version: 13
-content_hash: 5fab80927447dcc8470b24139be3963ef45df6580132c2f4edd327e5541143c4
+prev_version: 16
+content_hash: 4e77621249ad8311fe9b8ddc8896f25fe862ca240cc51b6d46a54e6637064ea1
 stale: false
 raw: ./_raw/CDIAG-014.json
 links:
@@ -426,7 +426,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 외부 VLM 시계열 분석 위탁 클라이언트(Outbound). 논블로킹 제출(제출만 개시하고 수락 여부는 완료 핸들러가 비동기로 기록), idempotencyKey 단일 발급, 연동 주소 미주입 시 실패(활성화 토글 폐지), Resilience4j Retry+CircuitBreaker, 응답 무결성 검증.
+- **description**: 외부 VLM 시계열 분석 위탁 클라이언트(Outbound). 논블로킹 제출(제출만 개시하고 수락 여부는 완료 핸들러가 비동기로 기록), idempotencyKey 단일 발급, 위탁 목적지는 장비 원장에서 고른 시계열 유형 장비의 주소이고 그 유형에 쓸 수 있는 후보가 하나도 없으면 사유를 가리지 않고 거부(설정값은 그 유형이 비어 있을 때 최초 1회 씨앗이며 대신 호출하는 폴백은 두지 않는다. 활성화 토글 폐지), Resilience4j Retry+CircuitBreaker, 응답 무결성 검증.
 
 **enum_values**:
 

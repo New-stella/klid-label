@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-001",
-  "synced_at": "2026-09-07T15:21:46.500Z",
+  "synced_at": "2026-09-08T00:23:58.652Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 110,
+  "count": 113,
   "items": {
     "AC-1016": {
       "type": "acceptance",
@@ -39,8 +39,8 @@
     "AC-1072": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 9,
-      "content_hash": "f5e2af71f3cd900fdad50e02fd423ac0a49a26bc24c29d91f3463c617a965b56"
+      "version": 10,
+      "content_hash": "1d5261326346b5224c35006177cfd62898f857051179e16b50ebdec6088073dc"
     },
     "AC-1073": {
       "type": "acceptance",
@@ -53,6 +53,24 @@
       "domain_id": "DOMAIN-014",
       "version": 6,
       "content_hash": "7f711b270280ce1ace072e2fcc61c49ad83e0111443675692b4c0f9026ecc9e2"
+    },
+    "AC-1095": {
+      "type": "acceptance",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "2d6d9da701c1ccd3a270b40786a5d6852f29109a3d148011d9702158e4659620"
+    },
+    "AC-1096": {
+      "type": "acceptance",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "fb48b05417ca36ba2d0cbed1a09a083f99aebd0715d7a568dba852b3e2650a05"
+    },
+    "AC-1097": {
+      "type": "acceptance",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "35277b272d75daa5e301ac139e6e16378c2602b09f00cc20b67d69298c7061b9"
     },
     "AC-1098": {
       "type": "acceptance",
@@ -105,8 +123,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 14,
-      "content_hash": "fddf2c135bdbe39048a7aa694730f115f1a02b2eeb4a92971ff39af1d11e1e74"
+      "version": 16,
+      "content_hash": "307ae6f16ebe75b1f89b5700f59b8a4cb2254b37f5b9688dff3169baf31e8093"
     },
     "ADR-055": {
       "type": "adr",

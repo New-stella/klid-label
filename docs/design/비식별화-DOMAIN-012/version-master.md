@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-09-07T15:21:52.902Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 118 |
+| Last sync | 2026-09-08T00:22:52.234Z |
+| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 115 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 6건 / 스코프 밖 32건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 81건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 82건 (그중 domain_id 없음 7건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 17건 / 스코프 밖 41건 (그중 domain_id 없음 5건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
@@ -41,7 +41,10 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-065]]
+- CHANGED [[ADR-046]] (prev v14)
+- CHANGED [[ADR-062]] (prev v4)
+- CHANGED [[SEQ-025]] (prev v6)
+- CHANGED [[UC-019]] (prev v30)
 
 ## ITEM 표
 
@@ -62,13 +65,13 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 14 | UNCHANGED |
+| [[ADR-046]] | adr | 16 | CHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 8 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
-| [[ADR-062]] | adr | 4 | UNCHANGED |
-| [[ADR-065]] | adr | 1 | NEW |
+| [[ADR-062]] | adr | 6 | CHANGED |
+| [[ADR-065]] | adr | 1 | UNCHANGED |
 | [[API-032]] | api_endpoint | 9 | UNCHANGED |
 | [[API-091]] | api_endpoint | 12 | UNCHANGED |
 | [[API-094]] | api_endpoint | 9 | UNCHANGED |
@@ -155,7 +158,7 @@
 | [[SEQ-012]] | diagram_sequence | 17 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 15 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 6 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 7 | CHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-031]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-035]] | diagram_sequence | 6 | UNCHANGED |
@@ -164,5 +167,5 @@
 | [[UC-011]] | use_case | 21 | UNCHANGED |
 | [[UC-013]] | use_case | 12 | UNCHANGED |
 | [[UC-016]] | use_case | 31 | UNCHANGED |
-| [[UC-019]] | use_case | 30 | UNCHANGED |
+| [[UC-019]] | use_case | 30 | CHANGED |
 | [[UC-036]] | use_case | 8 | UNCHANGED |

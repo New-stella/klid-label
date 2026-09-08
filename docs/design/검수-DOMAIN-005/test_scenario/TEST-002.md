@@ -1,13 +1,13 @@
 ---
 logicraft_item: TEST-002
 type: test_scenario
-version: 17
+version: 18
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:47.549Z
+synced_at: 2026-09-08T00:22:49.393Z
 status: CHANGED
-prev_version: 15
-content_hash: 3d1c51b451896beebfd2811719ab95f58e428c4def33463329285f40778700c8
+prev_version: 17
+content_hash: aed67332bf67b89866dd1c45e3fc3c8379c4fe587ef068fd8ab2722d1efa321e
 stale: false
 raw: ./_raw/TEST-002.json
 links:
@@ -22,7 +22,7 @@ integration
 
 ## notes
 
-시험시나리오 KLID-AT-IT-TS-002. 대외 연동 경계: 외부 VLM 시계열 메타 서비스(KLID-AT-II-003 위탁·KLID-AT-II-004 결과 콜백 POST /v1/vlm/callback). 관련 요구사항 RQ-SFR-08. 핵심 테이블 LS_DATA_META·LS_DATA_META_REVIEW·LS_WEBHOOK_IDEMPOTENCY(상관키 원장)·LS_MARKING. 정상 흐름(happy path)만 수록. 위탁은 묘사(CoT)·추가 질문(VQA) 두 축 이중 제출이자 논블로킹 제출이며, 수락(ACK) 여부는 완료 핸들러가 원장에 비동기로 기록한다. selected_frames 상한 절단 같은 경계 검증은 이 정상 흐름 시나리오가 아니라 수용기준에서 다룬다. 추가 질문 축의 위탁 창구는 연동 규격 v1.2.0(2026-09-07)에서 custom 으로 바뀌었다 — 이 창구는 이벤트 유형을 싣지 않고 질문 문구를 요청 본문(prompt, 최대 4,000자)에 직접 싣는다. [폐기] 구 창구 describe-sub 는 외부 분석 서버가 계속 제공하나 연동 대상으로 두지 않는다 — 우리가 쓰지 않는 것이지 없어진 것이 아니며, 이미 그 창구로 받아 적재된 결과는 보존한다. 원장 채널 식별자 문자열은 창구 교체와 무관하게 그대로 둔다 — 이미 적재된 행의 역조회 키다. 어노테이션 조달 축은 2026-08-24 에 "추가 질문 결과는 답변(answer) 축 초안으로 간다"(묘사를 캡션·사고 단계 축으로 보내는 지시는 그때 폐기)로 확정했다가, 2026-08-25 사업 담당 회신으로 다시 캡션·사고 단계 축으로 되돌렸다 — 같은 축이 이틀 만에 두 번 뒤집혔으므로 경위를 남겨 세 번째 반전을 막는다. 질문 문구는 저작도구가 보관한다(검증 이벤트 유형 LS_VRFC_EVNT_TYPE · 유형별 질문 LS_VRFC_EVNT_QSTN · 마킹 선택값 LS_MARKING.VRFC_EVNT_QSTN_SN). [폐기] 구 서술 "위탁 요청 본문에는 질문을 실을 자리가 없어 첫 번째가 아닌 질문을 고르면 기록된 질문과 사업자가 실제로 쓴 질문이 달라진다"는 더 이상 잔여 위험이 아니다 — 우리가 고른 문구가 요청 본문에 그대로 실려 나가고 보낸 그 값을 보관해 결과 수신 시 읽으므로, 보낸 질문과 기록된 질문이 갈리지 않는다. 어노테이션 적재 테이블은 LS_EVNT_ANNO(RAW_SN 당 1건, ANNO_CN JSONB)이고 검토 상태는 LS_EVNT_ANNO_REVIEW 가 갖는다. 기적재분은 백필하지 않고 신규 수신분부터 적용한다. 규격 v1.2.0 은 위탁 요청 인증(X-API-Key)을 신설했으나 키 사용 여부와 값이 아직 전달되지 않아 이 시나리오는 그 축을 시험 항목으로 두지 않는다 — 확인 대기.
+시험시나리오 KLID-AT-IT-TS-002. 대외 연동 경계: 외부 VLM 시계열 메타 서비스(KLID-AT-II-003 위탁·KLID-AT-II-004 결과 콜백 POST /v1/vlm/callback). 관련 요구사항 RQ-SFR-08. 핵심 테이블 LS_DATA_META·LS_DATA_META_REVIEW·LS_WEBHOOK_IDEMPOTENCY(상관키 원장)·LS_MARKING. 정상 흐름(happy path)만 수록. 위탁은 묘사(CoT)·추가 질문(VQA) 두 축 이중 제출이자 논블로킹 제출이며, 수락(ACK) 여부는 완료 핸들러가 원장에 비동기로 기록한다. selected_frames 상한 절단 같은 경계 검증은 이 정상 흐름 시나리오가 아니라 수용기준에서 다룬다. 추가 질문 축의 위탁 창구는 연동 규격 v1.2.0(2026-09-07)에서 custom 으로 바뀌었다 — 이 창구는 이벤트 유형을 싣지 않고 질문 문구를 요청 본문(prompt, 최대 4,000자)에 직접 싣는다. [폐기] 구 창구 describe-sub 는 외부 분석 서버가 계속 제공하나 연동 대상으로 두지 않는다 — 우리가 쓰지 않는 것이지 없어진 것이 아니며, 이미 그 창구로 받아 적재된 결과는 보존한다. 원장 채널 식별자 문자열은 창구 교체와 무관하게 그대로 둔다 — 이미 적재된 행의 역조회 키다. 어노테이션 조달 축은 2026-08-24 에 "추가 질문 결과는 답변(answer) 축 초안으로 간다"(묘사를 캡션·사고 단계 축으로 보내는 지시는 그때 폐기)로 확정했다가, 2026-08-25 사업 담당 회신으로 다시 캡션·사고 단계 축으로 되돌렸다 — 같은 축이 이틀 만에 두 번 뒤집혔으므로 경위를 남겨 세 번째 반전을 막는다. 질문 문구는 저작도구가 보관한다(검증 이벤트 유형 LS_VRFC_EVNT_TYPE · 유형별 질문 LS_VRFC_EVNT_QSTN · 마킹 선택값 LS_MARKING.VRFC_EVNT_QSTN_SN). [폐기] 구 서술 "위탁 요청 본문에는 질문을 실을 자리가 없어 첫 번째가 아닌 질문을 고르면 기록된 질문과 사업자가 실제로 쓴 질문이 달라진다"는 더 이상 잔여 위험이 아니다 — 우리가 고른 문구가 요청 본문에 그대로 실려 나가고 보낸 그 값을 보관해 결과 수신 시 읽으므로, 보낸 질문과 기록된 질문이 갈리지 않는다. 어노테이션 적재 테이블은 LS_EVNT_ANNO(RAW_SN 당 1건, ANNO_CN JSONB)이고 검토 상태는 LS_EVNT_ANNO_REVIEW 가 갖는다. 기적재분은 백필하지 않고 신규 수신분부터 적용한다. 규격 v1.2.0 은 위탁 요청 인증(X-API-Key)을 신설했으나 키 사용 여부와 값이 아직 전달되지 않아 이 시나리오는 그 축을 시험 항목으로 두지 않는다 — 확인 대기. 위탁 목적지의 진실원은 단일 설정값이 아니라 장비 원장이다 — 그 유형에 쓸 수 있는 후보가 하나도 없으면 사유를 가리지 않고 거부되고, 배포 설정값은 그 유형의 장비가 하나도 없을 때 원장에 첫 행을 심는 최초 1회 씨앗이며 원장에 행이 없을 때 설정값으로 대신 호출하는 폴백은 두지 않는다. [폐기] 구 서술 "연동 주소가 주입돼 있으면 실 위탁, 없으면 실패한다"는 목적지를 단일 설정값으로 읽은 서술이라 두지 않는다 — 활성화 토글 폐지는 그대로 유효하다.
 
 ## steps
 
@@ -31,7 +31,7 @@ integration
 - **seq**: 1
 - **note**: TC-004 | auto_test / 논블로킹 제출 — ACK 왕복 동안 파이프라인 스레드를 점유하지 않는다. 위탁이 2건이므로 상관키도 2건이다. [폐기] 구 추가 질문 창구 describe-sub 는 외부 분석 서버가 계속 제공하나 연동 대상으로 두지 않는다 — 이미 그 창구로 받아 적재된 결과는 그대로 보존한다
 - **action**: 시계열 위탁 이중 제출(논블로킹)
-- **expected**: 두 위탁 모두 제출을 개시하고 즉시 반환한다(status="submitted"). 【검증】제출 전 선커밋 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY IN (:describeRequestId, :customRequestId) → CHNL_CD='VLM'·STTS_CD='ISSUED' 2행(위탁 1건당 1행); SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 추가 질문 위탁 행에는 그 요청 prompt 로 보낸 질문 문구 전문이 함께 보관된다 — 결과 수신 시 재조달하지 않고 이 보관값을 읽으므로 보낸 질문과 나중에 기록되는 질문이 같다. 동기 응답은 위탁마다 {request_id, status} 이며 status='accepted' 만 수락으로 인정한다. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 활성화 토글은 폐지됐다. 연동 주소가 주입돼 있으면 실 위탁, 없으면 실패한다. 건너뛰려면 검수자가 시계열 묶음을 수동 스킵해야 한다)
+- **expected**: 두 위탁 모두 제출을 개시하고 즉시 반환한다(status="submitted"). 【검증】제출 전 선커밋 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY IN (:describeRequestId, :customRequestId) → CHNL_CD='VLM'·STTS_CD='ISSUED' 2행(위탁 1건당 1행); SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 추가 질문 위탁 행에는 그 요청 prompt 로 보낸 질문 문구 전문이 함께 보관된다 — 결과 수신 시 재조달하지 않고 이 보관값을 읽으므로 보낸 질문과 나중에 기록되는 질문이 같다. 동기 응답은 위탁마다 {request_id, status} 이며 status='accepted' 만 수락으로 인정한다. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 활성화 토글은 폐지됐다. 위탁은 장비 원장에서 고른 시계열 유형 장비의 주소로 나가고, 그 유형에 쓸 수 있는 후보가 하나도 없으면 사유를 가리지 않고 거부된다. 배포 설정값은 그 유형의 장비가 하나도 없을 때 원장에 첫 행을 심는 최초 1회 씨앗이며, 원장에 행이 없을 때 설정값으로 대신 호출하는 폴백은 두지 않는다. 건너뛰려면 검수자가 시계열 묶음을 수동 스킵해야 한다)
 - **test_item**: 마킹 완료 영상을 묘사(CoT)·추가 질문(VQA) 두 축으로 이중 위탁하고 각 요청의 상관키를 선커밋하는지, 추가 질문 축은 질문 문구를 요청 본문에 직접 실어 보내고 보낸 문구 전문을 원장에 보관하는지 확인
 - **input_data**: 【위탁 대상】"묘사(CoT) POST /v1/videovlm-klid/describe + 추가 질문(VQA) POST /v1/videovlm-klid/custom 이중 제출(요청 2건)" 【추가 질문 요청 본문】"질문 문구 전문을 prompt 에 직접 싣는다(최대 4,000자). 이 창구는 event_type 을 싣지 않으므로 추가 질문 축에는 유형 미수신·미지원으로 인한 거부가 생기지 않는다" 【frame_policy.mode】"frame_selected"(마킹 유무와 무관한 단일 모드) 【selected_frames】"[360, 1350, 1890]"(마킹 본문의 프레임 인덱스를 정렬·중복제거한 값. 그 본문에서 인덱스를 하나도 얻지 못하면 이 항목 없이 frame_interval 모드로 내린다. 값은 0 이상이며 건수는 최대 600건 — 이 순번은 정상 흐름이라 상한 미만 표본을 쓴다) 【프레임 추출 간격】"연동 측이 지정하지 않는다 — frame_policy 에 간격·장수 필드를 두지 않고 외부 분석 서버가 관리한다" 【event_type】"fire"(묘사 축 요청에만 싣는다 — 관제 인입값 그대로 위탁, 화이트리스트 사전 차단 없음) 【상관키(request_id)】"(요청마다 시스템이 따로 발급하는 UUID 2건 — 원장 키이자 콜백 역조회 키)" 【콜백 경로】"서버가 고정한 /v1/vlm/callback 을 요청 바디 callback_url 로 전달"
 - **preconditions**: 마킹 완료된 비식별 영상이 존재하고, 추가 질문 축에 실을 질문 문구가 조달돼 있다

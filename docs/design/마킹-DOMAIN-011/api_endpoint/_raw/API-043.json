@@ -620,7 +620,8 @@
         "records": [
           "IMPREC-046",
           "IMPREC-121",
-          "IMPREC-149"
+          "IMPREC-149",
+          "IMPREC-418"
         ],
         "progress": 100,
         "subtasks": [
@@ -669,7 +670,7 @@
             "description": "기존 세 필드(srcSn·frameNo·thumbnailUrl) 이름·타입·의미 불변(추가만) + 회귀 시험 14건 신설(단위 11 · IT 3), 적대검증 6변형 전건 kill"
           }
         ],
-        "last_updated": "2026-08-27T01:54:17.029Z",
+        "last_updated": "2026-09-07T15:30:03.581Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -682,8 +683,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "selectableVrfcEvntTypes 의 각 항목에 그 유형에 속한 질문 목록(questions)을 신설했다. 원소 모양은 vrfcEvntQuestions 의 원소와 같고 정렬도 정렬순서 오름차순으로 같다. 유형만 고르고 질문을 고를 수단이 없던 결손을 메운다 — 질문 목록 필드는 관제가 보낸 유형 기준이라 미수신 영상에서는 항상 빈 배열이고, 유형별 질문을 주는 다른 창구는 검수자 전용이다. 유형 선택과 질문 선택 사이에 서버 왕복을 두지 않으려고 항목 안에 담는다. 기존 필드·인가·상태코드는 무변경(추가만).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T14:20:56.673Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-07T15:30:03.581Z",
     "created_at": "2026-05-30T07:22:49.724Z"
   }
 }

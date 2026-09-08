@@ -35,11 +35,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-366"
+          "IMPREC-366",
+          "IMPREC-420"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:21.821Z",
+        "last_updated": "2026-09-07T15:30:03.743Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -90,8 +91,8 @@
     "stale": true,
     "stale_reason": "AC-1015의 data.scenario 변경 — verifies",
     "change_summary": "검증 이벤트 유형 미수신 전제를 좁힌다 — 관제가 유형을 보내지 않아 마킹 화면에 유형 선택이 노출된 영상에서는 유형을 고르지 않으면 마킹을 완료할 수 없다(완료 조작은 막지 않고 사유를 알리며 제출만 막는다). 질문 문구는 어느 마킹 방식에서도 값이 있어야 하므로 유형 선택이 질문 성립의 전제이기 때문이다. 「유형 미수신이면 질문 없이 진행하고 위탁은 그대로 나간다」는 규칙은 마킹을 거치지 않는 경로와 이미 저장된 기존 마킹 행 한정으로 축소했고, 위탁을 허용목록으로 사전 차단하지 않는다는 별개 정책은 그대로 유지한다. 이 필수는 화면 축이며 마킹 등록 요청의 유형 필드와 마킹 원장의 유형 컬럼은 선택으로 유지한다(관제 값이 있는 영상은 그 필드를 싣지 않으므로 필수로 올리면 전량 거부된다). description 과 acceptance_rules 두 층을 함께 정정했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T14:29:48.423Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-07T15:30:03.743Z",
     "created_at": "2026-05-29T07:15:23.362Z"
   }
 }

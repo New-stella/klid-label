@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-09-07T15:21:50.808Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 201 |
+| Last sync | 2026-09-08T00:22:50.335Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 200 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 12건 / 스코프 밖 23건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 75건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 76건 (그중 domain_id 없음 7건)
   ℹ️  adr: 이번 키트 20건 / 스코프 밖 38건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
@@ -40,7 +40,7 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[TEST-002]] (prev v17)
 
 ## ITEM 표
 
@@ -232,7 +232,7 @@
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-032]] | diagram_sequence | 4 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 18 | CHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 5 | UNCHANGED |
 | [[UC-004]] | use_case | 18 | UNCHANGED |

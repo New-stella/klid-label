@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-09-07T15:21:46.500Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 108 |
+| Last sync | 2026-09-08T00:23:58.652Z |
+| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 110 |
 | 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 51건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 48건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 2건 / 스코프 밖 33건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 8건 / 스코프 밖 78건 (그중 domain_id 없음 5건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 76건 (그중 domain_id 없음 3건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 10건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,8 +41,9 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-1098]]
-- NEW [[API-245]]
+- NEW [[AC-1095]]
+- NEW [[AC-1096]]
+- NEW [[AC-1097]]
 
 ## ITEM 표
 
@@ -52,10 +53,13 @@
 | [[AC-1017]] | acceptance | 9 | UNCHANGED |
 | [[AC-1018]] | acceptance | 7 | UNCHANGED |
 | [[AC-1019]] | acceptance | 6 | UNCHANGED |
-| [[AC-1072]] | acceptance | 9 | UNCHANGED |
+| [[AC-1072]] | acceptance | 10 | UNCHANGED |
 | [[AC-1073]] | acceptance | 5 | UNCHANGED |
 | [[AC-1074]] | acceptance | 6 | UNCHANGED |
-| [[AC-1098]] | acceptance | 4 | NEW |
+| [[AC-1095]] | acceptance | 1 | NEW |
+| [[AC-1096]] | acceptance | 1 | NEW |
+| [[AC-1097]] | acceptance | 1 | NEW |
+| [[AC-1098]] | acceptance | 4 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
@@ -63,7 +67,7 @@
 | [[ADR-021]] | adr | 5 | UNCHANGED |
 | [[ADR-039]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 14 | UNCHANGED |
+| [[ADR-046]] | adr | 16 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-058]] | adr | 9 | UNCHANGED |
 | [[ADR-063]] | adr | 4 | UNCHANGED |
@@ -80,7 +84,7 @@
 | [[API-242]] | api_endpoint | 2 | UNCHANGED |
 | [[API-243]] | api_endpoint | 4 | UNCHANGED |
 | [[API-244]] | api_endpoint | 4 | UNCHANGED |
-| [[API-245]] | api_endpoint | 2 | NEW |
+| [[API-245]] | api_endpoint | 2 | UNCHANGED |
 | [[CDIAG-008]] | class_diagram | 10 | UNCHANGED |
 | [[CDIAG-016]] | class_diagram | 1 | UNCHANGED |
 | [[CDIAG-028]] | class_diagram | 1 | UNCHANGED |
