@@ -1,5 +1,11 @@
 import tailwindPalette from 'tailwindcss/colors';
 
+import {
+  DESIGN_CHANNEL_ENV_KEY,
+  resolveDesignChannel,
+  themeExtendForChannel,
+} from './design-tokens/channel.js';
+
 /**
  * 범주 구분색 8슬롯 — 진실원: LogiCraft DS-001 do_rules(범주 구분색).
  *
@@ -60,15 +66,18 @@ const krdsNeutral = {
   950: '#131416',
 };
 
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
-  theme: {
-    screens: {
-      md: '768px',
-      xl: '1280px',
-    },
-    extend: {
+// [@design DS-001] [@design DS-002]
+/**
+ * 관제 채널(DS-001 · KRDS) theme.extend — **이 객체가 관제 축 값의 정의처다.**
+ *
+ * ★포털 채널(DS-002)은 이것을 **바꾸지 않는다.** `design-tokens/ds002.js` 가 이 객체를 받아
+ *   DS-002 가 규정한 축만 갈아끼운 새 객체를 만들고, 산출 시점에 둘 중 하나가 선택된다
+ *   (`design-tokens/channel.js`). 그래서 포털 축 작업이 관제 값을 건드릴 수 없다.
+ *
+ * ⚠ 두 축의 **토큰 이름이 같고 값만 다르다** — 이름으로 같은 색이라고 판단하면 조용히 다른
+ *   색이 뜬다(`DS-002.dont_rules`). 어느 값을 보고 있는지는 **채널**이 정한다.
+ */
+export const controlThemeExtend = {
       colors: {
         // KRDS(대한민국 정부 디자인시스템, LogiCraft DS-001) 색 토큰
         // ⚠ 2026-08-08: primary/info 를 DS-001 v6 정본(KRDS 공식 토큰 CSS 그대로) 값으로 교체.
@@ -353,7 +362,23 @@ export default {
         standard: 'cubic-bezier(0.2,0,0,1)',
         emphasized: 'cubic-bezier(0.3,0,0,1)',
       },
+};
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  theme: {
+    screens: {
+      md: '768px',
+      xl: '1280px',
     },
+    // ★채널이 토큰 값을 정한다 — 관제 산출물은 DS-001, 포털 산출물은 DS-002.
+    //   라우트도 같은 키(`VITE_BUILD_CHANNEL`)로 이미 갈리므로 한 산출물 안에서 두 채널
+    //   화면이 동시에 뜨는 형상이 없다. 그래서 산출 시점 분기 하나면 충분하다.
+    extend: themeExtendForChannel(
+      resolveDesignChannel(process.env[DESIGN_CHANNEL_ENV_KEY]),
+      controlThemeExtend,
+    ),
   },
   plugins: [],
 };
