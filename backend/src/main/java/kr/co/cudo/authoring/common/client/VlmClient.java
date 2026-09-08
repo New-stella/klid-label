@@ -35,9 +35,12 @@ import java.util.regex.Pattern;
  * <p>연동 대상 창구는 <b>둘</b>이다:
  * <ul>
  *   <li>{@link #DESCRIBE_PATH} — <b>묘사</b>. 이벤트 관점에서 영상의 장소·환경·상황을 서술한다.</li>
- *   <li>{@link #DESCRIBE_SUB_PATH} — <b>추가 질문</b>. 이벤트 발생 여부와 그 근거를 서술한다.</li>
+ *   <li>{@link #CUSTOM_PATH} — <b>추가 질문</b>. 마킹에서 고른 질문 문구를 요청 본문에 직접 싣고
+ *       그에 대한 서술을 받는다. ⚠ 구 창구 {@link #DESCRIBE_SUB_PATH} 는 <b>더 이상 호출하지 않는다</b>
+ *       (규격 v1.2.0 에서 이 창구로 대체됐다) — 그 상수를 남긴 이유는 그 선언부 주석에 있다.</li>
  * </ul>
- * 두 창구는 요청 형식이 같고 결과 항목만 다르며, 각각 <b>별개의 request_id</b> 로 나간다.
+ * 두 창구는 각각 <b>별개의 request_id</b> 로 나간다(콜백 본문에 창구 구분자가 없어 그것으로 역조회한다).
+ * ⚠ 요청 형식은 <b>같지 않다</b> — 묘사는 {@code event_type} 을, 추가 질문은 {@code prompt} 를 싣는다.
  * 접수는 HTTP 202 + {@code status="accepted"} 이고 실제 결과는 {@code POST /v1/vlm/callback} 콜백으로 온다.
  *
  * <p><b>판정 창구는 연동하지 않는다</b> — 그 창구만 제공하는 발생 여부·일치도 값은 우리 확정 경로
@@ -154,16 +157,22 @@ public class VlmClient {
     }
 
     /**
-     * 추가 질문(describe-sub)을 비동기 위탁한다 — 규격 §3.3.
+     * 추가 질문(custom)을 비동기 위탁한다 — 규격 v1.2.0 신설 창구.
      *
-     * <p>지정한 이벤트가 발생했는지와 그 근거를 서술로 받는다. 질문 문장은 <b>이벤트별로 서버가
-     * 관리</b>하며 연동 시스템이 지정하지 않는다. 판정 항목은 이 창구에서 제공되지 않는다 — 모델이
-     * "네"로 답을 시작해도 그 문장은 서술에 그대로 담긴다.
+     * <p>★<b>질문 문구를 우리가 요청 본문에 직접 싣는다</b>({@code prompt}). 마킹에서 고른 질문이
+     * 그대로 나가므로 그 값은 기록이 아니라 <b>실제로 보내는 값</b>이다 — 보낸 문구를 원장에 남겨
+     * 콜백이 그것을 읽는다(재조달하면 보낸 값과 기록된 값이 갈라진다).
+     *
+     * <p>⚠ <b>구 서술 폐기</b> — 「질문 문장은 이벤트별로 서버가 관리하며 연동 시스템이 지정하지
+     * 않는다」는 구 창구({@link #DESCRIBE_SUB_PATH}) 시절 사실이고 지금은 반대다. 되살리지 말 것.
+     *
+     * <p>이 창구는 {@code event_type} 을 싣지 않는다 — 묘사 축과 요청 형식이 다르다.
+     * 판정 항목은 제공되지 않는다(모델이 "네"로 답을 시작해도 그 문장은 서술에 그대로 담긴다).
      *
      * <p>{@link #submitDescribe} 와 <b>반드시 다른 request_id</b> 로 호출해야 한다(콜백 역조회 축).
      */
-    public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request) {
-        return submitDescribeSub(request, null);
+    public Mono<VlmTimeseriesResponse> submitCustom(VlmTimeseriesRequest request) {
+        return submitCustom(request, null);
     }
 
     /**
@@ -173,7 +182,7 @@ public class VlmClient {
      * 따로 고르면 위탁 원장에는 장비가 창구별로 갈려 남는데, 그 값은 부하 집계의 입력이라 한 영상의
      * 위탁이 두 장비의 부하를 동시에 올린 것처럼 보인다.
      */
-    public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request, String srvrAddr) {
+    public Mono<VlmTimeseriesResponse> submitCustom(VlmTimeseriesRequest request, String srvrAddr) {
         return submit(CUSTOM_PATH, "custom", request, srvrAddr);
     }
 
