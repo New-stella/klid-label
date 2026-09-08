@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 전체 통합 |
-| last sync | 2026-09-08T04:12:26.969Z (session 37) |
+| last sync | 2026-09-08T06:20:00.476Z (session 38) |
 | 화면 수 | 38개 |
 | ui_component 카탈로그 | populated 145건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
@@ -18,9 +18,9 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-001]] | 세션 인계 진입 화면 | CHANGED | ✅ | [[API-006]] |  |
-| [[SCREEN-002]] | 관리자 등록 화면 | CHANGED | ✅ | [[API-007]], [[API-245]] |  |
-| [[SCREEN-003]] | 접근 거부 화면 | CHANGED | ✅ |  |  |
+| [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ | [[API-006]] |  |
+| [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]], [[API-245]] |  |
+| [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
 | [[SCREEN-005]] | 라벨링 캔버스 화면 | UNCHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]], [[API-204]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-006]] | 마킹 화면 | UNCHANGED | ✅ | [[API-047]], [[API-043]], [[API-091]], [[API-114]], [[API-084]] | [[ROLE-001]], [[ROLE-002]] |
@@ -37,7 +37,7 @@
 | [[SCREEN-023]] | 증강 결과 화면 | UNCHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]] | [[ROLE-001]] |
-| [[SCREEN-026]] | 프리셋 관리 화면 | CHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
+| [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
 | [[SCREEN-027]] | 파일 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-028]] | 포털 내 작업 화면 | UNCHANGED | ✅ | [[API-225]], [[API-203]] | [[ROLE-003]] |
 | [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]], [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-234]], [[API-235]], [[API-236]], [[API-237]] | [[ROLE-003]] |
@@ -126,13 +126,39 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[SD-006]] | screen_design | CHANGED (v5→v9) |
-| [[SCREEN-001]] | screen_spec | CHANGED (v16→v19) |
-| [[SCREEN-002]] | screen_spec | CHANGED (v32→v33) |
-| [[SCREEN-003]] | screen_spec | CHANGED (v14→v15) |
-| [[SCREEN-026]] | screen_spec | CHANGED (v35→v41) |
-| [[SCREEN-042]] | screen_spec | CHANGED (v15→v17) |
-| [[UC-032]] | use_case | CHANGED (v14→v15) |
+| [[API-006]] | api_endpoint | CHANGED (v11→v12) |
+| [[API-069]] | api_endpoint | CHANGED (v10→v12) |
+| [[SD-017]] | screen_design | CHANGED (v3→v6) |
+| [[SD-036]] | screen_design | CHANGED (v7→v9) |
+| [[SCREEN-042]] | screen_spec | CHANGED (v17→v20) |
+| [[UC-001]] | use_case | CHANGED (v18→v19) |
+| [[UC-002]] | use_case | CHANGED (v21→v22) |
+| [[UC-003]] | use_case | CHANGED (v16→v17) |
+| [[UC-004]] | use_case | CHANGED (v18→v19) |
+| [[UC-005]] | use_case | CHANGED (v13→v14) |
+| [[UC-006]] | use_case | CHANGED (v11→v12) |
+| [[UC-007]] | use_case | CHANGED (v15→v16) |
+| [[UC-008]] | use_case | CHANGED (v17→v18) |
+| [[UC-009]] | use_case | CHANGED (v25→v26) |
+| [[UC-010]] | use_case | CHANGED (v17→v18) |
+| [[UC-011]] | use_case | CHANGED (v21→v22) |
+| [[UC-013]] | use_case | CHANGED (v12→v13) |
+| [[UC-016]] | use_case | CHANGED (v31→v32) |
+| [[UC-018]] | use_case | CHANGED (v24→v27) |
+| [[UC-019]] | use_case | CHANGED (v30→v32) |
+| [[UC-021]] | use_case | CHANGED (v23→v25) |
+| [[UC-022]] | use_case | CHANGED (v29→v30) |
+| [[UC-023]] | use_case | CHANGED (v30→v31) |
+| [[UC-024]] | use_case | CHANGED (v33→v34) |
+| [[UC-027]] | use_case | CHANGED (v32→v34) |
+| [[UC-028]] | use_case | CHANGED (v8→v9) |
+| [[UC-029]] | use_case | CHANGED (v13→v14) |
+| [[UC-030]] | use_case | CHANGED (v16→v17) |
+| [[UC-031]] | use_case | CHANGED (v18→v20) |
+| [[UC-032]] | use_case | CHANGED (v15→v16) |
+| [[UC-033]] | use_case | CHANGED (v7→v8) |
+| [[UC-036]] | use_case | CHANGED (v8→v9) |
+| [[UC-042]] | use_case | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

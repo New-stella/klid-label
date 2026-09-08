@@ -13,6 +13,7 @@
       "title": "이벤트 마킹 (자동/수동)",
       "status": "approved",
       "priority": "must",
+      "frequency": "이벤트성(영상마다 1회) — 비식별이 끝난 영상마다 한 번 수행하며, 마킹이 끝나야 잔여 배치가 시작된다. 자동 마킹은 정해진 프레임 간격으로 일괄 생성하고 수동 마킹은 작업자가 구간마다 지정한다.",
       "main_flow": [
         {
           "step": 1,
@@ -136,7 +137,9 @@
         "배치 시스템"
       ],
       "extends_use_cases": [],
-      "realizes_features": [],
+      "realizes_features": [
+        "FEAT-012"
+      ],
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
@@ -147,12 +150,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 30,
-    "stale": true,
-    "stale_reason": "AC-1015의 data.scenario 변경 — covered_by",
-    "change_summary": "검증 이벤트 유형 미수신 전제를 좁힌다 — 관제가 유형을 보내지 않아 마킹 화면에 유형 선택이 노출된 영상에서는 유형을 고르지 않으면 마킹을 완료할 수 없다(완료 조작은 막지 않고 사유를 알리며 제출만 막는다). 질문 문구는 어느 마킹 방식에서도 값이 있어야 하므로 유형 선택이 질문 성립의 전제이기 때문이다. 「유형도 선택도 없으면 질문 칸을 비워 둔다」는 폴백은 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 마킹 행 한정으로 축소했고 폴백 자체는 남긴다. 유형을 고르면 서버에 다시 묻지 않고 질문 선택이 열린다는 동선(영상 상세 조회가 유형 목록의 각 항목에 그 유형의 질문 목록을 함께 싣는다)도 반영했다. 이 필수는 화면 축이며 마킹 등록 요청의 유형 필드와 마킹 원장의 유형 컬럼은 선택으로 유지한다. description·main_flow·alternate_flows 세 층을 함께 정정했다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-09-07T15:30:03.655Z",
+    "current_version": 32,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "발생 빈도 기입 — 비어 있어 산출물 칸이 공란으로 나갔다. 값은 본문에서 도출했다. 비식별 영상에서 자동·수동으로 이벤트 시점을 식별하고 완료 시 잔여 배치가 시작된다는 목표 서술이 근거이며, 작업 단위가 영상 1건이므로 영상마다 1회다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T06:11:36.923Z",
     "created_at": "2026-06-05T09:43:09.277Z"
   }
 }

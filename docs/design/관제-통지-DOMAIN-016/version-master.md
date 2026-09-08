@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-08T04:11:55.268Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 96 |
+| Last sync | 2026-09-08T06:19:48.314Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 93 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -29,7 +29,7 @@
   ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 84건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 10건 / 스코프 밖 48건 (그중 domain_id 없음 10건)
-  ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
+  ℹ️  feature: 이번 키트 1건 / 스코프 밖 13건 (그중 domain_id 없음 12건)
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -41,7 +41,9 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[ADR-046]] (prev v16)
+- CHANGED [[SEQ-025]] (prev v7)
+- CHANGED [[UC-009]] (prev v25)
 
 ## ITEM 표
 
@@ -60,7 +62,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
-| [[ADR-046]] | adr | 16 | UNCHANGED |
+| [[ADR-046]] | adr | 17 | CHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
@@ -140,6 +142,6 @@
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 7 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 8 | CHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[UC-009]] | use_case | 25 | UNCHANGED |
+| [[UC-009]] | use_case | 26 | CHANGED |

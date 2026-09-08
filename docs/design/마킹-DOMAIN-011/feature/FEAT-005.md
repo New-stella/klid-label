@@ -1,22 +1,23 @@
 ---
 logicraft_item: FEAT-005
 type: feature
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:10:25.972Z
+synced_at: 2026-09-08T06:19:45.399Z
 status: CHANGED
-prev_version: 9
-content_hash: 231664259e70726d239767b016cd9fbb56cd0a857d9413851f57a47db1f39aa5
+prev_version: 10
+content_hash: 591f14ff9fdd48c9f0675fcc09a7a49d6f3787b70a7157250723bf2027a34f6f
 stale: false
 raw: ./_raw/FEAT-005.json
 links:
   based_on: ["[[ADR-006]]"]
-  implements: ["[[REQ-012]]", "[[REQ-013]]", "[[REQ-015]]", "[[REQ-021]]", "[[REQ-025]]"]
+  implements: ["[[REQ-012]]", "[[REQ-013]]", "[[REQ-015]]", "[[REQ-021]]", "[[REQ-025]]", "[[REQ-027]]"]
   migrated_from: ["[[LEGACY-065]]"]
   granted_on_backward: ["[[ROLE-001]]", "[[ROLE-002]]"]
   implements_backward: ["[[API-032]]", "[[API-091]]", "[[API-094]]", "[[API-109]]", "[[API-112]]"]
-  realizes_backward: ["[[MOD-005]]"]
+  realizes_backward: ["[[MOD-005]]", "[[UC-031]]"]
+  references_backward: ["[[ADR-009]]"]
   specializes_backward: ["[[DFEAT-041]]", "[[DFEAT-042]]", "[[DFEAT-048]]"]
 ---
 
@@ -112,6 +113,10 @@ complex
 
 발주기관이 제공하는 외부 비식별 솔루션을 연동해 개인정보를 가린다. 단순 연동에 그치지 않고, 솔루션이 제공하는 옵션을 관리 화면에서 선택·설정·사용하는 기능과 화면을 함께 제공한다. 비식별은 적재 직후 자동 실행되는 선두 단계로, 대상을 좁히는 게이팅 없이 전체 영상을 처리하며 원본과 비식별본을 따로 보관한다.
 
+## attached_files
+
+_(empty)_
+
 ## business_rules
 
 - 대상을 좁히는 게이팅 없이 적재된 전체 영상을 비식별한다
@@ -140,6 +145,10 @@ _(empty)_
 
 _(empty)_
 
+### module_paths
+
+_(empty)_
+
 ## implements_requirements
 
 - REQ-012
@@ -147,3 +156,4 @@ _(empty)_
 - REQ-015
 - REQ-021
 - REQ-025
+- REQ-027

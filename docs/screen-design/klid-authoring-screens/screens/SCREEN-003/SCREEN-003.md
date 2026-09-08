@@ -5,18 +5,14 @@ version: 15
 last_updated_at: 2026-09-08T04:10:21.631Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T04:12:26.769Z
-sync_session: 37
+synced_at: 2026-09-08T06:20:00.292Z
+sync_session: 38
 stale: false
-status: CHANGED
-prev_version: 14
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-003.json
 wireframe: ./wireframe.html
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v14 → v15**
-> change_summary: 역할을 확인하지 못한 상태가 이 화면으로 오지 않는다는 조건을 담는다. 이 화면은 역할이 확인됐고 그 역할로는 접근할 수 없는 경우의 도착지다 — 확인하지 못한 것과 확인했는데 권한이 모자란 것은 다른 상태이며 한 상태로 합치지 않는다. 서버가 알려 준 인가 역할은 화면 수명 동안만 유효해 화면을 다시 불러올 때마다 다시 확보하고 그 확보가 끝난 뒤에만 도착지를 판정하며, 확인 조회 실패를 역할 없음으로 다루지 않는다. 확인하지 못한 상태를 여기로 보내면 사용자는 자기에게 권한이 없다고 잘못 안내받는다. purpose 에 한 문단, '접근 거부 안내 hero' 섹션 설명에 도착 사유를 한정하는 한 문장을 삽입했다. 화면 구성(섹션·부품)과 링크는 그대로이며 기존 문장을 바꾸거나 지우지 않았다(순수 삽입).
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 접근 거부 화면
 

@@ -13,6 +13,7 @@
       "title": "라벨링 정밀도 조절",
       "status": "draft",
       "priority": "should",
+      "frequency": "비정기 — 라벨 경계의 세밀함을 바꿀 필요가 있을 때만 수행하는 저빈도 설정 작업이다.",
       "main_flow": [
         {
           "step": 1,
@@ -98,12 +99,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
-    "stale": true,
-    "stale_reason": "SCREEN-025의 3개 필드 변경 — references",
-    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 3건이 있었는데 그중 3건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1028, AC-1029)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "current_version": 12,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "발생 빈도 기입 — 비어 있어 산출물 칸이 공란으로 나갔다. 폴리곤 단순화 정밀도를 시스템 설정값으로 관리하고 조절하면 이후 결과에 반영된다는 서술에서, 작업마다가 아니라 설정을 바꿀 때만 일어나는 저빈도 작업임이 드러난다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:25:53.828Z",
+    "last_updated_at": "2026-09-08T06:13:54.263Z",
     "created_at": "2026-06-01T06:24:00.858Z"
   }
 }

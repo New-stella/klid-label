@@ -5,20 +5,16 @@ version: 19
 last_updated_at: 2026-09-08T04:10:02.480Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T04:12:26.766Z
-sync_session: 37
+synced_at: 2026-09-08T06:20:00.289Z
+sync_session: 38
 stale: false
-status: CHANGED
-prev_version: 16
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-001.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-006]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v16 → v19**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.6KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 세션 인계 진입 화면
 

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-001",
-  "synced_at": "2026-09-08T04:11:47.194Z",
+  "synced_at": "2026-09-08T06:19:42.540Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -39,8 +39,8 @@
     "AC-1072": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 10,
-      "content_hash": "1d5261326346b5224c35006177cfd62898f857051179e16b50ebdec6088073dc"
+      "version": 12,
+      "content_hash": "8a9cdb133aa52273febb00f477a3b5dad01f023331f4021b5abc09099ddc1d03"
     },
     "AC-1073": {
       "type": "acceptance",
@@ -123,8 +123,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 16,
-      "content_hash": "307ae6f16ebe75b1f89b5700f59b8a4cb2254b37f5b9688dff3169baf31e8093"
+      "version": 17,
+      "content_hash": "ab4233a1c0c5a29bf1aa992566a3e61a33ad7f46f706e92621f988216bebc8c4"
     },
     "ADR-055": {
       "type": "adr",
@@ -177,8 +177,8 @@
     "API-006": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-001",
-      "version": 11,
-      "content_hash": "afd9f1a5d70a1e49bda0414a631b7594eba493c8580178c1f9819a62cf8a2df9"
+      "version": 12,
+      "content_hash": "7e53703edabc8fc019f685d8fee2bde5a220a18fef461b88184878d51f44b0eb"
     },
     "API-007": {
       "type": "api_endpoint",
@@ -591,8 +591,8 @@
     "SD-017": {
       "type": "screen_design",
       "domain_id": null,
-      "version": 3,
-      "content_hash": "0802de469047496e5540ca51fbaeb4312dbd1629773ead4a1a7ca600bd734eea"
+      "version": 6,
+      "content_hash": "1313223922fb037ef3694d9dbd47ff805444f2c37a7caf78a1d98785fcbed973"
     },
     "SD-018": {
       "type": "screen_design",
@@ -681,8 +681,8 @@
     "UC-030": {
       "type": "use_case",
       "domain_id": "DOMAIN-001",
-      "version": 16,
-      "content_hash": "fd500aec814d711807af21ad089c1ef6be95bcd5bcf1cb2dea26a7bfbced75c9"
+      "version": 17,
+      "content_hash": "f712131fbdad84a3313f8550eed289bdc1a90dc2f894a52d6a5120a8cb37ee8d"
     },
     "UC-041": {
       "type": "use_case",

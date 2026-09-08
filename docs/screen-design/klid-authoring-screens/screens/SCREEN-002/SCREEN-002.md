@@ -5,20 +5,16 @@ version: 33
 last_updated_at: 2026-09-08T04:10:21.502Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T04:12:26.768Z
-sync_session: 37
+synced_at: 2026-09-08T06:20:00.291Z
+sync_session: 38
 stale: false
-status: CHANGED
-prev_version: 32
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]", "[[API-245]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v32 → v33**
-> change_summary: 역할을 확인하지 못한 상태가 이 화면의 도착 사유가 되지 않는다는 조건을 담는다. 서버가 알려 준 인가 역할은 화면 수명 동안만 유효해 화면을 다시 불러올 때마다 다시 확보하며, 그 확보가 끝난 뒤에만 도착지를 판정한다. 확보 전에 판정하면 아직 확인하지 못한 상태가 역할 없음으로 읽혀, 관리자가 이미 있는 시스템에서도 최초 관리자 등록 안내가 뜬다 — 실패가 '아직 관리자가 없습니다'로 둔갑하면 화면이 사실과 다른 말을 한다. 기존에 담겨 있던 창구 개폐 조회 실패 축(인증 실패는 상위 시스템 로그인, 그 밖의 장애는 오류 상태)에 역할 확인 조회 실패 축을 나란히 더한 것이며, 두 축 모두 관리자 부재 안내로 바꾸지 않는다는 결론은 같다. purpose 에 한 문단을 삽입하고 '안내 헤더' 섹션 설명에 렌더 조건 한 문장을 덧붙였다. 기존 문장·섹션·부품·링크는 하나도 바꾸거나 지우지 않았다(순수 삽입).
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 관리자 등록 화면
 
