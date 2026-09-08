@@ -110,7 +110,7 @@ const CONFIGS = {
 };
 
 /**
- * AI 장비 목록(SCREEN-042 「AI 장비 목록」 영역) — 연동 서버 주소 화면이 함께 그린다.
+ * 장비 목록(SCREEN-042 「추론·외부 시계열 분석 장비 목록」 영역) — 연동 서버 주소 화면이 함께 그린다.
  *
  * ⚠ 이 응답을 배선하지 않으면 그 영역이 오류 상태로만 렌더되어 <b>표·배지·행 액션이 통째로
  *   감사 대상에서 빠진다</b>. 감사기가 아무것도 못 보고 초록이 되는 형태라 반드시 채워 둔다.
@@ -217,7 +217,7 @@ describe('관리 영역 화면 접근성 (WCAG 2.1 AA 자동 감사)', () => {
       initialEntries: ['/admin/endpoints'],
     });
     await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
-    // AI 장비 목록이 실제로 그려진 뒤에 감사한다 — 비어 있는 상태를 감사하면 표·배지·행 액션이
+    // 장비 목록이 실제로 그려진 뒤에 감사한다 — 비어 있는 상태를 감사하면 표·배지·행 액션이
     // 대상에서 빠진 채 초록이 된다.
     await waitFor(() => expect(screen.getByTestId('ai-server-table')).toBeInTheDocument());
 

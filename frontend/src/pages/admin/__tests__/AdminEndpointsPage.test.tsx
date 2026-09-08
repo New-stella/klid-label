@@ -33,6 +33,14 @@ describe('AdminEndpointsPage', () => {
       message: null,
       errorCode: null,
     });
+    // 장비 목록도 이 화면이 함께 그린다 — 배선하지 않으면 그 절이 오류 상태로만 렌더돼
+    // 이름·표가 통째로 검사 밖으로 빠진다.
+    mock.onGet(/\/manage\/ai-servers/).reply(200, {
+      success: true,
+      data: [],
+      message: null,
+      errorCode: null,
+    });
     useAuthStore.setState({
       token: 'dummy-token',
       claims: { sub: '1001', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
@@ -46,17 +54,45 @@ describe('AdminEndpointsPage', () => {
     useAdminSessionStore.getState().clear();
   });
 
-  it('연동_대상_네_종과_대상_밖_안내가_함께_보인다', async () => {
+  it('주소_칸_세_종과_대상_밖_안내가_함께_보인다', async () => {
     renderWithProviders(<AdminEndpointsPage />, { initialEntries: ['/admin/endpoints'] });
 
     await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
-    expect(screen.getByLabelText('AI 추론 서버')).toBeInTheDocument();
-    expect(screen.getByLabelText('외부 시계열 분석 벤더')).toBeInTheDocument();
+    expect(screen.getByLabelText('외부 증강 벤더')).toBeInTheDocument();
     expect(screen.getByLabelText('관제 통지 수신처')).toBeInTheDocument();
     // 여기서 찾다가 없다고 판단하는 일이 없도록 화면이 대상 밖임을 밝힌다.
     expect(
       screen.getByText('데이터베이스 접속정보는 이 화면에서 다루지 않습니다.'),
     ).toBeInTheDocument();
+  });
+
+  /*
+   * ★ 두 축이 한 화면에 있다 — 「주소 칸」과 「장비 목록」.
+   *   부제가 그 두 축을 그대로 말해야, 추론·시계열 주소를 위 칸에서 찾다가 없다고 판단하지 않는다.
+   *   그리고 죽은 칸 둘이 되살아나지 않았는지를 **존치 축과 짝으로** 본다.
+   */
+  it('★죽은_칸_두_개는_화면에도_없고_장비_목록_절은_이름이_좁혀져_있다', async () => {
+    renderWithProviders(<AdminEndpointsPage />, { initialEntries: ['/admin/endpoints'] });
+
+    await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
+    expect(screen.queryByLabelText('AI 추론 서버')).toBeNull();
+    expect(screen.queryByLabelText('외부 시계열 분석 벤더')).toBeNull();
+
+    // 존치 축 — 절 자체가 사라지지 않았다. 그리고 이름이 「AI 장비 목록」으로 돌아가지 않았다.
+    expect(
+      screen.getByRole('heading', { name: '추론·외부 시계열 분석 장비 목록' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'AI 장비 목록' })).toBeNull();
+  });
+
+  it('★부제가_두_축을_그대로_말한다 — 주소_칸과_장비_목록', async () => {
+    renderWithProviders(<AdminEndpointsPage />, { initialEntries: ['/admin/endpoints'] });
+
+    await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
+    const subtitle = screen.getByText(/주소 칸 —/);
+    expect(subtitle).toHaveTextContent(
+      '주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 / 장비 목록 — 추론 · 외부 시계열 분석',
+    );
   });
 
   it('★유효창이_없어도_저장된_값은_보이고_저장만_막힌다', async () => {

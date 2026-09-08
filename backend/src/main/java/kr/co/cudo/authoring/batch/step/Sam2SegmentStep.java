@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.batch.policy.PresetResolution;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment;
 import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
@@ -104,6 +105,13 @@ public class Sam2SegmentStep implements BatchStep {
     private final Path baseRawPath;
     /** NEW-H1 — 배포 환경(stg/prd) 여부. YOLO 스텝과 <b>동일한</b> 판정기를 재사용한다(복제 금지). */
     private final DeployedEnvironmentDetector deployedEnvironment;
+    /**
+     * <b>같은 영상은 같은 장비로</b> — 배치 경로의 영상 고정. [@design ADR-057]
+     *
+     * <p>YOLO 단계와 <b>같은 배정</b>을 읽는다(영상당 한 건이므로 같은 장비가 나온다). 두 단계가 서로
+     * 다른 장비로 가면 SAM2 가 YOLO 의 추적 상태를 이어받지 못한다.
+     */
+    private final AiSrvrBatchAssignment batchAssignment;
 
     public Sam2SegmentStep(AiServerClient aiServerClient,
                            LsDataSrcRepository srcRepository,
@@ -113,7 +121,8 @@ public class Sam2SegmentStep implements BatchStep {
                            LabelMasterService labelMasterService,
                            ObjectMapper objectMapper,
                            @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
-                           DeployedEnvironmentDetector deployedEnvironment) {
+                           DeployedEnvironmentDetector deployedEnvironment,
+                           AiSrvrBatchAssignment batchAssignment) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
@@ -123,6 +132,7 @@ public class Sam2SegmentStep implements BatchStep {
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.deployedEnvironment = deployedEnvironment;
+        this.batchAssignment = batchAssignment;
     }
 
     @Override
@@ -175,6 +185,13 @@ public class Sam2SegmentStep implements BatchStep {
         // srcSn → upstream hint list (프레임 단위 빠른 조회)
         Map<Long, List<BbHint>> hintsBySrc = groupHintsBySrc(hints);
 
+        // ★영상 고정 — 프레임 순회 <전에> 한 번 정한다. YOLO 단계가 이미 배정해 두었으면 <그 장비>가
+        //   나온다(영상당 한 건). [design: ADR-057]
+        //   ⚠ 후보 0 이면 여기서 거부가 던져진다(폴백 없음) — 프레임을 읽기 전이라 부분 적재가 없다.
+        //   ⚠ 원장 조회 실패는 다른 축이다 — 「정하지 못했다」는 표식이 돌아오고(배포 기본 주소),
+        //     그 값을 프레임마다 그대로 넘겨 <고정을 지킨다>. 「비었나」로 판정하지 말 것.
+        final String srvrAddr = batchAssignment.resolveAddress(rawSn);
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         // ── 재실행 멱등 (@req R1) — 이미 SAM2 폴리곤이 적재된 프레임은 추론·적재를 건너뛴다.
         //
@@ -220,7 +237,7 @@ public class Sam2SegmentStep implements BatchStep {
                             job.label, rawSn, src.getSrcSn());
                     continue;
                 }
-                Sam2Response resp = callSam2(imageB64, job.box, src.getSrcSn());
+                Sam2Response resp = callSam2(imageB64, job.box, src.getSrcSn(), srvrAddr);
                 if (resp == null || resp.polygon() == null) {
                     // NEW-H1 — 빈 200 바디·무본문 프록시 응답 등 <b>결측 응답</b>. 배포 환경에서는
                     //   "폴리곤 0건인데 배치는 성공" 이라는 무증상 실패를 남기지 않는다(YOLO 와 동일).
@@ -306,11 +323,13 @@ public class Sam2SegmentStep implements BatchStep {
         return deployedEnvironment.isDeployed();
     }
 
-    private Sam2Response callSam2(String imageB64, List<Double> box, Long srcSn) {
+    private Sam2Response callSam2(String imageB64, List<Double> box, Long srcSn, String srvrAddr) {
         try {
             // [design: ADR-056] 용도를 배치로 명시한다 — ai-server 의 배치 전용 실행 슬롯으로 가고 서킷도 배치 축을
             // 쓴다(ADR-056). 명시하지 않으면 화면 슬롯으로 떨어져 작업자 요청과 한 줄에 선다.
-            return aiServerClient.segment(new Sam2Request(imageB64, null, box), AiWorkload.BATCH)
+            // [design: ADR-057] 장비는 <이 영상에 고정된> 것을 쓴다. 프레임마다 다시 고르면 같은 영상이
+            //   두 장비로 흩어져 객체 식별자가 어긋난다.
+            return aiServerClient.segment(new Sam2Request(imageB64, null, box), AiWorkload.BATCH, srvrAddr)
                     .block(Duration.ofSeconds(70));
         } catch (RuntimeException e) {
             log.error("[Batch][Sam2] failed srcSn={} err={}", srcSn, e.getMessage());

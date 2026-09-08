@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-09-07T15:22:10.755Z (session 17) |
+| last sync | 2026-09-08T00:21:15.746Z (session 18) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
@@ -19,10 +19,10 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]], [[API-245]] |  |
+| [[SCREEN-002]] | 관리자 등록 화면 | CHANGED | ✅ | [[API-007]], [[API-245]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
-| [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
+| [[SCREEN-004]] | 개발용 로그인 화면 | CHANGED | ✅ | [[API-153]] |  |
+| [[SCREEN-024]] | 사용자 관리 화면 | CHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
 
 ## 공유 자산 인덱스
 
@@ -60,21 +60,53 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
+| [[AC-1016]] | acceptance | NEW |
+| [[AC-1017]] | acceptance | NEW |
+| [[AC-1018]] | acceptance | NEW |
+| [[AC-1019]] | acceptance | NEW |
 | [[AC-1098]] | acceptance | NEW |
+| [[API-001]] | api_endpoint | CHANGED (v6→v10) |
+| [[API-003]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-004]] | api_endpoint | CHANGED (v8→v10) |
+| [[API-005]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-006]] | api_endpoint | CHANGED (v10→v11) |
+| [[API-007]] | api_endpoint | CHANGED (v14→v17) |
+| [[API-153]] | api_endpoint | CHANGED (v4→v6) |
+| [[API-194]] | api_endpoint | NEW |
 | [[API-245]] | api_endpoint | NEW |
+| [[SHELL-001]] | app_shell | CHANGED (v11→v12) |
+| [[ROLE-001]] | permission_role | CHANGED (v13→v14) |
+| [[ROLE-002]] | permission_role | NEW |
+| [[ROLE-003]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | CHANGED (v4→v5) |
+| [[SD-009]] | screen_design | CHANGED (v12→v13) |
+| [[SD-020]] | screen_design | CHANGED (v4→v5) |
+| [[SCREEN-002]] | screen_spec | CHANGED (v26→v32) |
+| [[SCREEN-004]] | screen_spec | CHANGED (v14→v17) |
+| [[SCREEN-024]] | screen_spec | CHANGED (v32→v35) |
+| [[UI-035]] | ui_component | CHANGED (v6→v8) |
+| [[UI-037]] | ui_component | CHANGED (v4→v6) |
+| [[UI-043]] | ui_component | CHANGED (v4→v5) |
+| [[UI-046]] | ui_component | CHANGED (v7→v8) |
+| [[UI-071]] | ui_component | CHANGED (v4→v5) |
+| [[UI-072]] | ui_component | CHANGED (v4→v5) |
+| [[UI-096]] | ui_component | CHANGED (v5→v6) |
+| [[UI-105]] | ui_component | CHANGED (v1→v3) |
+| [[UI-129]] | ui_component | CHANGED (v1→v4) |
+| [[UI-131]] | ui_component | CHANGED (v1→v2) |
+| [[UI-132]] | ui_component | CHANGED (v1→v2) |
+| [[UI-134]] | ui_component | CHANGED (v1→v2) |
+| [[UI-138]] | ui_component | CHANGED (v1→v2) |
+| [[UI-139]] | ui_component | CHANGED (v1→v2) |
+| [[UI-140]] | ui_component | CHANGED (v1→v2) |
+| [[UC-030]] | use_case | CHANGED (v13→v16) |
+| [[UC-041]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
-
-> ⚠️ 여러 화면이 공유하는 UC/AC 4건은 화면 폴더마다 같은 파일명으로
-> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
-> - UC-041 — SCREEN-001, SCREEN-002, SCREEN-003
-> - AC-1016 — SCREEN-001, SCREEN-002, SCREEN-003
-> - AC-1017 — SCREEN-001, SCREEN-002, SCREEN-003
-> - AC-1098 — SCREEN-001, SCREEN-002, SCREEN-003
 
 ## git 권장
 

@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.aiserver.service;
 
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
+import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,24 @@ import java.util.stream.Collectors;
 
 /**
  * 원장의 노드를 <b>하나씩</b> 돌며 상태와 부하를 관측한다. [@design ADR-057]
+ *
+ * <h3>★ 상태는 두 계통 다 재고, 부하는 추론만 잰다 (2026-09-08)</h3>
+ * <p>「살아 있는가」와 「여유가 있는가」는 <b>다른 축</b>이며, 그 구분이 관측 대상을 정할 때에도
+ * 그대로 적용된다는 것이 근거 결정의 사양이다.
+ * <ul>
+ *   <li><b>상태</b> — 추론·시계열 <b>둘 다</b> 관측한다. 창구는 계통마다 다르며 그 판정은
+ *       {@link HttpAiSrvrHealthProbe} 가 단독으로 갖는다.</li>
+ *   <li><b>부하</b> — <b>추론만</b> 관측한다. 시계열은 위탁을 제출하고 결과를 콜백으로 받는 방식이라
+ *       그 계통에 「처리 대기」라는 개념이 성립하지 않는다. 그 축의 부하 원천은 <b>우리 원장의 미결
+ *       위탁 수</b>이며 {@code AiSrvrSelector} 가 소유한다.</li>
+ * </ul>
+ *
+ * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — 시계열을 제외하던 자리에 <i>「시계열 축은 논블로킹 제출 +
+ * 콜백이라 이 경로의 <b>부하·상태</b> 개념이 성립하지 않는다」</i>고 적혀 있었다. <b>그 근거가 두
+ * 축을 섞었다</b> — 부하는 정말 못 재지만 <b>살아 있는지는 잴 수 있다</b>. 그대로 두면 시계열 장비는
+ * 죽어도 「가용」으로 남아 위탁이 죽은 주소로 계속 나가고, 그 계통은 후보가 0이 되어도 아무도
+ * 알아채지 못한다. 지우지 않고 남기는 이유는 왜 한때 그렇게 적혔는지가 사라지면 다음 사람이 같은
+ * 역추정으로 필터를 되살리기 때문이다. <b>부하 관측을 시계열에 적용하지 않는 것은 그대로다.</b>
  *
  * <p>⚠ 아래 「꺼짐」 서술의 범위는 <b>이 관측 배치</b>다. 헬스 인디케이터는 같은 설정을 보지 않고
  * 매 호출 노드를 직접 핑하므로, 「꺼져 있으면 ai-server 로 아무 요청도 나가지 않는다」로 읽으면
@@ -36,6 +55,16 @@ import java.util.stream.Collectors;
  *
  * <h3>실패한 노드에는 부하를 묻지 않는다</h3>
  * <p>응답조차 못 하는 노드에 한 번 더 물어봐야 얻을 것이 없고, 틱마다 상한만큼 더 기다린다.
+ *
+ * <h3>★ 점검 <b>주기</b>도 계통마다 따로다 (2026-09-08 확정) [@design AC-1099]</h3>
+ * <p>그래서 이 클래스에는 <b>계통을 받는 얼굴</b>({@link #poll(LsAiSrvr.SrvrType)})이 있고 트리거가
+ * 계통마다 있다. 주기 값 자체는 {@link kr.co.cudo.authoring.aiserver.job.AiSrvrHealthPollTriggerConfig}
+ * 이 소유하며 여기서 읽지 않는다.
+ *
+ * <p>⚠ <b>인지·수용한 대가</b> — 주기가 길어지면 <b>죽은 장비가 목록에 남는 시간이 길어진다</b>.
+ * 배제까지 걸리는 시간은 「주기 × 연속 실패 임계」라 시계열 기본값(10초)에서는 추론(5초)의 대략
+ * <b>두 배</b>가 된다. 그 구간의 위탁은 죽은 주소로 나갔다 실패한다. 벤더를 두드리는 횟수를 줄이는
+ * 대가이며 근거 결정에 등재돼 있다.
  */
 @Slf4j
 @Component
@@ -94,8 +123,66 @@ public class AiSrvrHealthPoller {
         this.clock = clock;
     }
 
-    /** 한 틱 — 원장의 추론 노드를 전부 관측한다. */
+    /**
+     * 한 틱 — 원장의 노드를 <b>전부</b> 관측한다(상태는 전 계통, 부하는 추론만).
+     *
+     * <p>계통을 가리지 않는 <b>명시</b> 얼굴이다. 정규 경로는 계통별 트리거가
+     * {@link #poll(LsAiSrvr.SrvrType)} 을 부르며, 이 얼굴은 <b>수동 트리거·프로그래밍 호출</b>이 쓴다.
+     *
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — 여기 <i>「계통 정보를 갖지 않은 구 잡 등록 행(되돌림
+     * 배포 등)이 쓴다」</i>고 적혀 있었다. <b>그 경로는 닫혔다</b> — 계통을 모르는 틱은 이제 아무
+     * 일도 하지 않는다({@code AiSrvrHealthPollJob}). 계통 전용 잡이 따로 등록된 뒤로는 그 폴백이
+     * 두 경로의 중복 관측을 만들어 연속 실패 계수를 유실시키기 때문이다.
+     *
+     * <p>★ <b>그래도 이 얼굴은 남긴다</b> — 「전 계통을 훑는다」는 <b>의도적으로 고를 수 있어야</b>
+     * 하고(운영 진단·시험), 위험한 것은 그 동작 자체가 아니라 <b>모를 때 그리로 떨어지는 것</b>이다.
+     * 그래서 폴백은 없애고 명시 호출만 남긴다.
+     */
     public void pollAll() {
+        pollScoped(null);
+    }
+
+    /**
+     * 한 틱 — <b>그 계통만</b> 관측한다. [@design AC-1099] [@design ADR-057]
+     *
+     * <h3>★ 왜 계통마다 따로 도는가</h3>
+     * <p>점검 주기를 계통마다 따로 두기로 확정됐고(2026-09-08), 그러려면 <b>트리거가 계통마다</b>
+     * 있어야 한다. 트리거 하나가 전 계통을 훑으면서 「최근 점검 시각으로 거른다」는 방식은,
+     * <b>시계열의 실효 주기가 추론 주기보다 짧아질 수 없어</b> 한쪽이 다른 쪽의 하한을 정하게 된다 —
+     * 그것이 정확히 이 결정이 없애려던 결합이다.
+     *
+     * <h3>★★ 평활 표본 정리는 <b>전 계통</b>을 기준으로 한다 — 여기서 계통으로 좁히면 안 된다</h3>
+     * <p>정리는 「원장에 없는 장비의 기억을 버린다」는 뜻이다. 이 틱이 보는 계통만 기준으로 삼으면
+     * <b>다른 계통 장비가 전부 「원장에 없다」로 보여</b> 그쪽 표본이 통째로 지워진다. 부하 표본을
+     * 갖는 것은 추론뿐이므로, 시계열 틱이 돌 때마다 추론의 평활 창이 비고 <b>바쁜 장비가 가장
+     * 한가한 장비로 보여 요청을 통째로 빨아들인다</b>(재기동 직후와 같은 상태가 5초마다 재현된다).
+     * 그래서 원장 조회는 <b>전체</b>로 하고 계통 필터는 <b>관측 대상에만</b> 건다.
+     *
+     * <h3>★ 계통을 모르면 <b>아무것도 하지 않는다</b> (fail-closed · 2026-09-08)</h3>
+     * <p>{@code null} 은 더 이상 「전 계통」이 아니다. 계통 전용 잡이 따로 등록된 뒤로 그 폴백은
+     * <b>두 경로가 같은 장비를 함께 훑게</b> 만들고, 두 경로는 서로를 막지 못해 같은 연속 실패
+     * 계수를 각각 읽고 각각 써 <b>한쪽 갱신이 유실</b>된다 — 죽은 장비가 가용으로 남는다.
+     * 전 계통을 <b>의도적으로</b> 훑는 길은 {@link #pollAll()} 로 남아 있다.
+     *
+     * @param srvrType 관측할 계통. {@code null} 이면 <b>아무것도 하지 않고</b> 경고만 남긴다
+     */
+    public void poll(LsAiSrvr.SrvrType srvrType) {
+        if (srvrType == null) {
+            // ★fail-closed — 「모른다」를 「전부」로 낮추지 않는다(위 javadoc §계통을 모르면).
+            log.warn("[AiSrvr] 관측할 계통이 지정되지 않아 이 틱을 건너뜁니다 — 전 계통을 훑으려면"
+                    + " 전용 얼굴(pollAll)을 명시적으로 부르세요.");
+            return;
+        }
+        pollScoped(srvrType);
+    }
+
+    /**
+     * 실제 한 틱 — {@code null} 은 <b>전 계통</b>이다.
+     *
+     * <p>{@link #poll(LsAiSrvr.SrvrType)} 이 fail-closed 이므로 「모름」이 여기로 흘러들지 않는다.
+     * 이 자리로 {@code null} 이 오는 것은 {@link #pollAll()} 이 <b>명시적으로</b> 그렇게 부른 때뿐이다.
+     */
+    private void pollScoped(LsAiSrvr.SrvrType srvrType) {
         if (!pollEnabled) {
             // 원장 조회조차 하지 않는다. 「꺼짐」은 <이 관측 배치가> 외부 호출을 한 건도 내지
             // 않는다는 뜻이다. ⚠ 시스템 전체로 확대해 읽지 말 것 — 헬스 인디케이터
@@ -103,15 +190,20 @@ public class AiSrvrHealthPoller {
             // (배치가 꺼져 있어 원장 값이 갱신되지 않으므로 그것이 의도다).
             return;
         }
-        List<LsAiSrvr> nodes = repository.findAll().stream()
-                // ★시계열 축은 논블로킹 제출 + 콜백이라 이 경로의 부하·상태 개념이 성립하지 않는다.
-                //   같은 목록에서 섞어 고르면 안 되는 것과 같은 이유다.
-                .filter(node -> node.getSrvrTypeCd() == LsAiSrvr.SrvrType.INFERENCE)
-                .toList();
+        // ★계통을 가르지 않는다 — 상태는 두 계통 다 잰다(위 클래스 주석 §상태는 두 계통 다 재고).
+        //   ⚠구 동작 폐기(2026-09-08): 여기 INFERENCE 만 남기는 필터가 있었다. 되살리지 말 것 —
+        //     그러면 시계열 장비가 죽어도 「가용」으로 남아 위탁이 죽은 주소로 계속 나간다.
+        //     부하를 시계열에서 재지 않는 것은 pollOne 이 따로 지킨다.
+        List<LsAiSrvr> ledger = repository.findAll();
         // ★노드가 0건이어도 정리는 <먼저> 한다. 여기서 되돌아가면 원장을 비운 뒤 같은 식별자로
         //   다시 세웠을 때 죽은 장비의 혼잡 기억이 새 장비로 전이된다 — 정리가 막겠다고 선언한
         //   바로 그것이다. 정리를 건너뛸 이유(외부 호출 절약)는 이 호출에 해당하지 않는다.
-        smoother.retainOnly(nodes.stream().map(LsAiSrvr::getSrvrId).collect(Collectors.toSet()));
+        // ★★기준은 <전 계통>이다(위 javadoc §평활 표본 정리). 이 틱의 계통으로 좁히면 다른 계통
+        //   장비가 「원장에 없다」로 보여 그쪽 표본이 매 틱 지워진다.
+        smoother.retainOnly(ledger.stream().map(LsAiSrvr::getSrvrId).collect(Collectors.toSet()));
+        List<LsAiSrvr> nodes = srvrType == null
+                ? ledger
+                : ledger.stream().filter(node -> node.getSrvrTypeCd() == srvrType).toList();
         if (nodes.isEmpty()) {
             return;
         }
@@ -122,9 +214,10 @@ public class AiSrvrHealthPoller {
                 pollOne(node, observedAt);
             } catch (RuntimeException failure) {
                 // ★여기서 잡지 않으면 노드 하나의 문제로 뒤 노드가 통째로 관측에서 빠진다.
-                //   주소·응답 본문을 싣지 않는다(내부 토폴로지 — CWE-497).
+                //   주소·응답 본문을 싣지 않는다(내부 토폴로지 — CWE-497). 식별자도 원장 유래라
+                //   정제해 싣는다(CWE-117) — 원장 행은 체크 제약을 우회해 들어왔을 수 있다.
                 log.warn("[AiSrvr] 노드 관측에 실패했습니다(다른 노드는 계속 진행). srvrId={} · 원인={}",
-                        node.getSrvrId(), failure.getClass().getSimpleName());
+                        VlmClient.safeForLog(node.getSrvrId()), failure.getClass().getSimpleName());
             }
         }
     }
@@ -134,6 +227,13 @@ public class AiSrvrHealthPoller {
         boolean healthy = healthProbe.ping(node);
         txService.applyHealth(srvrId, healthy, observedAt);
         if (!healthy) {
+            return;
+        }
+
+        if (node.getSrvrTypeCd() != LsAiSrvr.SrvrType.INFERENCE) {
+            // ★부하는 추론만 잰다. 시계열은 제출 후 콜백이라 「처리 대기」라는 개념이 없고, 그 축의
+            //   부하 원천은 우리 원장의 미결 위탁 수다(AiSrvrSelector 소유). 여기서 물으면 벤더의
+            //   상태 창구를 부하 창구로 착각해 두드리게 된다.
             return;
         }
 

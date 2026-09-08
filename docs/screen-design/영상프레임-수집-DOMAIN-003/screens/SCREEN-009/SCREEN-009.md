@@ -5,11 +5,11 @@ version: 76
 last_updated_at: 2026-09-01T08:27:11.143Z
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:22:08.333Z
-sync_session: 20
+synced_at: 2026-09-08T00:21:16.774Z
+sync_session: 18
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 75
 raw: ./_raw/SCREEN-009.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]"]
   acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v75 → v76**
+> change_summary: 이 화면을 덮는 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1022, AC-1023). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 상세 화면
 

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Lock, Unlock } from 'lucide-react';
+import { AlertCircle, Info, Lock, Unlock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -33,36 +33,71 @@ const FIELDS = [
     key: ConfigKey.KPST_DEID_BASE_URL,
     label: '비식별 서버',
     hint: '영상 비식별 처리를 위탁하는 서버 주소입니다.',
+    placeholder: '미설정 — 배포 기본값 사용 중',
   },
   {
-    name: 'aiServer',
-    key: ConfigKey.INTEGRATION_AI_SERVER_BASE_URL,
-    label: 'AI 추론 서버',
-    hint: '자동 라벨링(객체 탐지·분할) 추론을 처리하는 서버 주소입니다.',
-  },
-  {
-    name: 'vlm',
-    key: ConfigKey.VLM_CLIENT_URL,
-    label: '외부 시계열 분석 벤더',
-    hint: '영상 시계열 메타 분석을 위탁하는 외부 서버 주소입니다.',
+    name: 'augment',
+    key: ConfigKey.AUGMENT_EXTERNAL_BASE_URL,
+    label: '외부 증강 벤더',
+    hint: '생성형 AI 증강을 위탁하는 외부 서버 주소입니다. 연동이 확정되기 전에는 비워 둡니다 — 비어 있는 것이 아직 연동하지 않았다는 뜻입니다.',
+    // ⚠ 여기에 «배포 기본값 사용 중» 을 쓰지 않는다 — 이 칸의 빈 값은 «기본값으로 도는 중» 이
+    //   아니라 «아직 연동하지 않음» 이다. 두 뜻을 같은 문구로 덮으면 미연동이 정상 가동으로 읽힌다.
+    placeholder: '연동 전에는 비워 둡니다',
   },
   {
     name: 'controlNotify',
     key: ConfigKey.CONTROL_NOTIFY_URL,
     label: '관제 통지 수신처',
     hint: '작업 완료·수정 통지를 받는 관제서버 주소입니다.',
+    placeholder: '미설정 — 배포 기본값 사용 중',
   },
 ] as const satisfies ReadonlyArray<{
   name: keyof IntegrationEndpointsForm;
   key: string;
   label: string;
   hint: string;
+  placeholder: string;
 }>;
+
+/**
+ * 증강 주소를 채웠을 때 함께 알리는 **짝** — 콜백 허용 주소 목록.
+ *
+ * ★ 주소만 채우면 위탁은 나가는데 **결과를 못 받는다**. 한쪽만 채운 상태는 저장 시점에 드러나지
+ * 않고 위탁을 걸려는 순간에야 거부되므로, 채우는 자리에서 미리 알린다.
+ *
+ * ⚠ 그 허용 목록 자체를 이 카드에 합치지 말 것 — **다른 축**이다. 여기서는 안내만 한다.
+ */
+const AUGMENT_CALLBACK_PAIR_NOTICE =
+  '증강 주소를 채우면 결과를 되받을 콜백 허용 주소 목록도 함께 채워야 합니다';
 
 const INPUT_CLASS = `w-full rounded-md border border-gray-300 px-3 py-2 text-body ${KRDS_FOCUS}`;
 
 /**
- * R11 — 연동 서버 주소 카드.
+ * R11 — 연동 서버 주소 카드. [@design SCREEN-042] [@design API-069]
+ *
+ * <h3>여기 있는 것은 «저장한 값이 곧 진실원» 인 축뿐이다</h3>
+ * 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 셋이다. 셋 다 <b>보낼 곳이 한 곳뿐이라 고를
+ * 일이 없어</b> 칸 하나가 곧 진실원이다.
+ *
+ * <p>⚠ <b>AI 추론 서버·외부 시계열 분석 벤더 칸을 여기에 되살리지 말 것.</b> 그 두 축은 장비를
+ * 여러 대 두고 골라 보내므로 주소의 진실원이 <b>장비 원장</b>이고 위탁도 원장 주소로 나간다.
+ * 칸을 두면 저장은 되는데 위탁 주소는 그대로여서 <b>오류도 경고도 없이 아무 일이 안 일어난다</b>
+ * (조용한 실패). 주소를 바꾸는 자리는 아래 「추론·외부 시계열 분석 장비 목록」 하나다.
+ *
+ * <p>⚠ 칸을 없앤 것이지 <b>설정 키를 없앤 것이 아니다</b> — 배포 설정값은 그 유형의 장비가 원장에
+ * 하나도 없을 때 최초 1회 씨앗으로 계속 쓰인다.
+ *
+ * <p>★ 두 축을 가르는 것은 「AI 위탁인가」가 아니라 <b>「고를 대상이 여럿인가」</b>다. 외부 증강도
+ * AI 위탁이지만 보낼 곳이 한 곳이라 이 카드가 다룬다.
+ *
+ * <h3>증강 칸에만 있는 두 성질</h3>
+ * <ul>
+ *   <li><b>비어 있는 것이 정상</b> — 그 빈 값이 «아직 연동하지 않았다»의 유일한 표현이다.
+ *       미리 채우면 연동된 것으로 판정돼 아무도 받지 않는 주소로 위탁이 나가고, 그 실패가
+ *       벤더 장애처럼 보인다.</li>
+ *   <li><b>콜백 허용 목록과 짝</b> — 주소만 채우면 위탁은 나가는데 결과를 못 받는다. 채우는
+ *       순간 짝을 안내한다(허용 목록 자체는 이 카드가 다루는 값이 아니다).</li>
+ * </ul>
  *
  * <h3>잠금이 기본이다</h3>
  * 이 값들은 잘못 바꾸면 학습데이터가 통째로 다른 서버로 나갈 수 있다. 그래서 REVIEWER 로 로그인한
@@ -91,8 +126,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
 
   const stored: IntegrationEndpointsForm = {
     deidentify: configs[ConfigKey.KPST_DEID_BASE_URL] ?? '',
-    aiServer: configs[ConfigKey.INTEGRATION_AI_SERVER_BASE_URL] ?? '',
-    vlm: configs[ConfigKey.VLM_CLIENT_URL] ?? '',
+    augment: configs[ConfigKey.AUGMENT_EXTERNAL_BASE_URL] ?? '',
     controlNotify: configs[ConfigKey.CONTROL_NOTIFY_URL] ?? '',
   };
 
@@ -100,6 +134,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { isDirty, errors, dirtyFields },
   } = useForm<IntegrationEndpointsForm>({
     resolver: zodResolver(integrationEndpointsSchema),
@@ -110,7 +145,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
   useEffect(() => {
     reset(stored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stored.deidentify, stored.aiServer, stored.vlm, stored.controlNotify, reset]);
+  }, [stored.deidentify, stored.augment, stored.controlNotify, reset]);
 
   // 유효창이 닫히면 편집 중이던 내용을 되돌린다 — 저장되지 않을 값을 입력된 채로 두면
   // "저장된 줄 알았다"가 된다.
@@ -126,6 +161,9 @@ export function IntegrationEndpointsCard({ configs }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.unlocked, reset]);
+
+  // 증강 주소를 채우는 «순간» 짝을 알린다 — 저장한 뒤에 알리면 이미 한쪽만 채운 상태로 나간다.
+  const augmentFilled = (watch('augment') ?? '').trim() !== '';
 
   const onSubmit = async (values: IntegrationEndpointsForm) => {
     setSaveError(undefined);
@@ -212,7 +250,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
                 inputMode="url"
                 readOnly={!session.unlocked}
                 aria-readonly={!session.unlocked}
-                placeholder="미설정 — 배포 기본값 사용 중"
+                placeholder={field.placeholder}
                 aria-invalid={errors[field.name] ? 'true' : 'false'}
                 className={`${INPUT_CLASS} ${
                   session.unlocked ? 'bg-white' : 'bg-gray-50 text-gray-600'
@@ -220,6 +258,16 @@ export function IntegrationEndpointsCard({ configs }: Props) {
                 {...register(field.name)}
               />
               <p className="text-caption text-gray-600">{field.hint}</p>
+              {field.name === 'augment' && augmentFilled && (
+                <p
+                  className="flex items-center gap-1 text-caption text-gray-700"
+                  role="status"
+                  data-testid="augment-callback-pair-notice"
+                >
+                  <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {AUGMENT_CALLBACK_PAIR_NOTICE}
+                </p>
+              )}
               {errors[field.name] && (
                 <p className="flex items-center gap-1 text-caption text-danger" role="alert">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

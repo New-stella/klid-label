@@ -101,7 +101,8 @@ public class AiSrvrAdminService {
         // DTO 가 이미 같은 규칙을 걸지만, 서비스가 다른 경로로 불릴 때를 위해 한 겹 더 둔다.
         if (!AiSrvrIdPolicy.isValid(srvrId)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "장비 식별자는 소문자와 숫자만 " + AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH + "자 이내로 사용할 수 있습니다.");
+                    "장비 식별자는 소문자·숫자·하이픈·밑줄만 " + AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH
+                            + "자 이내로 사용할 수 있습니다.");
         }
         AiSrvrAddressPolicy.requireValid(request.srvrAddr());
         if (repository.existsById(srvrId)) {
@@ -150,8 +151,19 @@ public class AiSrvrAdminService {
      * 상태 전이 — 전이 규칙과 <b>그 유형의</b> 마지막 가용 장비 보호가 함께 걸린다.
      * [@design API-229] [@design AC-1091]
      *
-     * <p>거부는 셋 다 409 이지만 <b>사유를 메시지로 가른다</b> — 화면이 「같은 상태로 눌렀다」와
+     * <p>거부는 넷 다 409 이지만 <b>사유를 메시지로 가른다</b> — 화면이 「같은 상태로 눌렀다」와
      * 「마지막 하나라 못 내린다」를 구분해 안내해야 하기 때문이다.
+     *
+     * <h3>★★ 정비중 → 이용불가는 <b>전이표에서는 열렸지만 이 창구에서는 고를 수 없다</b> (2026-09-08)</h3>
+     * <p>[@design API-229] 그 창구 규격이 <i>「이 전이는 사람이 이 창구에서 고르는 선택지가 아니라
+     * <b>상태점검이 판정한다</b>」</i>고 명시한다. 전이표를 연 까닭은 <b>관측</b>이 정비 중에 실제로
+     * 멈춘 장비를 내릴 수 있게 하기 위해서이지, 사람이 정비중 장비를 손으로 「장애」로 표시하게 하려는
+     * 것이 아니다 — 사람이 그 장비를 회전에서 빼려면 <b>비활성</b>이 그 자리다.
+     *
+     * <p>⚠ <b>이 좁힘은 「전이표를 두 번 쓰는 것」이 아니다</b> — 축이 다르다. 같은 클래스의 반대
+     * 방향 형제가 이미 그 축을 쓰고 있다: 배치의 복귀 판정은 전이표가 허용하는 <b>정비중→가용</b>을
+     * <b>스스로 좁혀</b> 이용불가에서만 올린다({@code AiSrvrHealthTxService#promoteIfRecovered}) —
+     * 「그것은 사람이 정비를 끝냈다는 선언이지 배치가 대신 내릴 판단이 아니다」. 여기는 그 거울상이다.
      */
     @Transactional("controlTransactionManager")
     public AiSrvrResponse changeStatus(String srvrId, AiSrvrStatus next, String actorId) {
@@ -166,6 +178,13 @@ public class AiSrvrAdminService {
         if (!current.canTransitionTo(next)) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "허용되지 않는 상태 전이입니다. " + current + " 에서 " + next + " 로는 바꿀 수 없습니다.");
+        }
+        if (current == AiSrvrStatus.DRAINING && next == AiSrvrStatus.UNAVAILABLE) {
+            // ★전이표에서는 열렸지만 <이 창구에서 사람이 고르는 선택지>는 아니다(위 javadoc).
+            //   그 전이는 상태점검이 관측으로 판정한다. 사람이 회전에서 빼려면 비활성이 그 자리다.
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "정비중 장비를 이용불가로 직접 내릴 수는 없습니다."
+                            + " 그 전이는 상태점검이 판정하며, 회전에서 빼려면 비활성을 쓰세요.");
         }
 
         String actor = trimActor(actorId);

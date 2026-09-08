@@ -65,6 +65,59 @@ public interface LsAiSrvrAltmntRepository extends JpaRepository<LsAiSrvrAltmnt, 
     }
 
     /**
+     * <b>재배정</b> — 배정된 장비를 <b>지금 쓸 수 없을 때만</b> 다른 장비로 옮긴다. [@design ADR-057]
+     *
+     * <h3>왜 재배정 경로가 따로 있는가</h3>
+     * <p>{@link #assignIfAbsent} 는 <b>기존 배정이 이기게</b> 되어 있다 — 진행 중인 영상의 노드를
+     * 갈아타면 추적이 끊기기 때문이다. 그런데 그 규칙만 있으면 <b>배정된 장비가 죽은 영상은 영영
+     * 다른 장비로 가지 못한다</b>(영상당 한 건이라 갈아탈 자리가 없다). 근거 결정도 객체 식별자가
+     * 끊기는 원인 넷 가운데 <b>「장비 이탈로 인한 재배정」</b>을 명시적으로 다루며 <i>「재배정은
+     * 기록을 남기므로 기록이 없는데 끊겼다면 나머지 셋을 봐야 한다」</i>고 적는다 — 이 문장이 곧
+     * 그 기록이 남는 자리다.
+     *
+     * <p>★ <b>고정을 무르는 것이 아니다.</b> 부하가 기울었다고 옮기지 않는다. 옮기는 조건은
+     * 「그 장비를 <b>지금 고를 수 없다</b>」 하나뿐이고, 그 판정은
+     * {@code AiSrvrSelector#selectPinned} 가 소유한다. 살아 있는 장비는 절대 바뀌지 않으므로
+     * 처리 중 추적 연속성은 그대로 지켜진다 — 그리고 이용불가로 관측된 장비는 그 프로세스의
+     * 추적기 기억이 <b>이미 사라진 뒤</b>라 지킬 연속성이 남아 있지 않다.
+     *
+     * <p>출발 장비를 조건에 못 박은 <b>조건부 UPDATE</b> 다. 두 WAS 가 같은 영상을 동시에
+     * 재배정하면 한쪽만 갱신되고 진 쪽은 0 을 받아 <b>이긴 쪽의 결정을 다시 읽는다</b> — 둘이 서로
+     * 다른 장비로 갈라 적는 일이 없다. 대상 장비가 원장에 없으면 갱신하지 않는 것도
+     * {@link #insertIfAbsent} 와 같은 이유다(유령 장비에 묶인 영상은 영영 호출되지 않는다).
+     *
+     * <h3>★ 사유를 <b>같은 문장에서</b> 함께 적는다 [@design AC-1100]</h3>
+     * <p>수용기준이 요구하는 것은 「다시 정했다는 <b>사유</b>와 새 장비, 그 시각」 셋이다. 장비와 시각만
+     * 갈아 끼우면 원장만 보고는 <b>최초 배정과 재배정을 구분할 수 없다</b>(응용 로그는 보존 기간이 짧고
+     * 노드마다 흩어져 있어 사후 진단의 근거가 되지 못한다).
+     *
+     * <p>사유 문장은 {@link LsAiSrvrAltmnt#reassignReason(String)} 이 소유한다 — 여기서 문자열을
+     * 조립하면 그 사본이 두 번째 진실원이 되고, 무엇을 담고 무엇을 담지 않는지(주소·토폴로지 금지)의
+     * 판정이 갈린다. <b>새 컬럼을 만들지 않았다</b>: 사유 칸은 원장에 이미 있다({@code ALTMNT_RSN}).
+     *
+     * <p>⚠ 최초 배정({@link #insertIfAbsent})은 이 칸을 <b>비운 채</b> 넣는다 — 그래야 「값이 있으면
+     * 재배정」이라는 대조가 성립한다. 그쪽에 사유를 채우지 말 것.
+     *
+     * @return 영향 행수. 0 이면 그 사이 누가 먼저 옮겼거나 배정이 이미 달라졌다(정상)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR_ALTMNT
+               SET SRVR_ID = :toSrvrId,
+                   ALTMNT_DT = :now,
+                   ALTMNT_RSN = :reason
+             WHERE RAW_SN = :rawSn
+               AND SRVR_ID = :fromSrvrId
+               AND EXISTS (SELECT 1 FROM LS_AI_SRVR WHERE SRVR_ID = :toSrvrId)
+            """, nativeQuery = true)
+    int reassignIfCurrent(@Param("rawSn") Long rawSn,
+                          @Param("fromSrvrId") String fromSrvrId,
+                          @Param("toSrvrId") String toSrvrId,
+                          @Param("now") LocalDateTime now,
+                          @Param("reason") String reason);
+
+
+    /**
      * 이 노드에 묶인 영상 배정이 하나라도 있는가.
      *
      * <p>⚠ <b>삭제를 막는 데 쓰지 말 것</b>(2026-09-01 확정 · V26 에서 외래키 제거). 배정 표는

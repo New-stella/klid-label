@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-09-07T15:21:50.808Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 201 |
+| Last sync | 2026-09-08T04:11:51.341Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 196 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 12건 / 스코프 밖 23건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 75건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 78건 (그중 domain_id 없음 9건)
   ℹ️  adr: 이번 키트 20건 / 스코프 밖 38건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
@@ -40,7 +40,11 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1061]] (prev v6)
+- CHANGED [[SEQ-022]] (prev v6)
+- CHANGED [[SD-006]] (prev v5)
+- CHANGED [[SCREEN-026]] (prev v35)
+- CHANGED [[UC-032]] (prev v14)
 
 ## ITEM 표
 
@@ -55,7 +59,7 @@
 | [[AC-1058]] | acceptance | 10 | UNCHANGED |
 | [[AC-1059]] | acceptance | 6 | UNCHANGED |
 | [[AC-1060]] | acceptance | 4 | UNCHANGED |
-| [[AC-1061]] | acceptance | 6 | UNCHANGED |
+| [[AC-1061]] | acceptance | 7 | CHANGED |
 | [[AC-1062]] | acceptance | 5 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
@@ -214,12 +218,12 @@
 | [[SCREEN-010]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 47 | UNCHANGED |
-| [[SCREEN-026]] | screen_spec | 35 | UNCHANGED |
+| [[SCREEN-026]] | screen_spec | 41 | CHANGED |
 | [[SCREEN-029]] | screen_spec | 54 | UNCHANGED |
 | [[SCREEN-035]] | screen_spec | 19 | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 15 | UNCHANGED |
 | [[SD-002]] | screen_design | 17 | UNCHANGED |
-| [[SD-006]] | screen_design | 5 | UNCHANGED |
+| [[SD-006]] | screen_design | 8 | CHANGED |
 | [[SD-022]] | screen_design | 4 | UNCHANGED |
 | [[SD-032]] | screen_design | 2 | UNCHANGED |
 | [[SEQ-008]] | diagram_sequence | 10 | UNCHANGED |
@@ -228,11 +232,11 @@
 | [[SEQ-014]] | diagram_sequence | 15 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-021]] | diagram_sequence | 1 | UNCHANGED |
-| [[SEQ-022]] | diagram_sequence | 6 | UNCHANGED |
+| [[SEQ-022]] | diagram_sequence | 7 | CHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-032]] | diagram_sequence | 4 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 18 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 5 | UNCHANGED |
 | [[UC-004]] | use_case | 18 | UNCHANGED |
@@ -244,6 +248,6 @@
 | [[UC-022]] | use_case | 29 | UNCHANGED |
 | [[UC-023]] | use_case | 30 | UNCHANGED |
 | [[UC-028]] | use_case | 8 | UNCHANGED |
-| [[UC-032]] | use_case | 14 | UNCHANGED |
+| [[UC-032]] | use_case | 15 | CHANGED |
 | [[UC-034]] | use_case | 7 | UNCHANGED |
 | [[UC-039]] | use_case | 5 | UNCHANGED |

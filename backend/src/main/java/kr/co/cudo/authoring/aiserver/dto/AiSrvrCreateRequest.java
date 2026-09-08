@@ -23,11 +23,11 @@ import kr.co.cudo.authoring.aiserver.service.AiSrvrIdPolicy;
 @Schema(description = "AI 장비 등록 요청")
 public record AiSrvrCreateRequest(
 
-        @Schema(description = "장비 식별자 — 소문자·숫자만 20자 이내. 서킷브레이커 이름과 메트릭 라벨로 조립되는 기계용 값이다.",
-                example = "gpu02", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "장비 식별자 — 소문자·숫자·하이픈·밑줄 20자 이내. 기록·메트릭 라벨·외부 요청에 그대로 실리는 기계용 값이다.",
+                example = "gpu-02", requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank
         @Pattern(regexp = AiSrvrIdPolicy.SRVR_ID_REGEX,
-                message = "장비 식별자는 소문자와 숫자만 20자 이내로 사용할 수 있습니다.")
+                message = "장비 식별자는 소문자·숫자·하이픈·밑줄만 20자 이내로 사용할 수 있습니다.")
         String srvrId,
 
         @Schema(description = "사람이 읽는 이름(실제 장비 호스트명 등). 형식 제약이 없는 표시 축이며 모르면 비워 둔다.",

@@ -115,7 +115,7 @@ public class AiSrvrController {
      * 얹는다(API-227 · AC-1090).
      */
     @Operation(summary = "AI 장비 등록 (ADMIN + 관리자 유효창)",
-            description = "상태는 가용으로 시작한다. 식별자는 소문자·숫자 20자 이내이며 이미 있으면 409 다. "
+            description = "상태는 가용으로 시작한다. 식별자는 소문자·숫자·하이픈·밑줄 20자 이내이며 이미 있으면 409 다. "
                     + "주소는 스킴(http/https)·형식·예약 대역 검증을 받는다 — 평문 http 와 사설 대역은 통과가 정상이다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "등록됨"),

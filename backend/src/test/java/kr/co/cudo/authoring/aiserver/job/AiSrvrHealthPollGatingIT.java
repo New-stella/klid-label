@@ -45,8 +45,8 @@ class AiSrvrHealthPollGatingIT {
         @Test
         @DisplayName("★폴링_기본값은_켜짐이라_잡이_등록된다")
         void 폴링_기본값은_켜짐이라_잡이_등록된다() {
-            assertThat(context.containsBean("aiSrvrHealthPollJobDetail")).isTrue();
-            assertThat(context.containsBean("aiSrvrHealthPollTrigger")).isTrue();
+            assertThat(context.containsBean("aiSrvrInferenceHealthPollJobDetail")).isTrue();
+            assertThat(context.containsBean("aiSrvrInferenceHealthPollTrigger")).isTrue();
         }
     }
 
@@ -65,8 +65,8 @@ class AiSrvrHealthPollGatingIT {
         @Test
         @DisplayName("false 로 명시하면 잡이 등록되지 않는다")
         void false_로_명시하면_잡이_등록되지_않는다() {
-            assertThat(context.containsBean("aiSrvrHealthPollJobDetail")).isFalse();
-            assertThat(context.containsBean("aiSrvrHealthPollTrigger")).isFalse();
+            assertThat(context.containsBean("aiSrvrInferenceHealthPollJobDetail")).isFalse();
+            assertThat(context.containsBean("aiSrvrInferenceHealthPollTrigger")).isFalse();
         }
     }
 
@@ -86,7 +86,7 @@ class AiSrvrHealthPollGatingIT {
         @Test
         @DisplayName("★1 은 켜짐으로 읽히지 않는다 — true 만 참이다")
         void 숫자_1_은_켜짐으로_읽히지_않는다() {
-            assertThat(context.containsBean("aiSrvrHealthPollTrigger")).isFalse();
+            assertThat(context.containsBean("aiSrvrInferenceHealthPollTrigger")).isFalse();
         }
     }
 }

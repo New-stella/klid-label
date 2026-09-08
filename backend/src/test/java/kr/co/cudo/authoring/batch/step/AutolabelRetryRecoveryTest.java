@@ -137,17 +137,17 @@ class AutolabelRetryRecoveryTest {
         DeployedEnvironmentDetector devEnv = devEnvironment();
         yoloStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, batchStatusService, systemConfigService, labelMasterService,
-                frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnv);
+                frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnv, mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
         sam2Step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, labelMasterService, new ObjectMapper(),
-                rawDir.toString(), devEnv);
+                rawDir.toString(), devEnv, mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
 
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(newSrc(SRC_SN)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(10.0, 20.0, 30.0, 40.0), 0.92),
                         new YoloResponse.Detection("car", List.of(50.0, 60.0, 70.0, 80.0), 0.81)))));
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new Sam2Response(
                         List.of(List.of(1.0, 2.0), List.of(3.0, 4.0), List.of(5.0, 6.0)), 0.9)));
     }
@@ -255,9 +255,9 @@ class AutolabelRetryRecoveryTest {
         assertThat(savedPolygons).isZero();
         assertThat(persisted).isEmpty();
         verify(lblRepository, never()).saveAll(any());
-        verify(aiServerClient, never()).segment(any(Sam2Request.class), any(AiWorkload.class));
+        verify(aiServerClient, never()).segment(any(Sam2Request.class), any(AiWorkload.class), any());
         // YOLO 추론은 도는 것이 정상이다 — 그 대가로 조용한 손실을 없앴다(인지·수용).
-        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH), any());
         verify(srcRepository, never()).bumpLabelVersionIn(any());
     }
 }

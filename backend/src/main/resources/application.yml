@@ -165,7 +165,17 @@ spring:
     properties:
       org.quartz.scheduler.instanceName: KlidAuthoringScheduler
       org.quartz.scheduler.instanceId: AUTO
-      org.quartz.threadPool.threadCount: '3'
+      # ★ 반복 잡이 <여덟>인데 이 값이 셋이다 — 그 셋은 <잡이 하나뿐이던 시절>에 정한 값이고
+      #   그 뒤로 갱신된 적이 없다(바로 위 주석의 「Phase 3 는 부트스트랩 잡 1개만」이 그 흔적이다).
+      #   지금 등록되는 반복 잡: 상태점검(추론) · 상태점검(시계열) · 비식별 폴링 · 배치 파이프라인 ·
+      #   관제 인입 스캔 · 배치 재시도 · 산출 미결 스윕 · 산출 실패 회수.
+      # ⚠ 60초의 배수마다 다섯이 동시에 발화하고, 더 긴 주기가 겹치는 시점에는 여덟까지 간다.
+      #   모자라면 밀린 틱은 <몰아서 발화하지 않고 건너뛴다>(상태점검의 미스파이어 정책) —
+      #   즉 죽은 장비 배제가 그만큼 늦어진다. 오류로 드러나지 않으므로 관측이 필요하다.
+      # ★ 기본값은 <바꾸지 않았다> — 동작을 그대로 두고 손잡이만 냈다. 올리는 것은 이제 코드가
+      #   아니라 설정 변경이다. 올릴 때는 <커넥션 여력과 함께> 판단할 것:
+      #   상용은 maximum-pool-size 20 이라 여유가 있고, 그 밖 환경은 <명시가 없어 기본값>이다.
+      org.quartz.threadPool.threadCount: '${QUARTZ_THREAD_COUNT:3}'
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       # ★ QRTZ_* 는 저작도구 스키마에 있다(V2 가 생성). initialize-schema=never 라 Quartz 는
       #   테이블을 만들지 않고 <찾기만> 하므로, 스키마가 어긋나면 기동이 그 자리에서 깨진다.
@@ -251,8 +261,11 @@ management:
       #   무응답이 된다(CWE-770). 캐시를 고른 이유는 <증폭 자체를 없애기> 때문이다 — 병렬 핑은
       #   한 번의 소요만 줄이고 요청 수만큼의 증폭은 그대로 둔다. 익명 호출은 캐시 키가 같아
       #   전부 한 항목을 공유한다.
-      #   TTL 은 노드 관측 주기(poll-interval-seconds 기본 5초)와 같다 — 그보다 짧게 잡아도
-      #   원장·핑이 더 새로운 값을 내주지 않는다.
+      #   TTL 은 <추론> 관측 주기(authoring.integration.ai-server.poll-interval-seconds 기본 5초)와
+      #   같다 — 그보다 짧게 잡아도 원장·핑이 더 새로운 값을 내주지 않는다.
+      #   ⚠ 2026-09-08 부터 주기가 계통마다 갈렸다(시계열은 vlm.client.poll-interval-seconds 기본 10초).
+      #     이 TTL 을 두 주기에 맞출 필요는 없다 — 여기서 막는 것은 <익명 헬스 호출의 증폭>이지
+      #     원장 신선도가 아니며, 값이 더 긴 계통은 그만큼 더 낡은 값을 볼 뿐이다.
       cache:
         time-to-live: ${ACTUATOR_HEALTH_CACHE_TTL:5s}
 
@@ -528,7 +541,12 @@ authoring:
       #   ⚠ 이 값은 잡 등록 조건 @ConditionalOnProperty(havingValue="true") 가 읽는다 — "true" 만
       #   참이며 1/on/yes 는 <꺼짐>이다(폴러도 같은 규칙으로 읽는다).
       poll-enabled: ${AI_SERVER_POLL_ENABLED:true}
-      # 상태점검 주기(초). ⚠ 노드 수 x 핑 상한(2초)이 이 값을 넘으면 틱이 뒤로 밀린다.
+      # 상태점검 주기(초) — <추론 계통 전용> (ADR-057 · AC-1099).
+      # ⚠ 그 계통의 노드 수 x 핑 상한(2초)이 이 값을 넘으면 틱이 뒤로 밀린다.
+      # ★ 계통마다 <자기 자리와 자기 기본값>을 갖는다. 시계열 계통의 주기는
+      #   vlm.client.poll-interval-seconds 이며 <서로를 물려받지 않는다> — 트리거가 계통마다
+      #   따로 있어 이 값을 바꿔도 시계열 점검 간격은 움직이지 않는다(그 반대도 같다).
+      # ⚠ 0 이하를 넣으면 Quartz 가 트리거를 만들지 못해 기동이 깨진다 — 하한 1로 흡수한다.
       poll-interval-seconds: ${AI_SERVER_POLL_INTERVAL_SECONDS:5}
       # 부하 조회(GET /internal/load) 상한(ms). ★ 이 상한을 넘긴 것을 「포화」로 읽지 않는다 —
       #   그 경로는 슬롯을 거치지 않으므로 느린 것은 부하 신호가 아니라 배선·프로세스 이상 신호다.
@@ -882,6 +900,13 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+        # ★ 결정적 실패는 서킷 failure 로 집계하지 않는다 — 시계열 축(vlmClient)과 같은 기준이다.
+        #   여기 해당하는 것은 ①쓸 수 있는 장비 후보 0 거부 ②고른 주소로 목적지를 만들 수 없음 둘이며,
+        #   <둘 다 ai-server 가 아니라 우리 원장의 상태>다. 집계하면 원장을 고친 뒤에도 서킷이 열려
+        #   있어 멀쩡한 추론이 wait-duration 만큼 계속 막히고, 서킷이 "추론 서버가 나쁘다"는 거짓 신호를
+        #   낸다(그 사이 정상 호출이 서킷 오픈으로 확정 실패한다).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
     instances:
       deid:
         failure-rate-threshold: 50
@@ -980,6 +1005,14 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
+        # ★ 「쓸 수 있는 장비 후보가 0」 거부(AiSrvrSelector)는 재시도 대상이 아니다 — ADR-057/AC-1093.
+        #   그 거부는 목적지를 <고르는 자리>에서 나고 Mono.defer 안이라 이 연산자가 그것을 재시도한다.
+        #   결과: 거부 한 건이 원장 조회 3회 + 지수 백오프만큼의 지연 뒤에야 화면으로 돌아갔다.
+        #   같은 예외의 정의가 「이 요청만으로는 풀리지 않는 결정적 실패」이고, 시계열 축(vlmClient)은
+        #   이미 같은 이유로 이 예외를 제외하고 있다 — 두 축을 대칭으로 맞춘다.
+        #   ⚠ 「목적지를 만들 수 없다」(PinnedTarget 실패)도 같은 예외형이며 역시 결정적이다.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       vlmClient:
         max-attempts: 3
         wait-duration: 1s
@@ -1110,6 +1143,31 @@ vlm:
     #    ★ 위 「차단」은 전부 <위탁 시점> 거부다 — 어떤 주소값도 기동을 막지 않는다
     #      (2026-09-03 · ADR-062). 구 서술 「평문 http 주소를 넣는 순간 기동이 막힌다」는 폐기.
     timeout-seconds: 10
+    # --- 장비 상태점검 임계 — <시계열 계통 전용> (ADR-057 · AC-1099) ---------------------------
+    # ★ 계통마다 <자기 자리와 자기 기본값>을 갖는다. 추론 계통의 값은
+    #   authoring.integration.ai-server.{fail,recover}-threshold 이며 <서로를 물려받지 않는다>.
+    #   공통값을 두고 물려받게 하면 그 값을 바꾸는 순간 두 계통이 함께 움직여, 계통을 가른
+    #   이 조항이 이름만 남는다.
+    #  - 근거: 추론은 <우리가 배포한 서버>이고 시계열은 <외부 벤더의 서비스>라 응답 특성도,
+    #    우리가 손댈 수 있는 범위도 같지 않다. 하나로 공유하면 한쪽을 조이려다 다른 쪽까지 움직인다.
+    #  - 초기 기본값 3은 추론이 쓰던 값을 그대로 옮긴 것이다(새 숫자를 지어내지 않았다).
+    #    두 계통의 기본값이 같은 값이어도 무방하다 — 요구되는 것은 자리가 갈려 있다는 것이다.
+    #  - 0 이하를 넣으면 <점검 한 번 만에> 장비가 내려가거나 올라간다. 오설정은 하한 1로 흡수한다.
+    fail-threshold: ${VLM_HEALTH_FAIL_THRESHOLD:3}
+    recover-threshold: ${VLM_HEALTH_RECOVER_THRESHOLD:3}
+    # --- 장비 상태점검 주기 — <시계열 계통 전용> (ADR-057 · AC-1099, 2026-09-08) ----------------
+    # ★ 임계와 같은 자리에 둔다. 추론 계통의 주기는
+    #   authoring.integration.ai-server.poll-interval-seconds 이며 <서로를 물려받지 않는다> —
+    #   트리거가 계통마다 따로 있어 한쪽을 바꿔도 다른 쪽 점검 간격은 움직이지 않는다.
+    #  - 기본값이 추론(5초)보다 긴 것은 이 값이 <외부 벤더를 두드리는 횟수>이기 때문이다.
+    #    임계는 우리 쪽 판정 기준만 바꾸지만, 주기는 상대에게 부담으로 그대로 간다.
+    #  - ⚠ 인지·수용한 대가: 주기가 길어지면 죽은 벤더가 목록에 남는 시간이 길어진다.
+    #    배제까지는 「주기 x 연속 실패 임계」라 기본값에서 추론의 대략 두 배이며, 그 구간의 위탁은
+    #    죽은 주소로 나갔다 실패한다.
+    #  - ⚠ 0 이하를 넣으면 Quartz 가 트리거를 만들지 못해 기동이 깨진다 — 하한 1로 흡수한다.
+    #  - ⚠ 이 축의 잡 등록 여부는 여전히 authoring.integration.ai-server.poll-enabled 가 가른다
+    #    (관측 배치 전체를 켜고 끄는 스위치는 하나다 — 켜고 끄는 축과 얼마나 자주 묻는가 축은 다르다).
+    poll-interval-seconds: ${VLM_HEALTH_POLL_INTERVAL_SECONDS:10}
 
 # 외부 시스템 결과 수신 webhook 인증 — VLM·생성형 AI(증강) 둘 다 계약상 무서명 가드다.
 #  - 보호 대상 경로는 코드의 allowlist(WebhookProtectedPaths)가 단일 진실원이며,

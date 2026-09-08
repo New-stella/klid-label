@@ -118,7 +118,7 @@ const TABLES: TableCase[] = [
     file: 'src/features/import/components/MarkingImportProgressPanel.tsx',
   },
   {
-    label: 'AiServerListCard(연동 서버 주소 — AI 장비 목록)',
+    label: 'AiServerListCard(연동 서버 주소 — 추론·외부 시계열 분석 장비 목록)',
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
   {

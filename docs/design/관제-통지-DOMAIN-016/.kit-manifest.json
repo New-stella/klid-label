@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
-  "synced_at": "2026-09-07T15:21:45.539Z",
+  "synced_at": "2026-09-08T06:19:48.314Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -93,8 +93,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 14,
-      "content_hash": "fddf2c135bdbe39048a7aa694730f115f1a02b2eeb4a92971ff39af1d11e1e74"
+      "version": 17,
+      "content_hash": "ab4233a1c0c5a29bf1aa992566a3e61a33ad7f46f706e92621f988216bebc8c4"
     },
     "ADR-055": {
       "type": "adr",
@@ -165,8 +165,8 @@
     "SEQ-025": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-014",
-      "version": 6,
-      "content_hash": "cafaf01a12472acd0caaa069bb1b5433a38a2256bf5e3cc90a81c934651c454c"
+      "version": 8,
+      "content_hash": "5047984d196e1745df80db505bb876423bc8282c92a7e3b72f14de8c2573a4ad"
     },
     "DOMAIN-016": {
       "type": "domain",
@@ -585,8 +585,8 @@
     "UC-009": {
       "type": "use_case",
       "domain_id": "DOMAIN-016",
-      "version": 25,
-      "content_hash": "1d7f87d7a6e5642576eedbcacb312b95a8daccffdc4bccdbd9d9e829b26fade0"
+      "version": 26,
+      "content_hash": "9eba4bb323d068de8c90c5c8f4e43a6fd88660611da7147f07f30d08ffb59cc7"
     }
   }
 }

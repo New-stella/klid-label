@@ -4,6 +4,9 @@ import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
 import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
 import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -71,10 +74,32 @@ import java.time.Duration;
  * 옮겼다 — 주소 축과 <b>다른 축</b>이지만 「보호가 필요한 순간은 기동이 아니다」라는 근거가 같다.
  * ⚠ 이 필터를 떼면 <b>되받지 못할 위탁이 실제로 나간다</b>(= 그 가드가 없어진 것과 같다).
  *
+ * <p>★★ <b>그 판정도 요청 시점 재평가다 (2026-09-08)</b> — 주소가 화면에서 바뀌므로 <b>값</b>이 아니라
+ * <b>판정</b>({@code wiringGuard::commissionRejectionLabel})을 넘긴다. 기동 시점 값으로 되돌리면
+ * 배포 기본값이 빈 배포에서 「미연동 → 요구 없음」으로 계산돼 <b>허용 대역이 비었는데도 위탁이
+ * 나간다</b>. 짝 판정 필터는 재작성 필터 <b>뒤</b>여야 저장된 주소를 본다.
+ *
+ * <h3>★ 주소는 빈 생성 시점에 고정되지 않는다 — 저장하면 다음 호출부터 반영된다 (2026-09-08)</h3>
+ * <p>{@link IntegrationEndpointExchangeFilter} 를 달아 <b>매 호출 시점</b>에 설정 override 를 다시
+ * 읽는다. 조달 순서는 다른 연동과 <b>같다</b> — 설정에 값이 있으면 그것, 없으면 배포 기본값
+ * ({@link IntegrationEndpointResolver}). override 가 없으면 필터는 <b>아무것도 하지 않으므로</b>
+ * 기존 형상·시험 동작은 그대로다.
+ *
+ * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"증강은 운영 화면 주소 override 대상이 아니다"</i>.
+ * {@link IntegrationEndpoint#AUGMENT} 가 등록되면서 화면에 <b>외부 증강 벤더 칸이 생겼는데</b> 이
+ * 배선만 빠져 있어, 저장은 되지만 위탁은 계속 배포 기본값으로 나갔다 — <b>오류도 경고도 없는</b>
+ * 죽은 칸이었다(같은 라운드가 바로 그 이유로 화면에서 칸 둘을 걷어냈다). 배선을 떼지 말 것.
+ *
+ * <p>★ <b>필터 순서가 계약의 일부다</b>: 재작성 필터가 전송 가드들보다 <b>앞</b>이어야 가드가
+ * <b>최종 URL</b>을 본다. 뒤로 옮기면 배포 기본값이 비었거나 거부된 배포에서 <b>정상 override 로
+ * 가는 위탁까지</b> 「주소 없음」으로 막힌다(= 저장이 다시 무효가 된다).
+ *
  * <p>base-url 은 <b>서버 설정값</b>만 사용하며 사용자 입력으로 호스트를 구성하지 않는다. 인증 헤더는
  * 붙이지 않는다 — 명세서·목 서버 모두 인증 미구현이 확정 계약이다.
  *
+ * @design ADR-046
  * @design ADR-062
+ * @design API-069
  */
 @Slf4j
 @Configuration
@@ -101,7 +126,8 @@ public class AugmentApiWebClientConfig {
     public WebClient augmentApiWebClient(
             @Value("${authoring.augment.external.base-url:}") String baseUrl,
             AugmentUrlPolicy urlPolicy,
-            GenAiIntegrationWiringGuard wiringGuard) {
+            GenAiIntegrationWiringGuard wiringGuard,
+            IntegrationEndpointResolver endpointResolver) {
         // ★ 주소가 어떤 상태여도 기동한다 — 판정은 그대로 태우되 결과를 <들고 있다가> 전송 시점에 쓴다.
         //   구 배선은 여기서 예외를 던져(빈 생성 실패) 기동을 막았다. 규칙은 그대로이고 시점만 옮겼다.
         ExternalEndpointAddress address = ExternalEndpointAddress.of(
@@ -118,6 +144,14 @@ public class AugmentApiWebClientConfig {
                 .baseUrl(base)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
+                // ★ 저장된 주소를 <매 호출 시점에> 다시 읽어 URL 을 재작성한다 — 다른 연동 4종과 같은
+                //   배선·같은 조달 순서(설정 값이 있으면 그것, 없으면 배포 기본값)다. 이 필터가 없으면
+                //   화면에서 주소를 저장해도 오류도 경고도 없이 <배포 기본값으로만> 위탁이 나간다
+                //   (「저장은 되는데 실동작 0건」 — 이 저장소가 반복해 겪은 형태다).
+                //   ★ 가드보다 <앞>이어야 한다 — 뒤에 두면 가드가 재작성 전 URL 을 보고, 배포 기본값이
+                //     비었거나 거부된 배포에서 <정상 override 로 가는 위탁까지> 막힌다.
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.AUGMENT, base, endpointResolver))
                 // ★ 미연동(주소 미주입)이면 <전송 자체>를 막는다 — 빈 base-url 은 상대 URI 가 되어
                 //   loopback:80 으로 실제 연결이 나가고, 그 요청 바디에는 비식별 프레임 절대경로와
                 //   콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근 로그에 남는다).
@@ -125,8 +159,11 @@ public class AugmentApiWebClientConfig {
                 // ★ 주소가 멀쩡해도 <결과를 되받을 수 없으면> 위탁을 걸지 않는다 — 위탁은 202 로
                 //   나가는데 콜백이 전건 403 이면 그 증강이 PENDING 으로 영구 고착된다(만료 스윕 없음).
                 //   조회·취소는 대상이 아니다(고착된 job 을 정리할 경로까지 막으면 안 된다).
+                //   ★ 값이 아니라 <판정>을 넘긴다 — 기동 시점에 계산된 값을 넘기면 운영 화면에서
+                //     저장한 주소를 보지 못해, 배포 기본값이 빈 배포에서 「미연동 → 요구 없음」으로
+                //     계산돼 허용 대역이 비었는데도 위탁이 나간다(= 이 가드가 없어진 것과 같다).
                 .filter(AugmentTransportGuard.requirePairedCallbackIntake(
-                        wiringGuard.commissionRejectionLabel()))
+                        wiringGuard::commissionRejectionLabel))
                 .build();
     }
 }

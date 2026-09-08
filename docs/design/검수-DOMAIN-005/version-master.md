@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-09-07T15:21:47.564Z |
+| Last sync | 2026-09-08T04:11:50.180Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 138 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 77건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 80건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 8건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
@@ -93,7 +93,7 @@
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
 | [[CDIAG-006]] | class_diagram | 15 | UNCHANGED |
-| [[CDIAG-014]] | class_diagram | 16 | UNCHANGED |
+| [[CDIAG-014]] | class_diagram | 17 | UNCHANGED |
 | [[CDIAG-019]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 9 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 9 | UNCHANGED |
@@ -173,7 +173,7 @@
 | [[SEQ-011]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 18 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |

@@ -111,7 +111,7 @@ export function AiServerFormDialog({
                 {...register('srvrId')}
               />
               <p className="text-caption text-gray-600">
-                소문자와 숫자만 20자 이내입니다. 등록 뒤에는 바꿀 수 없습니다.
+                소문자·숫자·하이픈(-)·밑줄(_)만 20자 이내입니다. 등록 뒤에는 바꿀 수 없습니다.
               </p>
               {errors.srvrId && (
                 <p className="flex items-center gap-1 text-caption text-danger" role="alert">

@@ -110,7 +110,15 @@ public class AiSrvrLoadSmoother {
     }
 
     private static String key(String srvrId, AiSrvrUsageType usage) {
-        // 식별자는 소문자·숫자만 허용되므로(AiSrvrIdPolicy) 구분자와 충돌하지 않는다.
+        // ★구분자는 「/」 이고, 그 문자는 식별자 허용 집합(AiSrvrIdPolicy — 소문자·숫자·하이픈·밑줄)
+        //   <밖>이라 충돌하지 않는다. 용도 이름(BATCH·INTERACTIVE)에도 없다. 되짚기는 뒤에서부터
+        //   자르므로(srvrIdOf 의 lastIndexOf) 식별자에 하이픈·밑줄이 있어도 그대로 복원된다.
+        //
+        // ⚠구 서술 폐기(2026-09-08) — 여기 「식별자는 <소문자·숫자만> 허용되므로 구분자와 충돌하지
+        //   않는다」고 적혀 있었다. 하이픈·밑줄이 허용되면서 <그 전제가 거짓>이 됐다. 결론(충돌하지
+        //   않는다)은 실측으로 그대로 참이며 근거만 바뀌었다 — 판정 기준은 「어떤 문자만 되는가」가
+        //   아니라 「구분자 문자가 허용 집합 밖인가」다. 지우지 않고 남기는 이유는 다음 사람이 낡은
+        //   전제를 근거로 식별자 형식을 되좁히지 않게 하기 위해서다.
         return srvrId + "/" + usage.name();
     }
 

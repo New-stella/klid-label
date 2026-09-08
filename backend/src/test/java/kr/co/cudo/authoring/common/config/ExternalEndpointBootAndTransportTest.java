@@ -120,7 +120,7 @@ class ExternalEndpointBootAndTransportTest {
      */
     private WebClient augment(String url) {
         return augmentCfg.augmentApiWebClient(url, new AugmentUrlPolicy(),
-                new GenAiIntegrationWiringGuard(url, "0.0.0.0/0", new AugmentUrlPolicy()));
+                new GenAiIntegrationWiringGuard(url, "0.0.0.0/0", new AugmentUrlPolicy()), null);
     }
 
     @Test
@@ -194,7 +194,8 @@ class ExternalEndpointBootAndTransportTest {
         for (String allowlist : new String[]{"", "none"}) {
             WebClient client = assertBoots("증강 짝맞춤", usableUrl, url ->
                     augmentCfg.augmentApiWebClient(url, new AugmentUrlPolicy(),
-                            new GenAiIntegrationWiringGuard(url, allowlist, new AugmentUrlPolicy())));
+                            new GenAiIntegrationWiringGuard(url, allowlist, new AugmentUrlPolicy()),
+                            null));
 
             // when / then — 위탁(job 생성)만 소켓을 열지 않고 거부된다.
             assertThatThrownBy(() -> client.post().uri("/api/genai/jobs").bodyValue("{}")
@@ -214,7 +215,7 @@ class ExternalEndpointBootAndTransportTest {
             String base = server.url("/").toString();
 
             WebClient client = augmentCfg.augmentApiWebClient(base, new AugmentUrlPolicy(),
-                    new GenAiIntegrationWiringGuard(base, "0.0.0.0/0", new AugmentUrlPolicy()));
+                    new GenAiIntegrationWiringGuard(base, "0.0.0.0/0", new AugmentUrlPolicy()), null);
             try {
                 client.post().uri("/api/genai/jobs").bodyValue("{}").retrieve()
                         .bodyToMono(String.class).block(Duration.ofSeconds(5));

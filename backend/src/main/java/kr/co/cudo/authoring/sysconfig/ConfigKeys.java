@@ -134,7 +134,18 @@ public final class ConfigKeys {
     public static final String KPST_DEID_DB_SAVE       = "kpst.deid.db-save";
 
     /**
-     * R11 — 운영 화면에서 조정하는 <b>외부 연동 서버 주소 4종</b>.
+     * R11 — 운영 화면에서 조정하는 <b>외부 연동 서버 주소</b>
+     * (비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처 · 외부 증강 벤더).
+     *
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"외부 연동 서버 주소 4종"</i>. 개수 표기를 쓰지 않는다:
+     * 축이 하나 늘거나 옮겨갈 때마다 그 숫자를 인용한 자리가 한꺼번에 틀린다(이 저장소에서 같은 형태의
+     * 사고가 이미 여러 번 났다). <b>열거로 읽는다.</b>
+     *
+     * <p>★ <b>이 열거는 화면 칸 목록과 같은 집합이 아니다</b> — 이쪽은 «주소 형식 검증 + 관리자 유효창
+     * 요구» 판정 대상({@link kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint})이고, 화면에서
+     * 사람이 고치는 칸은 그보다 좁다(비식별 · 외부 증강 벤더 · 관제 통지). AI 추론 · 외부 시계열 분석
+     * 벤더는 화면 칸에서 빠졌지만 <b>배포 설정값이 장비 원장의 씨앗으로 계속 저장될 수 있어</b>
+     * 판정 대상에는 남는다. <b>두 집합을 같게 만들지 말 것.</b>
      *
      * <p><b>키 이름 = 애플리케이션 속성명</b>이다. 별도 키명을 만들면 "설정 키 ↔ 속성명" 매핑표가
      * 생기고 그 표가 두 번째 진실원이 되어, 한쪽만 갱신되는 순간 화면에서 바꾼 주소가 엉뚱한 연동에
@@ -155,6 +166,28 @@ public final class ConfigKeys {
     public static final String INTEGRATION_AI_SERVER_BASE_URL  = "authoring.integration.ai-server.base-url";
     public static final String VLM_CLIENT_URL                  = "vlm.client.url";
     public static final String CONTROL_NOTIFY_URL              = "authoring.control-notify.url";
+
+    /**
+     * 외부 증강(생성형 AI) 위탁 벤더 주소. [@design ADR-046] [@design API-069]
+     *
+     * <h3>★ 이 키만 갖는 성질 — 비어 있는 것이 정상 상태다</h3>
+     * <p>다른 연동 주소는 «저장 행이 없으면 배포 기본값으로 돈다»인데, 이 축은 <b>저장 행이 없는 것이
+     * 「아직 연동하지 않았다」를 나타내는 유일한 표현</b>이다. 그래서 연동이 확정되기 전에 미리 채우지
+     * 않는다 — 채우면 연동된 것으로 판정돼 <b>아무도 받지 않는 주소로 위탁이 나가고 그 실패가 벤더
+     * 장애처럼 보인다</b>.
+     *
+     * <p>⚠ 「비어 있음이 정상」은 <b>행이 없는 상태</b>를 말하는 것이지 빈 문자열 저장이 허용된다는
+     * 뜻이 아니다. 빈 값 PUT 은 다른 연동 주소와 똑같이 400 이다
+     * ({@code IntegrationEndpointUrlValidator} — 확정 사양의 「저장 값에 남는 검증」).
+     *
+     * <p>⚠ 주소를 채웠다면 결과를 되받을 <b>콜백 허용 주소 목록</b>도 함께 채워야 한다. 그 짝은
+     * <b>다른 축</b>이라 이 키에 합치지 않으며, 저장 시점에 강제하지도 않는다(짝 판정은 위탁 시점에
+     * 있다 — 그 판정을 저장 창구로 끌어오지 말 것).
+     *
+     * <p>주소 값 판정 축은 다른 연동과 <b>같다</b> — 스킴 {@code http}/{@code https} + 형식이며
+     * <b>대역으로는 막지 않는다</b>.
+     */
+    public static final String AUGMENT_EXTERNAL_BASE_URL       = "authoring.augment.external.base-url";
 
     /**
      * 온디맨드 AI 추론의 <b>대기 예산 절대 상한</b>(초) — 한 요청이 넘지 말아야 할 값.
@@ -197,7 +230,7 @@ public final class ConfigKeys {
      * 충돌하므로 이름을 바꾸지 말 것.
      *
      * <p>⚠ <b>시드하지 않는다</b> — 행이 없는 것이 정상이며 그때는 «꺼짐»이다. 그래서 두 키를
-     * {@link #DECLARED_TYPE} 에 등록해 최초 저장 시 행이 만들어지게 한다(연동 주소 4종과 같은 이유).
+     * {@link #DECLARED_TYPE} 에 등록해 최초 저장 시 행이 만들어지게 한다(연동 주소 키들과 같은 이유).
      * 읽기는 부재를 값으로 돌려주는 {@code SystemConfigService.findString} 을 쓴다 — {@code getString}
      * 은 행이 없으면 예외를 던지고 그 예외는 캐시되지 않아 배치마다 DB 왕복이 반복된다.
      */
@@ -216,7 +249,7 @@ public final class ConfigKeys {
             EVENT_EXCLUDED_CLASS_CODES,
             KPST_DEID_MASKING_TYPE, KPST_DEID_MASKING_RANGE, KPST_DEID_DB_SAVE,
             KPST_DEID_BASE_URL, INTEGRATION_AI_SERVER_BASE_URL,
-            VLM_CLIENT_URL, CONTROL_NOTIFY_URL,
+            VLM_CLIENT_URL, CONTROL_NOTIFY_URL, AUGMENT_EXTERNAL_BASE_URL,
             AI_WAIT_BUDGET_CEILING_SEC,
             BATCH_VLM_SKIP_BY_DEFAULT, BATCH_VLM_SKIP_BY_DEFAULT_REASON
     );
@@ -225,15 +258,23 @@ public final class ConfigKeys {
      * 시드 행 없이도 저장할 수 있는 키의 <b>선언 타입</b> (CONFIG_TYPE_CD).
      *
      * <p>{@code SystemConfigService.update} 는 원래 <b>기존 행에서</b> CONFIG_TYPE_CD 를 읽으므로 행이
-     * 없으면 404 였다. 연동 주소 4종은 시드하지 않는 것이 설계라 그대로면 <b>한 번도 저장할 수 없다</b>.
+     * 없으면 404 였다. 연동 주소 키는 시드하지 않는 것이 설계라 그대로면 <b>한 번도 저장할 수 없다</b>.
      * 이 맵에 등록된 키만 최초 저장 시 이 타입으로 행을 만든다 — 그래서 임의의 키가 DB 에 생기지 않는다
      * (화이트리스트 {@link #ALLOWED} 통과가 선행 조건이다).
+     *
+     * <h3>★ {@code Map.of} 의 엔트리 상한(10쌍) — 넘치면 <b>시끄럽게</b> 깨진다</h3>
+     * <p>{@link #NUMBER_RANGE} 가 같은 이유로 {@code Map.ofEntries} 를 쓴다. 다만 이쪽은 상한을 넘겨도
+     * <b>컴파일 오류</b>(해당 인자 수의 오버로드가 없다)라 조용히 새지 않는다 — 그때 «등록을 생략»으로
+     * 도망가지 말고 {@code Map.ofEntries} 로 바꾼다. 등록을 생략하면 그 키는 <b>행이 없을 때 404</b> 가
+     * 되어 «한 번도 저장할 수 없는 키»가 다시 생긴다(이 맵이 애초에 해결한 문제).
      */
     public static final Map<String, String> DECLARED_TYPE = Map.of(
             KPST_DEID_BASE_URL,              "STRING",
             INTEGRATION_AI_SERVER_BASE_URL,  "STRING",
             VLM_CLIENT_URL,                  "STRING",
             CONTROL_NOTIFY_URL,              "STRING",
+            // 외부 증강 벤더도 시드하지 않는다 — 행이 없는 것이 «아직 연동하지 않음»의 유일한 표현이다.
+            AUGMENT_EXTERNAL_BASE_URL,       "STRING",
             // AI 대기 예산 상한도 시드하지 않는다 — 행이 없으면 도출 기본값(앞단 제한시간)을 쓴다.
             AI_WAIT_BUDGET_CEILING_SEC,      "NUMBER",
             // 시계열 전체 건너뛰기 2종도 시드하지 않는다 — 행이 없으면 «꺼짐»이다.
