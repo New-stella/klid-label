@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-09-08T06:19:46.328Z |
-| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 111 |
+| Last sync | 2026-09-08T12:01:44.487Z |
+| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 115 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,14 +41,10 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-046]] (prev v16)
-- CHANGED [[SEQ-025]] (prev v7)
-- CHANGED [[FEAT-005]] (prev v10)
-- CHANGED [[UC-011]] (prev v21)
-- CHANGED [[UC-013]] (prev v12)
-- CHANGED [[UC-016]] (prev v31)
-- CHANGED [[UC-019]] (prev v30)
-- CHANGED [[UC-036]] (prev v8)
+- CHANGED [[NFR-020]] (prev v10)
+- CHANGED [[ROLE-002]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v14)
+- CHANGED [[SCREEN-009]] (prev v76)
 
 ## ITEM 표
 
@@ -69,7 +65,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | CHANGED |
+| [[ADR-046]] | adr | 17 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 8 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
@@ -101,7 +97,7 @@
 | [[EVT-007]] | domain_event | 3 | UNCHANGED |
 | [[EVT-008]] | domain_event | 8 | UNCHANGED |
 | [[EXTSYS-003]] | external_system | 13 | UNCHANGED |
-| [[FEAT-005]] | feature | 11 | CHANGED |
+| [[FEAT-005]] | feature | 11 | UNCHANGED |
 | [[FEAT-006]] | feature | 11 | UNCHANGED |
 | [[INT-004]] | integration_point | 15 | UNCHANGED |
 | [[INT-005]] | integration_point | 10 | UNCHANGED |
@@ -118,7 +114,7 @@
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 10 | UNCHANGED |
+| [[NFR-020]] | nfr | 11 | CHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -148,12 +144,12 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 10 | CHANGED |
+| [[ROLE-003]] | permission_role | 15 | CHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 106 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 76 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 78 | CHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 28 | UNCHANGED |
@@ -162,14 +158,14 @@
 | [[SEQ-012]] | diagram_sequence | 17 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 15 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | CHANGED |
+| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-031]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-035]] | diagram_sequence | 6 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 12 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 4 | UNCHANGED |
-| [[UC-011]] | use_case | 22 | CHANGED |
-| [[UC-013]] | use_case | 13 | CHANGED |
-| [[UC-016]] | use_case | 32 | CHANGED |
-| [[UC-019]] | use_case | 32 | CHANGED |
-| [[UC-036]] | use_case | 9 | CHANGED |
+| [[UC-011]] | use_case | 22 | UNCHANGED |
+| [[UC-013]] | use_case | 13 | UNCHANGED |
+| [[UC-016]] | use_case | 32 | UNCHANGED |
+| [[UC-019]] | use_case | 32 | UNCHANGED |
+| [[UC-036]] | use_case | 9 | UNCHANGED |

@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-002
 type: class_diagram
-version: 10
+version: 11
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:51.983Z
+synced_at: 2026-09-08T12:01:43.253Z
 status: CHANGED
-prev_version: 7
-content_hash: 6e41a2f391194ab3b84b79536da6900ef801352fb3b6e38053241a44559a3acf
+prev_version: 10
+content_hash: 564d127937e25715d493e6c67262b02a3a8d578fc50362910741d83f94a4e4ac
 stale: false
 raw: ./_raw/CDIAG-002.json
 links:
@@ -34,30 +34,6 @@ neutral
 
 **methods**:
 
-#### complete
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제 상태 전이는 markVlmRequested/markVlmCompleted/markVlmFailed/markSkipped 가 개별로 담당한다.
-- **is_abstract**: false
-- **return_type**: void
-
-#### requestVlm
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제 메서드명은 markVlmRequested() 다.
-- **is_abstract**: false
-- **return_type**: void
-
 #### markVlmCompleted
 
 **params**:
@@ -68,18 +44,6 @@ _(empty)_
 - **visibility**: public
 - **is_abstract**: false
 - **return_type**: void
-
-#### toVlmCallbackPayload
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 마킹→VLM 은 위탁(제출)이고 콜백은 VLM→저작도구 방향에만 존재한다. 위탁 요청은 frame_policy 와 event_type 으로 구성되며 별도 페이로드 조립 메서드를 두지 않는다.
-- **is_abstract**: false
-- **return_type**: VlmCallbackPayload
 
 #### markVlmRequested
 
@@ -221,40 +185,6 @@ _(empty)_
 
 _(empty)_
 
-#### evntNm
-
-- **type**: String
-- **is_static**: false
-- **visibility**: private
-- **description**: [폐기] 이 값을 마킹이 보유하지 않는다 — 영상 행에 이미 있는 값을 마킹 행에 베껴 두던 중복이라 영상 쪽이 바뀌면 두 값이 어긋난다(원장도 같은 결정으로 EVNT_NM 칸을 두지 않는다). 마킹 응답의 이벤트 유형 코드는 영상 행을 조인해 조달하므로 화면과 외부 계약은 바뀌지 않는다. VLM 위탁 요청에도 실리지 않는다 — 마킹이 위탁에 기여하는 축은 프레임 선택·질문 선택·검증 이벤트 유형 선택 셋이며 이벤트명은 그 어디에도 들어가지 않는다.
-- **is_readonly**: false
-
-**implementation**:
-
-##### status
-
-planned
-
-##### modules
-
-_(empty)_
-
-##### records
-
-_(empty)_
-
-##### progress
-
-0
-
-##### subtasks
-
-_(empty)_
-
-##### module_paths
-
-_(empty)_
-
 #### markModeCd
 
 - **type**: MarkMode
@@ -293,40 +223,6 @@ _(empty)_
 - **type**: Integer
 - **is_static**: false
 - **visibility**: private
-- **is_readonly**: false
-
-**implementation**:
-
-##### status
-
-planned
-
-##### modules
-
-_(empty)_
-
-##### records
-
-_(empty)_
-
-##### progress
-
-0
-
-##### subtasks
-
-_(empty)_
-
-##### module_paths
-
-_(empty)_
-
-#### videoFilePathNm
-
-- **type**: String
-- **is_static**: false
-- **visibility**: private
-- **description**: [폐기] 이 값을 마킹이 보유하지 않는다 — 영상 행에 이미 있는 값을 마킹 행에 베껴 두던 중복이라 영상 쪽이 바뀌면 두 값이 어긋난다(원장도 같은 결정으로 VIDEO_FILE_PATH_NM 칸을 두지 않는다). 마킹 응답의 영상 파일 경로는 영상 행을 조인해 조달하므로 화면과 외부 계약은 바뀌지 않는다. VLM 위탁 요청에도 실리지 않는다 — media.path 는 비식별 처리 이력에서 별도 조달한다.
 - **is_readonly**: false
 
 **implementation**:

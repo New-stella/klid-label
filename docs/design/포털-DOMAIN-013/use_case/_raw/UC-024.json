@@ -13,6 +13,7 @@
       "title": "포털 라벨 작업 (조회·수정·다운로드)",
       "status": "approved",
       "priority": "should",
+      "frequency": "상시 — 포털 회원이 자기 작업을 하는 동안 수시로 조회·수정·다운로드한다.",
       "main_flow": [
         {
           "step": 1,
@@ -189,12 +190,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 33,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "설계 산출물의 표 칸에 편집 지시문이 그대로 실리던 것을 바로잡는다. 폐기 표기는 설명 자리에 남는 것이 맞지만 이 자리들은 산출물이 실제로 읽어 가는 자리였다 — 유스케이스 흐름 단계·기술 고려사항·연동 설명·테이블 설명이 그대로 표 칸이 되므로, 거기 있던 「구 서술은 폐기됐다」가 사양처럼 읽혔다. 기록은 버리지 않고 brownfield 메모로 옮겼다. 그 필드는 산출물이 읽지 않는 것을 실측으로 확인했다. 현행 서술과 판단은 하나도 바꾸지 않았다.",
+    "current_version": 34,
+    "stale": true,
+    "stale_reason": "SCREEN-028의 data.uses_components 변경 — references",
+    "change_summary": "발생 빈도 기입 — 비어 있어 산출물 칸이 공란으로 나갔다. 데이터마트 영상을 대상으로 라벨과 메타를 확인·수정·추가하고 사용자별 작업 데이터로 저장·다운로드한다는 목표에서, 포털 회원의 일상 작업 흐름임이 드러난다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T04:05:53.390Z",
+    "last_updated_at": "2026-09-08T06:14:52.500Z",
     "created_at": "2026-06-05T09:47:37.215Z"
   }
 }

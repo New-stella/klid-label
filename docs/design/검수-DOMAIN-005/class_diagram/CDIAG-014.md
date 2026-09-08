@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-014
 type: class_diagram
-version: 17
+version: 18
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:22:49.392Z
+synced_at: 2026-09-08T12:01:38.478Z
 status: CHANGED
-prev_version: 16
-content_hash: 4e77621249ad8311fe9b8ddc8896f25fe862ca240cc51b6d46a54e6637064ea1
+prev_version: 17
+content_hash: aba98187017826e57ff30a1c907373e3beae5bc95970eef80fa57aadfbc0f890
 stale: false
 raw: ./_raw/CDIAG-014.json
 links:
@@ -170,18 +170,6 @@ _(empty)_
 - **description**: REVIEWER 통과 / WORKER 본인 LABELER 배정 검증
 - **is_abstract**: false
 - **return_type**: LsDataSrc
-
-#### isReviewApproved
-
-**params**:
-
-- rawSn: Long
-
-- **is_static**: false
-- **visibility**: private
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 검수 승인 판정은 ReviewApprovalGate 가 단일 지점으로 수행하며 MetaService 는 이를 주입해 위임한다(과거 여러 클래스에 복제됐던 private 판정이 그 단일 지점으로 통합됨).
-- **is_abstract**: false
-- **return_type**: boolean
 
 **attributes**:
 

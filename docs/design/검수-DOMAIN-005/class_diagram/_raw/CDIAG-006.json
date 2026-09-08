@@ -16,55 +16,6 @@
           "name": "RawDataStatus",
           "methods": [
             {
-              "name": "assignToWorker",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제로는 AssignmentService 가 작업 배정 시 LsRawDataStatus.markAssigned() 를 호출해 ASSIGNED 로 전이시킨다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "submitForReview",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService 가 제출 시 ReviewStateMachine.verify(from,to) 로 전이를 검증한 뒤 LsRawDataStatus.transitionTo(PENDING) 을 호출한다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "approve",
-              "params": [
-                "reviewerId: Long"
-              ],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.approve 가 승인을 수행하며 그 순서는 ①비식별화완료여부(deIdntfCmptnYn)가 완료(Y)인지 판정해 미완료(N)면 거부 ②ReviewStateMachine.verify(IN_REVIEW, APPROVED) ③transitionTo(APPROVED) 다. 가드가 상태 전이보다 앞서므로 거부될 때는 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 하나도 만들어지지 않는다. reviewerId 매개변수에 해당하는 승인자 식별은 이 메서드가 받지 않으며 별도 감사 경로가 기록한다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "reject",
-              "params": [
-                "issue: DataIssue"
-              ],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.reject 가 ReviewStateMachine.verify(IN_REVIEW, REJECTED) 검증 후 LsRawDataStatus.transitionTo(REJECTED) 를 호출한다. DataIssue 매개변수에 해당하는 반려 사유는 이 메서드가 받지 않는다(별도 저장 경로).",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "incrementReviewCycle",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "description": "[폐기] 이 클래스에서 만들지 않는다 — STP_CYCL/IGI_CYCL 필드는 존재하지만 생성 시점(initial, 항상 0)에만 값이 정해지고 그 이후 값을 증가시키는 공개 메서드가 실제 엔티티에 없다.",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
               "name": "initial",
               "params": [
                 "rawDataId: Long"
@@ -741,12 +692,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
+    "current_version": 16,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문이 인용하는 ADR-060 을 referenced_items 에 추가(기존 원소 보존, 추가만). 문서 전용 필드라 그래프 링크 생성 목적이 아니라 서술 정합 목적.",
+    "change_summary": "검수 상태 클래스에서 실재하지 않는 연산 5개(assignToWorker·submitForReview·approve·reject·incrementReviewCycle)를 제거. 설명에 \"[폐기] 이 클래스에서 만들지 않는다\"라고 적혀 있었으나 선언이 남아 있어, 클래스 설계서 생성 시 존재하지 않는 연산이 정상 사양처럼 실렸다. 현행 담당은 다음과 같다 — 배정은 AssignmentService 가 markAssigned() 를 호출하고, 제출·승인·반려는 ReviewService 가 ReviewStateMachine.verify(from,to) 로 전이를 검증한 뒤 수행하며, 승인은 비식별화완료여부가 완료인지 먼저 판정한다. 검수 주기 필드는 생성 시점에만 값이 정해지고 이를 증가시키는 공개 연산이 실재하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T12:49:38.058Z",
+    "last_updated_at": "2026-09-08T07:20:26.968Z",
     "created_at": "2026-06-02T08:50:42.818Z"
   }
 }

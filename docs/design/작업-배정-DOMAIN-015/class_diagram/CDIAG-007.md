@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-007
 type: class_diagram
-version: 8
+version: 9
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:49.122Z
+synced_at: 2026-09-08T12:01:34.632Z
 status: CHANGED
-prev_version: 7
-content_hash: f008e59696d1957168bc7fbd57bebb5d25fb919012385f3d43d539c7f842809c
+prev_version: 8
+content_hash: 26b0fbc33a892854c196cdc6825abd4eed9fec89b9433039148d266c876b9b5c
 stale: false
 raw: ./_raw/CDIAG-007.json
 links:
@@ -684,17 +684,6 @@ _(empty)_
 - **visibility**: public
 - **is_abstract**: false
 - **return_type**: TaskAssignment
-
-#### [폐기] findAssignHistory
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **is_abstract**: false
-- **return_type**: List<TaskEventLog>
 
 #### getHistory
 

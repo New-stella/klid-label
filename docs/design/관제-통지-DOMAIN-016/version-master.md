@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-08T06:19:48.314Z |
+| Last sync | 2026-09-08T12:01:35.783Z |
 | Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 93 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -41,9 +41,9 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-046]] (prev v16)
-- CHANGED [[SEQ-025]] (prev v7)
-- CHANGED [[UC-009]] (prev v25)
+- CHANGED [[NFR-020]] (prev v10)
+- CHANGED [[ROLE-002]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v14)
 
 ## ITEM 표
 
@@ -62,7 +62,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | CHANGED |
+| [[ADR-046]] | adr | 17 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
@@ -103,7 +103,7 @@
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 10 | UNCHANGED |
+| [[NFR-020]] | nfr | 11 | CHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -134,14 +134,14 @@
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[RISK-004]] | risk | 4 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 10 | CHANGED |
+| [[ROLE-003]] | permission_role | 15 | CHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 18 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | CHANGED |
+| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[UC-009]] | use_case | 26 | CHANGED |
+| [[UC-009]] | use_case | 26 | UNCHANGED |

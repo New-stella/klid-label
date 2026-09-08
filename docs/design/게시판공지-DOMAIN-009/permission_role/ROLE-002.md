@@ -1,18 +1,18 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 9
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:59.857Z
+synced_at: 2026-09-08T12:01:40.874Z
 status: CHANGED
-prev_version: 7
-content_hash: 0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4
-stale: true
+prev_version: 9
+content_hash: d25feb867c3d7a56f398563768712549b991ef7be1dd3c2dd6bbc3472903fea9
+stale: false
 raw: ./_raw/ROLE-002.json
 links:
   based_on: ["[[ADR-055]]"]
-  granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
+  granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
   requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
 ---
 
@@ -172,21 +172,11 @@ WORKER
 
 - view
 
-- **condition**: [폐기] 영상 상세 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
-- **target_id**: SCREEN-009
-- **target_kind**: screen_spec
-
-### [11]
-
-**actions**:
-
-- view
-
 - **condition**: 대시보드 — 본인 배정분 기준
 - **target_id**: SCREEN-011
 - **target_kind**: screen_spec
 
-### [12]
+### [11]
 
 **actions**:
 
@@ -196,17 +186,7 @@ WORKER
 - **target_id**: SCREEN-020
 - **target_kind**: screen_spec
 
-### [13]
-
-**actions**:
-
-- view
-
-- **condition**: [폐기] 영상 처리 현황 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
-- **target_id**: SCREEN-008
-- **target_kind**: screen_spec
-
-### [14]
+### [12]
 
 **actions**:
 
@@ -216,7 +196,7 @@ WORKER
 - **target_id**: SCREEN-030
 - **target_kind**: screen_spec
 
-### [15]
+### [13]
 
 **actions**:
 
@@ -227,6 +207,10 @@ WORKER
 - **target_kind**: screen_spec
 
 ## inherits_from
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

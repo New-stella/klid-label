@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-004
 type: class_diagram
-version: 10
+version: 11
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:56.072Z
+synced_at: 2026-09-08T12:01:41.963Z
 status: CHANGED
-prev_version: 9
-content_hash: 786f9a60bc06b6ed75cae7e2443ed2f9e53278909f7617de87f9322a4ba9ba9c
+prev_version: 10
+content_hash: e18a23d22607542c5df404d6b1f3d768039bda7c71566285e38ba5cf88da8d61
 stale: false
 raw: ./_raw/CDIAG-004.json
 links:
@@ -1674,14 +1674,13 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 버전 스냅샷 생성 사유 (LS_LABEL_VERSION.SAVE_REASON_CD). APPROVED=검수 승인 시 확정 스냅샷(유일한 신규 생성 경로). DEIDENT_REPORT=레거시 값 — 구 정책(비식별 신고 시 라벨 전량 삭제 직전 복원 스냅샷)이 적재했던 사유로 신규 적재는 중단됐고 운영 DB 에 남은 기존 행 판독용으로만 존치한다. [폐기] ROLLBACK=폐기된 값 — 롤백은 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화한다 (재계산 해시가 대상 행과 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능), 판독을 위해 표기만 존치한다.
+- **description**: 버전 스냅샷 생성 사유 (LS_LABEL_VERSION.SAVE_REASON_CD). APPROVED=검수 승인 시 확정 스냅샷(유일한 신규 생성 경로). DEIDENT_REPORT=레거시 값 — 구 정책(비식별 신고 시 라벨 전량 삭제 직전 복원 스냅샷)이 적재했던 사유로 신규 적재는 중단됐고 운영 DB 에 남은 기존 행 판독용으로만 존치한다. 롤백 사유 값은 이 열거에 두지 않는다 — 롤백은 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화하며 (재계산 해시가 대상 행과 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능), 그래서 이 사유로 적재되는 행이 생기지 않는다.
 
 **enum_values**:
 
 - APPROVED
 - BATCH
 - DEIDENT_REPORT
-- [폐기] ROLLBACK
 
 **stereotypes**:
 

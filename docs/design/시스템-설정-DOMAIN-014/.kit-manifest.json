@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-014",
-  "synced_at": "2026-09-08T06:19:47.398Z",
+  "synced_at": "2026-09-08T12:01:33.392Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -135,8 +135,8 @@
     "ADR-057": {
       "type": "adr",
       "domain_id": "DOMAIN-004",
-      "version": 19,
-      "content_hash": "437fcf6ef87d19eef1c5dfdc1786107a41ebb00513f9d2ab3089b246a65767b1"
+      "version": 22,
+      "content_hash": "c15221445c6d647a9961b404129cfb11d04e57891e23d41fa1b197b451f0d118"
     },
     "ADR-062": {
       "type": "adr",
@@ -249,8 +249,8 @@
     "API-229": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-004",
-      "version": 4,
-      "content_hash": "0a8bc23c2e1a3f9b50b51312b87c3c92ae0978a9ec6c90983e164fee6829278f"
+      "version": 5,
+      "content_hash": "64137c0ae4d239547770f79464a4247fc7947c4fe0006dfe4eee3367d0f50b60"
     },
     "API-230": {
       "type": "api_endpoint",
@@ -393,8 +393,8 @@
     "INTSPEC-003": {
       "type": "integration_spec",
       "domain_id": null,
-      "version": 18,
-      "content_hash": "b393f9e503606039624ad0e8e806c9e14195be76eed5f7d2374a08beeeff327a"
+      "version": 20,
+      "content_hash": "dd63696e5b58f9cd62c98c692d0c8985a9a1abcc06ecdcbbd690db169066f03c"
     },
     "NAV-001": {
       "type": "navigation_tree",
@@ -477,8 +477,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "50d34fdf974bb8431266790a0d4c9ae7135f4b8a8d3d083e95ddc61c779f226b"
+      "version": 11,
+      "content_hash": "2bd5e74ecd484e7a9a8f62894af974900c322f87ba55cdbad4d3bb031a108c1e"
     },
     "NFR-021": {
       "type": "nfr",
@@ -657,14 +657,14 @@
     "ROLE-002": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4"
+      "version": 10,
+      "content_hash": "d25feb867c3d7a56f398563768712549b991ef7be1dd3c2dd6bbc3472903fea9"
     },
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "35113bf55eda3c02cf18c5d4c8d73e235a4c518ef1fa924a764425f62f1ceef8"
+      "version": 15,
+      "content_hash": "1c09ac4b7db7068039c9259dfd23eb07e9bebe190fd133451654e537c9e4e45a"
     },
     "ROLE-004": {
       "type": "permission_role",
@@ -699,8 +699,8 @@
     "SD-036": {
       "type": "screen_design",
       "domain_id": "DOMAIN-014",
-      "version": 9,
-      "content_hash": "b0dd1f687cbd9c8baac8dd274df0da94255549f43f0a3e41f8c46e5f44a464c6"
+      "version": 14,
+      "content_hash": "5fe89ab6a994d7621093e3f819272f34aedc8a60ff102fb4d2ff31e4fe79031c"
     },
     "SD-037": {
       "type": "screen_design",
@@ -759,8 +759,8 @@
     "SCREEN-042": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-014",
-      "version": 20,
-      "content_hash": "8c903b7f236e0aa81ef2af9afb584def0193d03a45d636b3c193e87f468e0f98"
+      "version": 25,
+      "content_hash": "328c34908d6bf8e83318cba3a8be1c42be09f5b77dc7c46e889cf7232d3e972f"
     },
     "SCREEN-043": {
       "type": "screen_spec",

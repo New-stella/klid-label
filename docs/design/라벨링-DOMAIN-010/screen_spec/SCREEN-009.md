@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 76
+version: 78
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:40:11.501Z
+synced_at: 2026-09-08T12:01:42.067Z
 status: CHANGED
-prev_version: 75
-content_hash: ad0b03e2d150c3605a9d776ae82b52393c139d189fb5c5b299b4dded71d700e4
+prev_version: 76
+content_hash: 346d49047af0984b9b2370fd10b417654b713ac3a8358f79aec4a70044e49874
 stale: false
 raw: ./_raw/SCREEN-009.json
 links:
@@ -21,7 +21,6 @@ links:
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
   designs_backward: ["[[SD-004]]"]
-  granted_on_backward: ["[[ROLE-002]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-003]]"]
   references_backward: ["[[UC-011]]", "[[UC-016]]"]
@@ -517,7 +516,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 배치 조치 패널에서 재수행을 고르면 뜨는 확인 창이다. 두 작업 묶음(시계열·오토라벨) 모두 이 창을 거치며, 확인 없이 곧바로 접수되는 재수행은 없다. 다만 두 창은 같은 모양이 아니다 — 창을 두는 근거와 경고 상자를 두는 근거가 서로 다르기 때문이다. ★확인 창을 두는 근거는 재수행이 공짜가 아니라는 것이다. 재수행은 외부 분석 서비스로 다시 위탁을 보내는 행위라 비용과 시간이 들고 동시 처리 한도를 먹는다. 두 묶음 모두 이 근거에 해당한다. ★경고 상자를 두는 근거는 되돌릴 수 없다는 것이다. 오토라벨 재수행은 사람이 손댄 보간 라벨을 새로 계산된 값으로 덮는다. 시계열 묶음은 이 근거에 해당하지 않는다. ⇒ 확인이 균일해져 무뎌지는 것이 아니라 위험도에 따라 층이 갈린다. 일관성을 이유로 두 창을 같은 모양으로 만들면 한쪽이 틀리게 된다.
+- **description**: 배치 조치 패널에서 재수행을 고르면 뜨는 확인 창이다. 두 작업 묶음(시계열·오토라벨) 모두 이 창을 거치며, 확인 없이 곧바로 접수되는 재수행은 없다. 다만 두 창은 같은 모양이 아니다 — 창을 두는 근거와 경고 상자를 두는 근거가 서로 다르기 때문이다. ★확인 창을 두는 근거는 재수행이 공짜가 아니라는 것이다. 재수행은 외부 분석 서비스로 다시 위탁을 보내는 행위라 시간이 들고 동시 처리 한도를 먹는다. 두 묶음 모두 이 근거에 해당한다. ★경고 상자를 두는 근거는 되돌릴 수 없다는 것이다. 오토라벨 재수행은 사람이 손댄 보간 라벨을 새로 계산된 값으로 덮는다. 시계열 묶음은 이 근거에 해당하지 않는다. ⇒ 확인이 균일해져 무뎌지는 것이 아니라 위험도에 따라 층이 갈린다. 일관성을 이유로 두 창을 같은 모양으로 만들면 한쪽이 틀리게 된다.
 
 **references_apis**:
 
@@ -650,8 +649,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: b1ae0b1c45db7ad45159395b241ca33dc835171b7c5321b1899ec00b9547c3cc
-- **generated_at**: 2026-08-27T09:26:35.639Z
+- **source_hash**: 11a774342b42817f1e3551781d360e036b990f3a6b4eae723f68f9305fc936c0
+- **generated_at**: 2026-09-08T08:26:57.766Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

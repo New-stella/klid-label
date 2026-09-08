@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-09-07T15:21:49.841Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 75 |
+| Last sync | 2026-09-08T12:01:40.875Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 72 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,10 +26,10 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 84건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 87건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 2건 / 스코프 밖 56건 (그중 domain_id 없음 12건)
-  🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
+  🚨 feature: 이번 키트 0건 / 프로젝트 전역 14건 (그중 domain_id 없음 13건) — 전량 누락
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -41,7 +41,9 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[NFR-020]] (prev v10)
+- CHANGED [[ROLE-002]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v14)
 
 ## ITEM 표
 
@@ -79,7 +81,7 @@
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 10 | UNCHANGED |
+| [[NFR-020]] | nfr | 11 | CHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -109,8 +111,8 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 10 | CHANGED |
+| [[ROLE-003]] | permission_role | 15 | CHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-030]] | screen_spec | 26 | UNCHANGED |
 | [[SCREEN-031]] | screen_spec | 33 | UNCHANGED |
