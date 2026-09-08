@@ -384,7 +384,10 @@ class AiSrvrAdminApiIT {
         register("gpu02", "http://10.0.0.12:9300", "INFERENCE");
         mockMvc.perform(statusPatch("gpu01", "DRAINING")).andExpect(status().isOk());
 
-        // 정비중 -> 이용불가는 사람이 세운 정비 상태를 기계 관측이 덮어쓰는 방향이라 막혀 있다.
+        // ★근거 정정(2026-09-08) — 정비중->이용불가는 <전이표에서는 열렸다>(상태점검이 정비 중에
+        //   실제로 멈춘 장비를 내릴 수 있어야 하기 때문이다). 다만 그것은 <관측이 내리는 판정>이지
+        //   사람이 이 창구에서 고르는 선택지가 아니라, 이 창구는 종전대로 거부한다. [design: API-229]
+        //   사람이 회전에서 빼려면 비활성이 그 자리다.
         mockMvc.perform(statusPatch("gpu01", "UNAVAILABLE"))
                 .andExpect(status().isConflict());
     }

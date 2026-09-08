@@ -126,12 +126,20 @@ public class AiSrvrHealthPoller {
     /**
      * 한 틱 — 원장의 노드를 <b>전부</b> 관측한다(상태는 전 계통, 부하는 추론만).
      *
-     * <p>계통을 가리지 않는 얼굴이다. 정규 경로는 계통별 트리거가 {@link #poll(LsAiSrvr.SrvrType)} 을
-     * 부르며, 이 얼굴은 <b>수동 트리거·프로그래밍 호출</b>과 계통 정보를 갖지 않은 <b>구 잡 등록 행</b>
-     * (되돌림 배포 등)이 쓴다.
+     * <p>계통을 가리지 않는 <b>명시</b> 얼굴이다. 정규 경로는 계통별 트리거가
+     * {@link #poll(LsAiSrvr.SrvrType)} 을 부르며, 이 얼굴은 <b>수동 트리거·프로그래밍 호출</b>이 쓴다.
+     *
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — 여기 <i>「계통 정보를 갖지 않은 구 잡 등록 행(되돌림
+     * 배포 등)이 쓴다」</i>고 적혀 있었다. <b>그 경로는 닫혔다</b> — 계통을 모르는 틱은 이제 아무
+     * 일도 하지 않는다({@code AiSrvrHealthPollJob}). 계통 전용 잡이 따로 등록된 뒤로는 그 폴백이
+     * 두 경로의 중복 관측을 만들어 연속 실패 계수를 유실시키기 때문이다.
+     *
+     * <p>★ <b>그래도 이 얼굴은 남긴다</b> — 「전 계통을 훑는다」는 <b>의도적으로 고를 수 있어야</b>
+     * 하고(운영 진단·시험), 위험한 것은 그 동작 자체가 아니라 <b>모를 때 그리로 떨어지는 것</b>이다.
+     * 그래서 폴백은 없애고 명시 호출만 남긴다.
      */
     public void pollAll() {
-        poll(null);
+        pollScoped(null);
     }
 
     /**
@@ -150,9 +158,31 @@ public class AiSrvrHealthPoller {
      * 한가한 장비로 보여 요청을 통째로 빨아들인다</b>(재기동 직후와 같은 상태가 5초마다 재현된다).
      * 그래서 원장 조회는 <b>전체</b>로 하고 계통 필터는 <b>관측 대상에만</b> 건다.
      *
-     * @param srvrType 관측할 계통. {@code null} 이면 전 계통(위 {@link #pollAll()})
+     * <h3>★ 계통을 모르면 <b>아무것도 하지 않는다</b> (fail-closed · 2026-09-08)</h3>
+     * <p>{@code null} 은 더 이상 「전 계통」이 아니다. 계통 전용 잡이 따로 등록된 뒤로 그 폴백은
+     * <b>두 경로가 같은 장비를 함께 훑게</b> 만들고, 두 경로는 서로를 막지 못해 같은 연속 실패
+     * 계수를 각각 읽고 각각 써 <b>한쪽 갱신이 유실</b>된다 — 죽은 장비가 가용으로 남는다.
+     * 전 계통을 <b>의도적으로</b> 훑는 길은 {@link #pollAll()} 로 남아 있다.
+     *
+     * @param srvrType 관측할 계통. {@code null} 이면 <b>아무것도 하지 않고</b> 경고만 남긴다
      */
     public void poll(LsAiSrvr.SrvrType srvrType) {
+        if (srvrType == null) {
+            // ★fail-closed — 「모른다」를 「전부」로 낮추지 않는다(위 javadoc §계통을 모르면).
+            log.warn("[AiSrvr] 관측할 계통이 지정되지 않아 이 틱을 건너뜁니다 — 전 계통을 훑으려면"
+                    + " 전용 얼굴(pollAll)을 명시적으로 부르세요.");
+            return;
+        }
+        pollScoped(srvrType);
+    }
+
+    /**
+     * 실제 한 틱 — {@code null} 은 <b>전 계통</b>이다.
+     *
+     * <p>{@link #poll(LsAiSrvr.SrvrType)} 이 fail-closed 이므로 「모름」이 여기로 흘러들지 않는다.
+     * 이 자리로 {@code null} 이 오는 것은 {@link #pollAll()} 이 <b>명시적으로</b> 그렇게 부른 때뿐이다.
+     */
+    private void pollScoped(LsAiSrvr.SrvrType srvrType) {
         if (!pollEnabled) {
             // 원장 조회조차 하지 않는다. 「꺼짐」은 <이 관측 배치가> 외부 호출을 한 건도 내지
             // 않는다는 뜻이다. ⚠ 시스템 전체로 확대해 읽지 말 것 — 헬스 인디케이터

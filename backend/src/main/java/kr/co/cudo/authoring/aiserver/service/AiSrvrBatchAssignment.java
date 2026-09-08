@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.aiserver.entity.AiSrvrUsageType;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvrAltmnt;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrAltmntRepository;
+import kr.co.cudo.authoring.common.client.PinnedTarget;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,13 +74,24 @@ public class AiSrvrBatchAssignment {
     /**
      * 이 영상의 배치 추론을 보낼 장비 <b>기준 주소</b>를 정한다(없으면 배정하고 기록한다).
      *
-     * <p>돌려주는 값은 세 갈래다 — 주소가 있으면 그 장비로 고정, <b>{@code null}</b> 은 「고르지
-     * 못했으나 막지 않는다」(원장·부하 <b>조회 실패</b> → 분산만 포기하고 배포 기본 주소로 나간다),
-     * <b>예외</b>는 「쓸 수 있는 후보가 0」이다(폴백 없음). 후보 0 판정은 {@link AiSrvrSelector} 가
-     * 소유하며 여기서 다시 쓰지 않는다. [@design AC-1093]
+     * <p>돌려주는 값은 세 갈래다 — 주소가 있으면 그 장비로 고정,
+     * <b>{@link PinnedTarget#DEPLOY_DEFAULT_TARGET}</b> 은 「고르지 못했으나 막지 않는다」(원장·부하
+     * <b>조회 실패</b> → 분산만 포기하고 배포 기본 주소로 나간다), <b>예외</b>는 「쓸 수 있는 후보가
+     * 0」이다(폴백 없음). 후보 0 판정은 {@link AiSrvrSelector} 가 소유하며 여기서 다시 쓰지 않는다.
+     * [@design AC-1093]
      *
-     * <p>★ 「장비 미상은 {@code null}」은 시계열 위탁 경로가 이미 쓰는 규약과 같다 — 두 축이 같은
-     * 뜻에 다른 표현을 쓰면 읽는 사람이 매번 어느 쪽인지 확인해야 한다.
+     * <p>★ <b>「고르지 못했다」를 {@code null} 로 돌려주지 않는다</b>(2026-09-08 정정) —
+     * 클라이언트는 {@code null} 을 「내가 고르라」로 읽어 <b>프레임마다 다시 고른다</b>. 그러면 한
+     * 영상의 프레임이 여러 장비로 흩어져 추적이 <b>프레임 경계에서 조용히 끊긴 채 적재</b>되고,
+     * 그 구간에는 배정 기록도 없어 사후에 알아낼 수도 없다. 그래서 「정하지 못했다」도 <b>영상 단위로
+     * 한 번</b> 정한 답으로 만들어 표식으로 내려보낸다. [@design ADR-057] [@design AC-1100]
+     *
+     * <h3>★★ 고정된 배정을 <b>먼저</b> 확인한다 — 순서가 곧 사양이다 [@design AC-1100]</h3>
+     * <p>구 동작은 새 장비 선택을 <b>무조건 먼저</b> 불렀다. 그러면 그 자리에서 「쓸 수 있는 후보가
+     * 0」 거부가 나 <b>이미 고정돼 있고 그 장비가 살아 있는 영상까지</b> 함께 막힌다 — 살아 있는
+     * 정비중 장비에 고정된 영상이 같은 계통의 다른 장비가 내려간 순간 거부되는 것이 그 조합이다.
+     * 「신규 배정만 막고 진행 중인 작업은 끝까지」는 <b>술어를 가르는 것만으로는 지켜지지 않고
+     * 순서로도 지켜져야 한다</b>. ⚠ 술어를 다시 합치지 말 것 — 깨진 것은 구조가 아니라 호출 순서였다.
      *
      * <p><b>넣기와 되읽기가 같은 트랜잭션</b>이어야 멱등 배정이 성립하므로 경계를 여기서 연다.
      *
@@ -87,10 +99,16 @@ public class AiSrvrBatchAssignment {
      */
     @Transactional("controlTransactionManager")
     public String resolveAddress(Long rawSn) {
+        // ★① 이미 고정된 배정이 있고 그 장비를 지금 쓸 수 있으면 <그대로> 간다 — 새로 고르지 않는다.
+        //   여기서 selector.select 를 먼저 부르면 후보 0 거부가 이 영상까지 막는다(위 javadoc).
+        String pinnedAddr = pinnedAddressOf(rawSn);
+        if (pinnedAddr != null) {
+            return pinnedAddr;
+        }
         Optional<LsAiSrvr> chosen = selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH);
         if (chosen.isEmpty() || rawSn == null) {
-            // empty = 조회 실패(분산만 포기). rawSn 이 없으면 기록할 축이 없어 고정하지 않는다.
-            return chosen.map(LsAiSrvr::getSrvrAddr).orElse(null);
+            // empty = 조회 실패(분산만 포기 → 표식). rawSn 이 없으면 기록할 축이 없어 고정하지 않는다.
+            return chosen.map(LsAiSrvr::getSrvrAddr).orElse(PinnedTarget.DEPLOY_DEFAULT_TARGET);
         }
         LsAiSrvr picked = chosen.get();
         LsAiSrvrAltmnt assigned = altmntRepository.assignIfAbsent(
@@ -106,6 +124,34 @@ public class AiSrvrBatchAssignment {
         Optional<LsAiSrvr> pinned = selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, assignedSrvrId);
         return pinned.map(LsAiSrvr::getSrvrAddr)
                 .orElseGet(() -> reassign(rawSn, assignedSrvrId, picked));
+    }
+
+    /**
+     * 이미 고정된 배정의 <b>기준 주소</b> — 없거나 지금 쓸 수 없으면 {@code null}.
+     *
+     * <p>유지 판정은 {@link AiSrvrSelector#selectPinned} 가 <b>단독으로</b> 갖는다(정비중은 유지,
+     * 이용불가·비활성은 유지하지 않는다). 여기서 그 규칙을 다시 쓰면 사본이 두 번째 진실원이 된다.
+     *
+     * <p>⚠ <b>조회가 실패하면 막지 않고 넘어간다</b>. 이 자리는 「빨리 끝내는 지름길」이지 판정
+     * 지점이 아니다 — 원장을 읽지 못한 것을 여기서 예외로 올리면, 그 경우 분산만 포기하고 배포 기본
+     * 주소로 나간다는 규약이 <b>이 지름길 때문에</b> 깨진다. 뒤따르는 선택기가 같은 실패를 다시
+     * 만나 그 규약대로 처리한다.
+     */
+    private String pinnedAddressOf(Long rawSn) {
+        if (rawSn == null) {
+            return null;
+        }
+        try {
+            return altmntRepository.findByRawSn(rawSn)
+                    .map(LsAiSrvrAltmnt::getSrvrId)
+                    .flatMap(srvrId -> selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, srvrId))
+                    .map(LsAiSrvr::getSrvrAddr)
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("[AiSrvr] 고정 배정 확인에 실패했습니다(선택 단계로 넘어갑니다). rawSn={} cause={}",
+                    rawSn, e.getClass().getSimpleName());
+            return null;
+        }
     }
 
     /**

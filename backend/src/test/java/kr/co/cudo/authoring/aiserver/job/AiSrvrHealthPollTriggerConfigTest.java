@@ -96,7 +96,7 @@ class AiSrvrHealthPollTriggerConfigTest {
                         "authoring.integration.ai-server.poll-interval-seconds=0",
                         "vlm.client.poll-interval-seconds=-3")
                 .run(context -> {
-                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TRIGGER_NAME)).isPositive();
+                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME)).isPositive();
                     assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TIMESERIES_TRIGGER_NAME))
                             .isPositive();
                 });
@@ -117,7 +117,7 @@ class AiSrvrHealthPollTriggerConfigTest {
                         "authoring.integration.ai-server.poll-interval-seconds=7",
                         "vlm.client.poll-interval-seconds=23")
                 .run(context -> {
-                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TRIGGER_NAME)).isEqualTo(7);
+                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME)).isEqualTo(7);
                     assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TIMESERIES_TRIGGER_NAME))
                             .isEqualTo(23);
                 });
@@ -138,7 +138,7 @@ class AiSrvrHealthPollTriggerConfigTest {
                         // 시계열 값은 <주지 않는다> — 자기 기본값으로 서야 한다.
                         "authoring.integration.ai-server.poll-interval-seconds=41")
                 .run(context -> {
-                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TRIGGER_NAME)).isEqualTo(41);
+                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME)).isEqualTo(41);
                     assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TIMESERIES_TRIGGER_NAME))
                             .as("추론 주기를 바꿨더니 시계열이 따라 움직였다 — 계통을 가른 조항이 "
                                     + "이름만 남는다")
@@ -157,7 +157,7 @@ class AiSrvrHealthPollTriggerConfigTest {
                 .run(context -> {
                     assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TIMESERIES_TRIGGER_NAME))
                             .isEqualTo(41);
-                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TRIGGER_NAME))
+                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME))
                             .as("시계열 주기를 바꿨더니 추론이 따라 움직였다")
                             .isEqualTo(INFERENCE_DEFAULT_SECONDS);
                 });
@@ -174,7 +174,7 @@ class AiSrvrHealthPollTriggerConfigTest {
     void 값을_주지_않아도_계통마다_자기_기본값으로_선다() {
         runner.withPropertyValues("authoring.integration.ai-server.poll-enabled=true")
                 .run(context -> {
-                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TRIGGER_NAME))
+                    assertThat(intervalSeconds(context, AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME))
                             .isEqualTo(INFERENCE_DEFAULT_SECONDS);
                     assertThat(intervalSeconds(context, AiSrvrHealthPollJob.TIMESERIES_TRIGGER_NAME))
                             .isEqualTo(TIMESERIES_DEFAULT_SECONDS);
@@ -201,19 +201,62 @@ class AiSrvrHealthPollTriggerConfigTest {
     void 잡마다_훑을_계통이_잡_데이터로_못박혀_있다() {
         runner.withPropertyValues("authoring.integration.ai-server.poll-enabled=true")
                 .run(context -> {
-                    assertThat(srvrTypeOf(context, AiSrvrHealthPollJob.JOB_NAME))
+                    assertThat(srvrTypeOf(context, AiSrvrHealthPollJob.INFERENCE_JOB_NAME))
                             .isEqualTo(LsAiSrvr.SrvrType.INFERENCE.name());
                     assertThat(srvrTypeOf(context, AiSrvrHealthPollJob.TIMESERIES_JOB_NAME))
                             .isEqualTo(LsAiSrvr.SrvrType.TIMESERIES.name());
                 });
     }
 
-    /** 추론 계통의 잡 이름은 <b>바뀌지 않는다</b> — 바꾸면 기존 등록 행이 고아로 남아 계속 발화한다. */
+    /**
+     * ★★ 추론 계통의 잡·트리거 이름은 <b>옛 이름과 달라야 한다</b> (2026-09-08).
+     *
+     * <p>⚠ <b>구 시험 폐기</b> — 여기 <i>「추론 계통의 잡 이름은 바뀌지 않는다」</i>를 고정하고 있었다.
+     * 그 이름을 그대로 쓰면 <b>이미 등록된 정의가 갱신되지 않아</b>(잡 정의 덮어쓰기가 꺼진 형상이다)
+     * 계통 표식이 영원히 비어 있고, 그러면 계통 구분이 <b>새로 설치하는 환경에서만</b> 성립한다 —
+     * 새로 설치하는 환경에서만 맞는 구분은 구분이 아니다. 고아로 남는 옛 정의의 위험은 fail-closed
+     * 가 닫았다(그 정의는 계통을 알 수 없어 아무 일도 하지 않는다).
+     */
     @Test
-    @DisplayName("추론_계통의_잡_트리거_이름은_기존_그대로다")
-    void 추론_계통의_잡_트리거_이름은_기존_그대로다() {
-        assertThat(AiSrvrHealthPollJob.JOB_NAME).isEqualTo("aiSrvrHealthPollJob");
-        assertThat(AiSrvrHealthPollJob.TRIGGER_NAME).isEqualTo("aiSrvrHealthPollTrigger");
+    @DisplayName("★★추론_계통의_잡_트리거_이름이_옛_이름과_다르다_기존_배포에도_새로_등록된다")
+    void 추론_계통의_잡_트리거_이름이_옛_이름과_다르다() {
+        assertThat(AiSrvrHealthPollJob.INFERENCE_JOB_NAME)
+                .as("옛 이름 그대로면 이미 등록된 정의가 갱신되지 않아 계통 표식이 영원히 빈다")
+                .isNotEqualTo(AiSrvrHealthPollJob.LEGACY_JOB_NAME)
+                .isEqualTo("aiSrvrHealthPollJobInference");
+        assertThat(AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME)
+                .isNotEqualTo(AiSrvrHealthPollJob.LEGACY_TRIGGER_NAME)
+                .isEqualTo("aiSrvrHealthPollTriggerInference");
+    }
+
+    /**
+     * ★ <b>옛 식별자로 등록되는 잡·트리거가 하나도 없다</b> — 그것이 「새로 등록된다」의 실증이다.
+     *
+     * <p>이름 상수만 비교하면 <b>상수는 새 이름인데 등록은 옛 이름으로</b> 하는 어긋남을 놓친다.
+     */
+    @Test
+    @DisplayName("★옛_식별자로_등록되는_잡_트리거가_하나도_없다")
+    void 옛_식별자로_등록되는_잡_트리거가_없다() {
+        runner.withPropertyValues("authoring.integration.ai-server.poll-enabled=true")
+                .run(context -> {
+                    assertThat(context.getBeansOfType(JobDetail.class).values())
+                            .extracting(job -> job.getKey().getName())
+                            .doesNotContain(AiSrvrHealthPollJob.LEGACY_JOB_NAME);
+                    assertThat(context.getBeansOfType(Trigger.class).values())
+                            .extracting(trigger -> trigger.getKey().getName())
+                            .doesNotContain(AiSrvrHealthPollJob.LEGACY_TRIGGER_NAME);
+                });
+    }
+
+    /**
+     * ★ 옛 식별자 상수는 <b>지우지 않는다</b> — 이미 등록된 행을 걷어내는 운영 절차와 fail-closed
+     * 회귀 가드가 이 값을 가리킨다.
+     */
+    @Test
+    @DisplayName("옛_식별자_상수는_판독용으로_존치된다")
+    void 옛_식별자_상수는_존치된다() {
+        assertThat(AiSrvrHealthPollJob.LEGACY_JOB_NAME).isEqualTo("aiSrvrHealthPollJob");
+        assertThat(AiSrvrHealthPollJob.LEGACY_TRIGGER_NAME).isEqualTo("aiSrvrHealthPollTrigger");
     }
 
     /** 각 계통의 기본값 — 시험이 스스로 값을 지어내지 않도록 여기 한 곳에만 적는다. */

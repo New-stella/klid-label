@@ -188,6 +188,8 @@ public class Sam2SegmentStep implements BatchStep {
         // ★영상 고정 — 프레임 순회 <전에> 한 번 정한다. YOLO 단계가 이미 배정해 두었으면 <그 장비>가
         //   나온다(영상당 한 건). [design: ADR-057]
         //   ⚠ 후보 0 이면 여기서 거부가 던져진다(폴백 없음) — 프레임을 읽기 전이라 부분 적재가 없다.
+        //   ⚠ 원장 조회 실패는 다른 축이다 — 「정하지 못했다」는 표식이 돌아오고(배포 기본 주소),
+        //     그 값을 프레임마다 그대로 넘겨 <고정을 지킨다>. 「비었나」로 판정하지 말 것.
         final String srvrAddr = batchAssignment.resolveAddress(rawSn);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);

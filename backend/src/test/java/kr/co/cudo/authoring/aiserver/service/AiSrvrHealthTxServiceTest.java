@@ -48,9 +48,51 @@ class AiSrvrHealthTxServiceTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 1, 4, 12, 33);
 
+    /**
+     * 시험용 원장 — 저장소의 <b>원자 증감</b>을 흉내 낸다.
+     *
+     * <p>연속 횟수를 엔티티에서 올리던 구 방식은 <b>갱신 유실</b>이 나서 저장소의 증감 문장으로
+     * 옮겼다({@code LsAiSrvrRepository#recordCheckFailure}). 그래서 목이 그 문장을 대신 수행해야
+     * 이 클래스의 판정(연속 N회에서 내린다)을 잴 수 있다. <b>원자성 자체</b>는 목으로 잴 수 없으므로
+     * 실제 DB 시험({@code AiSrvrHealthApplyIT})이 따로 지킨다 — 두 축은 서로를 대신하지 못한다.
+     */
+    private final java.util.Map<String, LsAiSrvr> ledger = new java.util.HashMap<>();
+
     @BeforeEach
     void setUp() {
         service = new AiSrvrHealthTxService(repository, usgRepository, 3, 3, 3, 3);
+        given(repository.recordCheckSuccess(anyString(), any())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            if (node == null) {
+                return 0;
+            }
+            ReflectionTestUtils.setField(node, "chckDt", call.getArgument(1));
+            ReflectionTestUtils.setField(node, "chckFailNocs", 0);
+            ReflectionTestUtils.setField(node, "chckScsNocs", nz(node.getChckScsNocs()) + 1);
+            return 1;
+        });
+        given(repository.recordCheckFailure(anyString(), any())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            if (node == null) {
+                return 0;
+            }
+            ReflectionTestUtils.setField(node, "chckDt", call.getArgument(1));
+            ReflectionTestUtils.setField(node, "chckScsNocs", 0);
+            ReflectionTestUtils.setField(node, "chckFailNocs", nz(node.getChckFailNocs()) + 1);
+            return 1;
+        });
+        given(repository.findSuccessStreak(anyString())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            return node == null ? null : node.getChckScsNocs();
+        });
+        given(repository.findFailureStreak(anyString())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            return node == null ? null : node.getChckFailNocs();
+        });
+    }
+
+    private static int nz(Integer value) {
+        return value == null ? 0 : value;
     }
 
     @Test
@@ -220,22 +262,42 @@ class AiSrvrHealthTxServiceTest {
         verify(repository, never()).promoteIfUnavailable(anyString());
     }
 
+    /**
+     * ★★ <b>정비중 장비도 죽으면 내려간다</b> (2026-09-08). [@design API-229] [@design AC-1100]
+     *
+     * <p>⚠ <b>구 시험 폐기</b> — 여기 <i>「정비중 노드는 헬스가 실패해도 상태가 바뀌지 않는다 —
+     * 사람이 의도적으로 세운 상태를 배치가 덮어쓰지 않는다」</i>를 고정하고 있었다. 정비중은
+     * <b>하던 일을 끝까지 흘려보낸다</b>는 뜻이지 <b>죽어도 살아 있는 것으로 친다</b>는 뜻이 아니며,
+     * 그 길이 없으면 정비 중에 실제로 멈춘 장비에 고정된 영상이 <b>죽은 주소에 영구히 묶인다</b>
+     * (재배정 조항도 이용불가로 관측되지 않아 발동하지 않는다).
+     *
+     * <p>이 단언의 <b>반대 방향 짝</b>은 「살아 있는 정비중 장비에 고정된 영상은 그 장비에서 끝까지
+     * 처리된다」이며 {@code AiSrvrBatchAssignmentTest} 가 갖는다. 한쪽만 두면 다음 사람이 반대쪽을 깬다.
+     */
     @Test
-    @DisplayName("정비중_노드는_헬스가_실패해도_상태가_바뀌지_않는다")
-    void 정비중_노드는_헬스가_실패해도_상태가_바뀌지_않는다() {
-        // given — 사람이 의도적으로 세운 상태를 배치가 덮어쓰지 않는다
+    @DisplayName("★★정비중_노드도_연속_실패_임계에_닿으면_이용불가로_내려간다")
+    void 정비중_노드도_연속_실패하면_이용불가로_내려간다() {
         LsAiSrvr node = withStatus("gpu01", AiSrvrStatus.DRAINING);
-        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
-        // when
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        // then — 상태는 그대로, 기록(연속 실패·점검 시각)만 남는다
-        assertThat(node.getSrvrSttsCd()).isEqualTo(AiSrvrStatus.DRAINING);
-        assertThat(node.getChckFailNocs()).isEqualTo(5);
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        assertThat(node.getChckFailNocs()).isEqualTo(3);
         assertThat(node.getChckDt()).isEqualTo(NOW);
+    }
+
+    /** 임계에 닿기 전에는 정비중도 그대로다 — 한 번의 흔들림으로 정비 상태를 잃지 않는다. */
+    @Test
+    @DisplayName("정비중_노드가_임계에_못_미치면_상태를_건드리지_않는다")
+    void 정비중_노드가_임계에_못_미치면_상태를_건드리지_않는다() {
+        withStatus("gpu01", AiSrvrStatus.DRAINING);
+
+        service.applyHealth("gpu01", false, NOW);
+        service.applyHealth("gpu01", false, NOW);
+
         verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
@@ -261,6 +323,7 @@ class AiSrvrHealthTxServiceTest {
         service.applyHealth("gone", false, NOW);
 
         verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
+        verify(repository, never()).recordCheckFailure(anyString(), any());
     }
 
     @Test
@@ -333,8 +396,9 @@ class AiSrvrHealthTxServiceTest {
         // given — 시계열만 1회로 조인다. 추론은 손대지 않았다.
         AiSrvrHealthTxService tightened =
                 new AiSrvrHealthTxService(repository, usgRepository, 3, 3, 1, 1);
-        given(repository.findById("gpu01")).willReturn(Optional.of(available("gpu01")));
-        given(repository.findById("vendor1")).willReturn(Optional.of(timeseries("vendor1")));
+        // ★register() 가 findById 목까지 함께 세운다 — 여기서 다시 감싸면 <중첩 스터빙>이 된다.
+        available("gpu01");
+        timeseries("vendor1");
 
         // when — 각각 한 번씩만 실패
         tightened.applyHealth("vendor1", false, NOW);
@@ -350,7 +414,7 @@ class AiSrvrHealthTxServiceTest {
     void 한_계통에만_값을_줘도_다른_계통은_자기_기본값으로_판정한다() {
         // given — 추론만 1회로 주고 시계열은 기본값(3)을 그대로 둔다.
         AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 1, 1, 3, 3);
-        given(repository.findById("vendor1")).willReturn(Optional.of(timeseries("vendor1")));
+        timeseries("vendor1");
 
         // when — 시계열이 두 번 실패(기본값 3에 못 미친다)
         svc.applyHealth("vendor1", false, NOW);
@@ -365,11 +429,9 @@ class AiSrvrHealthTxServiceTest {
     void 계통마다_다른_복귀_임계로_판정한다() {
         // given — 복귀 임계: 추론 1 / 시계열 3
         AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 9, 1, 9, 3);
-        given(repository.findById("gpu01"))
-                .willReturn(Optional.of(withStatus("gpu01", AiSrvrStatus.UNAVAILABLE)));
+        withStatus("gpu01", AiSrvrStatus.UNAVAILABLE);
         LsAiSrvr downTimeseries = timeseries("vendor1");
         ReflectionTestUtils.setField(downTimeseries, "srvrSttsCd", AiSrvrStatus.UNAVAILABLE);
-        given(repository.findById("vendor1")).willReturn(Optional.of(downTimeseries));
 
         // when — 각각 한 번씩 성공
         svc.applyHealth("gpu01", true, NOW);
@@ -407,8 +469,8 @@ class AiSrvrHealthTxServiceTest {
         assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(1);
 
         // 그리고 그 값이 실제 판정에 쓰인다 — 접근자만 맞고 판정이 다른 값을 보면 무의미하다.
-        given(repository.findById("gpu01")).willReturn(Optional.of(available("gpu01")));
-        given(repository.findById("vendor1")).willReturn(Optional.of(timeseries("vendor1")));
+        available("gpu01");
+        timeseries("vendor1");
         svc.applyHealth("gpu01", false, NOW);
         svc.applyHealth("vendor1", false, NOW);
         verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
@@ -427,21 +489,70 @@ class AiSrvrHealthTxServiceTest {
         assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(6);
     }
 
+    // --- 기록 정제 (CWE-117) ---------------------------------------------------------------------
+
+    /**
+     * ★ 원장 유래 식별자를 <b>정제 없이</b> 로그에 싣지 않는다 — 같은 클래스 안에서 갈려 있었다.
+     *
+     * <p>원장 행은 체크 제약을 우회해 들어왔을 수 있고(마이그레이션·수동 수정), 개행이 섞이면 그
+     * 값이 <b>기록 위조 통로</b>가 된다. 이 클래스는 강등 경로에서는 정제해 싣고 있었는데
+     * <b>복귀 경로와 「원장에 없는 노드」 경로에서는 원문을 그대로</b> 싣고 있었다 — 규칙이 아니라
+     * 습관이었던 것이다.
+     */
+    @Test
+    @DisplayName("★복귀_로그에_원장_식별자를_정제_없이_싣지_않는다")
+    void 복귀_로그에_원장_식별자를_정제_없이_싣지_않는다() {
+        String forged = "gpu01\nWARN [AiSrvr] 위조된 줄";
+        LsAiSrvr node = LsAiSrvr.register(forged, null, "http://ai-1:9300",
+                LsAiSrvr.SrvrType.INFERENCE, NOW);
+        ReflectionTestUtils.setField(node, "srvrSttsCd", AiSrvrStatus.UNAVAILABLE);
+        ledger.put(forged, node);
+        given(repository.findById(forged)).willReturn(Optional.of(node));
+        given(repository.promoteIfUnavailable(anyString())).willReturn(1);
+
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
+                new ch.qos.logback.core.read.ListAppender<>();
+        logs.start();
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(AiSrvrHealthTxService.class);
+        logger.addAppender(logs);
+        try {
+            for (int i = 0; i < 3; i++) {
+                service.applyHealth(forged, true, NOW);
+            }
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+
+        assertThat(logs.list).isNotEmpty();
+        assertThat(logs.list)
+                .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message).doesNotContain("\n"));
+    }
+
     // --- fixtures ------------------------------------------------------------------------------
 
-    private static LsAiSrvr timeseries(String srvrId) {
-        return LsAiSrvr.register(srvrId, null, "https://vendor.example",
-                LsAiSrvr.SrvrType.TIMESERIES, NOW);
+    private LsAiSrvr timeseries(String srvrId) {
+        return register(LsAiSrvr.register(srvrId, null, "https://vendor.example",
+                LsAiSrvr.SrvrType.TIMESERIES, NOW));
     }
 
-    private static LsAiSrvr available(String srvrId) {
-        return LsAiSrvr.register(srvrId, null, "http://ai-1:9300",
-                LsAiSrvr.SrvrType.INFERENCE, NOW);
+    private LsAiSrvr available(String srvrId) {
+        return register(LsAiSrvr.register(srvrId, null, "http://ai-1:9300",
+                LsAiSrvr.SrvrType.INFERENCE, NOW));
     }
 
-    private static LsAiSrvr withStatus(String srvrId, AiSrvrStatus status) {
+    private LsAiSrvr withStatus(String srvrId, AiSrvrStatus status) {
         LsAiSrvr node = available(srvrId);
         ReflectionTestUtils.setField(node, "srvrSttsCd", status);
+        return node;
+    }
+
+    /** 시험용 원장에 심고 조회 목까지 함께 세운다 — 두 자리를 따로 세우면 한쪽만 빠뜨린다. */
+    private LsAiSrvr register(LsAiSrvr node) {
+        ledger.put(node.getSrvrId(), node);
+        given(repository.findById(node.getSrvrId())).willReturn(Optional.of(node));
         return node;
     }
 }

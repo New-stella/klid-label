@@ -8,15 +8,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * AI 서버 상태 전이 규칙 검증. [@design ADR-057]
  *
- * <h3>금지 전이 두 개가 이 시험의 핵심이다</h3>
+ * <h3>남은 금지 전이 하나가 이 시험의 핵심이다</h3>
  * <ul>
  *   <li>{@code UNAVAILABLE -> DRAINING} — 죽은 노드는 정비 대상이 아니다(이미 신규 배정에서 배제됐다).
  *       허용하면 관리자가 "정비 중"이라는 잘못된 상태를 보게 되고, 정비 완료 판정(잔여 배정 0)이
  *       장애 노드에도 걸린다.</li>
- *   <li>{@code DRAINING -> UNAVAILABLE} — 정비 중 헬스 실패는 상태를 바꾸지 않고 기록만 한다.
- *       허용하면 관리자가 의도적으로 세운 정비 상태를 폴러가 덮어써, 정비가 끝나기 전에 노드가
- *       장애로 분류된다.</li>
  * </ul>
+ *
+ * <h3>★★ {@code DRAINING -> UNAVAILABLE} 은 <b>열렸다</b> (2026-09-08) [@design API-229] [@design AC-1100]</h3>
+ * <p>⚠ <b>구 시험 폐기</b> — <i>「정비 중 헬스 실패는 상태를 바꾸지 않고 기록만 한다. 허용하면
+ * 관리자가 의도적으로 세운 정비 상태를 폴러가 덮어쓴다」</i>를 고정하고 있었다. 정비중은 <b>하던 일을
+ * 끝까지 흘려보낸다</b>는 뜻이지 <b>죽어도 살아 있는 것으로 친다</b>는 뜻이 아니며, 그 길이 없으면
+ * 정비 중에 실제로 멈춘 장비에 고정된 영상이 <b>죽은 주소에 영구히 묶인다</b>.
+ *
+ * <p>⚠ <b>전이표만 열면 실제로는 여전히 막힌다</b> — 강등 문장의 출발 상태 조건이 그 규칙을 <b>따로</b>
+ * 들고 있기 때문이다({@code LsAiSrvrRepository#demoteByHealthCheck}). 그 축은 실제 DB 시험이 지킨다.
  */
 class AiSrvrStatusTest {
 
@@ -26,10 +32,17 @@ class AiSrvrStatusTest {
         assertThat(AiSrvrStatus.UNAVAILABLE.canTransitionTo(AiSrvrStatus.DRAINING)).isFalse();
     }
 
+    /**
+     * ★★ 정비중에서 이용불가로 가는 길 — <b>열려 있어야 한다</b>. [@design API-229] [@design AC-1100]
+     *
+     * <p>이 길이 없으면 정비 중에 멈춘 장비에 고정된 영상이 죽은 주소에 영구히 묶이고, 「고정된
+     * 장비를 지금 고를 수 없으면 재배정한다」는 조항도 그 장비가 <b>이용불가로 관측되지 않아</b>
+     * 발동하지 않는다.
+     */
     @Test
-    @DisplayName("정비중_노드는_이용불가로_전이할_수_없다")
-    void 정비중_노드는_이용불가로_전이할_수_없다() {
-        assertThat(AiSrvrStatus.DRAINING.canTransitionTo(AiSrvrStatus.UNAVAILABLE)).isFalse();
+    @DisplayName("★★정비중_노드도_이용불가로_전이할_수_있다_구_금지_폐기")
+    void 정비중_노드도_이용불가로_전이할_수_있다() {
+        assertThat(AiSrvrStatus.DRAINING.canTransitionTo(AiSrvrStatus.UNAVAILABLE)).isTrue();
     }
 
     @Test

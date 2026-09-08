@@ -48,7 +48,9 @@ import java.util.Date;
  * 「ai-server 의 값」으로 읽혀 두 계통이 다시 얽힌다. <b>공통값을 두고 물려받게 하지 않는다.</b>
  *
  * <p>★ 주기에는 임계에 없는 축이 하나 더 있다 — <b>주기는 상대를 실제로 두드리는 횟수</b>라 그 값이
- * 외부 벤더에게 <b>비용으로 그대로 간다</b>. 우리 서버는 우리가 감당하지만 벤더는 그렇지 않다.
+ * 외부 벤더의 장비에 <b>그대로 얹히는 부하</b>가 된다. 우리 서버는 우리가 감당하지만 벤더는 그렇지 않다.
+ * ⚠ <b>근거는 부하이지 과금이 아니다</b>(2026-09-08 정정) — 연동 대상은 조직과 책임의 경계에서
+ * 외부일 뿐 <b>망으로는 내부</b>에 있어, 보낸 만큼이 곧 요금이 되는 제3자 서비스가 아니다.
  *
  * <h3>★ 왜 「트리거 하나 + 최근 점검 시각으로 거르기」를 고르지 않았나 (되살리지 말 것)</h3>
  * <p>원장에 {@code CHCK_DT} 가 이미 있어 배선은 그쪽이 작다. 그런데 그 방식은 <b>시계열의 실효
@@ -93,16 +95,24 @@ public class AiSrvrHealthPollTriggerConfig {
     @Value("${vlm.client.poll-interval-seconds:10}")
     private int timeseriesPollIntervalSeconds;
 
+    /**
+     * 추론 계통 잡 — <b>계통별 새 이름</b>을 갖는다(2026-09-08 개명).
+     *
+     * <p>옛 이름을 그대로 쓰면 이미 등록된 정의가 갱신되지 않아 <b>계통 표식이 영원히 비어</b>
+     * 있다(잡 정의 덮어쓰기를 켜지 않는 형상이다). 새 이름이라야 기존 배포에도 새로 등록된다.
+     * 옛 정의는 계통을 알 수 없어 아무 일도 하지 않으며, 그 행을 걷어내는 것은 운영 절차의 몫이다.
+     * [@design ADR-057]
+     */
     @Bean
-    public JobDetail aiSrvrHealthPollJobDetail() {
-        return typeScopedJob(AiSrvrHealthPollJob.JOB_NAME, LsAiSrvr.SrvrType.INFERENCE,
+    public JobDetail aiSrvrInferenceHealthPollJobDetail() {
+        return typeScopedJob(AiSrvrHealthPollJob.INFERENCE_JOB_NAME, LsAiSrvr.SrvrType.INFERENCE,
                 "AI 추론 노드 상태점검·부하 관측");
     }
 
     @Bean
-    public Trigger aiSrvrHealthPollTrigger(JobDetail aiSrvrHealthPollJobDetail) {
-        return typeScopedTrigger(aiSrvrHealthPollJobDetail, AiSrvrHealthPollJob.TRIGGER_NAME,
-                inferencePollIntervalSeconds);
+    public Trigger aiSrvrInferenceHealthPollTrigger(JobDetail aiSrvrInferenceHealthPollJobDetail) {
+        return typeScopedTrigger(aiSrvrInferenceHealthPollJobDetail,
+                AiSrvrHealthPollJob.INFERENCE_TRIGGER_NAME, inferencePollIntervalSeconds);
     }
 
     /**

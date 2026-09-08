@@ -13,11 +13,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,6 +47,7 @@ class AiSrvrHealthApplyIT {
     @Autowired private LsAiSrvrRepository repository;
     @Autowired private LsAiSrvrUsgRepository usgRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired @Qualifier("controlTransactionManager") private PlatformTransactionManager txManager;
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 1, 4, 12, 33);
 
@@ -159,6 +167,112 @@ class AiSrvrHealthApplyIT {
                         new kr.co.cudo.authoring.aiserver.entity.LsAiSrvrUsg.Key(
                                 "gpu01", AiSrvrUsageType.INTERACTIVE))
                 .orElseThrow().effectiveLoad()).isEqualTo(1);
+    }
+
+    /**
+     * ★★ <b>정비중 장비도 죽으면 이용불가로 내려간다</b> — 실제 DB 로 고정한다.
+     * [@design API-229] [@design AC-1100]
+     *
+     * <p>이 축은 <b>두 자리가 함께</b> 열려야 성립한다 — 전이표({@code AiSrvrStatus})와 강등 문장의
+     * 출발 상태 조건({@code demoteByHealthCheck}). <b>전이표만 열면 판정은 통과하는데 갱신이 0 행이라
+     * 아무 일도 일어나지 않고</b>, 목을 쓰는 단위 시험은 그 어긋남을 <b>한 건도 잡지 못한다</b>
+     * (목이 돌려주는 숫자만 보기 때문이다). 그래서 이 자리가 필요하다.
+     *
+     * <p>그 길이 없으면 정비 중에 실제로 멈춘 장비에 고정된 영상이 <b>죽은 주소에 영구히 묶인다</b>.
+     */
+    @Test
+    @DisplayName("★★정비중_장비도_연속_실패하면_원장에서_이용불가가_된다")
+    void 정비중_장비도_연속_실패하면_이용불가가_된다() {
+        // given — 가용 하나 + 정비중 하나
+        repository.saveAndFlush(node("gpu01"));
+        repository.saveAndFlush(node("gpu02"));
+        jdbcTemplate.update("UPDATE ls_ai_srvr SET srvr_stts_cd = 'DRAINING' WHERE srvr_id = 'gpu02'");
+
+        // when
+        for (int i = 0; i < 3; i++) {
+            txService.applyHealth("gpu02", false, NOW);
+        }
+
+        // then
+        assertThat(statusOf("gpu02")).isEqualTo(AiSrvrStatus.UNAVAILABLE.name());
+    }
+
+    /**
+     * ★ <b>반대 방향 짝</b> — 살아 있는 정비중 장비는 <b>정비중 그대로</b>다.
+     *
+     * <p>배치가 자동으로 가용으로 올리면 사람이 세운 정비 상태가 조용히 사라진다. 두 단언을 함께
+     * 두지 않으면 다음 사람이 한쪽을 깬다.
+     */
+    @Test
+    @DisplayName("★정비중_장비가_살아_있으면_정비중_그대로다_배치가_올리지_않는다")
+    void 정비중_장비가_살아_있으면_정비중_그대로다() {
+        repository.saveAndFlush(node("gpu02"));
+        jdbcTemplate.update("UPDATE ls_ai_srvr SET srvr_stts_cd = 'DRAINING' WHERE srvr_id = 'gpu02'");
+
+        for (int i = 0; i < 5; i++) {
+            txService.applyHealth("gpu02", true, NOW);
+        }
+
+        assertThat(statusOf("gpu02")).isEqualTo(AiSrvrStatus.DRAINING.name());
+    }
+
+    /**
+     * ★★ <b>연속 횟수 갱신이 겹쳐도 유실되지 않는다</b> — 이것이 원자 증감의 존재 이유다.
+     * [@design ADR-057]
+     *
+     * <p>구 동작은 행을 읽어 카운터를 계산한 뒤 되쓰는 방식이었다. 두 반영이 겹치면 뒤에 온 쪽이
+     * <b>앞의 값을 못 보고</b> 같은 수를 다시 써 한쪽 갱신이 사라진다 — 그러면 연속 실패 계수가
+     * 임계에 <b>영영 닿지 못하거나 늦게 닿아 죽은 장비가 가용으로 남는다</b>.
+     *
+     * <p>겹침을 <b>확률에 맡기지 않는다</b> — 앞 트랜잭션이 반영 뒤 커밋을 미루는 동안 뒤 트랜잭션이
+     * 들어오게 해서 <b>결정적으로</b> 재현한다. 구 동작이면 뒤쪽이 커밋 전 값(0)을 읽어 1 을 쓰고,
+     * 원자 증감이면 행 잠금에 걸렸다가 갱신된 값 위에 올려 2 가 된다.
+     *
+     * <p>⚠ 점검 발화가 한 노드에서만 일어난다는 사실은 면제 사유가 아니다 — 클러스터링이 막는 것은
+     * 트리거 중복 발화이고, 이것이 막는 것은 <b>같은 값을 동시에 고칠 때의 갱신 유실</b>이다.
+     */
+    @Test
+    @DisplayName("★★두_반영이_겹쳐도_연속_실패_횟수가_유실되지_않는다")
+    void 두_반영이_겹쳐도_연속_실패_횟수가_유실되지_않는다() throws Exception {
+        repository.saveAndFlush(node("gpu01"));
+        repository.saveAndFlush(node("gpu02"));
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // 앞 트랜잭션 — 반영한 뒤 커밋을 미뤄 겹침 구간을 연다.
+            Future<?> slow = pool.submit(() -> tx.execute(status -> {
+                txService.applyHealth("gpu01", false, NOW);
+                sleep(OVERLAP_MILLIS);
+                return null;
+            }));
+            sleep(OVERLAP_MILLIS / 3);
+            // 뒤 트랜잭션 — 겹침 구간 안에서 들어온다.
+            Future<?> fast = pool.submit(() -> tx.execute(status -> {
+                txService.applyHealth("gpu01", false, NOW);
+                return null;
+            }));
+            slow.get(20, TimeUnit.SECONDS);
+            fast.get(20, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(failNocsOf("gpu01"))
+                .as("한쪽 갱신이 덮이면 계수가 임계에 닿지 못해 죽은 장비가 가용으로 남는다")
+                .isEqualTo(2);
+    }
+
+    /** 겹침을 확률이 아니라 대기 시간으로 보장한다 — 앞 트랜잭션이 커밋을 미루는 시간. */
+    private static final long OVERLAP_MILLIS = 600L;
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     private String statusOf(String srvrId) {

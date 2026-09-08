@@ -145,6 +145,53 @@ class AiServerClientTest {
         assertThat(server.getRequestCount()).isZero();
     }
 
+    /**
+     * ★★ <b>「정하지 못했다」 표식을 받으면 다시 고르지 않는다</b>. [@design ADR-057] [@design AC-1100]
+     *
+     * <p>배치는 원장을 읽지 못했을 때 표식을 넘긴다. 그것을 <b>{@code null} 과 같게</b> 다루면
+     * 클라이언트가 <b>호출마다 원장에서 다시 고르고</b>, 그러면 한 영상의 프레임이 여러 장비로 흩어져
+     * 추적이 <b>프레임 경계에서 조용히 끊긴 채 적재</b>된다 — 오류로 드러나지 않아 더 나쁘다.
+     *
+     * <p>여기서 재는 것은 「어디로 갔는가」가 아니라 <b>「원장을 다시 물었는가」</b>다. 목적지는 둘 다
+     * 배포 기본 주소라 도달지만 보면 두 동작이 <b>구분되지 않는다</b>.
+     */
+    @Test
+    @DisplayName("★★배포_기본주소_표식을_받으면_원장을_다시_고르지_않는다_프레임마다_재선택_금지")
+    void 배포_기본주소_표식을_받으면_원장을_다시_고르지_않는다() throws Exception {
+        server.enqueue(yoloOk());
+        server.enqueue(yoloOk());
+        java.util.concurrent.atomic.AtomicInteger resolveCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        CircuitBreakerRegistry registry = CircuitBreakerRegistry.ofDefaults();
+        AiServerClient client = new AiServerClient(
+                // 표식은 <배포 기본 주소로 나간다>는 뜻이므로 빈의 기준 주소가 실제 목적지다.
+                WebClient.builder().baseUrl(server.url("/").toString()).build(),
+                registry.circuitBreaker("b4"), registry.circuitBreaker("i4"),
+                registry.circuitBreaker("v4"), retryRegistry,
+                workload -> {
+                    resolveCalls.incrementAndGet();
+                    return java.util.Optional.of("http://other-node.invalid");
+                });
+
+        // when — 같은 영상의 프레임 두 장을 표식으로 보낸다.
+        for (int i = 0; i < 2; i++) {
+            client.predictYoloTrack(new YoloTrackRequest("frame.jpg", "7", i, 0.4, 1280, 0.5),
+                    AiWorkload.BATCH, PinnedTarget.DEPLOY_DEFAULT_TARGET)
+                    .block(Duration.ofSeconds(2));
+        }
+
+        // then — 원장을 한 번도 다시 묻지 않았고, 두 요청이 <같은> 목적지로 갔다.
+        assertThat(resolveCalls.get())
+                .as("표식을 null 과 같게 다루면 호출마다 다시 골라 프레임이 흩어진다")
+                .isZero();
+        assertThat(server.getRequestCount()).isEqualTo(2);
+        RecordedRequest first = server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS);
+        RecordedRequest second = server.takeRequest(2, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(first).isNotNull();
+        assertThat(second).isNotNull();
+        assertThat(second.getPath()).isEqualTo(first.getPath());
+    }
+
     /** 용도별 서킷 2개를 주입한 클라이언트. 객체 검증 경로는 이 시험의 축이 아니라 화면 것을 재사용한다. */
     private AiServerClient newClient(CircuitBreaker batch, CircuitBreaker interactive) {
         WebClient webClient = WebClient.builder()

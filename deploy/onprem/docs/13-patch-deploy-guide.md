@@ -52,7 +52,13 @@ cat VERSION.txt
 ```
 
 `baseline_commit` 이 **현장에 지금 깔린 판**이다. 다르면 이 매체가 이 현장의 것이 아니다.
-`db_increments` 가 이번에 적용할 증분이며, 3-1 의 `--status` 결과와 **일치해야** 한다.
+`db_increments_shipped` 가 **이 매체에 실린 증분 전부**이고, `db_increments_new` 는 그중 이번
+회차에 새로 생긴 것이다. ★**매체에는 기준선 이후 증분이 누적으로 실린다** — 현장이 어디까지
+적용했는지는 조립 시점에 알 수 없기 때문이다. 적용 수단이 이력을 보고 이미 적용된 것은
+건너뛰므로 그대로 돌리면 된다.
+
+> ⚠ 구 기재 폐기 — `db_increments` 라는 항목은 없어졌고, 그것이 「이번에 적용할 증분」과
+> 같다는 서술도 더는 맞지 않는다. 실린 것과 적용될 것은 이제 다르다.
 
 > 여러 회차를 건너뛰어 반영해도 절차는 같다 — 증분은 번호 오름차순으로 밀린 것을 한 번에
 > 적용하고, WAR 와 정적파일은 최신 하나로 교체한다. 중간 판을 거칠 필요가 없다.
@@ -114,8 +120,13 @@ sudo ./scripts/deploy-update.sh --check
 sudo ./scripts/apply-migrations.sh --status
 ```
 
-`--status` 의 미적용 목록이 `VERSION.txt` 의 `db_increments` 와 같아야 한다.
-어긋나면 매체가 다르거나 일부가 이미 적용된 것이다 — **이유를 밝히기 전에 진행하지 않는다.**
+`--status` 의 미적용 목록이 `VERSION.txt` 의 `db_increments_shipped` 안에 **전부 들어 있어야**
+한다(같을 필요는 없다 — 매체는 누적이라 이미 적용된 것도 함께 실린다).
+미적용인데 매체에 **없는** 증분이 하나라도 있으면 **진행하지 않는다** — 그 증분은 이 매체로는
+적용할 수 없고, 그대로 두면 그 현장에만 끝내 서지 않는다.
+
+> 매체의 `onprem/db/incremental/증분-대조-결과.txt` 에 실린 증분과 그것이 통합 스키마에
+> 반영됐는지가 함께 적혀 있다. 내는 쪽에서 이미 확인한 것이지만 받는 쪽도 볼 수 있다.
 
 ### ⚠ `--check` 가 "배포된 WAR 를 찾지 못했습니다" 라고 하면
 
@@ -222,6 +233,83 @@ psql -c "SELECT table_schema, table_name FROM information_schema.tables
 5) **이번 회차가 새로 만든 표를 쓰는 화면**을 연다. DB 가 뒤처졌다면 여기서 드러난다.
 6) WAS **전 대수**가 같은 판인지 — 6 을 몇 대에 돌렸는지 세어 본다.
 7) 기동 기록(`server.log`)의 ERROR — 연동 설정이 잘못되면 기동을 막는 대신 이 기록만 남는다.
+
+---
+
+## 8-1. 상태점검 옛 정의 걷어내기 — **계통 구분이 처음 닿는 회차에만**
+
+계통 구분 이전 판이 돌던 현장에는 **옛 상태점검 정의가 저장소에 남아 계속 발화한다.** 정의는 산출물이
+아니라 DB(`QRTZ_*`)에 있고 **이미 등록된 것은 새 배포가 덮어쓰지 않는다** — 그래서 WAR 를 바꿔도
+사라지지 않고, 다음 회차에도 사라지지 않는다. **사람이 한 번 걷어내야 한다.**
+
+> **급하지 않다.** 그 옛 정의는 계통을 알 수 없고, 계통을 모르면 **아무 일도 하지 않는다** — 장비를
+> 읽지도 상태 창구를 부르지도 않는다. 중복 관측·중복 벤더 호출·연속 실패 계수 유실은 **일어나지 않는다.**
+> 걷어내는 이유는 그 정의가 **주기마다 깨어나 아무 일 없이 경고만 남기기** 때문이다. 추론 기본 주기가
+> 5초라 하루 1만 7천 번 남짓이고, **정작 봐야 할 경고가 그 안에 묻힌다.**
+
+### 대상인가 판정
+
+```bash
+sudo ./scripts/deploy-update.sh --check     # 현장에 지금 깔린 판
+```
+
+`VERSION.txt` 의 `baseline_commit` 이 **계통 구분 이전**이고 이번 판이 이후면 대상이다. 아래 조회에
+행이 나오면 대상이고, 0행이면 이미 끝났거나 애초에 해당 없다.
+
+### ① 남았는지 본다 (읽기만)
+
+```sql
+SELECT job_name, job_group FROM klid_at.qrtz_job_details
+ WHERE sched_name = 'KlidAuthoringScheduler' AND job_group = 'aiserver';
+SELECT trigger_name, job_name, next_fire_time FROM klid_at.qrtz_triggers
+ WHERE sched_name = 'KlidAuthoringScheduler' AND job_group = 'aiserver';
+```
+
+**남아야 하는 것** — `aiSrvrHealthPollJobInference` · `aiSrvrHealthPollJobTimeseries`
+(트리거는 `aiSrvrHealthPollTriggerInference` · `aiSrvrHealthPollTriggerTimeseries`)
+
+**걷어낼 것** — `aiSrvrHealthPollJob` · 트리거 `aiSrvrHealthPollTrigger` (이름에 계통이 없는 쪽)
+
+### ② 지운다 — **애플리케이션을 세운 상태에서**
+
+⚠ **WAS 가 떠 있는 동안 지우지 않는다.** 스케줄러가 메모리에 물고 있어 다시 쓰이거나 잠금과 부딪힌다.
+WAR 교체(6단계)로 **전 대수가 내려간 창**에서 하고, 그 다음에 올린다.
+
+⚠ **순서가 있다** — 자식 표부터 지운다. 거꾸로 하면 외래키에 걸린다.
+
+```sql
+BEGIN;
+DELETE FROM klid_at.qrtz_simple_triggers
+ WHERE sched_name='KlidAuthoringScheduler' AND trigger_group='aiserver'
+   AND trigger_name='aiSrvrHealthPollTrigger';
+DELETE FROM klid_at.qrtz_triggers
+ WHERE sched_name='KlidAuthoringScheduler' AND trigger_group='aiserver'
+   AND trigger_name='aiSrvrHealthPollTrigger';
+DELETE FROM klid_at.qrtz_job_details
+ WHERE sched_name='KlidAuthoringScheduler' AND job_group='aiserver'
+   AND job_name='aiSrvrHealthPollJob';
+-- ★ 커밋 전에 삭제 건수를 확인한다. 각 1행이어야 한다.
+--   0행이면 이미 없는 것이고, 2행 이상이면 이름을 잘못 적은 것이니 ROLLBACK 한다.
+COMMIT;
+```
+
+★ **이름을 그대로 쓴다.** `LIKE 'aiSrvrHealthPoll%'` 같은 패턴으로 지우지 말 것 — **새로 등록된
+계통별 정의까지 함께 지워져** 상태점검이 통째로 멈춘다. 그러면 죽은 장비가 목록에 남고, 그 상태는
+기동이 성공하므로 조용하다.
+
+> ⚠ 노드가 비정상 종료된 적이 있으면 `qrtz_fired_triggers` 에 그 트리거의 실행 중 행이 남아 있을 수
+> 있다. 외래키가 없어 위 삭제는 그대로 성공하지만, 남은 행은 스케줄러가 다음 기동에서 미스파이어
+> 복구로 집는다. 지우기 전에 함께 본다:
+> `SELECT trigger_name FROM klid_at.qrtz_fired_triggers WHERE sched_name='KlidAuthoringScheduler' AND trigger_name='aiSrvrHealthPollTrigger';`
+> 행이 있으면 같은 조건으로 함께 지운다. **애플리케이션이 내려간 상태에서만** 한다.
+
+### ③ 확인
+
+WAS 를 올린 뒤 ①의 조회를 다시 돌려 **계통 이름이 붙은 둘만** 남았는지 본다. 그리고 기동 기록에서
+계통을 모르는 정의를 건너뛰었다는 경고가 **더는 나오지 않는지** 본다.
+
+> 되돌리기(9단계)를 하는 경우에는 **반대로** 이번 판이 등록한 계통별 정의를 지운다 — 되돌린 판에는
+> 위 방어가 없어 **실제로 전 계통을 훑기 때문**이다. 그쪽은 9단계가 다룬다.
 
 ---
 

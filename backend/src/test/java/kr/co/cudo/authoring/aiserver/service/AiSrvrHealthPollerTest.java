@@ -304,17 +304,44 @@ class AiSrvrHealthPollerTest {
         verifyNoInteractions(healthProbe);
     }
 
-    /** 계통을 모르면(구 등록 행) <b>전 계통</b>을 훑는다 — 안 도는 쪽이 더 위험하다. */
+    /**
+     * ★★ 계통을 모르면 <b>아무것도 하지 않는다</b> (fail-closed · 2026-09-08).
+     *
+     * <p>⚠ <b>구 시험 폐기</b> — <i>「계통을 모르면(구 등록 행) 전 계통을 훑는다 — 안 도는 쪽이 더
+     * 위험하다」</i>를 고정하고 있었다. 계통 전용 잡이 따로 등록된 뒤로 그 폴백은 <b>두 경로가 같은
+     * 장비를 함께 훑게</b> 만들고, 두 경로는 이름이 달라 서로를 막지 못해 같은 연속 실패 계수를 각각
+     * 읽고 각각 써 <b>한쪽 갱신이 유실</b>된다 — 죽은 장비가 가용으로 남는다. 즉 그 시험의 근거였던
+     * 「안 도는 쪽이 더 위험하다」의 전제가 뒤집혔다.
+     */
     @Test
-    @DisplayName("계통을_주지_않으면_전_계통을_훑는다_구_등록행_하위호환")
-    void 계통을_주지_않으면_전_계통을_훑는다() {
+    @DisplayName("★★계통을_주지_않으면_아무것도_하지_않는다_구_전계통_폴백_폐기")
+    void 계통을_주지_않으면_아무것도_하지_않는다() {
+        LsAiSrvr inference = node("gpu01");
+        LsAiSrvr timeseries = timeseriesNode("vendor1");
+        given(repository.findAll()).willReturn(List.of(inference, timeseries));
+
+        poller(true).poll(null);
+
+        verifyNoInteractions(healthProbe);
+        verify(repository, never()).findAll();
+    }
+
+    /**
+     * ★ 대조 — <b>전 계통을 훑는 길 자체는 남아 있다</b>(명시 호출).
+     *
+     * <p>위험한 것은 그 동작이 아니라 <b>모를 때 그리로 떨어지는 것</b>이다. 이 대조가 없으면 다음
+     * 사람이 fail-closed 를 「전 계통 스캔을 없앤 것」으로 읽는다.
+     */
+    @Test
+    @DisplayName("★대조_전_계통은_명시_호출로만_훑는다")
+    void 전_계통은_명시_호출로만_훑는다() {
         LsAiSrvr inference = node("gpu01");
         LsAiSrvr timeseries = timeseriesNode("vendor1");
         given(repository.findAll()).willReturn(List.of(inference, timeseries));
         given(healthProbe.ping(any())).willReturn(true);
         given(loadProbe.probe(any())).willReturn(AiSrvrLoadReport.notReporting());
 
-        poller(true).poll(null);
+        poller(true).pollAll();
 
         verify(healthProbe).ping(inference);
         verify(healthProbe).ping(timeseries);

@@ -343,8 +343,11 @@ public class YoloAutolabelStep implements BatchStep {
         //   들여오는 셈이다.
         //   ⚠ 쓸 수 있는 후보가 0이면 여기서 <거부>가 던져진다(폴백 없음) — 프레임을 한 장도 읽기
         //     전에 끝나므로 부분 적재가 남지 않는다. [design: AC-1093]
-        //   ⚠ 값이 비면(원장·부하 조회 실패) 분산만 포기하고 배포 기본 주소로 나간다. 저장소 순단이
+        //   ⚠ 원장·부하 조회에 실패하면 「정하지 못했다」는 <표식>이 돌아온다(PinnedTarget
+        //     .DEPLOY_DEFAULT_TARGET). 분산만 포기하고 배포 기본 주소로 나가되 <고정은 지킨다> —
+        //     그 값을 프레임마다 그대로 넘기므로 클라이언트가 다시 고르지 않는다. 저장소 순단이
         //     정상 추론을 전량 죽이지 않게 하는 축이며 시계열 축과 같은 규약이다.
+        //     ⚠ 이 값을 「비었나」로 판정하지 말 것 — 표식은 비어 있지 않다. 그대로 넘기면 된다.
         final String srvrAddr = batchAssignment.resolveAddress(rawSn);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);

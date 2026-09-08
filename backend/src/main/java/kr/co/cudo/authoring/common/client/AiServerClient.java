@@ -46,6 +46,12 @@ import java.net.URI;
  * ({@code AiSrvrBatchAssignment}) 스텝이 정한 주소를 {@code srvrAddr} 인자로 넘기고, 그 값이 있으면
  * 원장을 다시 고르지 않는다. 화면 요청은 고정할 대상이 없어 호출마다 고르며 배정을 기록하지 않는다.
  *
+ * <p>★ <b>「정하지 못했다」도 호출자가 정한 답이다</b>(2026-09-08) — 배치가 원장을 읽지 못해
+ * 목적지를 정하지 못하면 {@code null} 이 아니라 {@link PinnedTarget#DEPLOY_DEFAULT_TARGET} 을
+ * 넘긴다. {@code null} 은 「내가 고르라」는 뜻이라 <b>프레임마다 다시 고르게</b> 되고, 그러면 한
+ * 영상의 프레임이 여러 장비로 흩어져 추적이 <b>프레임 경계에서 조용히 끊긴다</b>. 표식을 받은
+ * 호출은 다시 고르지 않고 배포 기본 주소로 나간다 — 분산만 포기하고 고정은 지킨다.
+ *
  * <p>⚠ <b>기존 시그니처는 그대로 둔다</b> — 화면 경로가 쓰는 얼굴이라 깨면 그 도메인이 함께 무너진다.
  * 배치용 경로는 <b>인자를 더한 형제</b>로 붙인다(용도 축을 더할 때와 같은 방식).
  */
@@ -85,6 +91,12 @@ public class AiServerClient {
      * 위조 통로가 된다(CWE-117).
      */
     private URI targetFor(String path, AiWorkload workload, String srvrAddr) {
+        if (PinnedTarget.isDeployDefault(srvrAddr)) {
+            // ★호출자가 <이미 영상 단위로> 판단했고 정하지 못했다. 여기서 다시 고르면 한 영상의
+            //   프레임이 여러 장비로 흩어져 추적이 프레임 경계에서 조용히 끊긴다.
+            //   [design: ADR-057] 분산만 포기하고 고정은 지킨다.
+            return null;
+        }
         String addr = (srvrAddr == null || srvrAddr.isBlank())
                 ? targetResolver.resolveAddress(workload).orElse(null)
                 : srvrAddr;
@@ -187,7 +199,9 @@ public class AiServerClient {
      * 용도와 <b>장비</b>를 함께 명시하는 호출 — <b>배치의 영상 고정</b>이 쓰는 얼굴. [@design ADR-057]
      *
      * @param srvrAddr {@code AiSrvrBatchAssignment} 가 그 영상에 대해 정한 장비 기준 주소.
-     *                 {@code null} 이면 이 호출을 위해 원장에서 고른다(고정 없음)
+     *                 {@code null} 이면 이 호출을 위해 원장에서 고른다(고정 없음).
+     *                 {@link PinnedTarget#DEPLOY_DEFAULT_TARGET} 이면 <b>호출자가 이미 판단해</b>
+     *                 정하지 못한 것이므로 다시 고르지 않고 배포 기본 주소로 나간다
      */
     public Mono<YoloResponse> predictYoloTrack(YoloTrackRequest request, AiWorkload workload,
                                                String srvrAddr) {
@@ -213,7 +227,9 @@ public class AiServerClient {
      * 용도와 <b>장비</b>를 함께 명시하는 호출 — <b>배치의 영상 고정</b>이 쓰는 얼굴. [@design ADR-057]
      *
      * @param srvrAddr {@code AiSrvrBatchAssignment} 가 그 영상에 대해 정한 장비 기준 주소.
-     *                 {@code null} 이면 이 호출을 위해 원장에서 고른다(고정 없음)
+     *                 {@code null} 이면 이 호출을 위해 원장에서 고른다(고정 없음).
+     *                 {@link PinnedTarget#DEPLOY_DEFAULT_TARGET} 이면 <b>호출자가 이미 판단해</b>
+     *                 정하지 못한 것이므로 다시 고르지 않고 배포 기본 주소로 나간다
      */
     public Mono<Sam2Response> segment(Sam2Request request, AiWorkload workload, String srvrAddr) {
         return call("/infer/sam2/segment", request, Sam2Response.class, workload, srvrAddr);

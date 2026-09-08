@@ -121,35 +121,21 @@ public class LsAiSrvr {
         return new LsAiSrvr(srvrId, srvrNm, srvrAddr, srvrTypeCd, regDt);
     }
 
-    /**
-     * 상태점검이 성공했다 — 연속 실패를 끊고 연속 성공을 쌓는다.
+    /*
+     * ★★ 연속 횟수를 <엔티티에서> 올리는 얼굴은 두지 않는다 (2026-09-08 · [@design ADR-057])
      *
-     * <p><b>상태를 바꾸지 않는다.</b> 복귀 판정(연속 N회 성공)은 두 카운터만으로 결정되지 않고
-     * 현재 상태에 따라 달라지므로, 그 전이는 저장소의 조건부 UPDATE 가 원자적으로 수행한다.
+     *  구 동작 폐기 — 여기에 recordCheckSuccess / recordCheckFailure 가 있었고, 상태점검 반영이
+     *  행을 읽어 카운터를 계산한 뒤 되쓰는 방식이었다. 백엔드가 <네 노드>로 뜨는 형상에서 같은
+     *  장비의 관측이 겹치면 한쪽 갱신이 덮여 사라지고, 그러면 연속 실패 계수가 임계에 영영 닿지
+     *  못하거나 늦게 닿아 <죽은 장비가 가용으로 남는다> — 이 축이 없애려던 증상 그 자체다.
      *
-     * @return 갱신된 연속 성공 횟수
+     *  ⚠ 점검 발화가 한 노드에서만 일어난다는 사실은 면제 사유가 아니다. 클러스터링이 막는 것은
+     *    트리거 중복 발화이고, 갱신 유실은 그것과 다른 축이다(수동 트리거·프로그래밍 호출·되돌림
+     *    배포로 남은 옛 잡 정의가 그 겹침을 실제로 만든다).
+     *
+     *  갱신은 저장소의 <원자 증감>이 소유한다 — LsAiSrvrRepository#recordCheckSuccess ·
+     *  #recordCheckFailure. 편의를 이유로 이 자리에 되살리지 말 것.
      */
-    public int recordCheckSuccess(LocalDateTime checkedAt) {
-        this.chckDt = checkedAt;
-        this.chckFailNocs = 0;
-        this.chckScsNocs = safe(this.chckScsNocs) + 1;
-        return this.chckScsNocs;
-    }
-
-    /**
-     * 상태점검이 실패했다 — 연속 성공을 끊고 연속 실패를 쌓는다.
-     *
-     * <p>연속 성공을 <b>0으로 되돌리는</b> 것이 핵심이다. 이어서 세면 "연속"이 아니게 되어, 흔들리는
-     * 노드가 성공을 띄엄띄엄 모아 복귀했다가 다시 내려가는 왕복을 반복한다.
-     *
-     * @return 갱신된 연속 실패 횟수
-     */
-    public int recordCheckFailure(LocalDateTime checkedAt) {
-        this.chckDt = checkedAt;
-        this.chckScsNocs = 0;
-        this.chckFailNocs = safe(this.chckFailNocs) + 1;
-        return this.chckFailNocs;
-    }
 
     /**
      * 등록한 사람을 남긴다 — 표에 등록자 전용 컬럼이 없어 수정자 자리를 함께 쓴다. [@design API-227]
@@ -183,9 +169,5 @@ public class LsAiSrvr {
         }
         this.mdfrId = actorId;
         this.mdfcnDt = now;
-    }
-
-    private static int safe(Integer value) {
-        return value == null ? 0 : value;
     }
 }

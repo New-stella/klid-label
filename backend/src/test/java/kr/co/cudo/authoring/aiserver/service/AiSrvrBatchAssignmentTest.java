@@ -119,7 +119,10 @@ class AiSrvrBatchAssignmentTest {
                 .willReturn(Optional.empty());
         given(altmntRepository.reassignIfCurrent(eq(7L), eq("gpu-01"), eq("gpu-02"), any(), anyString()))
                 .willReturn(0);
-        given(altmntRepository.findByRawSn(7L)).willReturn(Optional.of(altmnt(7L, "gpu-03")));
+        // ★첫 조회는 <사전 확인>이라 아직 배정이 없고, 재배정에 진 뒤의 조회에서 이긴 쪽이 보인다.
+        //   두 호출을 한 값으로 뭉치면 사전 확인이 곧바로 돌려줘 이 경합 경로를 <아예 타지 않는다>.
+        given(altmntRepository.findByRawSn(7L))
+                .willReturn(Optional.empty(), Optional.of(altmnt(7L, "gpu-03")));
         given(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu-03"))
                 .willReturn(Optional.of(node("gpu-03", "http://gpu3:9300")));
 
@@ -137,14 +140,108 @@ class AiSrvrBatchAssignmentTest {
         verify(altmntRepository, never()).assignIfAbsent(any(), anyString(), any());
     }
 
+    /**
+     * ★★ 원장을 읽지 못하면 <b>표식</b>을 돌려준다 — {@code null} 이 아니다. [@design ADR-057] [@design AC-1100]
+     *
+     * <p>⚠ <b>구 동작 폐기(2026-09-08)</b> — {@code null} 을 돌려주고 있었다. 클라이언트는 그것을
+     * 「아직 안 정했으니 내가 고르라」로 읽어 <b>프레임마다 다시 고른다</b>. 그러면 한 영상의 프레임이
+     * 여러 장비로 흩어져 추적이 <b>프레임 경계에서 조용히 끊긴 채 적재</b>되고, 그 구간에는 배정
+     * 기록도 없어 사후에 알아낼 수도 없다. 「정하지 못했다」도 <b>영상 단위로 한 번</b> 정한 답이어야
+     * 한다 — 분산만 포기하고 고정은 지킨다.
+     */
     @Test
-    @DisplayName("조회_실패로_고르지_못하면_배정하지_않고_장비_미상으로_진행한다")
-    void 조회_실패로_고르지_못하면_장비_미상으로_진행한다() {
+    @DisplayName("★★조회_실패로_고르지_못하면_배포_기본주소_표식을_돌려준다_프레임마다_재선택_금지")
+    void 조회_실패로_고르지_못하면_표식을_돌려준다() {
         given(selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH))
                 .willReturn(Optional.empty());
 
-        assertThat(assignment().resolveAddress(7L)).isNull();
+        assertThat(assignment().resolveAddress(7L))
+                .as("null 을 돌려주면 클라이언트가 호출마다 다시 골라 프레임이 흩어진다")
+                .isEqualTo(kr.co.cudo.authoring.common.client.PinnedTarget.DEPLOY_DEFAULT_TARGET);
         verify(altmntRepository, never()).assignIfAbsent(any(), anyString(), any());
+    }
+
+    /**
+     * ★★ <b>고정된 배정을 먼저 확인한다</b> — 그 순서가 곧 사양이다. [@design AC-1100]
+     *
+     * <p>구 동작은 새 장비 선택을 <b>무조건 먼저</b> 불렀다. 그러면 후보가 0일 때 나는 거부가
+     * <b>이미 고정돼 있고 그 장비가 살아 있는 영상까지</b> 함께 막는다 — 살아 있는 정비중 장비에
+     * 고정된 영상이 <b>같은 계통의 다른 장비가 내려간 순간</b> 거부되는 것이 그 조합이며, 그때 그
+     * 영상은 쓸 수 있는 장비를 갖고 있는데도 처리되지 못한다.
+     *
+     * <p>「신규 배정만 막고 진행 중인 작업은 끝까지」는 <b>술어를 가르는 것만으로는 지켜지지 않고
+     * 순서로도 지켜져야 한다</b>. ⚠ 술어를 다시 합치지 말 것 — 깨진 것은 구조가 아니라 호출 순서였다.
+     */
+    @Test
+    @DisplayName("★★후보가_0이어도_고정된_장비가_살아_있으면_그_장비로_계속_처리된다")
+    void 후보가_0이어도_고정된_장비가_살아_있으면_계속_처리된다() {
+        // given — 그 계통의 신규 배정 후보가 하나도 없다(정비중은 후보에서 빠진다).
+        willThrow(new NonRetryableExternalException("쓸 수 있는 장비가 없습니다."))
+                .given(selector).select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH);
+        // 그런데 이 영상은 <살아 있는> 정비중 장비에 이미 고정돼 있다.
+        given(altmntRepository.findByRawSn(7L)).willReturn(Optional.of(altmnt(7L, "gpu-01")));
+        given(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu-01"))
+                .willReturn(Optional.of(node("gpu-01", "http://gpu1:9300")));
+
+        assertThat(assignment().resolveAddress(7L)).isEqualTo("http://gpu1:9300");
+        verify(altmntRepository, never()).assignIfAbsent(any(), anyString(), any());
+        verify(altmntRepository, never())
+                .reassignIfCurrent(any(), anyString(), anyString(), any(), anyString());
+    }
+
+    /**
+     * ★ 대조 — <b>고정이 없으면</b> 후보 0 거부는 종전대로 난다.
+     *
+     * <p>「후보 0 거부」와 「고정 유지」는 <b>다른 축</b>이다. 사전 확인이 그 거부를 통째로 삼키면
+     * 폴백 없는 거부라는 계약이 조용히 사라진다.
+     */
+    @Test
+    @DisplayName("★대조_고정된_배정이_없으면_후보_0은_종전대로_거부된다")
+    void 고정된_배정이_없으면_후보_0은_거부된다() {
+        willThrow(new NonRetryableExternalException("쓸 수 있는 장비가 없습니다."))
+                .given(selector).select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH);
+        given(altmntRepository.findByRawSn(7L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> assignment().resolveAddress(7L))
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /**
+     * ★ 고정된 장비가 <b>죽어 있으면</b> 사전 확인이 넘어가고 종전 경로가 그대로 돈다.
+     *
+     * <p>사전 확인이 「죽은 장비도 유지」로 넓어지면 그 영상이 영영 죽은 주소에 묶인다 — 유지 판정은
+     * {@code AiSrvrSelector#selectPinned} 가 단독으로 갖고 여기서 다시 쓰지 않는다.
+     */
+    @Test
+    @DisplayName("고정된_장비가_죽어_있으면_사전_확인이_잡지_않고_재배정_경로로_간다")
+    void 고정된_장비가_죽어_있으면_재배정_경로로_간다() {
+        given(altmntRepository.findByRawSn(7L)).willReturn(Optional.of(altmnt(7L, "gpu-01")));
+        given(selector.selectPinned(LsAiSrvr.SrvrType.INFERENCE, "gpu-01"))
+                .willReturn(Optional.empty());
+        given(selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH))
+                .willReturn(Optional.of(node("gpu-02", "http://gpu2:9300")));
+        given(altmntRepository.assignIfAbsent(eq(7L), eq("gpu-02"), any()))
+                .willReturn(altmnt(7L, "gpu-01"));
+        given(altmntRepository.reassignIfCurrent(eq(7L), eq("gpu-01"), eq("gpu-02"), any(), anyString()))
+                .willReturn(1);
+
+        assertThat(assignment().resolveAddress(7L)).isEqualTo("http://gpu2:9300");
+    }
+
+    /**
+     * ⚠ 사전 확인이 <b>막지 않는다</b> — 원장을 읽지 못한 것을 여기서 예외로 올리면, 그 경우
+     * 「분산만 포기하고 배포 기본 주소로」라는 규약이 <b>지름길 때문에</b> 깨진다.
+     */
+    @Test
+    @DisplayName("고정_배정_조회가_실패해도_막지_않고_선택_단계로_넘어간다")
+    void 고정_배정_조회가_실패해도_막지_않는다() {
+        willThrow(new org.springframework.dao.QueryTimeoutException("pool exhausted"))
+                .given(altmntRepository).findByRawSn(7L);
+        given(selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.BATCH))
+                .willReturn(Optional.empty());
+
+        assertThat(assignment().resolveAddress(7L))
+                .isEqualTo(kr.co.cudo.authoring.common.client.PinnedTarget.DEPLOY_DEFAULT_TARGET);
     }
 
     @Test

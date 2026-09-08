@@ -128,20 +128,41 @@ public class AiSrvrHealthTxService {
     public void applyHealth(String srvrId, boolean healthy, LocalDateTime checkedAt) {
         Optional<LsAiSrvr> found = repository.findById(srvrId);
         if (found.isEmpty()) {
-            log.debug("[AiSrvr] 원장에 없는 노드의 상태점검 결과를 버립니다. srvrId={}", srvrId);
+            // ★식별자도 원장 유래라 정제해 싣는다(CWE-117) — 이 클래스의 다른 자리와 같은 규칙이다.
+            log.debug("[AiSrvr] 원장에 없는 노드의 상태점검 결과를 버립니다. srvrId={}", safe(srvrId));
             return;
         }
         LsAiSrvr server = found.get();
         AiSrvrStatus status = server.getSrvrSttsCd();
+        LsAiSrvr.SrvrType srvrTypeCd = server.getSrvrTypeCd();
 
-        Thresholds limits = thresholdsOf(server.getSrvrTypeCd());
+        Thresholds limits = thresholdsOf(srvrTypeCd);
         if (healthy) {
-            int successStreak = server.recordCheckSuccess(checkedAt);
-            promoteIfRecovered(srvrId, status, successStreak, limits.recover());
+            if (repository.recordCheckSuccess(srvrId, checkedAt) == 0) {
+                log.debug("[AiSrvr] 상태점검 반영 시점에 노드가 사라졌습니다. srvrId={}", safe(srvrId));
+                return;
+            }
+            promoteIfRecovered(srvrId, status, streakOf(repository.findSuccessStreak(srvrId)),
+                    limits.recover());
             return;
         }
-        int failStreak = server.recordCheckFailure(checkedAt);
-        demoteIfExhausted(server, status, failStreak, limits);
+        if (repository.recordCheckFailure(srvrId, checkedAt) == 0) {
+            log.debug("[AiSrvr] 상태점검 반영 시점에 노드가 사라졌습니다. srvrId={}", safe(srvrId));
+            return;
+        }
+        demoteIfExhausted(srvrId, srvrTypeCd, status,
+                streakOf(repository.findFailureStreak(srvrId)), limits);
+    }
+
+    /**
+     * 되읽은 연속 횟수 — 값이 없으면 0 으로 본다.
+     *
+     * <p>증감 문장이 1 행을 갱신한 직후라 정상 경로에서는 값이 반드시 있다. 그럼에도 방어를 두는
+     * 이유는 여기서 {@code null} 이 새면 <b>판정이 아니라 예외</b>가 되어, 노드 하나의 사정으로
+     * 그 틱의 반영이 통째로 롤백되기 때문이다.
+     */
+    private static int streakOf(Integer streak) {
+        return streak == null ? 0 : streak;
     }
 
     private void promoteIfRecovered(String srvrId, AiSrvrStatus status, int successStreak,
@@ -155,7 +176,9 @@ public class AiSrvrHealthTxService {
             return;
         }
         if (repository.promoteIfUnavailable(srvrId) > 0) {
-            log.info("[AiSrvr] 연속 {}회 성공으로 노드를 복귀시켰습니다. srvrId={}", successStreak, srvrId);
+            // ★식별자도 원장 유래라 정제해 싣는다(CWE-117) — 이 클래스의 다른 자리와 같은 규칙이다.
+            log.info("[AiSrvr] 연속 {}회 성공으로 노드를 복귀시켰습니다. srvrId={}",
+                    successStreak, safe(srvrId));
         }
     }
 
@@ -178,17 +201,25 @@ public class AiSrvrHealthTxService {
      * 강등을 막을 이유가 되지 못한다 — 그 이유는 축마다 다르며 {@code warnIfTypeExhausted} javadoc 의
      * 표가 소유한다. 되살리지 말 것.
      *
+     * <h3>★ 정비중도 내려간다 (2026-09-08) [@design API-229] [@design AC-1100]</h3>
+     * <p>정비중은 <b>하던 일을 끝까지 흘려보낸다</b>는 뜻이지 <b>죽어도 살아 있는 것으로 친다</b>는
+     * 뜻이 아니다. 그 길이 없으면 정비 중에 실제로 멈춘 장비에 고정된 영상이 <b>죽은 주소에 영구히
+     * 묶이고</b>, 재배정 조항도 그 장비가 이용불가로 <b>관측되지 않아</b> 발동하지 않는다.
+     * ⚠ 이 판정은 <b>두 자리가 함께</b> 열려야 성립한다 — 전이표({@link AiSrvrStatus})와 강등 문장의
+     * 출발 상태 조건({@code demoteByHealthCheck}). 한 곳만 열면 여전히 막힌다.
+     *
      * <h3>전이표를 여기서 다시 쓰지 않는다</h3>
-     * <p>정비중→이용불가가 막히는 것은 {@link AiSrvrStatus#canTransitionTo} 가 소유한 규칙이다.
+     * <p>무엇에서 무엇으로 갈 수 있는지는 {@link AiSrvrStatus#canTransitionTo} 가 소유한 규칙이다.
      * 상태를 직접 UPDATE 하지도 않는다 — 동시 폴링·관리자 조작과 겹쳐도 한쪽만 갱신되도록 저장소의
      * <b>조건부 UPDATE</b>가 원자적으로 수행한다.
      */
-    private void demoteIfExhausted(LsAiSrvr server, AiSrvrStatus status, int failStreak,
-                                   Thresholds limits) {
+    private void demoteIfExhausted(String srvrId, LsAiSrvr.SrvrType srvrTypeCd, AiSrvrStatus status,
+                                   int failStreak, Thresholds limits) {
         int failThreshold = limits.fail();
-        String srvrId = server.getSrvrId();
-        // 정비중->이용불가는 전이표가 막는다(정비 중 점검 실패는 기록만 한다). 규칙을 여기서
-        // 다시 쓰지 않고 그 판정을 그대로 부른다.
+        // ★전이 가능 여부는 전이표가 소유한다 — 규칙을 여기서 다시 쓰지 않고 그 판정을 그대로 부른다.
+        //   ⚠구 주석 폐기(2026-09-08): 「정비중->이용불가는 전이표가 막는다」. 그 길은 열렸다 —
+        //     정비중은 <하던 일을 끝까지>라는 뜻이지 <죽어도 살아 있는 것으로 친다>가 아니다.
+        //     되살리면 정비 중에 멈춘 장비에 고정된 영상이 죽은 주소에 영구히 묶인다.
         if (!status.canTransitionTo(AiSrvrStatus.UNAVAILABLE) || failStreak < failThreshold) {
             return;
         }
@@ -200,7 +231,7 @@ public class AiSrvrHealthTxService {
         }
         log.warn("[AiSrvr] 연속 {}회 실패로 노드를 이용불가로 내렸습니다. srvrId={}",
                 failStreak, safe(srvrId));
-        warnIfTypeExhausted(server.getSrvrTypeCd(), limits.recover());
+        warnIfTypeExhausted(srvrTypeCd, limits.recover());
     }
 
     /**
