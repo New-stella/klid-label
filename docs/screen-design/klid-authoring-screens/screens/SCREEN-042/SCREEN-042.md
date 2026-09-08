@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-042
 type: screen_spec
-version: 15
-last_updated_at: 2026-09-08T00:15:22.310Z
+version: 17
+last_updated_at: 2026-09-08T01:12:55.167Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:20:31.869Z
-sync_session: 36
+synced_at: 2026-09-08T04:12:26.812Z
+sync_session: 37
 stale: false
 status: CHANGED
-prev_version: 8
+prev_version: 15
 raw: ./_raw/SCREEN-042.json
 wireframe: ./wireframe.html
 links:
@@ -18,8 +18,8 @@ links:
   acceptance: ["[[AC-1088]]", "[[AC-1089]]", "[[AC-1090]]", "[[AC-1091]]", "[[AC-1092]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v8 → v15**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (17.3KB)
+> ⚠️ **버전 변경 감지 — logicraft v15 → v17**
+> change_summary: AI 장비 등록·수정 대화상자 부품의 식별자 형식 서술을 API-227 이 정한 폭에 맞췄다. 종전 서술 "식별자(소문자·숫자 20자 이하)" 는 창구가 실제로 받는 하이픈과 밑줄을 빠뜨려, 되는 입력을 화면이 안 된다고 읽히게 했다. 길이 상한 20 과 이름·주소·유형을 받는 서술은 그대로다.
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 연동 서버 주소 관리 화면
@@ -326,7 +326,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: 식별자(소문자·숫자 20자 이하)·이름·주소·유형을 받는다. 수정에서는 이름과 주소만 열린다 — 유형이 바뀌면 그 장비를 고르던 축이 달라져 새로 등록하는 것이 맞고, 상태는 전이 규칙이 있는 별도 창구가 소유한다.
+- **note**: 식별자(영문 소문자·숫자·하이픈·밑줄 20자 이하, 하이픈과 밑줄은 맨 앞이나 맨 뒤에 와도 받는다)·이름·주소·유형을 받는다. 수정에서는 이름과 주소만 열린다 — 유형이 바뀌면 그 장비를 고르던 축이 달라져 새로 등록하는 것이 맞고, 상태는 전이 규칙이 있는 별도 창구가 소유한다.
 - **type**: Dialog
 - **label**: 장비 등록·수정
 
@@ -623,7 +623,7 @@ _(empty)_
 
 ### last_updated
 
-2026-09-01T14:54:51.760Z
+2026-09-08T01:07:48.641Z
 
 ### module_paths
 

@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-042
 type: screen_spec
-version: 15
+version: 17
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:22:48.396Z
+synced_at: 2026-09-08T04:11:49.186Z
 status: CHANGED
-prev_version: 11
-content_hash: 0e8e9d49556ab4dcea79f1f7b581597e0ad55e9d5c8c99dc70d0839fcfd2abcd
+prev_version: 15
+content_hash: 4d31cc4e49d3346b764a79bb89f600c7dc0890215262ac91081e254c6c9014c7
 stale: false
 raw: ./_raw/SCREEN-042.json
 links:
@@ -328,7 +328,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: 식별자(소문자·숫자 20자 이하)·이름·주소·유형을 받는다. 수정에서는 이름과 주소만 열린다 — 유형이 바뀌면 그 장비를 고르던 축이 달라져 새로 등록하는 것이 맞고, 상태는 전이 규칙이 있는 별도 창구가 소유한다.
+- **note**: 식별자(영문 소문자·숫자·하이픈·밑줄 20자 이하, 하이픈과 밑줄은 맨 앞이나 맨 뒤에 와도 받는다)·이름·주소·유형을 받는다. 수정에서는 이름과 주소만 열린다 — 유형이 바뀌면 그 장비를 고르던 축이 달라져 새로 등록하는 것이 맞고, 상태는 전이 규칙이 있는 별도 창구가 소유한다.
 - **type**: Dialog
 - **label**: 장비 등록·수정
 
@@ -625,7 +625,7 @@ _(empty)_
 
 ### last_updated
 
-2026-09-01T14:54:51.760Z
+2026-09-08T01:07:48.641Z
 
 ### module_paths
 

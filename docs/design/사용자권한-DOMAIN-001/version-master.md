@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-09-08T00:23:58.652Z |
-| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 110 |
+| Last sync | 2026-09-08T04:11:47.194Z |
+| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 105 |
 | 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 48건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 49건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 2건 / 스코프 밖 33건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 76건 (그중 domain_id 없음 3건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 78건 (그중 domain_id 없음 5건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 10건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,24 +41,29 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-1095]]
-- NEW [[AC-1096]]
-- NEW [[AC-1097]]
+- CHANGED [[AC-1016]] (prev v13)
+- CHANGED [[AC-1017]] (prev v9)
+- CHANGED [[ADR-063]] (prev v4)
+- CHANGED [[SEQ-034]] (prev v12)
+- CHANGED [[SCREEN-001]] (prev v16)
+- CHANGED [[SCREEN-002]] (prev v32)
+- CHANGED [[SCREEN-003]] (prev v14)
+- CHANGED [[UC-041]] (prev v16)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1016]] | acceptance | 13 | UNCHANGED |
-| [[AC-1017]] | acceptance | 9 | UNCHANGED |
+| [[AC-1016]] | acceptance | 14 | CHANGED |
+| [[AC-1017]] | acceptance | 10 | CHANGED |
 | [[AC-1018]] | acceptance | 7 | UNCHANGED |
 | [[AC-1019]] | acceptance | 6 | UNCHANGED |
 | [[AC-1072]] | acceptance | 10 | UNCHANGED |
 | [[AC-1073]] | acceptance | 5 | UNCHANGED |
 | [[AC-1074]] | acceptance | 6 | UNCHANGED |
-| [[AC-1095]] | acceptance | 1 | NEW |
-| [[AC-1096]] | acceptance | 1 | NEW |
-| [[AC-1097]] | acceptance | 1 | NEW |
+| [[AC-1095]] | acceptance | 1 | UNCHANGED |
+| [[AC-1096]] | acceptance | 1 | UNCHANGED |
+| [[AC-1097]] | acceptance | 1 | UNCHANGED |
 | [[AC-1098]] | acceptance | 4 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
@@ -70,7 +75,7 @@
 | [[ADR-046]] | adr | 16 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-058]] | adr | 9 | UNCHANGED |
-| [[ADR-063]] | adr | 4 | UNCHANGED |
+| [[ADR-063]] | adr | 5 | CHANGED |
 | [[API-001]] | api_endpoint | 10 | UNCHANGED |
 | [[API-002]] | api_endpoint | 2 | UNCHANGED |
 | [[API-003]] | api_endpoint | 6 | UNCHANGED |
@@ -142,9 +147,9 @@
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 14 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
-| [[SCREEN-001]] | screen_spec | 16 | UNCHANGED |
-| [[SCREEN-002]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-003]] | screen_spec | 14 | UNCHANGED |
+| [[SCREEN-001]] | screen_spec | 19 | CHANGED |
+| [[SCREEN-002]] | screen_spec | 33 | CHANGED |
+| [[SCREEN-003]] | screen_spec | 15 | CHANGED |
 | [[SCREEN-004]] | screen_spec | 17 | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
@@ -159,6 +164,6 @@
 | [[SD-034]] | screen_design | 6 | UNCHANGED |
 | [[SD-037]] | screen_design | 5 | UNCHANGED |
 | [[SEQ-018]] | diagram_sequence | 9 | UNCHANGED |
-| [[SEQ-034]] | diagram_sequence | 12 | UNCHANGED |
+| [[SEQ-034]] | diagram_sequence | 13 | CHANGED |
 | [[UC-030]] | use_case | 16 | UNCHANGED |
-| [[UC-041]] | use_case | 16 | UNCHANGED |
+| [[UC-041]] | use_case | 17 | CHANGED |

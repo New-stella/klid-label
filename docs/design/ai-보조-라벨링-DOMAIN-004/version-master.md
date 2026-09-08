@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-09-08T00:23:59.687Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 176 |
+| Last sync | 2026-09-08T04:12:25.371Z |
+| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 178 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 5건 / 스코프 밖 33건
   ℹ️  use_case: 이번 키트 8건 / 스코프 밖 27건
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 24건 / 스코프 밖 63건 (그중 domain_id 없음 4건)
+  ℹ️  acceptance: 이번 키트 26건 / 스코프 밖 63건 (그중 domain_id 없음 4건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  adr: 이번 키트 22건 / 스코프 밖 36건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 3건 / 스코프 밖 7건 (그중 domain_id 없음 6건)
@@ -41,8 +41,8 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-1099]]
-- NEW [[SEQ-025]]
+- NEW [[AC-1100]]
+- NEW [[AC-1101]]
 
 ## ITEM 표
 
@@ -71,7 +71,9 @@
 | [[AC-1092]] | acceptance | 2 | UNCHANGED |
 | [[AC-1093]] | acceptance | 3 | UNCHANGED |
 | [[AC-1094]] | acceptance | 3 | UNCHANGED |
-| [[AC-1099]] | acceptance | 1 | NEW |
+| [[AC-1099]] | acceptance | 7 | UNCHANGED |
+| [[AC-1100]] | acceptance | 2 | NEW |
+| [[AC-1101]] | acceptance | 3 | NEW |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-008]] | adr | 4 | UNCHANGED |
 | [[ADR-013]] | adr | 23 | UNCHANGED |
@@ -92,7 +94,7 @@
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-056]] | adr | 4 | UNCHANGED |
-| [[ADR-057]] | adr | 14 | UNCHANGED |
+| [[ADR-057]] | adr | 18 | UNCHANGED |
 | [[ADR-062]] | adr | 6 | UNCHANGED |
 | [[API-019]] | api_endpoint | 8 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
@@ -205,13 +207,13 @@
 | [[SCREEN-025]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 52 | UNCHANGED |
 | [[SCREEN-039]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-042]] | screen_spec | 15 | UNCHANGED |
+| [[SCREEN-042]] | screen_spec | 17 | UNCHANGED |
 | [[SD-033]] | screen_design | 13 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 12 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 7 | NEW |
+| [[SEQ-025]] | diagram_sequence | 7 | UNCHANGED |
 | [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-031]] | diagram_sequence | 6 | UNCHANGED |
