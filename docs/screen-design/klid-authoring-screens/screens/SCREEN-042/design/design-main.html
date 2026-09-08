@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><link rel="stylesheet" href="design-main.css"><link rel="stylesheet" href="design.css" />
+<head><link rel="stylesheet" href="main.css"><link rel="stylesheet" href="design.css" />
   <meta charset="utf-8" />
   <title>SCREEN-042 연동 서버 주소 관리 화면 — 고충실도 디자인</title>
 </head>
@@ -44,7 +44,7 @@
         <header class="card-header">
           <div class="config-heading">
             <h2 class="t-title-md" id="cfg-endpoint-title">연동 서버 주소</h2>
-            <p class="t-caption text-muted">저작도구가 바깥으로 요청을 보내는 주소입니다. 이 절은 <strong>저장한 값이 곧 진실원인 축</strong>만 다룹니다 — <strong>비식별 서버</strong> · <strong>외부 증강 벤더</strong> · <strong>관제 통지 수신처</strong>이며, 셋 다 보낼 곳이 한 곳뿐이라 고를 일이 없습니다.</p>
+            <p class="t-caption text-muted">저작도구가 다른 서버로 요청을 보내는 주소입니다. 이 절은 <strong>저장한 값이 곧 진실원인 축</strong>만 다룹니다 — <strong>비식별 서버</strong> · <strong>외부 증강 벤더</strong> · <strong>관제 통지 수신처</strong>이며, 셋 다 보낼 곳이 한 곳뿐이라 고를 일이 없습니다.</p>
             <p class="t-caption text-muted"><strong>추론</strong>과 <strong>외부 시계열 분석</strong>의 주소 칸은 이 절에 두지 않습니다 — 그 둘은 장비를 여러 대 두고 골라 보내므로 진실원이 장비 원장이고, 주소를 바꾸는 자리는 아래 <strong>장비 목록</strong> 하나입니다.</p>
           </div>
           <div class="config-actions">
@@ -72,22 +72,17 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-deid-ro">비식별 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">영상 비식별을 위탁하고 진행 상태를 되묻는 곳입니다.</p>
               <input class="input input-mono" id="ep-deid-ro" type="text" value="https://deid.klid.internal" disabled />
               <p class="t-caption ep-key">kpst.deid.base-url</p>
             </div>
 
-            <div class="field ep-field is-external">
+            <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-aug-ro">외부 증강 벤더 주소</label>
-                <span class="badge badge-warn">
-                  <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg>
-                  바깥으로 나감
-                </span>
               </div>
-              <p class="t-caption ep-role">영상 증강을 위탁하는 <strong>외부 업체</strong> 서버입니다. 보낼 곳이 <strong>한 곳뿐이라 고를 일이 없어</strong> 이 칸이 주소 진실원입니다.</p>
+              <p class="t-caption ep-role">영상 증강을 위탁하는 곳입니다.</p>
               <input class="input input-mono" id="ep-aug-ro" type="text" placeholder="연동 전에는 비워 둔다 — 채울 때는 http:// 또는 https:// 로 시작하는 주소" disabled />
               <p class="t-caption ep-key">authoring.augment.external.base-url</p>
               <p class="t-caption ep-empty">
@@ -99,7 +94,6 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify-ro">관제 통지 수신처 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
               <input class="input input-mono" id="ep-notify-ro" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" disabled />
@@ -131,22 +125,17 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-deid">비식별 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">영상 비식별을 위탁하고 진행 상태를 되묻는 곳입니다.</p>
               <input class="input input-mono" id="ep-deid" type="text" value="https://deid.klid.internal" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help" />
               <p class="t-caption ep-key">kpst.deid.base-url</p>
             </div>
 
-            <div class="field ep-field is-external">
+            <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-aug">외부 증강 벤더 주소</label>
-                <span class="badge badge-warn">
-                  <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg>
-                  바깥으로 나감
-                </span>
               </div>
-              <p class="t-caption ep-role">영상 증강을 위탁하는 <strong>외부 업체</strong> 서버입니다. 보낼 곳이 <strong>한 곳뿐이라 고를 일이 없어</strong> 이 칸이 주소 진실원입니다. 받는 곳이 바깥이니 채우기 전에 <strong>받는 곳을 확인</strong>하세요.</p>
+              <p class="t-caption ep-role">영상 증강을 위탁하는 곳입니다.</p>
               <input class="input input-mono" id="ep-aug" type="text" placeholder="연동 전에는 비워 둔다 — 채울 때는 http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-aug-empty ep-aug-pair" />
               <p class="t-caption ep-key">authoring.augment.external.base-url</p>
               <p class="t-caption ep-empty" id="ep-aug-empty">
@@ -162,7 +151,6 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify">관제 통지 수신처 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
               <input class="input input-mono" id="ep-notify" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-notify-empty" />
