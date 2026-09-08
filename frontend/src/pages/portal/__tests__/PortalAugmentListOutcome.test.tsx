@@ -133,7 +133,15 @@ describe('증강 요청 현황 — 목록 하나로 셋을 가른다', () => {
 });
 
 describe('증강 요청 현황 — 실패 사유 표기', () => {
-  it('★실패_사유는_상태_표시와_같은_칸에_보이고_전문은_말풍선에_담긴다', () => {
+  /**
+   * ★★ **사유는 전문을 보인다 — 자르지 않는다 (2026-09-08 반전).**
+   *    구 처리는 «상태 배지와 같은 칸에 한 줄, 넘치면 줄임표 + 전문은 말풍선» 이었다. 그러면
+   *    **무엇을 고쳐 다시 요청해야 하는지가 화면에서 사라져** 사유를 읽으려고 매번 「결과 확인」을
+   *    눌러야 했다. 시안(SD-026)도 이 화면 계열에서 말줄임과 `title` 보완을 둘 다 거부한다
+   *    (터치 환경에서 말풍선이 뜨지 않고, 게시본 정리기가 그 속성을 지운다).
+   *    ⚠ 되살리지 말 것 — 행 카드는 줄이 늘어나도 손해가 아니라서 자를 이유가 없다.
+   */
+  it('★실패_사유는_자르지_않고_전문을_그_줄에서_보인다', () => {
     const reason = '증강 생성에 실패했습니다. 생성 조건을 바꾸어 다시 요청해 주세요.';
     mockList([row({ augSn: 6, resultReady: false, failRsnCn: reason })]);
 
@@ -141,9 +149,11 @@ describe('증강 요청 현황 — 실패 사유 표기', () => {
 
     const fail = screen.getByTestId('portal-augment-fail-6');
     expect(fail).toHaveTextContent(reason);
-    expect(fail).toHaveAttribute('title', reason);
-    // 사유 전용 열을 만들지 않는다 — 상태 배지와 같은 칸(td) 안이다.
-    expect(fail.closest('td')).toBe(screen.getByText('실패').closest('td'));
+    // 말줄임·말풍선 어느 쪽도 쓰지 않는다.
+    expect(fail.className).not.toContain('truncate');
+    expect(fail).not.toHaveAttribute('title');
+    // 사유는 그 요청의 줄 안에 있다 — 별도 구역으로 빼지 않는다.
+    expect(cell(6).getByTestId('portal-augment-fail-6')).toBe(fail);
   });
 
   it('실패가_아닌_행에는_사유_자리가_아예_없다', () => {
@@ -158,12 +168,19 @@ describe('증강 요청 현황 — 실패 사유 표기', () => {
     expect(screen.queryByTestId('portal-augment-fail-8')).toBeNull();
   });
 
-  it('★생성_조건은_아는_다섯을_정해진_차례로_우리말로_보인다', () => {
+  /**
+   * ★ 조건은 **칩으로 흩는다** — 한 덩이 문자열로 이으면 폭이 모자랄 때 통째로 잘려 어느 값이
+   *   사라졌는지조차 알 수 없다. 차례(아는 다섯 먼저)는 `generationCondition` 이 소유한다.
+   */
+  it('★생성_조건은_아는_다섯을_정해진_차례로_우리말_칩으로_보인다', () => {
     mockList([row({ augSn: 9, generationCondition: { severity: 'HIGH', time: 'NIGHT' } })]);
 
     renderWithProviders(<PortalAugmentPage />);
 
-    expect(cell(9).getByText('시간대: 밤 · 심각도: 높음')).toBeInTheDocument();
+    const chips = cell(9).getAllByText(/^(시간대|계절|날씨|지형|심각도)$/);
+    expect(chips.map((c) => c.textContent)).toEqual(['시간대', '심각도']);
+    expect(cell(9).getByText('밤')).toBeInTheDocument();
+    expect(cell(9).getByText('높음')).toBeInTheDocument();
   });
 });
 

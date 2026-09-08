@@ -168,10 +168,9 @@ const TABLES: TableCase[] = [
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
   {
-    label: 'PortalAugmentPage(포털 증강 — 요청 현황)',
-    file: 'src/pages/portal/PortalAugmentPage.tsx',
-  },
-  {
+    // ⚠ 형제 화면(증강·업로드)은 2026-09-08 에 표에서 **행 카드**로 바뀌어 이 목록에서 빠졌다.
+    //   이 화면만 표로 남는다 — 네 열이 전부 짧은 값이라 폭이 모자라지 않고, 시안(SD-024)이
+    //   표로 확정했다. 형태는 담는 내용이 정한다.
     label: 'PortalHomePage(포털 내 작업 — 내 저장 작업 목록)',
     file: 'src/pages/portal/PortalHomePage.tsx',
   },
@@ -519,10 +518,10 @@ describe('적용관례 — 표 목록 자체의 완전성', () => {
       ).not.toEqual([]);
     }
     // 포털 축 표는 실제로 포털 화면 파일이어야 한다(판정이 경로 규칙이라 오분류가 조용하다).
-    expect(byChannel.get('portal')).toEqual([
-      'src/pages/portal/PortalAugmentPage.tsx',
-      'src/pages/portal/PortalHomePage.tsx',
-    ]);
+    // ⚠ 2026-09-08 — 증강·업로드 목록은 **표에서 행 카드로 바뀌어** 이 목록에서 빠졌다.
+    //   한 행이 요구하는 최소 폭이 본문 최대 폭을 넘어 어느 칸이든 반드시 접히거나 잘렸기
+    //   때문이다(근거는 `PortalRecordRow` 머리말). 되돌리면 여기에 다시 넣어야 한다.
+    expect(byChannel.get('portal')).toEqual(['src/pages/portal/PortalHomePage.tsx']);
   });
 
   it('제외_목록의_모든_항목이_사유를_갖는다', () => {

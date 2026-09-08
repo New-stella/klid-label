@@ -223,7 +223,10 @@ describe('포털 라벨링 화면 통합', () => {
     renderWithProviders(<PortalUploadPage />, { initialEntries: ['/portal/uploads'] });
 
     // then
-    const link = await screen.findByRole('link', { name: '라벨링' });
+    // 행이 여럿이라 접근 이름에 파일명을 붙인다 — 이름 없이 «라벨링» 만 두면 같은 이름의
+    // 링크가 자산 수만큼 생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다(다른 행 조작과
+    // 같은 관례). 여기서는 그 관례가 지켜지는지까지 함께 고정한다.
+    const link = await screen.findByRole('link', { name: /라벨링$/ });
     expect(link).toHaveAttribute('href', '/portal/label/1?source=upload');
     // then: 폐기된 주소로는 보내지 않는다
     expect(link.getAttribute('href')).not.toContain('/uploads/1/label');
