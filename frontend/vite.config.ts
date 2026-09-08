@@ -4,10 +4,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // 컨테이너/네트워크 배포 대응 환경변수 (미설정 시 로컬 개발 기본값 보존)
-//   - BACKEND_ORIGIN  : 프록시 대상 BE 오리진 (미설정 시 개발서버 http://192.168.102.246:13005,
-//                       로컬 BE 를 쓰려면 BACKEND_ORIGIN=http://localhost:8080)
+//   - BACKEND_ORIGIN  : 프록시 대상 BE 오리진 (컨테이너: http://klid-backend:8080)
 //   - HMR_CLIENT_PORT : HMR 클라이언트가 접속할 외부 매핑 포트 (컨테이너: 13000)
-const backendOrigin = process.env.BACKEND_ORIGIN || 'http://192.168.102.246:13005';
+const backendOrigin = process.env.BACKEND_ORIGIN || 'http://localhost:8080';
 const hmrClientPort = process.env.HMR_CLIENT_PORT
   ? Number(process.env.HMR_CLIENT_PORT)
   : undefined;
