@@ -32,6 +32,13 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "${SELF_DIR}/../lib/common.sh"
+
+# ★ 이 단계는 role=ai 에서만 돈다(install.sh _build_steps) — 즉 AI 장비 전용이다.
+#   그래서 설치 루트를 AI 전용 경로(KLID_AI_PREFIX, 기본 /GCLOUD/klid-at)로 바꾼다.
+#   ⚠ KLID_PREFIX 를 사람이 명시했으면 덮지 않는다(단일 서버 형상 배려).
+#   ⚠ 단독 실행에서도 같은 루트를 잡아야 하므로 install.sh 가 아니라 <여기서> 부른다.
+klid_use_ai_prefix
+klid_assert_prefix_sane
 # shellcheck source=../lib/versions.sh
 source "${SELF_DIR}/../lib/versions.sh"
 require_root

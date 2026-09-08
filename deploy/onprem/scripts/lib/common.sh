@@ -89,7 +89,23 @@ onprem_root() { printf '%s\n' "${ONPREM_ROOT}"; }
 #   `${VAR:-기본}` 으로 다시 export 하므로 동작이 달라지지 않고, 환경변수 재정의도 그대로 이긴다.
 # ⚠ 기본값은 install.sh 의 것과 <같아야 한다>. 달라지면 일괄 설치와 단계별 설치가 서로
 #   다른 경로에 설치하게 된다.
+# KLID_PREFIX 를 <사람이 명시했는지> 기억해 둔다 — 아래 역할별 기본값이 그것을 덮지 않는다.
+_klid_prefix_was_explicit=0
+[[ -n "${KLID_PREFIX:-}" ]] && _klid_prefix_was_explicit=1
+# ★ 설치 루트는 <역할마다 다르다> (2026-09-08 확정).
+#   현장은 이미 /GCLOUD 아래에 서 있다 — WAS 는 /GCLOUD/JBOSS/jboss-eap-8.1, 웹 문서 루트는
+#   /GCLOUD/WebApp/label-studio 다(둘 다 우리가 만든 자리가 아니라 현장이 준 자리다).
+#   그런데 ai-server 만 /opt/klid 아래 있어 <혼자 다른 곳>이었다. 그래서 AI 장비의 설치 루트를
+#   /GCLOUD/klid-at 으로 맞춘다.
+#
+#   ⚠ 전역 기본값은 /opt/klid <그대로 둔다>. AI 장비 말고는 이 값 아래에 실제로 놓이는 것이
+#     api.war 중간 보관소(app/) 뿐이고, 웹은 KLID_WEB_ROOT 로 현장 경로를 덮어 쓴다.
+#     전역을 통째로 바꾸면 그 두 서버의 문서·기본값이 현장과 어긋난다.
 : "${KLID_PREFIX:=/opt/klid}"
+# AI 장비(role=ai) 전용 설치 루트 — runtime/python + ai/ 가 여기 들어간다.
+#   그 둘은 11·13 단계가 만드는데 두 단계 <모두 role=ai 에서만> 돈다(install.sh _build_steps).
+#   즉 AI 장비에서는 이 값이 곧 ai-server 설치 루트다.
+: "${KLID_AI_PREFIX:=/GCLOUD/klid-at}"
 : "${KLID_ETC:=/etc/klid}"
 : "${KLID_DATA:=/var/lib/klid}"
 : "${KLID_LOG:=/var/log/klid}"
@@ -101,6 +117,54 @@ onprem_root() { printf '%s\n' "${ONPREM_ROOT}"; }
 : "${USE_BUNDLED_POSTGRES:=1}"
 : "${INSTALL_BACKEND_SYSTEMD_UNIT:=0}"
 : "${KLID_ROLE:=all}"
+export KLID_AI_PREFIX
+
+# ----------------------------------------------------------------------------
+# AI 장비 설치 루트 적용 — role=ai 단계 스크립트가 <자기 첫 줄에서> 부른다
+# ----------------------------------------------------------------------------
+#   왜 함수인가: KLID_ROLE 은 common.sh 를 읽는 시점에 아직 정해지지 않는다(install.sh 가
+#   인자를 나중에 파싱한다). 그래서 "role 을 아는 쪽"이 부르게 한다. 11·13 단계는 정의상
+#   role=ai 에서만 도는 스크립트이므로 <자기가 ai 임을 이미 안다> — 단독 실행도 그래서 안전하다.
+#
+#   ⚠ 사람이 KLID_PREFIX 를 명시했으면 덮지 않는다. 그 경우가 단일 서버(role=all)에서
+#     ai 까지 한 장비에 얹는 형상이며, 그때는 웹·WAS 와 같은 루트를 써야 한다.
+klid_use_ai_prefix() {
+  [[ "${_klid_prefix_was_explicit:-0}" == "1" ]] && return 0
+  KLID_PREFIX="${KLID_AI_PREFIX}"
+  export KLID_PREFIX
+}
+
+# ----------------------------------------------------------------------------
+# 설치 루트 불일치 가드 — <조용히 엉뚱한 곳에 설치하는> 사고를 막는다
+# ----------------------------------------------------------------------------
+#   회차 패치를 얹을 때, 쓰려는 루트가 없고 <다른 알려진 루트>에 설치본이 있으면 멈춘다.
+#   막지 않으면 설치가 빈 새 경로에 산출물을 놓고 성공으로 끝나고, 돌고 있는 서비스는
+#   여전히 옛 경로를 본다 — 패치가 반영되지 않았는데 아무도 모른다.
+#
+#   ⚠ 자동 호출하지 않는다. 이 판정은 <실제로 그 루트에 설치하려는 단계>만 의미가 있고,
+#     빌드머신·조회 스크립트까지 걸리면 오탐이 된다.
+klid_assert_prefix_sane() {
+  [[ "${KLID_SKIP_PREFIX_GUARD:-0}" != "1" ]] || return 0
+  [[ "${_klid_prefix_was_explicit:-0}" != "1" ]] || return 0
+  [[ ! -d "${KLID_PREFIX}" ]] || return 0
+  local other
+  for other in /opt/klid "${KLID_AI_PREFIX}" /data/klid; do
+    [[ "${other}" != "${KLID_PREFIX}" ]] || continue
+    if [[ -d "${other}/ai" || -d "${other}/app" || -d "${other}/web" ]]; then
+      printf '\n\033[31m[FAIL]\033[0m 설치 루트가 어긋납니다.\n' >&2
+      printf '  이번에 쓸 루트는 %s 인데 그 경로가 없고, %s 에 설치본이 있습니다.\n' \
+             "${KLID_PREFIX}" "${other}" >&2
+      printf '  이대로 진행하면 <빈 새 경로>에 설치하고 성공으로 끝나며, 돌고 있는 서비스는\n' >&2
+      printf '  여전히 옛 경로를 봅니다 — 반영되지 않았는데 드러나지 않습니다.\n\n' >&2
+      printf '  둘 중 하나를 고르세요:\n' >&2
+      printf '   1) 설치 루트를 옮긴다(권장):  sudo ./scripts/relocate-prefix.sh --from=%s --to=%s\n' \
+             "${other}" "${KLID_PREFIX}" >&2
+      printf '   2) 옛 경로를 그대로 쓴다:     sudo KLID_PREFIX=%s <이 명령>\n\n' "${other}" >&2
+      exit 1
+    fi
+  done
+}
+
 # 단계 스크립트가 서브셸/자식 프로세스를 띄워도 값이 이어지도록 export 한다.
 export KLID_PREFIX KLID_ETC KLID_DATA KLID_LOG KLID_USER KLID_GROUP SYSTEMD_DIR
 export STORAGE_RAW_PATH STORAGE_DEIDENTIFIED_PATH USE_BUNDLED_POSTGRES

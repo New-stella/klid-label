@@ -51,8 +51,28 @@ done
 systemctl daemon-reload 2>/dev/null || true
 
 # 앱/런타임 제거
-rm -rf "${KLID_PREFIX}"
-ok "제거: ${KLID_PREFIX}"
+# ★ 설치 루트는 역할마다 다르다 — AI 장비는 /GCLOUD/klid-at 이다(KLID_AI_PREFIX).
+#   이 스크립트는 역할을 모르므로 <지울 곳을 스스로 넓히지 않는다>. 지정된 루트가 비어 있는데
+#   다른 알려진 루트에 설치본이 있으면, 지우지 않고 <그 사실을 말하고 멈춘다>.
+#   ⚠ 종전에는 없는 경로에 rm -rf 를 걸고 "제거: /opt/klid" 를 찍었다 — 아무것도 지우지
+#     않았는데 지웠다고 보고하는 <거짓 성공>이었다. 삭제는 되돌릴 수 없으므로 자동으로
+#     대상을 넓히지 않고, 사람이 경로를 명시하게 한다.
+if [[ -d "${KLID_PREFIX}" ]]; then
+  rm -rf "${KLID_PREFIX}"
+  ok "제거: ${KLID_PREFIX}"
+else
+  _found=""
+  for _cand in /opt/klid "${KLID_AI_PREFIX}" /data/klid; do
+    [[ "${_cand}" != "${KLID_PREFIX}" ]] || continue
+    [[ -d "${_cand}/ai" || -d "${_cand}/app" || -d "${_cand}/web" ]] && _found="${_cand}" && break
+  done
+  if [[ -n "${_found}" ]]; then
+    die "설치 루트 ${KLID_PREFIX} 가 없습니다. 대신 ${_found} 에 설치본이 있습니다.
+   지울 곳을 임의로 넓히지 않습니다. 지우려면 경로를 명시하세요:
+     sudo KLID_PREFIX=${_found} ${BASH_SOURCE[0]}"
+  fi
+  warn "설치 루트가 없습니다(이미 제거됨): ${KLID_PREFIX}"
+fi
 
 if [[ "${PURGE:-0}" == "1" ]]; then
   # ★ 지우기 전에 WAS 현장값을 화면에 남긴다. 이 값이 없으면 아래에서 안내하는

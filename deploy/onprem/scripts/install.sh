@@ -48,6 +48,8 @@ set -euo pipefail
 #     WAS 배포와 WAS 설정 이관(docs/10-was-settings.md)은 설치 후 <사람이> 수행한다.
 #
 #   설치 레이아웃(고정):
+#     ※ AI 장비(--role=ai)는 설치 루트가 /GCLOUD/klid-at 이다(KLID_AI_PREFIX).
+#       아래 runtime/python·ai 두 줄이 그 루트 아래로 들어간다 — 현장 형상에 맞춘 것이다.
 #     /opt/klid/runtime/python               ai-server 런타임(웹 서버는 배포판 httpd,
 #                                            자바는 외부 WAS 가 제공 — 반입하지 않는다)
 #     /opt/klid/app                          backend 산출물(api.war — WAS 배포 원본)
@@ -152,6 +154,16 @@ fi
 # 설치 역할 — all(기본) | app | ai. 잘못된 값은 여기서 die(조용히 all 로 흘리지 않는다).
 export KLID_ROLE
 KLID_ROLE="$(klid_normalize_role "${_role_arg:-${KLID_ROLE:-all}}")"
+
+# ★ AI 장비는 설치 루트가 다르다 — 현장이 이미 /GCLOUD 아래 서 있어서 거기에 맞춘다
+#   (WAS=/GCLOUD/JBOSS/... · 웹=/GCLOUD/WebApp/... · AI=/GCLOUD/klid-at).
+#   ⚠ <역할이 ai 뿐일 때만> 바꾼다. role=all(단일 서버)이면 웹·WAS 와 같은 루트를 써야 한다.
+#   ⚠⚠ 여기서 <반드시> 결정해야 한다 — 아래에서 KLID_PREFIX 를 export 하면 단계 스크립트는
+#      그 값을 상속받고, 상속받은 값은 자식 쪽에서 "사람이 명시한 값"과 구분되지 않는다.
+#      그래서 자식의 klid_use_ai_prefix 는 무력화된다(단독 실행 경로에서만 살아 있다).
+if klid_role_has ai && ! klid_role_has was && ! klid_role_has web; then
+  klid_use_ai_prefix
+fi
 
 # ---- 공통 설치 변수(모든 install/* 가 export 로 공유) ----
 export KLID_PREFIX="${KLID_PREFIX:-/opt/klid}"
