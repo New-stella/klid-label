@@ -47,7 +47,7 @@
 |------|--------|
 | 비식별 서버 | `kpst.deid.base-url` |
 | 관제 통지 수신처 | `authoring.control-notify.url` |
-| 외부 증강 벤더 | `authoring.augment.external.base-url` (⚠ 교체 창구에 **아직 미등록** — 채워야 할 잔여) |
+| 외부 증강 벤더 | `authoring.augment.external.base-url` (**2026-09-08 신설** — ⚠ 구 서술 폐기: *「교체 창구에 아직 미등록 — 채워야 할 잔여」*. 그 잔여가 닫혔다. ⚠ **비어 있는 것이 「아직 연동 안 됨」의 유일한 표현**이라 미리 채우지 말 것 · **콜백을 받을 출처 허용 목록과 짝**이라 주소만 채우면 위탁은 나가는데 결과를 못 받는다) |
 
 ⚠ **구 서술 폐기(2026-09-08)** — 이 표는 *"외부 연동 **4종**"* 으로 **AI 추론 서버
 (`authoring.integration.ai-server.base-url`)와 외부 시계열 분석 벤더(`vlm.client.url`)를 함께**
