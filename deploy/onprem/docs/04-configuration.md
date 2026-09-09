@@ -378,10 +378,10 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   |------|-------------|
   | `KPST_DEID_ENABLED` | **항상 `true`**(기본). 폴링 위탁 단일 경로 |
   | `KPST_DEID_BASE_URL` | 동거 KPST 주소. `https://IP:PORT`(CA 필수) **또는** `http://IP:PORT`(격리망 평문, CA 불요). 본 패키지 템플릿 기본값 `https://127.0.0.1:9201`(Spring 코드 기본은 `localhost`이나 `env.template`을 진실원으로 봄) → 실주소로 교체 |
-  | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **부팅 fail-closed**(CWE-295). http 면 비워둔다 |
+  | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **위탁·산출이 거부**된다(CWE-295 — 검증할 수 없으면 보내지 않는다). ⚠ **구 서술 폐기(2026-09-03)**: *"부팅 fail-closed"* 는 사실이 아니다 — 설정 한 줄로 앱 전체가 멈추지 않도록 **막는 자리를 기동 → 전송 시점으로 옮겼다**(막는 규칙·강도는 그대로, 우회 없음). 기동 시 ERROR 로그가 남는다. http 면 비워둔다 |
   | `KPST_DEID_CREATOR_ID` | 기본 `authoring`. `/project` 호출 기본값 |
   | `KPST_DEID_REQ_USER_ID` | 기본 `authoring`. `/retrieve_progress` 호출 기본값 |
-  | `KPST_DEID_EXPORT_PATH_BASE` | 기본 `/share/Deid-data/export/`. 비식별 결과 export 경로 베이스 |
+  | ~~`KPST_DEID_EXPORT_PATH_BASE`~~ | **제거됨(2026-09-09)** — 읽는 코드가 0건이라 무엇을 넣든 동작이 같았다. 비식별 결과가 쓰이는 자리(KPST 에 넘기는 `export_path`)는 설정이 아니라 **원본 경로에서 도출**한다 — co-locate 기본 `dirname(원본영상)/{rawSn}/deid/`, 롤백 전략 `{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`. 그 자리를 가두는 것은 `STORAGE_RAW_MOUNT_ROOTS` 다. **파일명은 KPST 가 정한다**(실측 `{원본stem}-mask{확장자}`) — 조합하지 말고 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 을 읽을 것 |
   | `KPST_DEID_POLL_INTERVAL_SEC` | 기본 30. 폴링 주기(초) |
   | `KPST_DEID_POLL_MAX_ATTEMPTS` | 기본 240. 시도 횟수 타임아웃 |
   | `KPST_DEID_POLL_TIMEOUT_MINUTES` | 기본 180. 경과 시간 타임아웃(분) |
