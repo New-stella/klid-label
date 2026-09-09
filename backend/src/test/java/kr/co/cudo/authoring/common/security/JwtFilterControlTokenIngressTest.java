@@ -63,8 +63,7 @@ class JwtFilterControlTokenIngressTest {
         when(issuerValidator.isAllowed(any())).thenReturn(true);
 
         filter = new JwtAuthenticationFilter(() -> key, issuerValidator,
-                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
-                new PortalSystemSubjectPolicy(""));
+                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
     }
 
     /** subject·userId·name·userNm 를 선택적으로 실은 INTERNAL 토큰으로 필터를 1회 돌린다. */
