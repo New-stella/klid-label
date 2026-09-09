@@ -15,7 +15,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { formatDateTime } from '@/features/review/formatDateTime';
+import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 import type {
   PortalAugmentDetail,
   PortalAugmentSummary,
@@ -98,7 +98,7 @@ async function openResult(target: PortalAugmentSummary) {
   const user = userEvent.setup();
   await user.click(
     screen.getByRole('button', {
-      name: `${target.orgnlFileNm} ${formatDateTime(target.requestedAt)} 요청 결과 확인`,
+      name: `${target.orgnlFileNm} ${formatPortalDateTime(target.requestedAt)} 요청 결과 확인`,
     }),
   );
   return within(screen.getByTestId('portal-augment-result'));
@@ -124,8 +124,12 @@ describe('포털 증강 화면 — 요청 현황', () => {
     expect(within(tr).getByText('street.mp4')).toBeInTheDocument();
     // 생성 조건은 아는 항목이면 우리말 이름·우리말 값으로 보인다(표기 규칙은
     // `generationCondition` 이 소유하고 `PortalAugmentListOutcome` 가 그 차례를 지킨다).
-    expect(within(tr).getByText('날씨: 비')).toBeInTheDocument();
-    expect(within(tr).getByText(formatDateTime('2026-09-01T10:00:00'))).toBeInTheDocument();
+    // 생성 조건은 **칩으로 흩어** 항목마다 따로 읽힌다 — 한 덩이 문자열로 잇지 않는다.
+    expect(within(tr).getByText('날씨')).toBeInTheDocument();
+    expect(within(tr).getByText('비')).toBeInTheDocument();
+    expect(
+      within(tr).getByText(new RegExp(formatPortalDateTime('2026-09-01T10:00:00'))),
+    ).toBeInTheDocument();
   });
 
   it('★대기_도착_실패가_상태로_구분된다', () => {
@@ -148,7 +152,7 @@ describe('포털 증강 화면 — 요청 현황', () => {
     renderWithProviders(<PortalAugmentPage />);
 
     expect(
-      screen.getByText('요청한 즉시 결과가 나오지 않습니다 — 도착하면 목록의 상태가 바뀝니다.'),
+      screen.getByText('증강은 시간이 걸립니다. 결과가 도착하면 목록의 상태가 바뀝니다.'),
     ).toBeInTheDocument();
   });
 
@@ -206,7 +210,7 @@ describe('포털 증강 화면 — 결과 확인', () => {
     const box = await openResult(row());
 
     expect(box.getByTestId('portal-augment-waiting')).toHaveTextContent(
-      '결과가 아직 도착하지 않았습니다.',
+      '아직 결과를 기다리는 중입니다. 잠시 뒤 다시 확인해 주세요.',
     );
     // 결과가 없으므로 후속 작업도 내려받기도 없다.
     expect(box.queryByRole('link', { name: '라벨링 이어서 하기' })).toBeNull();
@@ -244,10 +248,10 @@ describe('포털 증강 화면 — 결과 확인', () => {
     );
     expect(box.getByRole('button', { name: '증강 결과물 라벨 내보내기' })).toBeInTheDocument();
     expect(box.getByRole('button', { name: '증강 결과물 원본 파일 내려받기' })).toBeInTheDocument();
-    expect(box.getByText('본인이 낸 요청의 결과물만 내려받을 수 있습니다.')).toBeInTheDocument();
+    expect(box.getByText('내가 낸 요청의 결과물만 내려받을 수 있습니다.')).toBeInTheDocument();
     // 후속 작업 범위를 미리 알린다 — 이 경로에 없는 것을 기대하지 않도록.
     expect(
-      box.getByText('후속 작업에서는 바운딩 박스·폴리곤 수동 라벨링만 제공합니다.'),
+      box.getByText('이어지는 작업에서는 바운딩 박스와 폴리곤을 직접 그려 라벨을 답니다.'),
     ).toBeInTheDocument();
   });
 

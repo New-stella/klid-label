@@ -229,6 +229,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Quartz `tablePrefix` / JPA `default_schema`(그리고 Flyway 를 켠 개발 환경이면 `schemas`·`default-schema`)가 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. ⚠ 구 서술 폐기: *"portal DB 는 대상 아님"* — 포털 데이터소스 자체가 2026-08-31 에 철거됐다 |
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
 | `JWT_ISSUER` / `JWT_ALLOWED_ISSUERS` | · | 기본 `klid-auth` / `klid-auth,klid,klid-portal` |
+| `PORTAL_SYSTEM_SUBJECTS` | · | **포털 시스템 계정 주체 식별자 목록**(쉼표 구분, 기본 빈 값). 포털 서버간 연동의 두 인증 축(사용자 컨텍스트 / 시스템간)을 가르는 판정 기준이다 — 둘이 같은 서명키·같은 헤더를 쓰므로 **주체 클레임 말고는 가를 수단이 없고** 토큰에 시스템 여부 표식이 없다. 비면 아무도 시스템 주체가 아니어서 시스템 주체 창구(`/v1/portal-system/**`)가 **전건 403** 이다 — 값이 없을 때 열리는 것이 아니라 **닫히는** 방향이라 안전하다. ⚠⚠ **포털이 시스템 계정을 쓰는데 그 식별자가 비어 있으면, 그 토큰은 사용자 주체로 떨어져 포털 사용자 권한을 받는다** — 이 설정이 막으려던 바로 그 상태이고, 거부가 아니라 **통과**라 조용히 일어나며 로그에도 남지 않는다. 포털에서 식별자를 통보받으면 **반드시 등록**할 것 |
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
 | `STREAM_URL_TTL_SECONDS` | · | 기본 60 (5~600) |
 | `STREAM_COOKIE_SECURE` | · | 스트림 nonce 쿠키(`klid_stream_nonce`)에 `Secure` 를 붙일지. **기본 `false`** 이고 이 배포는 프런트가 평문 HTTP(`:80`)라 그대로 두는 것이 맞다 — `true` 면 브라우저가 쿠키를 저장하지 않아 스트림이 **전건 401**(영상 재생 불가)이 된다. 앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스하면 `true`. ⚠ **빈 값 금지** — 비우면 기동 실패(`Invalid boolean value []`). `true` 또는 `false` 만 사용 |

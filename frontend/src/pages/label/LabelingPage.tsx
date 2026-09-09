@@ -99,6 +99,13 @@ import { resolveFrameImageErrorHint } from '@/features/label/utils/frameImageErr
 import { resolveLabelIdByName } from '@/features/label/utils/labelMasterLookup';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
+import {
+  buildPortalDatamartLabelPath,
+  buildPortalUploadLabelPath,
+  type PortalLabelSource,
+} from '@/features/portal/labelingEntry';
+import { useUploadLabelSource } from '@/features/portal/uploads/hooks/useUploadLabelSource';
+import { useSaveUploadLabels } from '@/features/portal/uploads/hooks/useSaveUploadLabels';
 import type { FrameSummary, Label } from '@/features/label/types';
 import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
 import { useSubmitReview, useCancelSubmitReview } from '@/features/review/hooks/useReviewActions';
@@ -157,10 +164,28 @@ function useContainerSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
+export interface LabelingPageProps {
+  /**
+   * 포털 라벨링의 **자산 출처**. @design SCREEN-029
+   *
+   * 포털의 라벨링 화면은 하나뿐이고 두 출처를 이 한 화면이 연다. 갈리는 것은 화면이 아니라
+   * **조회·이미지·저장 창구**이므로, 판정 결과를 여기로 받아 <b>데이터 계층으로만</b> 내린다 —
+   * 화면 본문에 `source === 'upload'` 분기를 흩지 않는다.
+   *
+   * ⚠ 기본값은 `datamart` 다 — 내부 라우트(`/label/:id`)와 데이터마트 갈래는 한 글자도 바뀌지
+   *   않는다. 표기가 없거나 아는 값이 아니면 데이터마트로 읽는 fail-closed 판정도 그대로다.
+   */
+  source?: PortalLabelSource;
+}
+
 /**
  * SCR-LABEL-001 라벨링 캔버스 페이지 (라이트 풀스크린).
+ *
+ * ★내부(`/label/:id`)와 포털(`/portal/label/:id`) 두 라우트가 **같은 컴포넌트를 재사용**한다.
+ *   포털 갈래에서 가려지는 것(AI 보조·트랙 편집·검수·버전관리·비식별 신고·프레임 폐기)은 전부
+ *   `portalMode` 단일 축이 판정한다 — <b>두 번째 게이팅 축을 만들지 말 것</b>.
  */
-export function LabelingPage() {
+export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -175,10 +200,24 @@ export function LabelingPage() {
   const canReportDeident = !portalMode && (isWorker || isReviewer);
   const pushToast = useUiStore((s) => s.pushToast);
 
-  const { data, isLoading, error, refetch: refetchLabels } = useLabels(
-    Number.isFinite(numericId) ? numericId : undefined,
+  /*
+   * ★자산 출처는 **포털 채널에서만** 갈린다(fail-closed). 내부 채널에서 표기가 새어 들어와도
+   *   업로드 창구를 부르지 않는다 — 그쪽에는 그 자산이 존재하지 않는다.
+   *
+   * ⚠ 업로드 출처에서 `:id` 는 프레임이 아니라 **자산**이다(진입 시 첫 프레임을 알 수 없다).
+   *   현재 프레임은 주소의 `frame` 표기가 나르며 그 해석은 어댑터가 갖는다.
+   */
+  const uploadSource = portalMode && source === 'upload';
+  const uploadLabelSource = useUploadLabelSource(uploadSource ? numericId : undefined);
+  const datamartLabels = useLabels(
+    !uploadSource && Number.isFinite(numericId) ? numericId : undefined,
     portalMode,
   );
+  const { data, isLoading, error } = uploadSource ? uploadLabelSource : datamartLabels;
+  // ⚠ 저장 충돌(409) 해소 재조회 전용이다 — 그 경로는 낙관적 동시성 토큰을 싣는 **내부 저장**
+  //   에만 있어 업로드 갈래에서는 도달하지 않는다(그래서 데이터마트 조회의 refetch 를 쓴다).
+  const refetchLabels = datamartLabels.refetch;
+  const uploadNotice = uploadLabelSource.notice;
 
   // 라벨 마스터 — SAM2 Track 결과(라벨명만 옴)의 마스터 PK 역해석에 쓴다. 캔버스/속성 패널이
   // 이미 같은 쿼리를 구독하므로(staleTime 5분 공유 캐시) 추가 요청은 사실상 발생하지 않는다.
@@ -214,7 +253,7 @@ export function LabelingPage() {
     url: imageBlobUrl,
     loading: imageLoading,
     error: imageError,
-  } = useImageBlob(data?.srcSn, { portalMode });
+  } = useImageBlob(data?.srcSn, { portalMode, uploadSource });
   // 사유 힌트는 상태코드로만 만든다 — 서버 메시지(내부 경로 등)를 그대로 화면에 싣지 않는다(CWE-209).
   // 판정은 검수 캔버스와 **공유**한다(`resolveFrameImageErrorHint`) — 화면마다 조건을 복제하면
   // 상태코드가 늘거나 문구가 바뀔 때 한쪽만 갱신돼 같은 실패가 다르게 보인다.
@@ -383,8 +422,14 @@ export function LabelingPage() {
   // 포털 사용자는 프레임을 넘기는 순간 INTERNAL 채널 가드에 걸려 접근 거부 화면으로 튕기고,
   // 결과적으로 포털 라벨링이 첫 프레임 한 장으로 제한된다(실제 결함).
   // 조립은 이 한 곳에만 둔다 — 이동 지점이 늘어날 때 같은 하드코딩이 복제되지 않게 한다.
+  // ★주소 조립은 `labelingEntry` 한 곳이 갖는다 — 화면이 문자열을 만들면 표기를 바꿀 때
+  //   목록과 화면이 갈린다. 업로드 축은 `:id` 가 자산이라 **프레임 표기만** 바꾼다.
   const frameRoute = (srcSn: number) =>
-    portalMode ? `/portal/label/${srcSn}` : `/label/${srcSn}`;
+    portalMode
+      ? uploadSource
+        ? buildPortalUploadLabelPath(numericId, srcSn)
+        : buildPortalDatamartLabelPath(srcSn)
+      : `/label/${srcSn}`;
 
   // 다른 프레임으로 실제 이동 — URL 전환 (useLabels 가 재조회).
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
@@ -765,11 +810,22 @@ export function LabelingPage() {
   const { runExclusiveOrNotify } = useBusyTask({ srcSn: currentFrame?.srcSn });
   // R16 — 포털 저장은 원본 미수정, 본인 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재.
   const { mutateAsync: savePortalLabels, isPending: savingPortal } = useSavePortalLabels(
-    currentFrame?.srcSn,
-    data?.videoId,
+    uploadSource ? undefined : currentFrame?.srcSn,
+    uploadSource ? undefined : data?.videoId,
   );
-  const updateLabels = portalMode ? savePortalLabels : updateInternalLabels;
-  const saving = (portalMode ? savingPortal : savingInternal) || confirmingVideo;
+  // SCREEN-029 — 업로드 자산은 **자산 축 창구**로 현재 프레임 전체교체 PUT 1회.
+  //   ⚠ 저장 성공 후 `persistPendingWork` 가 `clearDirty()` 를 부른다 — 비우지 않으면 미저장
+  //     편집 보호 가드가 계속 걸려 그 프레임이 서버와 영영 재동기화되지 않는다.
+  const { mutateAsync: saveUploadLabels, isPending: savingUpload } = useSaveUploadLabels(
+    uploadSource ? currentFrame?.srcSn : undefined,
+  );
+  const updateLabels = portalMode
+    ? uploadSource
+      ? saveUploadLabels
+      : savePortalLabels
+    : updateInternalLabels;
+  const saving =
+    (portalMode ? (uploadSource ? savingUpload : savingPortal) : savingInternal) || confirmingVideo;
 
   /**
    * API-196 — 불러온 회차 세트를 <b>영상 전체 한 트랜잭션</b>으로 확정한다.
@@ -1483,8 +1539,9 @@ export function LabelingPage() {
     [labelPicker],
   );
 
-  // 잘못된 ID — 풀스크린 에러
-  if (Number.isNaN(numericId)) {
+  // 잘못된 ID — 풀스크린 에러. 업로드 갈래는 `:id` 가 자산이라 안내 문구가 다르며,
+  // 그 판정(형식·범위)은 아래 `uploadNotice` 한 곳이 갖는다.
+  if (!uploadSource && Number.isNaN(numericId)) {
     return (
       <div
         className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
@@ -1493,6 +1550,42 @@ export function LabelingPage() {
       >
         <div className="text-center">
           <p className="text-title-md font-semibold mb-2">잘못된 프레임 ID</p>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
+          >
+            뒤로 가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * 업로드 자산 갈래의 상태 안내 — 캔버스를 렌더하지 않는다. @design SCREEN-029
+   *
+   * ★네 사유 모두 **상태 안내(`role="status"`)** 다. 프레임 0건은 오류가 아니고(마킹으로 위치를
+   *   정한 뒤에 프레임이 생긴다), 「없다」와 「남의 것이다」도 문구를 가르지 않는다(가르면 그
+   *   구분이 남의 저작물 존재를 알아내는 수단이 된다). 처리 실패 ↔ 준비 중만 갈리며 그 둘은
+   *   본인 자산의 진행 상태라 갈라도 남의 것이 드러나지 않는다.
+   */
+  if (uploadNotice) {
+    return (
+      <div
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
+        style={{ zIndex: 50 }}
+        data-testid="labeling-page"
+      >
+        <div className="text-center">
+          <p
+            role="status"
+            data-testid="portal-upload-notice"
+            data-notice-kind={uploadNotice.kind}
+            className="text-body-md text-gray-700 mb-4"
+          >
+            {uploadNotice.message}
+          </p>
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -2225,6 +2318,7 @@ export function LabelingPage() {
             savedSrcSns={savedSrcSns}
             discardedSrcSns={discardedSrcSns}
             portalMode={portalMode}
+            uploadSource={uploadSource}
             disabled={isEditBlocked}
           />
         </div>

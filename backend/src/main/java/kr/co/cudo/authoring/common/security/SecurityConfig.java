@@ -48,6 +48,11 @@ public class SecurityConfig {
      * userId 조회 0건일 때만 호출한다(@design ADR-063 · UC-041 · AC-1016).
      */
     private final kr.co.cudo.authoring.user.service.ControlUserProvisioner controlUserProvisioner;
+    /**
+     * 포털 채널 토큰의 주체 축(사용자 / 시스템 계정) 판정기 (@design INT-014 · AC-1103).
+     * 이 판정이 있어야 시스템 계정 토큰이 포털 사용자 권한을 얻지 못한다.
+     */
+    private final PortalSystemSubjectPolicy portalSystemSubjectPolicy;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -65,7 +70,8 @@ public class SecurityConfig {
             throws Exception {
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver,
-                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
+                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
+                        portalSystemSubjectPolicy);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -174,6 +180,32 @@ public class SecurityConfig {
                             // /v1/** (authenticated) 보다 위에 두어 PORTAL_USER 통과를 막는다.
                             // 쓰기 핸들러는 메서드 @PreAuthorize 로 REVIEWER 강제.
                             .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
+                            // ★ 포털 <시스템 주체> 창구 — 서버간 축 (@design INT-014 · API-243 · API-244 · AC-1103).
+                            //
+                            // 주체 축 격리는 <양방향>이다. 이 매처가 막는 것은 앞쪽 방향이다:
+                            //   사용자 주체 토큰 → 시스템 주체 창구 = 거부.
+                            //   (뒤쪽 방향인 "시스템 주체 토큰 → 포털 사용자 창구"는 매처가 아니라
+                            //    JwtAuthenticationFilter 가 막는다 — 시스템 주체에게는 ROLE_PORTAL_USER 를
+                            //    아예 부여하지 않으므로 아래 /v1/portal/** 매처에 구조적으로 도달하지 못한다.
+                            //    두 방향을 한 곳에서 막으려 하지 말 것 — 축이 다르다.)
+                            //
+                            // ★ 경로 접두가 갈린 것이 이 규칙을 강제하는 수단이다. /v1/portal-system/** 은
+                            //   /v1/portal/** 패턴에 <걸리지 않는다>(접두가 다른 별개 경로다). 그래서 이
+                            //   매처가 없으면 아래 /v1/** INTERNAL 매처로 떨어져 포털 토큰이 전부 거부된다.
+                            //
+                            // ⚠ 매처는 <먼저 매칭되는 쪽이 이긴다>. 이 매처는 반드시 /v1/** 포괄 매처보다
+                            //   앞에 있어야 한다. 인가의 1차 원천은 @PreAuthorize 가 아니라 이 순서 있는
+                            //   매처이며, 순서를 바꾸면 격리가 조용히 무력해진다.
+                            //
+                            // 권한은 <채널 + 주체 축>을 함께 요구한다. 채널만 요구하면 포털 사용자 토큰이
+                            //   통과하고, 주체 축만 요구하면 다른 채널의 토큰에 그 권한이 붙는 순간 뚫린다.
+                            //   SUBJECT_PORTAL_SYSTEM 은 JwtAuthenticationFilter 만 부여하며 역할 계층에
+                            //   얹히지 않으므로 다른 역할이 물려받지 않는다.
+                            .requestMatchers("/v1/portal-system/**")
+                                .access(allOf(
+                                        hasAuthority(roleHierarchy, "CHANNEL_" + Channel.PORTAL.name()),
+                                        hasAuthority(roleHierarchy,
+                                                JwtAuthenticationFilter.AUTHORITY_PORTAL_SYSTEM)))
                             // R5-1: 채널 격리 — 포털 API 는 PORTAL 채널 토큰만 (CHANNEL_PORTAL + PORTAL_USER role).
                             //
                             // PORTAL_STREAM_SIGNED 는 예외로 함께 허용한다 — 재생 요소가 인증 헤더를 싣지

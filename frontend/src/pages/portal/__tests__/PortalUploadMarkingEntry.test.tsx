@@ -110,9 +110,14 @@ describe('내 업로드 목록 — 마킹 진입', () => {
  * 읽히지 않게 한다).
  */
 describe('라벨링 화면 — 마킹 진입을 두지 않는다', () => {
+  /*
+   * ⚠ 업로드 갈래 전용 화면(`PortalUploadLabelingView`)은 폐기되고 관제용 라벨링 도구로
+   *   흡수됐다 — 그 자리를 **실제 본문**인 `pages/label/LabelingPage` 가 이어받는다.
+   *   폐기된 파일명을 그대로 두면 `readFileSync` 가 던져 이 가드가 통째로 죽는다.
+   */
   const LABELING_SOURCES = [
     'src/pages/portal/PortalLabelingPage.tsx',
-    'src/pages/portal/PortalUploadLabelingView.tsx',
+    'src/pages/label/LabelingPage.tsx',
   ];
 
   it.each(LABELING_SOURCES)('%s 가 마킹 진입 주소를 조립하지 않는다', (rel) => {

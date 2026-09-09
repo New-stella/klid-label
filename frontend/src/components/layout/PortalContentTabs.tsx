@@ -27,8 +27,34 @@ import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
  * ⚠ 몰입 편집 화면(포털 라벨링 · 업로드 영상 마킹)에서는 **아무것도 그리지 않는다.**
  *   판정은 선언의 허용 목록이 한다 — 이 파일이 「뜨지 않을 곳」을 따로 들지 않는다.
  *
+ * <h3>모양 규격 — DS-002(포털 채널) 축</h3>
+ * `DS-002` 등재 사유가 정확히 이 부품이다 — *"이동 탭의 밑줄 굵기·글자 굵기·항목 간격·
+ * 구분선 유무 넷이 상대 규격과 달랐고"*. 그 넷이 아래다.
+ *
+ * <ul>
+ *   <li><b>밑줄 굵기</b> 4px (구 2px)</li>
+ *   <li><b>글자 굵기</b> 활성·비활성 모두 600 (구 500 / 400 — 굵기로 활성을 말하지 않는다)</li>
+ *   <li><b>항목 간격</b> 8 (구 0 — 항목이 붙어 있었다)</li>
+ *   <li><b>구분선</b> ★<b>없다</b> — 바 전체 밑줄을 두지 않는다 (구 `border-b`)</li>
+ * </ul>
+ *
+ * 나머지 규격: 높이 48 고정 · 최소너비 64 · 좌우 패딩 4 · 15px · 비활성 slate-500 ·
+ * hover 는 색만(slate-800) · 활성 글자 primary-600 · 활성 밑줄 primary-500 · 배경 항상 투명 ·
+ * 최대폭 1200 + 좌우 거터 24(본문과 같은 정렬선).
+ *
+ * ⚠ **높이 48 은 구 44 보다 크다** — 터치 표적이 넓어지는 방향이라 접근성 후퇴가 아니다.
+ *   (반대 방향, 즉 44 아래로 내리는 축은 별도 판단 대상이다.)
+ *
+ * ⚠ **이 부품의 치수는 `DS-002` ITEM 이 아니라 시안(SCREEN-028)의 상대 실측 기록에서 왔다.**
+ *   ITEM 의 `nav-link` step(높이 40 · 좌우 14 · 라운드 8 · 밑줄 없음)은 **머리 영역 GNB 와
+ *   좌측 메뉴 1단**을 규정한 것이고 본문 상단 line 탭이 아니다. `DS-002.known_gaps` 가
+ *   *"부품 카탈로그가 함께 오지 않았다 — 값만 옮겼고 상대의 부품 정의는 우리 쪽에 없다"* 고
+ *   인정한 공백이며, `iteration_guide` 가 그럴 때 *"가장 가까운 상대 화면의 짜임을 먼저 찾아
+ *   그 규격을 따른다"* 고 지시한다. 상대가 부품 정의를 주면 그것으로 교체한다.
+ *
  * @design SHELL-002
  * @design NAV-002
+ * @design DS-002
  */
 export function PortalContentTabs() {
   const { pathname } = useLocation();
@@ -38,8 +64,11 @@ export function PortalContentTabs() {
   if (!active) return null;
 
   return (
-    <nav aria-label="포털 이동 탭" className="mb-6 border-b border-gray-200">
-      <ul className="flex">
+    // ★바 전체에 구분선을 두지 않는다 — 이 채널의 line 탭은 **활성 항목의 밑줄만** 갖는다.
+    //   바 밑줄과 활성 밑줄이 겹치면 활성 표시가 바의 일부로 읽혀 어느 자리인지 흐려진다.
+    <nav aria-label="포털 이동 탭" className="mx-auto w-full max-w-wrap px-4 md:px-column">
+      {/* 항목 간격 8(=inline) · 좁은 폭에서는 가로로 흐른다 */}
+      <ul className="flex items-center gap-inline overflow-x-auto">
         {PORTAL_CONTENT_TABS.map((tab) => {
           const isActive = tab.key === active.key;
           return (
@@ -48,14 +77,17 @@ export function PortalContentTabs() {
                 to={tab.path}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  // 이동 탭 = 내비게이션 축 → ladder `nav-link`(17px). 최소 높이 44px(터치 표적).
-                  'inline-flex min-h-11 items-center -mb-px border-b-2 px-4 py-2.5 text-nav-link transition-colors duration-100',
+                  // 높이 48 고정 · 최소너비 64 · 좌우 패딩 4 · 15px/600 · 배경 항상 투명.
+                  // ⚠ 높이를 내용에 맡기면(min-h + py) 라벨 길이에 따라 탭 줄이 흔들린다.
+                  'inline-flex h-12 min-w-16 items-center justify-center border-b-4 px-tight',
+                  'text-body-md font-semibold transition-colors duration-100',
                   KRDS_FOCUS,
                   isActive
-                    ? // 선택 탭은 밑줄이 말한다 — 굵기까지 올리면 강조가 이중이 된다(공용 Tabs
-                      // 가로 variant 와 같은 판단).
-                      'border-primary-500 font-medium text-primary-600'
-                    : 'border-transparent font-normal text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                    ? // 활성 = 밑줄 4px + 글자 primary-600. 굵기는 비활성과 같다 —
+                      // 이 시스템은 위계를 굵기가 아니라 색과 밑줄로 만든다.
+                      'border-primary-500 text-primary-600'
+                    : // 비활성 hover 는 **색만** 바뀐다 — hover 에 밑줄을 주면 활성과 구분이 흐려진다.
+                      'border-transparent text-gray-500 hover:text-gray-800',
                 )}
               >
                 {tab.label}

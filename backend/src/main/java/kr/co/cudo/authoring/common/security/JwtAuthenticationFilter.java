@@ -40,6 +40,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     static final String PORTAL_TOKEN_HEADER = "x-access-token";
 
+    /**
+     * 포털 <b>시스템 주체</b> 토큰에만 부여하는 권한 (@design INT-014 · API-244 · AC-1103).
+     *
+     * <p>이름의 단일 진실원이다 — 인가 매처가 이 상수를 참조하고 리터럴을 새로 박지 않는다.
+     *
+     * <p>⚠ {@code ROLE_} 접두를 쓰지 않는다. 이것은 역할이 아니라 <b>주체 축</b>이고, 역할 계층에
+     * 얹히면 다른 역할이 물려받아 격리가 무너진다. 그리고 이 권한을 부여하는 자리는 <b>이 필터
+     * 한 곳</b>뿐이라 사용자가 어떤 토큰으로도 스스로 획득할 수 없다.
+     */
+    public static final String AUTHORITY_PORTAL_SYSTEM = "SUBJECT_PORTAL_SYSTEM";
+
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
@@ -51,13 +62,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 0건일 때만 돈다(@design ADR-063 · UC-041 · AC-1016).
      */
     private final ControlUserProvisioner controlUserProvisioner;
+    /**
+     * 포털 채널 토큰의 주체 축(사용자 / 시스템 계정) 판정기 (@design INT-014 · AC-1103).
+     * 판정 규격의 정본은 연동점이고 이 필터는 그 판정을 <b>부르기만</b> 한다 — 여기에 목록을
+     * 복제하거나 판정을 재유도하지 않는다.
+     */
+    private final PortalSystemSubjectPolicy portalSystemSubjectPolicy;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
                                    UserRoleResolver userRoleResolver,
                                    LastLoginRecorder lastLoginRecorder,
                                    AutoWorkerRegistrar autoWorkerRegistrar,
-                                   ControlUserProvisioner controlUserProvisioner) {
+                                   ControlUserProvisioner controlUserProvisioner,
+                                   PortalSystemSubjectPolicy portalSystemSubjectPolicy) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -85,12 +103,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (controlUserProvisioner == null) {
             throw new IllegalArgumentException("controlUserProvisioner must not be null (wiring bug)");
         }
+        // 주체 축 판정기 부재는 <보안 결함>이다 — 없으면 포털 채널 토큰이 주체와 무관하게 전부
+        // 사용자로 취급돼, 시스템 계정 토큰이 포털 사용자 권한을 얻는다(INT-014 가 금지한 상태).
+        // 그래서 fail-open 으로 흘려보내지 않고 기동 시점에 즉시 드러낸다.
+        if (portalSystemSubjectPolicy == null) {
+            throw new IllegalArgumentException("portalSystemSubjectPolicy must not be null (fail-closed)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
         this.lastLoginRecorder = lastLoginRecorder;
         this.autoWorkerRegistrar = autoWorkerRegistrar;
         this.controlUserProvisioner = controlUserProvisioner;
+        this.portalSystemSubjectPolicy = portalSystemSubjectPolicy;
     }
 
     @Override
@@ -166,6 +191,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 //   실패)는 원문을 그대로 둔다 — 회귀 0 이 최우선이며 fail-closed 를 풀지 않는다.
                 String subject = body.getSubject();
                 Role role;
+                // 포털 시스템 주체 여부 — 아래 포털 분기에서만 참이 된다. INTERNAL 채널은 이 축과
+                //   무관하므로 거짓 그대로다(관제 인계 토큰의 동작은 무변경).
+                boolean isPortalSystemSubject = false;
                 if (channel == Channel.INTERNAL) {
                     // 식별 — 숫자 sub(USER_NO)를 먼저 시도한다(내부·포털 기존 경로, 무변경).
                     //   비숫자 sub(관제 인계: sub="admin")면 userId 클레임으로 LS_ACNT_USER.USER_ID 를
@@ -231,6 +259,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (numericSub == null && userNo != null) {
                         subject = String.valueOf(userNo);
                     }
+                } else if (portalSystemSubjectPolicy.isSystemSubject(subject)) {
+                    // ★ 포털 <시스템 주체> — 사용자 권한을 부여하지 않는다 (@design INT-014 · AC-1103).
+                    //   시스템 계정 토큰은 <특정 사용자를 가리키지 않는다>. 그런데 포털 사용자 창구들은
+                    //   토큰 주체를 자원 소유자와 견주어 접근을 가른다(CWE-639 방어). 그 토큰이 그 창구에
+                    //   도달하면 소유자 비교가 <의미를 잃은 채 통과>한다.
+                    //   그래서 역할을 비워 ROLE_PORTAL_USER 가 붙지 않게 하고, 아래에서 주체 축 전용
+                    //   권한만 준다 → SecurityConfig 의 /v1/portal/** 매처(ROLE_PORTAL_USER 요구)에
+                    //   구조적으로 도달하지 못한다. 격리는 양방향이며 이쪽이 더 위험한 방향이다.
+                    //   ⚠ 목록에 없는 시스템 계정은 여기 오지 못하고 아래 사용자 분기로 떨어진다 —
+                    //     그 잔여 위험과 운영 책임은 PortalSystemSubjectPolicy javadoc 이 소유한다.
+                    role = null;
+                    isPortalSystemSubject = true;
                 } else {
                     role = Role.PORTAL_USER;
                 }
@@ -252,6 +292,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
                 }
                 authorities.add(new SimpleGrantedAuthority("CHANNEL_" + channel.name()));
+                // ★ 주체 축 전용 권한 (@design INT-014 · API-244 · AC-1103) — 역할이 아니라 <축>이다.
+                //   ROLE_ 접두를 쓰지 않는 것은 의도다: 역할 계층(RoleHierarchy)에 얹히면 다른 역할이
+                //   이 축을 물려받아 격리가 무너진다. 채널 권한과 <함께> 요구해야 인가가 성립한다.
+                if (isPortalSystemSubject) {
+                    authorities.add(new SimpleGrantedAuthority(AUTHORITY_PORTAL_SYSTEM));
+                }
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(claims, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);

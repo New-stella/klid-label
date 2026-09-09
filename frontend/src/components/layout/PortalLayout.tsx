@@ -36,19 +36,39 @@ import { useAuthStore } from '@/stores/useAuthStore';
 //   확정 사양과 같으므로 **레일을 만들지 말 것** — 부재는 결손이 아니라 이 결정의 결과다
 //   (회귀 가드: PortalLayout.test.tsx 의 좌측 레일 미노출 단언).
 //   ⚠ 로고·사용자 신원·역할 배지도 두지 않는다 — Host 머리 영역이 이미 보여 준다.
+//
+// ★★★★디자인 시스템은 DS-002(포털 채널)다 — 관제 채널(DS-001)과 **토큰 이름이 같고 값이
+//   다르다**. 값은 산출 시점에 채널이 정하므로(`design-tokens/channel.js`) 이 파일은 이름만
+//   참조한다. 이 셸이 책임지는 DS-002 축은 넷이다:
+//     · 페이지 바탕 = 캔버스 도메인 토큰(#f4f6fa)
+//     · 본문 자간 -0.5px 를 뿌리에 한 번
+//     · 콘텐츠 최대폭 1200 + 좌우 거터 24 — **탭과 본문이 같은 정렬선을 공유한다**
+//     · 세로 리듬 — 탭줄 다음 32, 페이지 아래 80
+//   ⚠ 각 화면이 자기 최대폭(`max-w-5xl` 등)을 따로 들고 있는 자리가 남아 있다 — 그쪽이
+//     좁으면 셸이 준 정렬선보다 안쪽에서 시작해 탭과 본문 시작선이 여전히 어긋난다.
+//     화면 축 정리(별도 라운드)에서 걷어낸다.
+//
+// [@design DS-002]
 
 export function PortalLayout() {
   const claims = useAuthStore((s) => s.claims);
   const hideHeader = isPortalEmbedChannel();
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    // 페이지 바탕은 DS-002 캔버스 토큰(#f4f6fa) — slate 스케일 밖의 도메인 토큰이라 별도 키다.
+    // 본문 자간 -0.5px 는 이 뿌리에 **한 번만** 준다(사다리 각 칸에 되풀이하면 두 번 적용된다).
+    // ★본문 글자색을 뿌리에서 명시한다 — `styles/global.css` 의 `body` 규칙이 관제 축 값
+    //   (KRDS 웜 그레이)을 물고 있고 그 파일은 정적이라 채널로 갈리지 않는다. 명시하지 않으면
+    //   포털 산출물의 글자색만 웜톤으로 남아 **다른 축의 값이 조용히 섞인다**.
+    //   DS-002 색 사다리: 제목 900 / **본문 800** / 표 셀 700 / 설명 600 / 메타·라벨 500.
+    <div className="flex min-h-screen flex-col bg-canvas text-gray-800 tracking-body">
       {!hideHeader && (
         <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6">
           <Link
             to="/portal"
             className={cn(
-              'rounded-md text-section-title font-bold text-gray-900 hover:text-primary-600 transition-colors',
+              // ⚠ 굵기 상한 600 — 이 시스템은 700 이상을 쓰지 않고 위계를 크기와 색으로 만든다.
+              'rounded-md text-section-title font-semibold text-gray-900 hover:text-primary-600 transition-colors',
               KRDS_FOCUS,
             )}
           >
@@ -61,12 +81,19 @@ export function PortalLayout() {
           <span className="text-btn-label text-gray-700">{claims?.name ?? '사용자'}</span>
         </header>
       )}
-      <main className="flex-1 px-4 py-6 md:px-6">
+      <main className="flex-1">
         {/* 본문 상단 이동 탭 — Host 가 좌측 주 메뉴를 소유하므로 목적지 이동은 여기서 한다.
             목적지 목록은 이 파일이 갖지 않는다(`@/lib/portalNav` 가 단일 진실원).
-            몰입 편집 화면에서는 컴포넌트가 스스로 아무것도 그리지 않는다. [@design SHELL-002] */}
+            몰입 편집 화면에서는 컴포넌트가 스스로 아무것도 그리지 않는다. [@design SHELL-002]
+            ★탭은 자기 최대폭·거터를 스스로 갖는다 — 아래 본문과 **같은 정렬선**을 공유해야
+            좌측 시작선이 어긋나지 않는다(그래서 본문 래퍼 안에 넣지 않는다). */}
         <PortalContentTabs />
-        <Outlet />
+        {/* 콘텐츠 최대폭 1200 + 좌우 거터. 세로 리듬은 위 32(탭줄 다음) · 아래 80.
+            ⚠ 거터는 좁은 폭에서 16 으로 줄인다 — DS-002 의 24 는 데스크톱 값이고, 모바일까지
+            24 를 밀면 좁은 화면에서 본문 폭이 그만큼 깎인다(구 `px-4 md:px-6` 동작 유지). */}
+        <div className="mx-auto w-full max-w-wrap px-4 pb-page-section pt-section md:px-column">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

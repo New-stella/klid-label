@@ -4,7 +4,7 @@
 //  ① `usePortalUploads({ page: 0, size: 20 })` 로 page 가 0 고정 + 페이저 없음 →
 //     첫 20건 밖의 자산에 도달할 수단이 없었다.
 //  ② `isError` 분기가 없어 조회가 실패하면 data 가 undefined → uploads 가 [] 로 떨어져
-//     "업로드한 자산이 없습니다" 가 떴다. **사용자는 서버 오류를 자기 자산이 사라진 것으로
+//     "아직 올린 자산이 없습니다" 가 떴다. **사용자는 서버 오류를 자기 자산이 사라진 것으로
 //     오해한다.** "조회 실패" 와 "실제로 0건" 은 반드시 구분돼야 한다(SD-033 ③ 목록 조회 실패).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
@@ -119,7 +119,7 @@ describe('PortalUploadPage 목록 조회 실패', () => {
     renderWithProviders(<PortalUploadPage />);
 
     // 핵심 — "없습니다" 가 뜨면 사용자는 자기 자산이 사라진 것으로 오해한다.
-    expect(screen.queryByText(/업로드한 자산이 없습니다/)).toBeNull();
+    expect(screen.queryByText(/아직 올린 자산이 없습니다/)).toBeNull();
   });
 
   it('조회_실패시_오류_안내와_다시_시도가_노출된다', () => {
@@ -156,7 +156,7 @@ describe('PortalUploadPage 목록 조회 실패', () => {
     });
     renderWithProviders(<PortalUploadPage />);
 
-    expect(screen.getByText(/업로드한 자산이 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/아직 올린 자산이 없습니다/)).toBeInTheDocument();
     expect(screen.queryByText(/목록을 불러올 수 없습니다/)).toBeNull();
   });
 });

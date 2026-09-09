@@ -10,6 +10,14 @@ import { cn } from '@/lib/cn';
 // @ts-expect-error -- 설정 파일은 .js 라 타입 선언이 없음
 import tailwindConfig from '../../tailwind.config.js';
 
+import {
+  colorScale,
+  DESIGN_CHANNELS,
+  designChannelOfSourceFile,
+  fontPx,
+  fontStep,
+  type DesignChannel,
+} from './designChannel';
 import { contrastRatio, WCAG_AA_NORMAL_TEXT } from './wcagContrast';
 
 /**
@@ -34,19 +42,57 @@ import { contrastRatio, WCAG_AA_NORMAL_TEXT } from './wcagContrast';
  */
 
 const fullConfig = resolveConfig(tailwindConfig as never);
-const colors = fullConfig.theme.colors as Record<string, unknown>;
 const boxShadow = fullConfig.theme.boxShadow as Record<string, string>;
 const fontSize = fullConfig.theme.fontSize as Record<string, [string, { fontWeight?: string }]>;
-const asObj = (v: unknown): Record<string, string> => v as Record<string, string>;
 
-const gray = asObj(colors.gray);
-const secondary = asObj(colors.secondary);
+// ⚠ 색은 채널마다 다르므로 모듈 상수로 굳히지 않는다 — `colorScale(channel, …)` 로 그때그때
+//   해당 채널 팔레트를 읽는다. 한 팔레트를 굳혀 두면 반대 채널의 실제 대비를 재지 않게 된다.
 
 const repoRoot = path.resolve(__dirname, '../..');
 const readSrc = (relPath: string): string => readFileSync(path.join(repoRoot, relPath), 'utf-8');
 
-/** DS-001 do_rules 2 가 못박은 행 hover 표면색. 토큰 값이 이 값이어야 한다. */
+/** DS-001 do_rules 2 가 못박은 **관제 축** 행 hover 표면색. 그 채널의 토큰 값이 이 값이어야 한다. */
 const ROW_HOVER_HEX = '#FFFBEB';
+
+/* ------------------------------------------------------------------ *
+ * ★채널 축 — 이 파일은 **두 디자인 시스템**을 각각 판정한다
+ * ------------------------------------------------------------------ */
+
+/**
+ * 표 표면 규약의 채널별 값 규격.
+ *
+ * <h3>왜 갈라야 하나</h3>
+ * 관제 채널은 `DS-001`(KRDS), 포털 채널은 `DS-002` 를 쓴다. **토큰 이름이 같고 값이 다르다** —
+ * 표 헤더 굵기(600 ↔ 500)·본문 기준 크기(17 ↔ 15)·행 hover 표면(호박색 ↔ 중립 최저단)이
+ * 모두 갈린다. 한 규격만 강제하면 반드시 한쪽 채널이 틀린 판정을 받는다.
+ *
+ * ★**어느 축도 무검사가 되지 않는다** — 아래 값 축 케이스는 전부 `it.each(DESIGN_CHANNELS)` 로
+ *   **두 채널을 모두** 돈다. 한쪽만 단언하면 반대 채널의 값이 통째로 바뀌어도 초록이다.
+ *
+ * ⚠ **클래스 **이름** 축은 두 채널이 같다** — 이름을 공유하고 값만 채널이 정하기 때문이다
+ *   (`bg-secondary-50`·`text-table-header`·`hover:bg-rowHover`·`text-body-md`). 그래서 소스를
+ *   읽는 케이스들은 채널로 갈리지 않는다. 갈리는 것은 **그 이름이 가리키는 값**이다.
+ *
+ * ⚠ **표 헤더 배경만은 DS-002 가 규정하지 않는다.** 관제 축의 "보조색 최옅단" 은 DS-001 의
+ *   do_rule 이고 DS-002 에는 대응 규칙이 없다. 시안(SCREEN-028)은 그 자리에 중립 최저단
+ *   (`--n-0`)을 쓰고 있어 **현행 구현(`bg-secondary-50`)과 다르다** — 화면 축에서 정리할
+ *   잔여이며, 여기서 두 채널에 서로 다른 이름을 요구하면 화면이 먼저 실패한다. 그래서 이
+ *   축은 지금 두 채널이 같은 이름을 쓰고, 값 차이만 아래에서 채널별로 확인한다.
+ */
+interface ChannelTableSpec {
+  /** 표 헤더 타이포 step 의 굵기. */
+  headerWeight: string;
+  /** 표 본문 기준 크기(px). */
+  bodyPx: number;
+}
+
+const CHANNEL_TABLE_SPEC: Record<DesignChannel, ChannelTableSpec> = {
+  // DS-001 — 표 헤더는 굵기(600)로 죽이고 본문은 17px 이상.
+  control: { headerWeight: '600', bodyPx: 17 },
+  // DS-002 — "표 헤더처럼 죽여야 할 요소는 굵기(500)보다 색(slate-400~500)으로 죽인다.
+  //          굵기를 색보다 먼저 올리지 않는다." 본문 기준은 관제보다 한 단 작은 15px.
+  portal: { headerWeight: '500', bodyPx: 15 },
+};
 
 interface TableCase {
   label: string;
@@ -122,10 +168,9 @@ const TABLES: TableCase[] = [
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
   {
-    label: 'PortalAugmentPage(포털 증강 — 요청 현황)',
-    file: 'src/pages/portal/PortalAugmentPage.tsx',
-  },
-  {
+    // ⚠ 형제 화면(증강·업로드)은 2026-09-08 에 표에서 **행 카드**로 바뀌어 이 목록에서 빠졌다.
+    //   이 화면만 표로 남는다 — 네 열이 전부 짧은 값이라 폭이 모자라지 않고, 시안(SD-024)이
+    //   표로 확정했다. 형태는 담는 내용이 정한다.
     label: 'PortalHomePage(포털 내 작업 — 내 저장 작업 목록)',
     file: 'src/pages/portal/PortalHomePage.tsx',
   },
@@ -453,6 +498,32 @@ describe('적용관례 — 표 목록 자체의 완전성', () => {
     ).toEqual([]);
   });
 
+  /**
+   * ★**두 축이 모두 실제로 판정 대상에 들어 있는가.**
+   *
+   * 채널 규격을 갈라 놓아도 판정 대상이 한쪽 채널뿐이면 반대 축은 「규격만 있고 검사되지
+   * 않는」 상태가 된다 — 「해제만 단언하고 걸리는 쪽을 안 보는」 형태다. 그래서 표 목록에
+   * 두 채널이 모두 실재함을 못박는다.
+   */
+  it('★표_목록에_두_채널이_모두_들어_있다', () => {
+    const byChannel = new Map<string, string[]>();
+    for (const t of TABLES) {
+      const ch = designChannelOfSourceFile(t.file);
+      byChannel.set(ch, [...(byChannel.get(ch) ?? []), t.file]);
+    }
+    for (const channel of DESIGN_CHANNELS) {
+      expect(
+        byChannel.get(channel) ?? [],
+        `${channel} 축 표가 하나도 없다 — 그 채널의 규격이 검사되지 않는다`,
+      ).not.toEqual([]);
+    }
+    // 포털 축 표는 실제로 포털 화면 파일이어야 한다(판정이 경로 규칙이라 오분류가 조용하다).
+    // ⚠ 2026-09-08 — 증강·업로드 목록은 **표에서 행 카드로 바뀌어** 이 목록에서 빠졌다.
+    //   한 행이 요구하는 최소 폭이 본문 최대 폭을 넘어 어느 칸이든 반드시 접히거나 잘렸기
+    //   때문이다(근거는 `PortalRecordRow` 머리말). 되돌리면 여기에 다시 넣어야 한다.
+    expect(byChannel.get('portal')).toEqual(['src/pages/portal/PortalHomePage.tsx']);
+  });
+
   it('제외_목록의_모든_항목이_사유를_갖는다', () => {
     // 사유 없는 제외는 다음 사람이 판단할 근거가 없어 그대로 굳는다.
     for (const e of EXCLUDED_TABLE_FILES) {
@@ -465,7 +536,13 @@ describe('적용관례 — 표 목록 자체의 완전성', () => {
  * ② 헤더 배경
  * ------------------------------------------------------------------ */
 
-/** 표 헤더 배경으로 허용되는 **유일한** 유틸리티. */
+/**
+ * 표 헤더 배경으로 허용되는 **유일한** 유틸리티.
+ *
+ * ⚠ 이름은 두 채널이 공유하고 값만 갈린다(관제 `#EEF2F7` / 포털 `#eef1fe`). DS-002 는 이
+ *   자리를 규정하지 않으므로 지금은 이름 축을 갈라 두지 않는다 — 위 {@link CHANNEL_TABLE_SPEC}
+ *   주석의 ⚠ 항목 참조.
+ */
 const HEADER_BG_TOKEN = 'bg-secondary-50';
 
 /**
@@ -506,11 +583,21 @@ describe('적용관례 — 표 헤더 배경(DS-001 do_rules)', () => {
     });
   });
 
-  it('secondary_50_이_페이지_배경_회색과_실제로_다른_색이다', () => {
-    // do_rules 의 근거("페이지 배경과 같은 색을 쓰면 열 구조가 먼저 읽히지 않는다")가
-    // 토큰 값 수준에서 성립하는지 — 두 값이 같아지면 이 규칙 자체가 무의미해진다.
-    expect(secondary['50']).toBe('#EEF2F7');
-    expect(secondary['50']).not.toBe(gray['50']);
+  it.each(DESIGN_CHANNELS)(
+    '[%s] secondary_50_이_페이지_배경_회색과_실제로_다른_색이다',
+    (channel) => {
+      // do_rules 의 근거("페이지 배경과 같은 색을 쓰면 열 구조가 먼저 읽히지 않는다")가
+      // 토큰 값 수준에서 성립하는지 — 두 값이 같아지면 이 규칙 자체가 무의미해진다.
+      // ★두 채널 모두 본다 — 한쪽만 보면 반대 채널에서 두 색이 같아져도 초록이다.
+      expect(colorScale(channel, 'secondary')['50']).not.toBe(colorScale(channel, 'gray')['50']);
+    },
+  );
+
+  it('채널마다_표_헤더_배경값이_실제로_다르다', () => {
+    // 이름이 같으니(`bg-secondary-50`) 값이 갈리는지를 직접 본다 — 한쪽 값을 다른 축의
+    // 값으로 되돌리면 여기서 잡힌다.
+    expect(colorScale('control', 'secondary')['50']).toBe('#EEF2F7');
+    expect(colorScale('portal', 'secondary')['50']).toBe('#eef1fe');
   });
 
   it.each(TABLES)('$label — 헤더_글자색이_secondary_50_위에서_AA를_만족한다', ({ file }) => {
@@ -535,10 +622,17 @@ describe('적용관례 — 표 헤더 배경(DS-001 do_rules)', () => {
         continue;
       }
       const step = steps[steps.length - 1][1];
-      const ratio = contrastRatio(gray[step], secondary['50']);
+      // ★대비는 **그 파일이 사는 채널의 팔레트**로 계산한다 — 두 축의 중립 온도와 헤더
+      //   배경값이 달라, 한 팔레트로 전부 재면 반대 채널의 실제 대비를 재지 않는 것이 된다.
+      const channel = designChannelOfSourceFile(file);
+      const ratio = contrastRatio(
+        colorScale(channel, 'gray')[step],
+        colorScale(channel, 'secondary')['50'],
+      );
       if (ratio < WCAG_AA_NORMAL_TEXT) {
         violations.push(
-          `${file}:${cell.line} — text-gray-${step} 이 bg-secondary-50 위에서 AA 미달(${ratio.toFixed(2)}:1)`,
+          `${file}:${cell.line}[${channel}] — text-gray-${step} 이 bg-secondary-50 위에서 ` +
+            `AA 미달(${ratio.toFixed(2)}:1)`,
         );
       }
     }
@@ -547,14 +641,18 @@ describe('적용관례 — 표 헤더 배경(DS-001 do_rules)', () => {
     expect(violations, `${file}: 헤더 글자색 대비 위반\n${violations.join('\n')}`).toEqual([]);
   });
 
-  it('★gray_500_은_secondary_50_위에서_AA_미달이고_gray_600_은_통과한다', () => {
-    // 헤더 배경이 바뀌면서 달라지는 경계값을 못박는다 — 헤더 글자색을 500 으로
-    // 되돌리면 위 케이스가 실패해야 하는 이유다.
-    expect(contrastRatio(gray['500'], secondary['50'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
-    expect(contrastRatio(gray['600'], secondary['50'])).toBeGreaterThanOrEqual(
-      WCAG_AA_NORMAL_TEXT,
-    );
-  });
+  it.each(DESIGN_CHANNELS)(
+    '[%s] ★gray_500_은_secondary_50_위에서_AA_미달이고_gray_600_은_통과한다',
+    (channel) => {
+      // 헤더 배경이 바뀌면서 달라지는 경계값을 못박는다 — 헤더 글자색을 500 으로
+      // 되돌리면 위 케이스가 실패해야 하는 이유다.
+      // ★경계가 **두 채널 모두에서** 같은 자리에 있는지 본다(중립 온도가 달라 자동이 아니다).
+      const g = colorScale(channel, 'gray');
+      const bg = colorScale(channel, 'secondary')['50'];
+      expect(contrastRatio(g['500'], bg)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+      expect(contrastRatio(g['600'], bg)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    },
+  );
 });
 
 /* ------------------------------------------------------------------ *
@@ -688,11 +786,22 @@ describe('적용관례 — 표 헤더 글자(크기·굵기·대문자화)', () 
     ).toEqual([]);
   });
 
-  it('표_헤더_토큰이_14px_600_이다', () => {
+  it.each(DESIGN_CHANNELS)('[%s] 표_헤더_토큰이_14px_이고_굵기가_그_채널_규격이다', (channel) => {
     // 위 케이스들은 "토큰을 쓰는가"만 본다 — 토큰 값 자체가 흔들리면 여기서 잡힌다.
-    const [size, meta] = fontSize['table-header'];
-    expect(size).toBe('14px');
-    expect(meta.fontWeight).toBe('600');
+    // ★굵기가 채널 축이다: 관제 600 / 포털 500. 크기(14)는 두 축이 같다.
+    expect(fontPx(channel, 'table-header')).toBe(14);
+    expect(fontStep(channel, 'table-header')[1].fontWeight).toBe(
+      CHANNEL_TABLE_SPEC[channel].headerWeight,
+    );
+  });
+
+  it('★표_헤더_굵기가_두_채널에서_실제로_다르다', () => {
+    // 위 케이스는 각 채널을 따로 본다 — 두 값이 **같아지는** 회귀(한 축을 다른 축으로
+    // 되돌리는 형태)는 그것만으로 잡히지 않으므로 관계를 따로 못박는다.
+    expect(CHANNEL_TABLE_SPEC.control.headerWeight).not.toBe(CHANNEL_TABLE_SPEC.portal.headerWeight);
+    expect(fontStep('control', 'table-header')[1].fontWeight).not.toBe(
+      fontStep('portal', 'table-header')[1].fontWeight,
+    );
   });
 });
 
@@ -850,10 +959,18 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
     ).toEqual([]);
   });
 
-  it('본문_크기_토큰_두_별칭이_모두_17px_다', () => {
+  it.each(DESIGN_CHANNELS)('[%s] 본문_크기_토큰_두_별칭이_그_채널_기준_크기다', (channel) => {
+    // ★기준 크기가 채널 축이다: 관제 17 / 포털 15. 두 별칭이 함께 따라가야 한다 —
+    //   한쪽만 따라가면 같은 표 안에서 `text-body` 와 `text-body-md` 가 다른 크기가 된다.
+    const expected = CHANNEL_TABLE_SPEC[channel].bodyPx;
     for (const token of BODY_SIZE_TOKENS) {
-      expect(fontSize[token.replace(/^text-/, '')][0], `${token} 이 17px 이 아니다`).toBe('17px');
+      expect(fontPx(channel, token.replace(/^text-/, '')), `${token}`).toBe(expected);
     }
+  });
+
+  it('★본문_기준_크기가_두_채널에서_실제로_다르다', () => {
+    expect(CHANNEL_TABLE_SPEC.control.bodyPx).not.toBe(CHANNEL_TABLE_SPEC.portal.bodyPx);
+    expect(fontPx('control', 'body-md')).not.toBe(fontPx('portal', 'body-md'));
   });
 
   it('★크기_판정이_허용목록이라_열거에_없던_값도_막는다', () => {
@@ -866,11 +983,12 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
     expect(bodySizeViolations('text-gray-700 text-right text-[#FAFBFC] text-body-md')).toEqual([]);
   });
 
-  it('구_축소_토큰들이_실제로_17px_미만이다', () => {
+  it.each(DESIGN_CHANNELS)('[%s] 구_축소_토큰들이_실제로_본문_기준보다_작다', (channel) => {
     // 허용목록 전환 이전의 금지 열거가 "정말 작은 것"이었는지 — ladder 가 바뀌면 여기서 잡힌다.
+    // ★기준선이 채널마다 다르다(17 / 15) — 고정 17 로 재면 포털에서 15px 짜리가 통과해 버린다.
+    const base = CHANNEL_TABLE_SPEC[channel].bodyPx;
     for (const key of ['caption', 'label', 'sub', 'xs', 'body-sm', 'mono']) {
-      const px = Number.parseInt(fontSize[key][0], 10);
-      expect(px, `text-${key} 이 17px 미만이 아니다`).toBeLessThan(17);
+      expect(fontPx(channel, key), `text-${key} 이 ${base}px 미만이 아니다`).toBeLessThan(base);
     }
   });
 });
@@ -882,12 +1000,63 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
 /** 표면 배경과 겹쳐 구분이 약해지는 hover(do_rules 2 가 명시적으로 배제한 계열). */
 const GRAY_ROW_HOVER = /hover:bg-(gray|neutral|slate|zinc|stone)-\d{2,3}\b/;
 
+/**
+ * 행 hover hex 전수 스캔의 **제외 목록** — 기대값으로 그 hex 를 들고 있는 가드 파일뿐이다.
+ *
+ * ⚠ 제외는 「빠뜨린 것」이 아니라 판정을 마친 건이다. **컴포넌트·화면 파일은 절대 여기 넣지
+ *   않는다** — 토큰 경유가 규칙이고, 화면이 raw hex 를 들면 값이 두 군데로 갈린다.
+ */
+const HEX_SCAN_EXEMPT: { file: string; reason: string }[] = [
+  {
+    file: 'tableSurfaceConvention.test.ts',
+    reason:
+      '이 가드 자신 — DS-001 do_rules 2 가 못박은 행 hover 색을 기대값 상수(ROW_HOVER_HEX)로 ' +
+      '들고 있어야 관제 축 토큰 값을 대조할 수 있다.',
+  },
+  {
+    file: 'designTokensPortalChannel.test.ts',
+    reason:
+      '포털 채널 토큰 가드 — DS-002 warn 팔레트의 최옅단이 같은 값이라 그 스케일을 값 단위로 ' +
+      '고정하려면 리터럴이 필요하다. 그 값이 포털에서 **경고색**이라는 사실이 곧 관제 축의 ' +
+      '호박색 hover 를 물려받을 수 없는 근거이기도 하다.',
+  },
+];
+
 describe('적용관례 — 표 행 hover 표면(DS-001 do_rules)', () => {
-  it('행_hover_전용_토큰이_tailwind_설정에_정의된다', () => {
-    const rowHover = colors.rowHover as Record<string, string> | string | undefined;
+  it('행_hover_hex_스캔_제외_목록의_모든_항목이_사유를_갖는다', () => {
+    // 사유 없는 제외는 다음 사람이 판단할 근거가 없어 그대로 굳는다. 그리고 이 목록이
+    // 커지면 스캔이 조용히 무력해지므로 **가드 파일뿐**이라는 것도 함께 못박는다.
+    for (const e of HEX_SCAN_EXEMPT) {
+      expect(e.reason.length, `${e.file}: 제외 사유가 비었거나 너무 짧다`).toBeGreaterThan(30);
+      expect(e.file, `${e.file}: 가드(.test.ts) 가 아닌 파일은 제외 대상이 아니다`).toMatch(
+        /\.test\.tsx?$/,
+      );
+    }
+  });
+
+  it.each(DESIGN_CHANNELS)('[%s] 행_hover_전용_토큰이_정의된다', (channel) => {
+    const rowHover = colorScale(channel, 'rowHover');
     expect(rowHover, 'colors.rowHover 미정의 — 임의 hex 를 컴포넌트에 박게 된다').toBeDefined();
-    const hex = typeof rowHover === 'string' ? rowHover : (rowHover as Record<string, string>).DEFAULT;
-    expect(hex?.toUpperCase()).toBe(ROW_HOVER_HEX);
+    expect(rowHover.DEFAULT, `${channel} rowHover 값 없음`).toBeTruthy();
+  });
+
+  it('관제_축의_행_hover_는_do_rules_가_못박은_호박색이다', () => {
+    expect(colorScale('control', 'rowHover').DEFAULT.toUpperCase()).toBe(ROW_HOVER_HEX);
+  });
+
+  /**
+   * ★관제 축의 호박색은 **DS-002 에서 경고색(warn 최옅단)** 이다 — 그대로 물려받으면
+   *   「경고로 읽히는 hover」가 되어 두 축의 값을 섞지 말라는 규칙에 정면으로 걸린다.
+   *
+   * ⚠ DS-002 는 행 hover 표면을 **규정하지 않는다.** 포털 값은 시안(SCREEN-028)이 사유와
+   *   함께 남긴 중립 최저단이며, 상대 정의가 이 자리를 규정하면 그 값으로 교체한다.
+   */
+  it('★포털_축의_행_hover_는_관제_호박색이_아니라_중립_최저단이다', () => {
+    const portalHover = colorScale('portal', 'rowHover').DEFAULT;
+    expect(portalHover.toUpperCase()).not.toBe(ROW_HOVER_HEX);
+    expect(portalHover).toBe(colorScale('portal', 'gray')['50']);
+    // 그 호박색이 포털에서 무엇인지 — 경고 팔레트의 최옅단이라 hover 로 쓸 수 없다.
+    expect(colorScale('portal', 'warning')['50'].toUpperCase()).toBe(ROW_HOVER_HEX);
   });
 
   it.each(TABLES)('$label — 표_행_hover_가_전용_토큰을_쓴다', ({ file }) => {
@@ -919,21 +1088,24 @@ describe('적용관례 — 표 행 hover 표면(DS-001 do_rules)', () => {
     const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
       .filter((f) => /\.(ts|tsx|css)$/.test(f))
       .map((f) => path.join('src', f))
-      // 이 가드 자신은 기대값으로 hex 를 들고 있으므로 제외한다.
-      .filter((f) => !f.endsWith('tableSurfaceConvention.test.ts'));
+      // 기대값으로 그 hex 를 들고 있는 **가드 파일**만 제외한다(사유는 아래 상수).
+      .filter((rel) => !HEX_SCAN_EXEMPT.some((e) => rel.endsWith(e.file)));
     expect(files.length, '스캔 대상 파일 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
 
     const hits = files.filter((rel) => /#FFFBEB/i.test(readSrc(rel)));
     expect(hits, `raw hex 하드코딩:\n${hits.join('\n')}`).toEqual([]);
   });
 
-  it('본문_셀_글자색이_hover_표면_위에서도_AA를_만족한다', () => {
+  it.each(DESIGN_CHANNELS)('[%s] 본문_셀_글자색이_hover_표면_위에서도_AA를_만족한다', (channel) => {
     // hover 표면은 셀 텍스트 아래에 깔린다 — 배경만 바꾸고 대비를 확인하지 않으면
     // 커서를 올린 행만 읽기 어려워지는 회귀가 조용히 생긴다.
+    // ★두 채널 모두 본다 — 포털 hover 표면은 관제와 값이 다르고 중립 온도도 다르다.
+    const g = colorScale(channel, 'gray');
+    const hover = colorScale(channel, 'rowHover').DEFAULT;
     for (const step of ['600', '700', '800', '900']) {
       expect(
-        contrastRatio(gray[step], ROW_HOVER_HEX),
-        `text-gray-${step} on ${ROW_HOVER_HEX}`,
+        contrastRatio(g[step], hover),
+        `[${channel}] text-gray-${step} on rowHover`,
       ).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
     }
   });
