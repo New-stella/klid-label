@@ -357,20 +357,11 @@ export function PortalUploadMarkingPage() {
     //   오른쪽에 설정·완료·지점 목록을 두고, 좁은 폭에서는 같은 차례로 한 열에 쌓는다.
     //   ⚠ 세로로만 쌓으면 무대(영상+눈금+조작)만으로 화면이 차서 <b>완료 명령이 화면 밖으로
     //     밀려난다</b> — 되돌릴 수 없는 조작을 눈으로 확인하며 누를 수 없게 된다.
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-in-component">
-      {/* 돌아갈 길을 맨 위에 둔다 — 이 화면은 목록의 한 행에서 들어오는 자리라, 나가는 문이
-          없으면 브라우저 뒤로가기 말고는 방법이 없다. */}
-      <Link
-        to={UPLOADS_PATH}
-        className={cn(
-          'inline-flex w-fit items-center gap-tight rounded-pill px-2 py-1 -ml-2',
-          'text-body-sm text-gray-600 transition-colors hover:text-gray-900',
-          KRDS_FOCUS,
-        )}
-      >
-        <ChevronLeft className="size-4" aria-hidden />내 업로드
-      </Link>
-
+    // ★<b>셸의 페이지 아래 여백을 되돌려 받는다</b> — 이 화면은 한 화면에 담는 몰입 편집 화면이라
+    //   페이지 끝의 세로 리듬이 쓰이지 않는다. 그 자리를 그대로 두면 <b>영상이 그만큼 작아진다.</b>
+    //   ⚠ 셸을 고치지 않는 이유: 그 여백은 포털의 다른 화면들이 쓰는 값이고, 그쪽은 목록이라
+    //     끝에 숨 쉴 자리가 필요하다. 예외가 필요한 것은 <b>이 화면 하나</b>다.
+    <div className="mx-auto -mb-page-section flex w-full max-w-wrap flex-col gap-in-component">
       <section aria-labelledby="portal-marking-head" className="flex flex-col gap-in-component">
         <PortalSectionHead
           id="portal-marking-head"
@@ -380,6 +371,21 @@ export function PortalUploadMarkingPage() {
           lead="프레임을 어느 지점에서 뽑을지 정합니다. 완료하면 그 지점으로 추출이 시작됩니다."
           /* 어느 자산을 마킹하는지 — 사용자 파일명은 텍스트 노드로만 렌더한다(자동 escape). */
           count={detail?.orgnlFileNm ?? undefined}
+          /* 돌아갈 길 — 이 화면은 목록의 한 행에서 들어오는 자리라, 나가는 문이 없으면 브라우저
+             뒤로가기 말고는 방법이 없다. ★제목 줄 오른쪽에 얹는다: 위에 따로 한 줄을 두면 그
+             줄만큼 영상이 작아진다. 이 화면에서 세로 한 줄은 영상 높이와 맞바꾸는 자원이다. */
+          action={
+            <Link
+              to={UPLOADS_PATH}
+              className={cn(
+                'inline-flex items-center gap-tight rounded-pill px-2 py-1',
+                'text-body-sm text-gray-600 transition-colors hover:text-gray-900',
+                KRDS_FOCUS,
+              )}
+            >
+              <ChevronLeft className="size-4" aria-hidden />내 업로드
+            </Link>
+          }
         />
 
         {/* 두 열 — 넓은 폭에서만 갈라진다. `items-start` 라야 오른쪽 열이 왼쪽 무대 높이만큼
@@ -412,7 +418,7 @@ export function PortalUploadMarkingPage() {
           </div>
 
           {/* 오른쪽 — 설정·완료·지점 목록. 폭을 고정해 무대가 남는 폭을 전부 갖게 한다. */}
-          <div className="flex w-full flex-col gap-in-component xl:w-96 xl:shrink-0">
+          <div className="flex w-full flex-col gap-in-component xl:w-80 xl:shrink-0">
             <PortalMarkingToolbar
               mode={mode}
               onModeChange={setMode}

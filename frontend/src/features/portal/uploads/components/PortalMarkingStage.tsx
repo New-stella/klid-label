@@ -119,16 +119,21 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
     return (
       <div className={cn(PORTAL_SURFACE, 'overflow-hidden')}>
         {/*
-          영상 — 어두운 면이 표면 가장자리까지 닿는다. 높이를 화면 높이의 절반으로 묶어 두어야
+          영상 — 어두운 면이 표면 가장자리까지 닿는다. 높이를 화면 높이에 비례해 묶어 두어야
           아래 눈금·조작이 <b>한 화면에 함께</b> 보인다(스크롤해야 조작이 나오면 마킹이 두 손
-          일이 된다). 화면 높이에 비례하므로 낮은 창에서도 조작이 밀려나지 않는다.
+          일이 된다). 비율이라 낮은 창에서도 조작이 밀려나지 않는다.
+
+          ★<b>상한은 남는 높이에서 거꾸로 잡은 값</b>이다 — 위의 구역 머리와 아래의 눈금·조작이
+            쓰는 만큼을 빼고 남는 자리를 영상에 준다. 그래서 이 값을 올리려면 <b>먼저 다른 데서
+            높이를 벌어야</b> 한다(그 반대로 하면 조작이 화면 밖으로 밀려난다). 넓은 창에서는
+            가로 폭이 먼저 한계가 되어 영상이 표면을 꽉 채우고 좌우 여백이 사라진다.
 
           ★<b>무대 비율을 바깥 상자가 갖는다.</b> 재생 요소에 높이를 맡기면 <b>메타데이터가
             오기 전에는 고유 크기가 없어 상자가 납작하게 접힌다</b> — 그리고 영상이 뜨는 순간
             아래 눈금·조작이 통째로 밀려 내려간다. 비율을 미리 잡아 두면 처음부터 끝까지
             같은 자리를 지킨다(가로세로가 다른 영상은 그 안에서 여백을 갖는다).
         */}
-        <div className="relative aspect-video max-h-[50vh] w-full bg-gray-900">
+        <div className="relative aspect-video max-h-[65vh] w-full bg-gray-900">
           {/* 자막 트랙 미제공 — 이용자가 올린 영상의 음성을 저작도구가 옮겨 적지 않는다. */}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
@@ -161,12 +166,12 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
 
         {/* 마킹 눈금 — 영상 바로 아래, 같은 가로 좌표축 위에 둔다. */}
         {showRuler && (
-          <div className="border-t border-gray-200 px-in-component pb-tight pt-dense">
-            <div className="mb-label-gap flex items-baseline justify-between gap-inline">
+          <div className="border-t border-gray-200 px-in-component pb-tight pt-tight">
+            <div className="mb-tight flex items-baseline justify-between gap-inline">
               <span className="text-caption text-gray-600">마킹 지점</span>
               <span className="text-caption tabular-nums text-gray-500">{marks.length}건</span>
             </div>
-            <div className="relative h-9 overflow-hidden rounded-input bg-gray-100">
+            <div className="relative h-7 overflow-hidden rounded-input bg-gray-100">
               {/* 재생 머리 — 조작이 아니라 표시다(누를 수 있는 것은 마킹 막대뿐이다). */}
               {headPct !== null && (
                 <div
