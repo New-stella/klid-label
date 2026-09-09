@@ -10,6 +10,8 @@ import { VerificationEventTypeSelect } from '@/features/marking/components/Verif
 import { VerificationQuestionSelect } from '@/features/marking/components/VerificationQuestionSelect';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
+import { useStreamPlaybackRetry } from '@/features/marking/hooks/useStreamPlaybackRetry';
+import { toDeployedApiUrl } from '@/lib/api/deployBasePath';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { useMarkingStore } from '@/features/marking/store';
 import type { MarkItem, MarkingMode } from '@/features/marking/types';
@@ -149,17 +151,24 @@ export function MarkingPage() {
 
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
-  // 만료(401)로 인한 재발급 무한루프 방지 — 에러당 1회만 재발급.
-  const streamRetriedRef = useRef(false);
 
-  const handleStreamError = useCallback(() => {
-    if (streamRetriedRef.current) return;
-    streamRetriedRef.current = true;
-    void refetchStreamUrl().finally(() => {
-      // 다음 만료 시 다시 1회 재시도 허용
-      streamRetriedRef.current = false;
-    });
-  }, [refetchStreamUrl]);
+  // 재생 실패 시 재발급·재시도는 <b>연속 실패 상한 안에서만</b> 한다.
+  // [@design API-114] [@design SCREEN-006]
+  //   구 동작은 「진행 중이면 무시」만 두고 횟수를 세지 않아, 회복되지 않는 실패에서
+  //   발급→실패→발급이 끝없이 돌았다(실측: 7초에 150회 이상).
+  //   상한에 이르면 멈추고 <b>토스트로</b> 알린다 — 이 화면이 이미 오류를 알리는 수단이며
+  //   사양에 없는 새 표면을 만들지 않는다.
+  //   ★재생이 회복되면 예산을 되돌린다(handlePlaybackRecovered) — 서명 수명이 짧아 한 영상을
+  //   길게 마킹하는 동안 만료가 여러 번 일어나므로, 누적으로 세면 정상 동선이 막힌다.
+  const { handleSrcError: handleStreamError, handlePlaybackRecovered } = useStreamPlaybackRetry({
+    reissue: refetchStreamUrl,
+    resetKey: rawSn,
+    onExhausted: () =>
+      pushToast({
+        variant: 'error',
+        message: '영상을 재생할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+      }),
+  });
 
   const createMutation = useCreateMarking(rawSn, {
     onSuccess: (data) => {
@@ -345,7 +354,12 @@ export function MarkingPage() {
     );
   }
 
-  const videoSrc = streamUrl?.url ?? '';
+  // 발급받은 주소는 <b>배포 접두를 뺀 API 기준 경로</b>다 — 발급하는 쪽은 자신이 어느 컨텍스트
+  // 아래에 놓이는지 알 수 없기 때문이다. 이 화면이 아는 접두를 앞에 붙여야 요청이 우리 창구에
+  // 도달한다. 붙이지 않으면 같은 오리진에 놓인 다른 시스템의 경로로 나가 영상이 오지 않는다.
+  // ⚠ 루트에 서비스되는 배포에서는 두 주소가 우연히 같아 이 어긋남이 드러나지 않는다.
+  // [@design API-114] [@design SCREEN-006] [@design SEQ-036]
+  const videoSrc = toDeployedApiUrl(streamUrl?.url);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
@@ -367,6 +381,7 @@ export function MarkingPage() {
           ref={videoRef}
           src={videoSrc}
           onSrcError={handleStreamError}
+          onSrcRecovered={handlePlaybackRecovered}
           onDurationChange={handleDurationChange}
         />
       ) : (

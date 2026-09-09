@@ -13,6 +13,35 @@ const APP = process.env.CAPTURE_APP ?? 'http://localhost:13000';
 const OUT = process.env.CAPTURE_OUT ?? '/Users/ck/Desktop/CBD-캡처루트-20260906/captures';
 const VIEWPORT = { width: 1600, height: 1000 };
 
+/**
+ * 촬영 대상 ID — **환경마다 다르다.**
+ *
+ * 기본값은 로컬 개발 스택 기준이다. 246 처럼 다른 배포에서 찍을 때는 그 서버의 실제 ID 를
+ * 환경변수로 준다. 예전에는 이 값들이 본문에 박혀 있어 다른 서버에서 돌리면 **없는 영상·없는
+ * 프레임을 열고도 그럴듯한 화면을 찍었다.**
+ */
+const RAW_SN = Number(process.env.CAPTURE_RAW_SN ?? 1); // 마킹 대상 영상
+const REVIEW_ID = Number(process.env.CAPTURE_REVIEW_ID ?? 1); // 검수 대상(영상 번호가 아니라 검수 번호다)
+const FRAME_MAIN = Number(process.env.CAPTURE_FRAME_MAIN ?? 1); // 라벨링·검수·버전 이력
+const FRAME_AI = Number(process.env.CAPTURE_FRAME_AI ?? 5); // 보간·분할·비식별 신고
+const FRAME_META = Number(process.env.CAPTURE_FRAME_META ?? 13); // 시계열 메타 검토
+/**
+ * 수동 마킹을 찍을 시점(초).
+ *
+ * ★**임의로 고르면 안 된다.** 마킹은 프레임 추출 위치를 정하는 것이라, 대상이 드문 구간에 찍으면
+ *   추출된 프레임에 잡을 것이 없어 **빈 캔버스가 라벨링 증적으로 남는다.** 영상을 실제로 보고
+ *   대상이 또렷한 구간을 고른 뒤 그 값을 환경변수로 준다.
+ * ★서로 같은 프레임으로 합쳐지지 않을 만큼 떨어지되, **같은 대상이 이어질 만큼은 가까워야**
+ *   추적·보간 증적이 성립한다.
+ */
+/** 적재 전/후를 보는 케이스(018-01)가 기다리는 클립 이름. 촬영 중 실제로 인입시킬 대상이다. */
+const INGEST_CLIP = process.env.CAPTURE_INGEST_CLIP ?? 'CCTV-019';
+
+const MARK_SECONDS = (process.env.CAPTURE_MARK_SECONDS ?? '5,20,45')
+  .split(',')
+  .map((s) => Number(s.trim()))
+  .filter((n) => Number.isFinite(n));
+
 mkdirSync(OUT, { recursive: true });
 
 /** dev 로그인 — 역할 토큰을 발급받아 내부 채널로 진입한다. */
@@ -20,7 +49,10 @@ async function login(page, role) {
   await page.goto(`${APP}/dev/login`, { waitUntil: 'domcontentloaded' });
   await page.locator(`#dev-login-role-${role}`).check();
   await page.getByRole('button', { name: /토큰 발급/ }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith('/dev/login'), { timeout: 15000 });
+  // ⚠ 베이스 경로가 있는 배포에서는 경로가 `/label-studio/dev/login` 이라 `startsWith('/dev/login')`
+  //   이 로그인 페이지에서도 거짓이다 — 그러면 이 대기가 즉시 통과해 토큰 발급을 안 기다리고,
+  //   뒤이은 화면 진입이 경쟁 조건으로 간헐 실패한다. 포함 여부로 판정한다.
+  await page.waitForURL((u) => !u.pathname.includes('/dev/login'), { timeout: 15000 });
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
@@ -103,6 +135,64 @@ const CASES = {
   },
 };
 
+/**
+ * 영상이 **실제로 재생 가능한 상태**인지 확인한다.
+ *
+ * ⚠ 이것이 없으면 영상이 안 뜬 화면을 조용히 찍는다 — 실제로 그렇게 찍힌 증적이 있었다.
+ *   실패하면 진단값(주소·readyState·해상도·오류코드)을 담아 던진다.
+ */
+async function waitForVideoReady(page, what) {
+  await page
+    .locator('video')
+    .first()
+    .waitFor({ state: 'attached', timeout: 20000 })
+    .catch(() => {
+      throw new Error(`영상 요소를 찾지 못했다 [${what}]`);
+    });
+
+  const ok = await page
+    .waitForFunction(
+      () => {
+        const v = document.querySelector('video');
+        return !!v && v.readyState >= 1 && v.videoWidth > 0;
+      },
+      undefined,
+      { timeout: 30000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+
+  if (!ok) {
+    const diag = await page.evaluate(() => {
+      const v = document.querySelector('video');
+      if (!v) return null;
+      return {
+        src: v.currentSrc || v.getAttribute('src'),
+        readyState: v.readyState,
+        videoWidth: v.videoWidth,
+        errorCode: v.error ? v.error.code : null,
+      };
+    });
+    throw new Error(`영상이 재생 가능 상태가 되지 않았다 [${what}] ${JSON.stringify(diag)}`);
+  }
+}
+
+/** 영상을 지정 시점으로 옮긴다 — 옮겨졌는지 확인하고 돌아온다. */
+async function seekVideo(page, seconds) {
+  await page.evaluate((t) => {
+    const v = document.querySelector('video');
+    if (v) v.currentTime = t;
+  }, seconds);
+  await page.waitForFunction(
+    (t) => {
+      const v = document.querySelector('video');
+      return !!v && Math.abs(v.currentTime - t) < 0.5;
+    },
+    seconds,
+    { timeout: 10000 },
+  );
+}
+
 /** 라벨링 화면 진입 — 캔버스가 실제로 그려질 때까지 기다린다. */
 async function openLabel(page, srcSn) {
   await page.goto(`${APP}/label/${srcSn}`, { waitUntil: 'domcontentloaded' });
@@ -143,7 +233,7 @@ async function dragOnCanvas(page, x1, y1, x2, y2) {
 /** 메타 탭 — 시계열 메타·이벤트 어노테이션 표시 */
 CASES['022-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 13);
+  await openLabel(page, FRAME_META);
   await page.getByRole('tab', { name: '메타' }).click().catch(async () => {
     await page.getByText('메타', { exact: true }).first().click();
   });
@@ -157,7 +247,7 @@ CASES['022-01'] = async (page) => {
 /** 라벨 편집·저장 (2컷: 편집 중 → 저장됨) */
 CASES['021-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 1);
+  await openLabel(page, FRAME_MAIN);
   await pickTool(page, '바운딩 박스', '사람');
   await dragOnCanvas(page, 700, 300, 900, 480);
   await expectVisible(page, page.getByText('편집 중'), '편집 중 표시');
@@ -172,7 +262,7 @@ CASES['021-01'] = async (page) => {
 /** AI 탐지(YOLO) 자동 라벨링 결과 */
 CASES['004-02'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 5);
+  await openLabel(page, FRAME_AI);
   await page.getByRole('button', { name: /AI 탐지/ }).click();
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg.getByText('AI 탐지'), 'AI 탐지 다이얼로그');
@@ -187,7 +277,7 @@ CASES['004-02'] = async (page) => {
 /** SAM2 인터랙티브 분할 (2컷: 객체 목록 → 분할 결과) */
 CASES['005-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 5);
+  await openLabel(page, FRAME_AI);
   await shot(page, '005-01', 1);
   await pickTool(page, 'AI 분할', '사람');
   // 「즉시 그리기」를 켜야 클릭 프롬프트가 곧바로 폴리곤으로 그려진다(켜지 않으면 점만 찍힌다).
@@ -204,10 +294,53 @@ CASES['005-01'] = async (page) => {
 /** 마킹 화면 + 처리 현황 (cut1 마킹 / cut4 처리 단계) */
 CASES['019-01'] = async (page) => {
   await login(page, 'WORKER');
-  await page.goto(`${APP}/marking/1`, { waitUntil: 'domcontentloaded' });
-  await expectVisible(page, page.getByText('마킹'), '마킹 화면');
-  await page.waitForTimeout(2500);
+  await page.goto(`${APP}/marking/${RAW_SN}`, { waitUntil: 'domcontentloaded' });
+
+  // 진입 차단 화면이면 그건 증적이 아니라 결함이다 — 조용히 찍지 않는다.
+  if ((await page.getByText(/비식별 완료 후 마킹이 가능합니다/).count()) > 0) {
+    throw new Error(`마킹 진입이 차단됐다 (영상 ${RAW_SN}) — 비식별 상태를 먼저 확인할 것`);
+  }
+  await expectVisible(page, page.getByText('현재 마킹'), '마킹 화면');
+  await waitForVideoReady(page, `마킹 영상 ${RAW_SN}`);
+
+  // 단축키는 입력 요소에 포커스가 있으면 발화하지 않는다 — 포커스를 본문으로 돌린다.
+  await page.evaluate(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+  });
+  await page.keyboard.press('Digit1'); // 수동 모드
+  await page.waitForTimeout(300);
+
+  for (const t of MARK_SECONDS) {
+    await seekVideo(page, t);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(400);
+  }
+
+  // ★몇 건이 찍혔는지 화면이 말한다. 0건짜리 화면을 「마킹 생성」 증적으로 남기지 않는다.
+  await expectVisible(
+    page,
+    page.getByText(`현재 마킹 (${MARK_SECONDS.length}건)`),
+    `마킹 칩 ${MARK_SECONDS.length}건`,
+  );
+  await page.waitForTimeout(800);
   await shot(page, '019-01', 1);
+
+  // ★촬영 뒤 [마킹 완료]까지 해야 한다 — 마크는 제출 전까지 브라우저 안에만 있고,
+  //   제출해야 잔여 배치(프레임 추출·오토라벨)가 돌아 뒤 케이스들의 재료가 생긴다.
+  //   D11 절차의 3단계이기도 하다.
+  const submit = page.getByRole('button', { name: /마킹 완료/ });
+  if ((await submit.count()) > 0) {
+    await submit.first().click();
+  } else {
+    await page.keyboard.press('Enter'); // 단축키 경로
+  }
+  const dlg = page.getByRole('dialog');
+  if ((await dlg.count()) > 0) {
+    await dlg.getByRole('button', { name: /완료|확인|제출/ }).last().click().catch(() => {});
+  }
+  await page.waitForTimeout(3000);
+  console.log('  마킹 완료 제출함');
 };
 
 CASES['019-01-cut4'] = async (page) => {
@@ -233,7 +366,7 @@ CASES['011-01'] = async (page) => {
 /** 비식별 누락 신고 (2컷: 신고 다이얼로그 → 접수 후 조회 차단) */
 CASES['016-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 5);
+  await openLabel(page, FRAME_AI);
   await page.getByRole('button', { name: /비식별 누락 신고/ }).click();
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg.getByText('비식별 누락 신고'), '신고 다이얼로그');
@@ -244,7 +377,7 @@ CASES['016-01'] = async (page) => {
   await dlg.getByRole('button', { name: '신고하기' }).click();
   await page.waitForTimeout(3000);
   // 신고가 접수되면 그 영상의 라벨 조회가 막힌다 — 그 차단 화면이 곧 성공의 증거다.
-  await page.goto(`${APP}/label/5`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${APP}/label/${FRAME_AI}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/비식별 재처리 대기/), '조회 차단 안내');
   await page.waitForTimeout(1200);
   await shot(page, '016-01', 2);
@@ -253,7 +386,7 @@ CASES['016-01'] = async (page) => {
 /** 검수 승인 (2컷: 검수중 → 승인 완료) */
 CASES['023-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 1);
+  await openLabel(page, FRAME_MAIN);
   await page.getByRole('button', { name: /검수제출/ }).click();
   const c = page.getByRole('dialog');
   if ((await c.count()) > 0) {
@@ -262,7 +395,7 @@ CASES['023-01'] = async (page) => {
   await page.waitForTimeout(3000);
 
   await login(page, 'REVIEWER');
-  await page.goto(`${APP}/review/1`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('검수중'), '검수중 배지');
   await page.waitForTimeout(2000);
   await shot(page, '023-01', 1);
@@ -272,7 +405,7 @@ CASES['023-01'] = async (page) => {
   if ((await ok.count()) > 0) await ok.getByRole('button', { name: /승인|확인/ }).last().click();
   await page.waitForTimeout(3000);
   // 승인 직후가 아니라 재진입 화면이 종결 상태를 말한다(완료 배지 + 재처리 불가 안내).
-  await page.goto(`${APP}/review/1`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/이미 승인 처리된 검수/), '승인 완료 표시');
   await page.waitForTimeout(1500);
   await shot(page, '023-01', 2);
@@ -281,7 +414,7 @@ CASES['023-01'] = async (page) => {
 /** 승인 완료 화면만 재촬영(승인이 이미 끝난 뒤 이어 찍을 때) */
 CASES['023-01-cut2'] = async (page) => {
   await login(page, 'REVIEWER');
-  await page.goto(`${APP}/review/1`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/이미 승인 처리된 검수/), '승인 완료 표시');
   await page.waitForTimeout(1500);
   await shot(page, '023-01', 2);
@@ -295,7 +428,7 @@ CASES['023-01-cut2'] = async (page) => {
  */
 CASES['008-01'] = async (page) => {
   await login(page, 'WORKER');
-  await openLabel(page, 1);
+  await openLabel(page, FRAME_MAIN);
   await pickTool(page, '바운딩 박스', '자동차');
   await dragOnCanvas(page, 500, 250, 660, 400);
   await page.getByRole('button', { name: /^저장/ }).first().click();
@@ -385,8 +518,8 @@ async function openStatusList(page) {
 CASES['018-01-cut1'] = async (page) => {
   await login(page, 'REVIEWER');
   await openStatusList(page);
-  if ((await page.getByText('CCTV-019').count()) > 0) {
-    throw new Error('CCTV-019 가 이미 목록에 있다 — 적재 전 상태가 아니다');
+  if ((await page.getByText(INGEST_CLIP).count()) > 0) {
+    throw new Error(`${INGEST_CLIP} 가 이미 목록에 있다 — 적재 전 상태가 아니다`);
   }
   await shot(page, '018-01', 1);
 };
@@ -395,7 +528,7 @@ CASES['018-01-cut1'] = async (page) => {
 CASES['018-01-cut2'] = async (page) => {
   await login(page, 'REVIEWER');
   await openStatusList(page);
-  await expectVisible(page, page.getByText('CCTV-019'), '적재된 영상 행');
+  await expectVisible(page, page.getByText(INGEST_CLIP), '적재된 영상 행');
   await shot(page, '018-01', 2);
 };
 

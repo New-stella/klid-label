@@ -25,6 +25,18 @@ interface VideoPlayerProps {
    */
   onSrcError?: () => void;
   /**
+   * 재생이 <b>실제로 회복</b>됐을 때(= 이 소스를 재생할 수 있게 됐을 때) 호출.
+   * 상위에서 재발급 재시도 예산을 되돌리는 데 사용한다.
+   *
+   * <p>신호로 `canplay` 를 고른 이유 — `loadedmetadata` 는 길이만 읽힌 상태라 「재생 가능」을
+   * 뜻하지 않고, `playing` 은 소스가 바뀌면 요소가 일시정지 상태로 돌아가므로 사용자가 다시
+   * 재생을 누를 때까지 오지 않는다(자동 재발급으로 회복된 경우를 놓친다). `canplay` 는 새 소스가
+   * 실제로 재생 가능해진 시점에 사용자의 조작 없이 온다.
+   * ⚠ 401·404 처럼 회복되지 않는 실패에서는 `error` 만 오고 `canplay` 는 <b>오지 않는다</b> —
+   * 그래서 폭주 구간에서는 예산이 되돌아오지 않는다.
+   */
+  onSrcRecovered?: () => void;
+  /**
    * onLoadedMetadata 로 실제 영상 길이(초)를 얻으면 호출.
    * 상위(타임라인 등)에서 하드코딩 대신 실제 길이로 좌표를 계산하는 데 사용한다.
    */
@@ -34,7 +46,7 @@ interface VideoPlayerProps {
 const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, className, onSrcError, onDurationChange }, ref) {
+  function VideoPlayer({ src, className, onSrcError, onSrcRecovered, onDurationChange }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -105,7 +117,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             // 탐색 완료(seeked) 시 해제. 느린 네트워크에서 화면이 멈춘 이유를 사용자에게 알린다.
             onWaiting={() => setBuffering(true)}
             onSeeking={() => setBuffering(true)}
-            onCanPlay={() => setBuffering(false)}
+            onCanPlay={() => {
+              setBuffering(false);
+              // 이 소스를 재생할 수 있게 됐다 = 재생이 회복됐다(위 onSrcRecovered 주석 참조).
+              onSrcRecovered?.();
+            }}
             onPlaying={() => setBuffering(false)}
             onSeeked={() => setBuffering(false)}
           />

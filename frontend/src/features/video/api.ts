@@ -225,7 +225,14 @@ export function getVideo(id: number) {
  *
  * <p><video> 엘리먼트는 Authorization 헤더를 못 붙여 인증 스트림(/stream)을 직접 재생하지 못한다.
  * 따라서 인증된 axios 호출로 짧은 TTL HMAC 서명 URL 을 받아 <video src> 로 사용한다.
- * 반환 url 은 BE 가 만든 절대 경로(`/api/v1/videos/{rawSn}/stream?exp=...&sig=...`)다.
+ * ★ 반환 url 은 <b>API 기준 경로</b>(`/api/v1/videos/{rawSn}/stream?exp=...&sig=...`)이며
+ * <b>배포 접두(컨텍스트 경로)를 포함하지 않는다</b> — 발급하는 쪽은 자신이 어느 컨텍스트 아래에
+ * 놓이는지 알 수 없기 때문이다. 최종 재생 주소는 <b>소비 측</b>이 `lib/api/deployBasePath` 의
+ * `toDeployedApiUrl` 로 자기 배포 접두를 붙여 만든다. 붙이지 않으면 요청이 이 창구의 경로
+ * 공간을 벗어나 같은 오리진에 놓인 다른 시스템의 경로로 나가고 영상이 재생되지 않는다.
+ * ⚠ <b>[폐기]</b> 구 주석은 이 값을 「BE 가 만든 절대 경로」라고 적어, 그대로 써도 되는 값으로
+ *   읽히게 했다. 앱이 루트에 서비스되는 배포에서는 두 주소가 우연히 일치해 그 전제가 참처럼
+ *   보였을 뿐이다 — 되살리지 말 것. [@design API-114]
  *
  * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
  */

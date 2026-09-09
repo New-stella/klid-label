@@ -24,7 +24,10 @@ export type PortalMarkingMode = (typeof PortalMarkingMode)[keyof typeof PortalMa
  * 단기 서명 재생 주소(API-239 응답).
  *
  * `expiresAt` 은 에포크 <b>초</b>다(밀리초가 아니다). 화면이 만료 직전 재발급을 판단하는 값이며,
- * 재생이 끊긴 뒤 다시 받는 것이 정상 동선이라 횟수 제한이 없다.
+ * 재생이 끊긴 뒤 다시 받는 것이 정상 동선이나 <b>되풀이에는 상한이 있다</b> — 회복되지 않는
+ * 실패에서 발급→실패→발급이 끝없이 돌지 않게 한다(상한·통지는 API-114 가 요구한다).
+ * ⚠ <b>[폐기]</b> 「횟수 제한이 없다」는 구 서술 — 되살리지 말 것.
+ * `url` 은 <b>배포 접두를 뺀 API 기준 경로</b>라 화면이 접두를 붙여 최종 주소를 만든다.
  */
 export interface PortalStreamUrl {
   url: string;

@@ -32,6 +32,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { markingFrameIndex, resolveMarkingFps } from '@/features/marking/markingFps';
+import { useStreamPlaybackRetry } from '@/features/marking/hooks/useStreamPlaybackRetry';
 import { MarkingCompleteConfirmDialog } from '@/features/portal/uploads/components/MarkingCompleteConfirmDialog';
 import {
   PortalMarkingToolbar,
@@ -58,6 +59,7 @@ import {
   type PortalMarkingSaveResult,
 } from '@/features/portal/uploads/markingTypes';
 import { PortalUploadStatus, PortalUploadType } from '@/features/portal/uploads/types';
+import { toDeployedApiUrl } from '@/lib/api/deployBasePath';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { useUiStore } from '@/stores/useUiStore';
@@ -181,16 +183,22 @@ export function PortalUploadMarkingPage() {
     },
   });
 
-  // 서명이 만료돼 재생이 끊기면 주소를 다시 받아 그 자리에서 이어 재생한다. 오류당 1회만 —
-  // 만료가 아닌 이유로 끊긴 경우 재발급이 무한히 되풀이되지 않게.
-  const streamRetriedRef = useRef(false);
-  const handleStreamError = useCallback(() => {
-    if (streamRetriedRef.current) return;
-    streamRetriedRef.current = true;
-    void streamQuery.refetch().finally(() => {
-      streamRetriedRef.current = false;
-    });
-  }, [streamQuery]);
+  // 서명이 만료돼 재생이 끊기면 주소를 다시 받아 그 자리에서 이어 재생한다.
+  // 재생 실패 시 재발급·재시도는 <b>연속 실패 상한 안에서만</b> 한다.
+  // [@design API-114] [@design SCREEN-045]
+  //   구 동작은 「진행 중이면 무시」만 두고 횟수를 세지 않아, 회복되지 않는 실패에서
+  //   발급→실패→발급이 끝없이 돌았다. 상한에 이르면 멈추고 <b>이 화면이 이미 쓰는 재생 실패
+  //   안내</b>를 그대로 띄운다(새 표면을 만들지 않는다).
+  //   ★재생이 회복되면 예산을 되돌린다 — 서명 수명이 짧아 마킹 도중 만료가 여러 번 일어나므로
+  //   누적으로 세면 정상 동선에서 회복 경로가 영구히 닫힌다.
+  const {
+    handleSrcError: handleStreamError,
+    handlePlaybackRecovered,
+    exhausted: streamExhausted,
+  } = useStreamPlaybackRetry({
+    reissue: streamQuery.refetch,
+    resetKey: uldSn,
+  });
 
   const handleAddMarkAtCurrentTime = useCallback(() => {
     if (locked || !playerRef.current) return;
@@ -320,8 +328,14 @@ export function PortalUploadMarkingPage() {
     );
   }
 
-  const videoSrc = streamQuery.data?.url ?? '';
-  const streamFailed = streamQuery.isError && !isFileNotReady(streamQuery.error);
+  // 발급받은 주소는 <b>배포 접두를 뺀 API 기준 경로</b>다 — 발급하는 쪽은 자신이 어느 컨텍스트
+  // 아래에 놓이는지 알 수 없기 때문이다. 이 화면이 아는 접두를 앞에 붙여야 요청이 우리 창구에
+  // 도달하며, 붙이지 않으면 같은 오리진의 다른 시스템 경로로 나가 영상이 오지 않는다.
+  // ⚠ 루트에 서비스되는 배포에서는 두 주소가 우연히 같아 이 어긋남이 드러나지 않는다.
+  // [@design API-114] [@design API-239]
+  const videoSrc = streamExhausted ? '' : toDeployedApiUrl(streamQuery.data?.url);
+  const streamFailed =
+    streamExhausted || (streamQuery.isError && !isFileNotReady(streamQuery.error));
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -336,6 +350,7 @@ export function PortalUploadMarkingPage() {
           ref={playerRef}
           src={videoSrc}
           onSrcError={handleStreamError}
+          onSrcRecovered={handlePlaybackRecovered}
           onDurationChange={setPlayerDurationSec}
         />
       ) : (
