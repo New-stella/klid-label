@@ -6,7 +6,13 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "types": ["node"]
+    "types": ["node"],
+    // ★ 산출물을 «소스 밖»으로 보낸다. composite 프로젝트라 emit 을 끌 수 없는데, 기본값이면
+    //   include 에 든 파일 옆에 .js/.d.ts 를 떨군다 — src/lib 안에 .js 가 생기는 순간
+    //   Vite 의 확장자 해석 순서(.js 가 .ts 보다 «앞»)가 그 낡은 산출물을 물어 조용히 깨진다.
+    "outDir": "./node_modules/.tmp/tsconfig-node"
   },
-  "include": ["vite.config.ts", "vitest.config.ts"]
+  // remoteMountContract.ts — 빌드 설정이 MF 계약값을 «앱과 같은 파일»에서 읽는다(값 복제 금지).
+  //   그 파일은 import 가 하나도 없어 Node 컨텍스트에서도 안전하다.
+  "include": ["vite.config.ts", "vitest.config.ts", "src/lib/remoteMountContract.ts"]
 }

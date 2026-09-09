@@ -2,14 +2,33 @@ import path from 'node:path';
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { federation } from '@module-federation/vite';
+
+// [@design INT-013]
+// ★ 계약값은 `src/lib/remoteMountContract` 가 단일 진실원이다 — 여기에 문자열을 다시 적지 않는다.
+//   그 파일이 `remoteMount.ts` 에서 갈라져 나온 이유가 바로 이 import 다: 이 설정 파일은
+//   브라우저가 아니라 Node 에서 평가되는데 `remoteMount.ts` 는 `buildChannel` 을 거쳐
+//   최상위 `import.meta.env` 에 닿아 Node 에서 깨진다. 사유 전문은 그 파일 헤더에 있다.
+import {
+  REMOTE_BUNDLE_BASE_PATH,
+  REMOTE_ENTRY_FILE_NAME,
+  REMOTE_EXPOSED_MODULE_NAME,
+  REMOTE_NAME,
+} from './src/lib/remoteMountContract';
+
+// ★ 빌드 채널 — 포털 채널일 때만 Module Federation 을 배선한다.
+//   `src/lib/buildChannel` 의 판정과 «같은 키»(VITE_BUILD_CHANNEL)를 읽는다. 다만 그쪽은
+//   브라우저에서 `import.meta.env` 를, 여기는 Node 에서 `process.env` 를 읽는다 — Vite 가
+//   빌드 시점에 전자를 후자에서 채우므로 같은 값이다.
+//   ⚠ 관제 채널에 federation 을 걸지 않는 이유: 그 산출물은 독립 앱이라 Host 가 없고,
+//     플러그인이 청크 구성과 런타임을 바꿔 지금 도는 배포본의 형태가 달라진다.
+const IS_PORTAL_BUILD = process.env.VITE_BUILD_CHANNEL === 'portal';
 
 // 컨테이너/네트워크 배포 대응 환경변수 (미설정 시 로컬 개발 기본값 보존)
 //   - BACKEND_ORIGIN  : 프록시 대상 BE 오리진 (컨테이너: http://klid-backend:8080)
 //   - HMR_CLIENT_PORT : HMR 클라이언트가 접속할 외부 매핑 포트 (컨테이너: 13000)
 const backendOrigin = process.env.BACKEND_ORIGIN || 'http://localhost:8080';
-const hmrClientPort = process.env.HMR_CLIENT_PORT
-  ? Number(process.env.HMR_CLIENT_PORT)
-  : undefined;
+const hmrClientPort = process.env.HMR_CLIENT_PORT ? Number(process.env.HMR_CLIENT_PORT) : undefined;
 
 const proxyTarget = {
   target: backendOrigin,
@@ -69,11 +88,65 @@ const SIDE_EFFECT_FREE_MODULES = [
 //   ⚠ 끝의 슬래시가 의미를 가진다 — 없으면 /label-studioassets/... 처럼 붙는다.
 //   ⚠ 이 값은 import.meta.env.BASE_URL 로 앱에 노출되고, 라우터 basename 이 그것을 읽는다
 //     (lib/remoteMount.resolveRouterBasename). 두 값을 따로 주면 갈린다.
-const BASE_PATH = process.env.VITE_BASE_PATH ?? '/';
+//   ★★ 포털 채널에서는 이 값을 «환경변수로 정하지 않는다» — 계약값(/label-remote/)으로 굳는다.
+//     Host 가 그 경로에서 remoteEntry.js 와 청크를 찾기 때문이다. 다른 값을 주면 진입 파일은
+//     찾아지는데 그것이 참조하는 청크만 404 가 되어 «화면이 절반만 뜨는» 형태로 드러난다.
+//     그래서 어긋난 값이 오면 조용히 무시하지 않고 «빌드를 실패»시킨다(fail-closed).
+//     ⚠ 실제로 반입 잡이 포털 채널에 VITE_BASE_PATH=/author/ 를 주고 있었다. 그 조합은
+//       자산만 /author/ 로 가고 라우터 기준 경로는 /workspace/authoring 이라 어떤 화면도 안 걸린다.
+//     ★ 이 고정은 «빌드에만» 건다. dev 서버까지 /label-remote/ 로 올리면 단독 개발 진입이
+//       깨진다 — 그때 주소는 마운트 경로(/workspace/authoring/...)여야 하는데 Vite 가 앱을
+//       /label-remote/ 아래에 서빙해 둘이 양립하지 않는다(devHostStub 로 Host 없이 띄우는 경로).
+function resolveBasePath(command: 'build' | 'serve'): string {
+  const given = process.env.VITE_BASE_PATH;
+  if (!IS_PORTAL_BUILD || command !== 'build') return given ?? '/';
+  if (given !== undefined && given !== REMOTE_BUNDLE_BASE_PATH) {
+    throw new Error(
+      `[klid] 포털 채널 빌드의 자산 base 는 계약값 '${REMOTE_BUNDLE_BASE_PATH}' 로 고정입니다.\n` +
+        `  받은 값 : VITE_BASE_PATH=${given}\n` +
+        `  · 포털 Host 가 그 경로에서 ${REMOTE_ENTRY_FILE_NAME} 와 청크를 찾습니다.\n` +
+        `  · 포털 채널 빌드에서는 이 변수를 «주지 마세요». 관제 채널에서만 씁니다.`,
+    );
+  }
+  return REMOTE_BUNDLE_BASE_PATH;
+}
 
-export default defineConfig({
-  base: BASE_PATH,
-  plugins: [react()],
+export default defineConfig(({ command }) => ({
+  base: resolveBasePath(command),
+  plugins: [
+    react(),
+    // [@design INT-013] 포털 Host 가 런타임에 결합할 Remote 진입점을 만든다.
+    //   Host 는 `authoring/PortalApp` 으로 우리를 가져간다 — 원격 모듈명과 노출 모듈명이
+    //   «함께» 그 지정자를 이루므로 둘 중 하나만 바뀌어도 Host 가 우리를 못 찾는다.
+    //   ⚠ dev 서버에는 걸지 않는다 — 단독 개발(devHostStub)은 Host 없이 뜨는 경로이고,
+    //     Remote 배선은 산출물의 성질이라 그때 필요하지 않다.
+    ...(IS_PORTAL_BUILD && command === 'build'
+      ? [
+          federation({
+            name: REMOTE_NAME,
+            filename: REMOTE_ENTRY_FILE_NAME,
+            // 키는 «Host 가 부르는 이름», 값은 «우리 파일 경로» — 둘이 다른 것은 의도다.
+            exposes: { [REMOTE_EXPOSED_MODULE_NAME]: './src/remote/AuthoringRemote.tsx' },
+            // ★ react/react-dom 은 반드시 «한 벌»이어야 한다. 두 벌이 되면 Host 트리 안에서
+            //   훅과 컨텍스트가 갈려 런타임에만 드러나는 형태로 깨진다.
+            //   ⚠ react-router-dom 은 «공유하지 않는다» — 우리는 자체 라우터를 마운트 경로
+            //     기준으로 갖고, Host 도 자기 라우터를 갖는다. 공유하면 두 라우터가 한 인스턴스를
+            //     두고 다툰다.
+            shared: {
+              react: { singleton: true },
+              'react-dom': { singleton: true },
+            },
+            // ★ 우리 전역 스타일·폰트를 노출 모듈에 함께 싣는다. Host 는 우리 CSS 를 모르므로
+            //   이걸 끄면 «스타일 없는 화면»이 뜬다(진입점이 styles/bootstrap 을 import 하는 이유).
+            bundleAllCSS: true,
+            // Host 가 원격을 찾을 때 쓰는 표준 기술서. 있으면 Host 배선이 쉬워지고 비용은 없다.
+            manifest: true,
+            // 라우트가 많아 모듈 파싱이 기본 10초를 넘길 수 있다. 「마지막 활동 이후」 기준으로 둔다.
+            moduleParseIdleTimeout: 30,
+          }),
+        ]
+      : []),
+  ],
   build: {
     rollupOptions: {
       treeshake: {
@@ -134,4 +207,4 @@ export default defineConfig({
       '/actuator': proxyTarget,
     },
   },
-});
+}));
