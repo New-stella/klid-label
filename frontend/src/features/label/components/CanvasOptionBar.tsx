@@ -169,17 +169,29 @@ export function CanvasOptionBar({
       className="flex h-11 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3"
     >
       {/* 좌: 편집 액션(삭제 / 실행취소 · 다시실행) */}
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={editBlocked}
-        aria-label="삭제"
-        title={deleteKeys ? `삭제 (${deleteKeys})` : '삭제'}
-        data-testid="label-option-delete"
-        className={cn(actionButtonClass)}
-      >
-        <Trash2 size={16} />
-      </button>
+      {/*
+        ★<b>포털 채널에서는 두지 않는다</b> — 우측 객체 패널의 행마다 「객체 삭제」가 이미 있고,
+        그쪽은 <b>무엇을 지우는지가 행으로 드러난다</b>. 이 버튼은 선택을 근거로 삼는데 선택이
+        없어도 눌리고 눌러도 아무 일이 없어(사유도 알리지 않는다) 같은 툴바의 「라벨 표시/숨김」이
+        같은 조건에서 비활성 + 안내를 주는 것과 어긋나 있었다. 지우는 것이 조작을 하나 없애는 것이
+        아니라 <b>둘로 갈려 있던 자리를 하나로 모으는 것</b>이다.
+
+        ⚠ 관제 채널은 그대로 둔다 — 그쪽 화면·부품은 불변이 확정 구속이고, 이 자리의 어색함은
+          채널을 가리지 않지만 그 정리는 관제 쪽 판단이 따로 필요하다.
+      */}
+      {!portalMode && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={editBlocked}
+          aria-label="삭제"
+          title={deleteKeys ? `삭제 (${deleteKeys})` : '삭제'}
+          data-testid="label-option-delete"
+          className={cn(actionButtonClass)}
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
       {/* ⚠ 잠금(locked)은 삭제·실행취소 축을 막지 않는다 — 이관 전 좌측 도구바 동작과 동일하게
           유지한다(이번 변경은 위치 이동이며 차단 축을 새로 늘리지 않는다). */}
       <UndoRedoToolbar

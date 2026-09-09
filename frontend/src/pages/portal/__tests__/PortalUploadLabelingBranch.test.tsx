@@ -143,8 +143,14 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
     expect(screen.getByTestId('canvas-option-bar')).toBeInTheDocument();
     expect(screen.getByTestId('labeling-right-panel')).toBeInTheDocument();
     expect(screen.getByTestId('object-count-badge')).toBeInTheDocument();
-    // 캔버스 상단 옵션바의 조작 — 삭제·실행취소·다시실행·확대/축소·라벨 표시.
-    expect(screen.getByTestId('label-option-delete')).toBeInTheDocument();
+    // 캔버스 상단 옵션바의 조작 — 실행취소·다시실행·확대/축소·라벨 표시.
+    //
+    // ★<b>삭제는 이 목록에서 뺐다 — 표식을 잃은 것이지 취지를 잃은 것이 아니다.</b> 포털 채널은
+    //   옵션바의 삭제를 두지 않는다(우측 객체 패널의 행별 「객체 삭제」가 그 자리를 갖는다 —
+    //   무엇을 지우는지가 행으로 드러나고, 옵션바 쪽은 선택이 없어도 눌리면서 아무 일도 하지
+    //   않았다). 이 케이스가 지키려는 것은 「미니멀 화면이 아니라 관제 도구가 뜬다」이고, 그것은
+    //   아래 남은 표식들(도구바·옵션바·우측 패널·객체 수·프레임 이동·메타 탭)이 여전히 증명한다.
+    //   ⚠ 삭제 수단이 사라진 것이 아님은 <b>아래 별도 케이스</b>가 따로 고정한다.
     expect(screen.getByTestId('label-option-zoom-in')).toBeInTheDocument();
     expect(screen.getByTestId('label-option-zoom-out')).toBeInTheDocument();
     expect(screen.getByTestId('label-option-visibility')).toBeInTheDocument();
@@ -153,6 +159,27 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
     expect(screen.getByTestId('frame-total-count')).toHaveTextContent('1');
     // 메타 탭이 열려 있다(다섯 축 + 이벤트 어노테이션의 자리).
     expect(screen.getByTestId('right-tab-meta')).toBeInTheDocument();
+  });
+
+  /**
+   * ★<b>삭제 수단이 사라지지 않았다</b> — 옵션바에서 뺀 자리를 우측 객체 패널이 갖는다.
+   *
+   * 이 케이스가 없으면 위에서 표식 하나를 지운 것이 「삭제를 통째로 없앴다」와 구분되지 않는다.
+   * 옵션바의 삭제가 <b>없다</b>는 것과 패널의 삭제가 <b>있다</b>는 것을 함께 단언해야 그 구분이
+   * 기계로 남는다.
+   */
+  it('★포털은_옵션바_삭제를_두지_않고_객체_패널의_행별_삭제가_그_자리를_갖는다', async () => {
+    mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
+    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([bboxRaw('car')]));
+    catchAllRest();
+
+    renderPage();
+    await waitForCanvas();
+
+    // 옵션바에는 없다.
+    expect(screen.queryByTestId('label-option-delete')).toBeNull();
+    // 그러나 객체마다 삭제가 있다 — 무엇을 지우는지가 행으로 드러나는 자리다.
+    expect((await screen.findAllByRole('button', { name: '객체 삭제' })).length).toBeGreaterThan(0);
   });
 
   /*

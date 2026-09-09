@@ -73,6 +73,17 @@ export interface UploadLabelSourceResult {
   error: Error | null;
   /** 캔버스를 그리지 않고 안내만 표시해야 하는 사유. 없으면 `null`. */
   notice: UploadLabelNotice | null;
+  /**
+   * 이용자가 올린 <b>원본 파일명</b>. 자산 상세를 아직 못 받았으면 `undefined`.
+   *
+   * ★<b>화면 머리에 「어느 자산을 작업 중인가」를 되돌려 주려고 낸다.</b> 자산 상세는 이 훅이
+   *   이미 받고 있었는데 라벨 응답만 내보내느라 이름이 버려지고 있었다. 그래서 머리글이
+   *   프레임 일련번호만 말하게 됐는데, 그 번호는 <b>이용자가 고른 적도 본 적도 없는 값</b>이라
+   *   자기 영상 여럿을 오가며 작업할 때 어느 것인지 분간할 근거가 되지 못한다.
+   *
+   * ⚠ 사용자가 올린 문자열이므로 <b>텍스트 노드로만</b> 렌더한다(자동 escape).
+   */
+  assetName: string | undefined;
 }
 
 const NOT_READY_FAILED = '처리에 실패한 자산입니다. 라벨링을 진행할 수 없습니다.';
@@ -170,5 +181,6 @@ export function useUploadLabelSource(uldSn: number | undefined): UploadLabelSour
     isLoading: enabled && notice === null && (detailQuery.isLoading || labelsQuery.isLoading),
     error: enabled ? ((labelsQuery.error as Error | null) ?? null) : null,
     notice,
+    assetName: enabled ? detail?.orgnlFileNm : undefined,
   };
 }

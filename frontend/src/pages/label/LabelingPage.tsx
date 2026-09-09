@@ -1103,7 +1103,11 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //   조회를 두 번 하지 않고 예산 발행까지 겸하는 훅을 쓴다 — 예산이 화면 상수로 남아 있으면
   //   서버가 재시도 예산을 바꿀 때 화면만 조용히 어긋나고, «화면이 더 짧은» 방향이면 정상 동작이
   //   «AI 실패» 로 보인다.
-  const { data: aiDefaults } = useAiWaitBudgetSync();
+  //   ★<b>포털 채널에서는 이 조회를 하지 않는다.</b> 그 채널에는 AI 도구가 없어 쓸 값이 없고,
+  //   포털 사용자는 검수자도 작업자도 아니라 이 창구가 <b>403</b> 이다 — 진입마다 실패 요청이
+  //   두 번씩 쌓인다. 위 주석이 「작업자 진입마다 403 이 쌓였다」고 적어 고친 그 결함이 채널
+  //   하나 옆에서 재발한 것이라, 같은 방식(호출을 막는다)으로 닫는다.
+  const { data: aiDefaults } = useAiWaitBudgetSync(!portalMode);
   const defaultConfThreshold =
     aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
   const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
@@ -1686,7 +1690,17 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //   아니지만 사용자는 되돌린 줄 안다).
   const isDirty = dirtyCount > 0 || discardPending || loadedDraft !== null;
   // CCTV명은 향후 연동 — 현재는 srcSn 표시
-  const cctvName = data ? `프레임 #${data.srcSn}` : undefined;
+  //
+  // ★<b>업로드 갈래에서는 파일명을 쓴다.</b> 프레임 일련번호는 서버가 매긴 값이라 <b>이용자가
+  //   고른 적도 본 적도 없다</b> — 자기 영상 여럿을 오가며 작업할 때 어느 것인지 분간할 근거가
+  //   되지 못한다. 이 갈래를 관제 도구로 합치기 전의 화면은 파일명을 머리에 두고 있었고, 합치면서
+  //   그 정보만 떨어져 나갔다. 몇 번째 프레임인지는 옵션바가 이미 `n / 전체` 로 말한다.
+  //   ⚠ 사용자가 올린 문자열이라 텍스트 노드로만 렌더한다(머리글 컴포넌트가 그렇게 받는다).
+  const cctvName = uploadSource
+    ? (uploadLabelSource.assetName ?? undefined)
+    : data
+      ? `프레임 #${data.srcSn}`
+      : undefined;
   // UI-055 — 헤더 이벤트 유형 배지. 구 코드는 `eventType={undefined}` 를 **항상 고정 전달**해
   // 배지가 영영 뜨지 않았다(기능이 죽어 있었다). 값 출처는 영상 상세이며 한글 표시명(eventName)을
   // 우선하고 없으면 EV-코드로 폴백한다. categoryKey(그룹 대표코드)는 전달하지 않는다.
