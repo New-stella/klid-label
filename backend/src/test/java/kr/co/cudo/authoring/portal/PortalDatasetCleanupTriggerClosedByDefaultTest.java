@@ -17,14 +17,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 시스템 계정 주체 식별자 목록이 <b>비었을 때</b> 시스템 주체 창구가 닫히는지 고정한다 (fail-closed).
+ * 사전 공유 키가 <b>비었을 때</b> 이 서버간 창구가 닫히는지 고정한다 (fail-closed).
  *
  * <p>값이 없을 때 <b>열리는 것이 아니라 닫히는</b> 방향이어야 한다. 이 축만 별도 클래스인 이유는
- * 목록이 설정으로 주입되는 싱글턴이라 <b>목록을 채운 컨텍스트와 같은 컨텍스트에서 검증할 수 없기</b>
+ * 키가 설정으로 주입되는 싱글턴이라 <b>키를 채운 컨텍스트와 같은 컨텍스트에서 검증할 수 없기</b>
  * 때문이다 — 기본 컨텍스트(설정 미지정)가 곧 이 시험의 조건이다.
  *
- * <p>⚠ 언젠가 배포 기본값으로 목록을 채우게 되면 이 시험이 깨진다. 그때 시험을 지우지 말고
- * <b>빈 목록을 명시로 주입</b>해 조건을 되살릴 것 — 사라지는 것은 조건이지 규칙이 아니다.
+ * <p>⚠ 언젠가 배포 기본값으로 키를 채우게 되면 이 시험이 깨진다. 그때 시험을 지우지 말고
+ * <b>빈 키를 명시로 주입</b>해 조건을 되살릴 것 — 사라지는 것은 조건이지 규칙이 아니다.
  *
  * @design API-244
  * @design AC-1103

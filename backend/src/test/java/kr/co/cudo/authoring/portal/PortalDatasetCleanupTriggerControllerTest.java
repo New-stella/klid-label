@@ -40,16 +40,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li><b>접수와 재수신 멱등</b> — 첫 수신은 기산점을 남기고, 재수신은 같은 응답이면서
  *       <b>기산점을 뒤로 밀지 않는다.</b> 밀면 중복 수신이 반복되는 동안 정리가 영영 일어나지 않는다.</li>
  *   <li><b>대상 유무를 응답으로 드러내지 않는다</b> — 알지 못하는 데이터셋도 같은 202 다.</li>
- *   <li><b>주체 축 격리는 양방향</b> — 사용자 주체는 이 창구에 못 들어오고, 시스템 주체는 포털
- *       사용자 창구에 못 들어간다.</li>
+ *   <li><b>가르는 것은 키 하나</b> — 키가 맞으면 통과하고, 없거나 다르면 거부한다. 사용자 토큰을
+ *       실어도 그것으로는 통과하지 못한다.</li>
  * </ol>
  *
- * <p>목록이 <b>비었을 때</b> 창구가 닫히는 축은 별도 컨텍스트가 필요해
+ * <p>키가 <b>비었을 때</b> 창구가 닫히는 축은 별도 컨텍스트가 필요해
  * {@link PortalDatasetCleanupTriggerClosedByDefaultTest} 가 따로 고정한다.
  *
- * <p>토큰은 {@code Authorization: Bearer} 로 싣는다 — 두 인계 자리가 <b>같은 검증 경로</b>를 타므로
- * 주체 축 판정에는 차이가 없고, 포털 전용 헤더 이름의 상수가 다른 패키지에 있어 리터럴을 새로
- * 박지 않기 위해서다. 헤더 축 자체는 {@code JwtFilterPortalHeaderIngressTest} 가 고정한다.
+ * <p>사용자 토큰을 싣는 부정 시험에서는 {@code Authorization: Bearer} 를 쓴다 — 이 창구의 판정에
+ * 토큰이 들어오지 않아 어느 인계 자리에 실어도 결과가 같고, 포털 전용 헤더 이름의 상수가 다른
+ * 패키지에 있어 리터럴을 새로 박지 않기 위해서다. 헤더 축 자체는
+ * {@code JwtFilterPortalHeaderIngressTest} 가 고정한다.
  *
  * @design API-244
  * @design ERD-035

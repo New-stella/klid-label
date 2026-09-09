@@ -110,18 +110,18 @@ class TestContextDiversityRatchetTest {
      * 현재 수위</b>다. 줄이는 작업이 진행되면 이 상수도 함께 내려라.
      *
      * <h3>2026-09-09 — 74 에서 75 로 (+1). 재사용이 불가능한 이유</h3>
-     * <p>포털 서버간 <b>시스템 주체</b> 창구 시험({@code PortalDatasetCleanupTriggerControllerTest})이
-     * 고유 컨텍스트를 하나 만든다. 그 시험은 <b>시스템 계정 주체 식별자 목록에 값이 있는</b> 형상을
-     * 요구하는데, 그 목록은 {@code PortalSystemSubjectPolicy} 의 <b>생성자에서 파싱되어 빈으로 굳는다</b>
-     * — 기동 이후에는 바꿀 수 없으므로 컨텍스트 프로퍼티로 주는 것 말고 방법이 없다.
+     * <p>포털 서버간 창구 시험({@code PortalDatasetCleanupTriggerControllerTest})이 고유 컨텍스트를
+     * 하나 만든다. 그 시험은 <b>사전 공유 키가 설정된</b> 형상을 요구하는데, 그 값은
+     * {@code PortalSystemApiKeyFilter} 의 <b>생성자에서 읽혀 빈으로 굳는다</b> — 기동 이후에는
+     * 바꿀 수 없으므로 컨텍스트 프로퍼티로 주는 것 말고 방법이 없다.
      *
      * <p>짝이 되는 시험({@code PortalDatasetCleanupTriggerClosedByDefaultTest})은 <b>정반대 형상</b>
-     * (목록이 빈 채로 창구가 닫히는지)을 검증하므로 두 형상은 <b>한 컨텍스트에 공존할 수 없다.</b>
+     * (키가 빈 채로 창구가 닫히는지)을 검증하므로 두 형상은 <b>한 컨텍스트에 공존할 수 없다.</b>
      * 다만 그쪽은 기본값이 이미 빈 값이라 프로퍼티를 두지 않아 기존 컨텍스트를 재사용한다 —
      * 그래서 늘어난 것이 <b>+1 뿐</b>이다(둘 다 새로 만들었다면 +2 였다).
      *
      * <p>⚠ 뒤쪽 시험은 fail-closed 가 실제로 닫는지를 보는 것이라 지울 수 없다. 그것이 없으면
-     * 목록 미설정 시 창구가 열려 버리는 회귀를 아무것도 잡지 못한다.
+     * 키 미설정 시 창구가 열려 버리는 회귀를 아무것도 잡지 못한다.
      */
     private static final int MAX_DISTINCT_CONTEXTS = 75;
 
