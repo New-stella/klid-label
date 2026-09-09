@@ -78,8 +78,7 @@ class JwtFilterPortalHeaderIngressTest {
         when(userRoleResolver.resolve(anyLong())).thenReturn(Role.REVIEWER);
 
         filter = new JwtAuthenticationFilter(() -> key, issuerValidator,
-                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
-                new PortalSystemSubjectPolicy(""));
+                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
     }
 
     private static SecretKey randomKey() {

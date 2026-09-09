@@ -48,11 +48,6 @@ public class SecurityConfig {
      * userId 조회 0건일 때만 호출한다(@design ADR-063 · UC-041 · AC-1016).
      */
     private final kr.co.cudo.authoring.user.service.ControlUserProvisioner controlUserProvisioner;
-    /**
-     * 포털 채널 토큰의 주체 축(사용자 / 시스템 계정) 판정기 (@design INT-014 · AC-1103).
-     * 이 판정이 있어야 시스템 계정 토큰이 포털 사용자 권한을 얻지 못한다.
-     */
-    private final PortalSystemSubjectPolicy portalSystemSubjectPolicy;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -62,6 +57,11 @@ public class SecurityConfig {
      * 때문에 채널을 가리지 않고 필요하다(@design API-239).
      */
     private final kr.co.cudo.authoring.portal.config.PortalStreamSignatureFilter portalStreamSignatureFilter;
+    /**
+     * 포털 서버간 정리 트리거 창구의 사전 공유 키 인증 필터 (@design INT-014 · API-244).
+     * 그 창구는 사람이 아니라 포털 서버가 부르므로 토큰이 아니라 키로 가른다.
+     */
+    private final PortalSystemApiKeyFilter portalSystemApiKeyFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -70,8 +70,7 @@ public class SecurityConfig {
             throws Exception {
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver,
-                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
-                        portalSystemSubjectPolicy);
+                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -180,32 +179,31 @@ public class SecurityConfig {
                             // /v1/** (authenticated) 보다 위에 두어 PORTAL_USER 통과를 막는다.
                             // 쓰기 핸들러는 메서드 @PreAuthorize 로 REVIEWER 강제.
                             .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
-                            // ★ 포털 <시스템 주체> 창구 — 서버간 축 (@design INT-014 · API-243 · API-244 · AC-1103).
+                            // ★ 포털 서버간 <정리 삭제 트리거> 창구 — 사전 공유 API 키 축
+                            //   (@design INT-014 · API-244 · AC-1103).
                             //
-                            // 주체 축 격리는 <양방향>이다. 이 매처가 막는 것은 앞쪽 방향이다:
-                            //   사용자 주체 토큰 → 시스템 주체 창구 = 거부.
-                            //   (뒤쪽 방향인 "시스템 주체 토큰 → 포털 사용자 창구"는 매처가 아니라
-                            //    JwtAuthenticationFilter 가 막는다 — 시스템 주체에게는 ROLE_PORTAL_USER 를
-                            //    아예 부여하지 않으므로 아래 /v1/portal/** 매처에 구조적으로 도달하지 못한다.
-                            //    두 방향을 한 곳에서 막으려 하지 말 것 — 축이 다르다.)
+                            // 인증 수단이 <창구마다 갈린다>. 이 접두 아래 창구는 사람이 아니라 포털
+                            //   서버가 부르므로 저작도구 역할이 없고, 사전 공유 키가 통과 여부를 정한다.
+                            //   그 키를 확인하는 것은 PortalSystemApiKeyFilter 이고, 이 매처는 그 필터가
+                            //   세운 권한만 요구한다 — 키 비교를 여기서 다시 하지 않는다(판정이 갈린다).
                             //
-                            // ★ 경로 접두가 갈린 것이 이 규칙을 강제하는 수단이다. /v1/portal-system/** 은
-                            //   /v1/portal/** 패턴에 <걸리지 않는다>(접두가 다른 별개 경로다). 그래서 이
-                            //   매처가 없으면 아래 /v1/** INTERNAL 매처로 떨어져 포털 토큰이 전부 거부된다.
+                            // ★ 채널 권한을 함께 요구하지 않는 것은 의도다. 부르는 쪽은 토큰이 없어
+                            //   CHANNEL_* 를 애초에 갖지 못한다. 함께 요구하면 <아무도 통과하지 못한다>.
+                            //   대신 그 권한을 부여하는 자리가 위 필터 하나뿐이라 사용자가 스스로 얻을 수 없다.
+                            //
+                            // ★ 경로 접두가 갈린 것이 인가 축을 가르는 수단이다. /v1/portal-system/** 은
+                            //   /v1/portal/** 패턴에 <걸리지 않는다>(접두가 다른 별개 경로다).
                             //
                             // ⚠ 매처는 <먼저 매칭되는 쪽이 이긴다>. 이 매처는 반드시 /v1/** 포괄 매처보다
-                            //   앞에 있어야 한다. 인가의 1차 원천은 @PreAuthorize 가 아니라 이 순서 있는
-                            //   매처이며, 순서를 바꾸면 격리가 조용히 무력해진다.
+                            //   앞에 있어야 한다 — 뒤에 있으면 CHANNEL_INTERNAL 요구에 걸려 전건 거부된다.
                             //
-                            // 권한은 <채널 + 주체 축>을 함께 요구한다. 채널만 요구하면 포털 사용자 토큰이
-                            //   통과하고, 주체 축만 요구하면 다른 채널의 토큰에 그 권한이 붙는 순간 뚫린다.
-                            //   SUBJECT_PORTAL_SYSTEM 은 JwtAuthenticationFilter 만 부여하며 역할 계층에
-                            //   얹히지 않으므로 다른 역할이 물려받지 않는다.
+                            // ⚠ 이 접두 아래 <다른 창구>가 생길 때 주의할 것 — 일일 저작 집계 창구는
+                            //   인증 수단이 <미확정>이다(API-243). 이 매처는 접두 전체를 덮으므로 그 창구가
+                            //   생기면 인증 축이 확정될 때까지 이 키로 열린다. 그때 매처를 갈라야 한다.
                             .requestMatchers("/v1/portal-system/**")
                                 .access(allOf(
-                                        hasAuthority(roleHierarchy, "CHANNEL_" + Channel.PORTAL.name()),
                                         hasAuthority(roleHierarchy,
-                                                JwtAuthenticationFilter.AUTHORITY_PORTAL_SYSTEM)))
+                                                PortalSystemApiKeyFilter.AUTHORITY_PORTAL_SYSTEM_API)))
                             // R5-1: 채널 격리 — 포털 API 는 PORTAL 채널 토큰만 (CHANNEL_PORTAL + PORTAL_USER role).
                             //
                             // PORTAL_STREAM_SIGNED 는 예외로 함께 허용한다 — 재생 요소가 인증 헤더를 싣지
@@ -253,7 +251,10 @@ public class SecurityConfig {
                 // 헤더가 없을 때만 서명 쿼리(exp/sig)를 검증한다 (fail-closed).
                 .addFilterAfter(streamSignatureFilter, JwtAuthenticationFilter.class)
                 // 포털 업로드 영상 스트림 단기 서명 인증 — 같은 이유로 JWT 필터 뒤에 둔다(헤더 경로 우선).
-                .addFilterAfter(portalStreamSignatureFilter, JwtAuthenticationFilter.class);
+                .addFilterAfter(portalStreamSignatureFilter, JwtAuthenticationFilter.class)
+                // 포털 서버간 정리 트리거 창구의 사전 공유 키 인증 (@design API-244).
+                //   이 창구 경로에만 반응하고 그 밖에는 즉시 통과시키므로 토큰 축 판정에 끼어들지 않는다.
+                .addFilterAfter(portalSystemApiKeyFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 
