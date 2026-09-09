@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.portal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.common.security.PortalSystemApiKeyFilter;
 import kr.co.cudo.authoring.portal.entity.LsDatstArngmtTrgr;
 import kr.co.cudo.authoring.portal.repository.LsDatstArngmtTrgrRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,10 +59,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
-@TestPropertySource(properties = "authoring.portal.system-subjects=portal-sys-acct,portal-sys-alt")
+@TestPropertySource(properties = "authoring.portal.cleanup-api-key=" 
+        + PortalDatasetCleanupTriggerControllerTest.API_KEY)
 class PortalDatasetCleanupTriggerControllerTest {
 
     private static final String PATH = "/v1/portal-system/dataset-cleanups";
+
+    /**
+     * 이 시험이 쓰는 사전 공유 키 (@design INT-014 · API-244).
+     *
+     * <p>컨텍스트 프로퍼티로 주입되므로 상수여야 한다 — 필터가 <b>기동 시점에</b> 값을 읽어
+     * 굳히기 때문에 실행 중에 바꿀 수 없다.
+     */
+    static final String API_KEY = "portal-cleanup-test-key";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -78,18 +88,13 @@ class PortalDatasetCleanupTriggerControllerTest {
         this.txTemplate = new TransactionTemplate(txManager);
     }
 
-    /** 시스템 주체 토큰 — 설정 목록에 등록된 주체. */
-    private String systemToken;
-    /** 사용자 주체 토큰 — 같은 포털 채널이지만 주체 축이 다르다. */
+    /** 포털 사용자 주체 토큰 — 이 창구의 인증 축이 아니다(키가 아니면 통과하지 못한다). */
     private String userToken;
     /** 한 시험 안에서만 쓰는 데이터셋 코드(다른 시험과 섞이지 않게 유일화). */
     private String datasetCode;
 
     @BeforeEach
     void setUp() {
-        // ★ 시스템 주체 토큰의 role 클레임은 판정에 쓰이지 않는다 — 주체 식별자가 목록에 있으면
-        //   필터가 역할을 비우고 주체 축 권한만 준다. 그래도 실제 포털 토큰 모양을 따라 싣는다.
-        systemToken = JwtTestSupport.token(secret, "portal-sys-acct", "PORTAL_USER", "PORTAL", issuer, 600);
         userToken = JwtTestSupport.token(secret, "portal-user-" + System.nanoTime(),
                 "PORTAL_USER", "PORTAL", issuer, 600);
         // 컬럼 폭이 20 이라 코드도 그 안에 들어와야 한다.
@@ -102,7 +107,7 @@ class PortalDatasetCleanupTriggerControllerTest {
     @DisplayName("정리_트리거를_받으면_202로_접수하고_원장에_처음_받은_시각이_남는다")
     void firstReceiptIsAcceptedAndRecorded() throws Exception {
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
                 .andExpect(status().isAccepted());
@@ -126,7 +131,7 @@ class PortalDatasetCleanupTriggerControllerTest {
     @DisplayName("★같은_데이터셋과_버전을_재수신해도_202이고_처음_받은_시각이_밀리지_않으며_행이_늘지_않는다")
     void reReceiptIsIdempotentAndDoesNotPushTheBaseline() throws Exception {
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
                 .andExpect(status().isAccepted());
@@ -138,7 +143,7 @@ class PortalDatasetCleanupTriggerControllerTest {
                 pinned, datasetCode, "v3");
 
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
                 .andExpect(status().isAccepted());
@@ -159,7 +164,7 @@ class PortalDatasetCleanupTriggerControllerTest {
     void differentVersionIsADifferentPair() throws Exception {
         for (String v : new String[]{"v3", "v4"}) {
             mockMvc.perform(post(PATH)
-                            .header("Authorization", "Bearer " + systemToken)
+                            .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body(datasetCode, v)))
                     .andExpect(status().isAccepted());
@@ -173,7 +178,7 @@ class PortalDatasetCleanupTriggerControllerTest {
     void unknownDatasetIsAcceptedToo() throws Exception {
         // 이 저장소 어디에도 없는 코드 — 존재 확인을 하지 않으므로 접수된다.
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("NOSUCHDS" + (System.nanoTime() % 100_000L), "v9")))
                 .andExpect(status().isAccepted());
@@ -187,13 +192,13 @@ class PortalDatasetCleanupTriggerControllerTest {
         Map<String, Object> missing = new HashMap<>();
         missing.put("version", "v3");
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(missing)))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("   ", "v3")))
                 .andExpect(status().isBadRequest());
@@ -205,13 +210,13 @@ class PortalDatasetCleanupTriggerControllerTest {
         Map<String, Object> missing = new HashMap<>();
         missing.put("datasetCode", datasetCode);
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(missing)))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "")))
                 .andExpect(status().isBadRequest());
@@ -230,13 +235,13 @@ class PortalDatasetCleanupTriggerControllerTest {
         String tooLongVersion = "v".repeat(LsDatstArngmtTrgr.VERSION_MAX_LENGTH + 1);
 
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(tooLongCode, "v3")))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, tooLongVersion)))
                 .andExpect(status().isBadRequest());
@@ -246,7 +251,7 @@ class PortalDatasetCleanupTriggerControllerTest {
     @DisplayName("거부_응답에_내부_경로와_예외_흔적과_저장_구조가_없다")
     void rejectionLeaksNothing() throws Exception {
         String responseBody = mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + systemToken)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("", "")))
                 .andExpect(status().isBadRequest())
@@ -262,16 +267,29 @@ class PortalDatasetCleanupTriggerControllerTest {
                 .doesNotContain("sql");
     }
 
-    // ---------------------------------------------------------------- 주체 축 격리 (양방향)
+    // ---------------------------------------------------------------- 인증 — 사전 공유 키
 
     @Test
-    @DisplayName("사용자_주체_토큰으로_시스템_주체_창구를_부르면_403이다")
-    void userSubjectCannotEnterSystemEndpoint() throws Exception {
+    @DisplayName("★키_없이_부르면_거부되고_원장에_닿지_않는다")
+    void missingKeyIsRejected() throws Exception {
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+
+        assertThat(triggerRepository.countByDatstCdAndVerNo(datasetCode, "v3"))
+                .as("거부된 요청이 원장에 닿으면 안 된다")
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("★키_값이_다르면_거부되고_원장에_닿지_않는다")
+    void wrongKeyIsRejected() throws Exception {
+        mockMvc.perform(post(PATH)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, API_KEY + "-wrong")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(datasetCode, "v3")))
+                .andExpect(status().isUnauthorized());
 
         assertThat(triggerRepository.countByDatstCdAndVerNo(datasetCode, "v3"))
                 .as("거부된 요청이 원장에 닿으면 안 된다")
@@ -279,36 +297,35 @@ class PortalDatasetCleanupTriggerControllerTest {
     }
 
     /**
-     * 반대 방향 — 더 위험한 쪽이다. 시스템 주체 토큰은 특정 사용자를 가리키지 않으므로, 소유자
-     * 비교로 접근을 가르는 포털 사용자 창구에 도달하면 그 비교가 의미를 잃은 채 통과한다.
+     * 키의 <b>접두만</b> 맞아도 통과하지 않는다. 비교가 접두 일치로 느슨해지면 짧은 값으로도
+     * 뚫리고, 상수시간 비교를 쓰는 의미도 사라진다.
      */
     @Test
-    @DisplayName("★시스템_주체_토큰은_포털_사용자_창구에_들어가지_못한다")
-    void systemSubjectCannotEnterPortalUserEndpoint() throws Exception {
-        mockMvc.perform(get("/v1/portal/frames/{srcSn}/meta", 1L)
-                        .header("Authorization", "Bearer " + systemToken))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("토큰_없이_부르면_401이고_주체_축_불일치의_403과_구분된다")
-    void missingTokenIsUnauthorizedNotForbidden() throws Exception {
+    @DisplayName("★키의_접두만_맞으면_거부된다 — 접두_일치로_느슨해지지_않는다")
+    void keyPrefixIsNotEnough() throws Exception {
         mockMvc.perform(post(PATH)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER,
+                                API_KEY.substring(0, API_KEY.length() - 1))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * 포털 사용자 토큰은 이 창구의 인증 축이 아니다.
+     *
+     * <p>⚠ 직전 라운드의 「주체 축 격리」와는 다른 축이다 — 그때는 토큰의 주체 클레임으로 갈랐으나,
+     * 이 창구는 이제 키로만 가르므로 <b>토큰을 실었는지 여부가 판정에 들어오지 않는다.</b>
+     * 키가 없으면 어떤 토큰을 실어도 통과하지 못한다.
+     */
     @Test
-    @DisplayName("내부_채널_토큰은_주체_축_이전에_채널에서_막힌다")
-    void internalChannelTokenIsRejected() throws Exception {
-        String internalToken =
-                JwtTestSupport.token(secret, "9001", "REVIEWER", "INTERNAL", issuer, 600);
+    @DisplayName("포털_사용자_토큰만_실으면_거부된다 — 이_창구의_인증_축이_아니다")
+    void portalUserTokenAloneIsRejected() throws Exception {
         mockMvc.perform(post(PATH)
-                        .header("Authorization", "Bearer " + internalToken)
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(datasetCode, "v3")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- helper

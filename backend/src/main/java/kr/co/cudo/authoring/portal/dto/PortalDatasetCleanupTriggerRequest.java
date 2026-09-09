@@ -38,8 +38,23 @@ public record PortalDatasetCleanupTriggerRequest(
         @Schema(description = "포털이 새로 받은 버전. 이 버전이 들어오면 그보다 이전의 올드 해제본이 정리 대상이 된다.",
                 example = "v3")
         @NotBlank(message = "버전은 필수입니다.")
-        @Size(max = LsDatstArngmtTrgr.VERSION_MAX_LENGTH,
+        @Size(max = VERSION_REQUEST_MAX_LENGTH,
                 message = "버전이 허용 길이를 넘습니다.")
         String version
 ) {
+
+    /**
+     * 버전의 <b>입구 상한</b> — 포털이 회신한 실제 폭이다 (@design API-244 · INT-014).
+     *
+     * <p>⚠ 접수 원장의 컬럼 폭({@link LsDatstArngmtTrgr#VERSION_MAX_LENGTH})과 <b>다르며 그것이
+     * 정상이다.</b> 컬럼은 표준도메인을 따르고, 입구는 상대가 실제로 보내는 폭으로 좁힌다 —
+     * 입구가 더 좁은 것은 안전한 방향이다(넘치는 값이 DB 까지 가지 못한다).
+     *
+     * <p>⚠ 컬럼 폭을 이 값으로 좁히지 말 것 — 표준도메인 이탈이 된다. 반대로 이 값을 컬럼 폭까지
+     * 넓히지도 말 것 — 상대가 보내지 않는 폭을 받아 줄 이유가 없다.
+     *
+     * <p>문자집합은 제한하지 않는다 — 포털이 형식 예시만 주었고 값역을 못박지 않았다. 회신 전에
+     * 우리가 먼저 좁히면 정상 값을 우리 쪽에서 막는다.
+     */
+    public static final int VERSION_REQUEST_MAX_LENGTH = 20;
 }

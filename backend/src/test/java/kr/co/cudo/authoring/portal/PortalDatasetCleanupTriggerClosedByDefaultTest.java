@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
-import kr.co.cudo.authoring.common.security.PortalSystemSubjectPolicy;
+import kr.co.cudo.authoring.common.security.PortalSystemApiKeyFilter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,26 +35,34 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PortalDatasetCleanupTriggerClosedByDefaultTest {
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private PortalSystemSubjectPolicy policy;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
     @Test
-    @DisplayName("★시스템_계정_주체_목록이_비면_어떤_포털_토큰으로도_시스템_주체_창구에_들어가지_못한다")
-    void emptySubjectListClosesTheEndpoint() throws Exception {
-        assertThat(policy.registeredCount())
-                .as("이 시험의 전제 — 기본 형상에는 시스템 계정 주체가 등록돼 있지 않다")
-                .isZero();
+    @DisplayName("★사전_공유_키가_설정되지_않으면_어떤_요청으로도_이_창구에_들어가지_못한다")
+    void missingApiKeyClosesTheEndpoint() throws Exception {
+        // 키를 실은 요청 · 안 실은 요청 · 포털 토큰을 실은 요청 — 어느 것도 통과하지 못한다.
+        //   설정이 비면 비교 대상 자체가 없으므로 값이 무엇이든 일치할 수 없다.
+        mockMvc.perform(post(PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isUnauthorized());
 
-        // 목록에 없으므로 어떤 주체를 써도 시스템 주체로 판정되지 않는다.
-        for (String subject : new String[]{"portal-sys-acct", "anything", "9001"}) {
-            String token = JwtTestSupport.token(secret, subject, "PORTAL_USER", "PORTAL", issuer, 600);
-            mockMvc.perform(post("/v1/portal-system/dataset-cleanups")
-                            .header("Authorization", "Bearer " + token)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"datasetCode\":\"DS0001\",\"version\":\"v1\"}"))
-                    .andExpect(status().isForbidden());
-        }
+        mockMvc.perform(post(PATH)
+                        .header(PortalSystemApiKeyFilter.API_KEY_HEADER, "any-key-at-all")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isUnauthorized());
+
+        String portalToken = JwtTestSupport.token(secret, "portal-user", "PORTAL_USER", "PORTAL", issuer, 600);
+        mockMvc.perform(post(PATH)
+                        .header("Authorization", "Bearer " + portalToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isUnauthorized());
     }
+
+    private static final String PATH = "/v1/portal-system/dataset-cleanups";
+    private static final String BODY = "{\"datasetCode\":\"DS0001\",\"version\":\"v1\"}";
 }

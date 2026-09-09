@@ -67,8 +67,7 @@ class JwtFilterAutoRegisterWiringTest {
         when(issuerValidator.isAllowed(any())).thenReturn(true);
 
         filter = new JwtAuthenticationFilter(() -> key, issuerValidator,
-                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
-                new PortalSystemSubjectPolicy(""));
+                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
     }
 
     private void doFilter(String subject, String channel) throws Exception {
@@ -148,7 +147,7 @@ class JwtFilterAutoRegisterWiringTest {
     void missingRegistrarIsWiringBug() {
         assertThatThrownBy(() -> new JwtAuthenticationFilter(
                 () -> key, mock(JwtIssuerValidator.class), userRoleResolver, lastLoginRecorder, null,
-                controlUserProvisioner, new PortalSystemSubjectPolicy("")))
+                controlUserProvisioner))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -157,7 +156,7 @@ class JwtFilterAutoRegisterWiringTest {
     void missingProvisionerIsWiringBug() {
         assertThatThrownBy(() -> new JwtAuthenticationFilter(
                 () -> key, mock(JwtIssuerValidator.class), userRoleResolver, lastLoginRecorder,
-                autoWorkerRegistrar, null, new PortalSystemSubjectPolicy("")))
+                autoWorkerRegistrar, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
