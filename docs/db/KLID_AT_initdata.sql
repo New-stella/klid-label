@@ -13,14 +13,14 @@
 --
 -- ⚠ 수기 편집 금지(생성물). 값을 바꾸려면 스키마 변경 파일의 시드를 고치고 다시 생성한다.
 --
--- 생성 시각: 2026-09-07 09:47:12+0900
+-- 생성 시각: 2026-09-09 17:44:28+0900
 -- ============================================================================
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict wFx1ddV1SAnwefqcvCgPnetoj6pig3U2wxtDAWVAYaU2kdKattLw1xT12jfa9dL
+\restrict jeIc9HXsIBbJu53rxECMBkj3UNX6g1jyiYqS0Kq58BT66dWV2uxCuOTttRe50Is
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -154,15 +154,15 @@ SET row_security = off;
 -- Data for Name: ls_label; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (1, '사람', '#E74C3C', 'BBOX', 1, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'person');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (2, '자동차', '#3498DB', 'BBOX', 2, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'car');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (3, '자전거', '#9B59B6', 'BBOX', 3, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'bicycle');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (4, '오토바이', '#1ABC9C', 'BBOX', 4, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'motorcycle');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (5, '버스', '#F39C12', 'BBOX', 5, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'bus');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (6, '트럭', '#34495E', 'BBOX', 6, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, 'truck');
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (7, '화재', '#FF5733', 'POLYGON', 8, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, NULL);
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (8, '연기', '#7F8C8D', 'POLYGON', 9, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, NULL);
-INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (9, '침수', '#2980B9', 'POLYGON', 10, 'Y', 'SYSTEM', '2026-09-07 00:47:11.344259', NULL, NULL, NULL);
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (1, '사람', '#E74C3C', 'BBOX', 1, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'person');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (2, '자동차', '#3498DB', 'BBOX', 2, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'car');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (3, '자전거', '#9B59B6', 'BBOX', 3, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'bicycle');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (4, '오토바이', '#1ABC9C', 'BBOX', 4, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'motorcycle');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (5, '버스', '#F39C12', 'BBOX', 5, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'bus');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (6, '트럭', '#34495E', 'BBOX', 6, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, 'truck');
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (7, '화재', '#FF5733', 'POLYGON', 8, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, NULL);
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (8, '연기', '#7F8C8D', 'POLYGON', 9, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, NULL);
+INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) VALUES (9, '침수', '#2980B9', 'POLYGON', 10, 'Y', 'SYSTEM', '2026-09-09 08:44:26.895678', NULL, NULL, NULL);
 
 
 --
@@ -265,39 +265,39 @@ INSERT INTO klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, us
 -- Data for Name: ls_evnt_ctgry; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('01', '0001', '침수(범람)', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('01', '0002', '산사태', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0001', '화재', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0002', '쓰러짐', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0005', '파손', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('03', '0001', '교통사고', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0001', '싸움', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0002', '흉기소지', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0007', '납치(유괴)', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('07', '0002', '기타 상황', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('08', '0001', '배회', '2026-09-07 00:47:11.344259');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('01', '0001', '침수(범람)', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('01', '0002', '산사태', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0001', '화재', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0002', '쓰러짐', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('02', '0005', '파손', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('03', '0001', '교통사고', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0001', '싸움', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0002', '흉기소지', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('05', '0007', '납치(유괴)', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('07', '0002', '기타 상황', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) VALUES ('08', '0001', '배회', '2026-09-09 08:44:26.895678');
 
 
 --
 -- Data for Name: ls_evnt_type; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000101', NULL, NULL, '01', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000102', NULL, NULL, '01', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000103', NULL, NULL, '01', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000201', NULL, NULL, '01', '0002', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000101', NULL, NULL, '02', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000102', NULL, NULL, '02', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000201', NULL, NULL, '02', '0002', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000501', NULL, NULL, '02', '0005', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000101', NULL, NULL, '03', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000102', NULL, NULL, '03', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000103', NULL, NULL, '03', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000101', NULL, NULL, '05', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000201', NULL, NULL, '05', '0002', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000701', NULL, NULL, '05', '0007', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV08000101', NULL, NULL, '08', '0001', 'Y', '2026-09-07 00:47:11.344259');
-INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV07000201', NULL, NULL, '07', '0002', 'N', '2026-09-07 00:47:11.344259');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000101', NULL, NULL, '01', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000102', NULL, NULL, '01', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000103', NULL, NULL, '01', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV01000201', NULL, NULL, '01', '0002', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000101', NULL, NULL, '02', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000102', NULL, NULL, '02', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000201', NULL, NULL, '02', '0002', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV02000501', NULL, NULL, '02', '0005', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000101', NULL, NULL, '03', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000102', NULL, NULL, '03', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV03000103', NULL, NULL, '03', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000101', NULL, NULL, '05', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000201', NULL, NULL, '05', '0002', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV05000701', NULL, NULL, '05', '0007', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV08000101', NULL, NULL, '08', '0001', 'Y', '2026-09-09 08:44:26.895678');
+INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) VALUES ('EV07000201', NULL, NULL, '07', '0002', 'N', '2026-09-09 08:44:26.895678');
 
 
 --
@@ -430,20 +430,20 @@ INSERT INTO klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_cls
 -- Data for Name: ls_system_config; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('BATCH_INTERVAL_SEC', '60', 'NUMBER', '배치 트리거 간격 (초, 10~3600)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('BATCH_CONCURRENCY', '1', 'NUMBER', '동시 배치 잡 수 (1=직렬, 1~10)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('YOLO_IOU', '50', 'NUMBER', 'YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('YOLO_CONF_THRESHOLD', '25', 'NUMBER', 'YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('POLYGON_SIMPLIFY_TOLERANCE', '1.0', 'DECIMAL', '폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.frame-interval-sec', '5', 'NUMBER', '포털 업로드 영상 프레임 추출 간격(초, 1~600)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('autolabel.polygon.max-boxes', '20', 'NUMBER', '폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('eventtype.excluded-class-codes', '["08"]', 'JSON', '이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.masking-type', '0', 'NUMBER', '비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.masking-range', '1.0', 'DECIMAL', '비식별 마스킹 영역 배율 (0.5~2.0)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.db-save', '0', 'NUMBER', '비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)', 'SYSTEM', '2026-09-07 00:47:10.42705');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.datamart.retention-days', '7', 'NUMBER', '포털 데이터마트 라벨 보존일수 (1~3650)', 'SYSTEM', '2026-09-07 00:47:11.270988');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.retention-days', '7', 'NUMBER', '포털 업로드 자산 보존일수 (1~3650)', 'SYSTEM', '2026-09-07 00:47:11.270988');
-INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.failed-retention-days', '1', 'NUMBER', '포털 업로드 실패 자산 보존일수 (1~3650)', 'SYSTEM', '2026-09-07 00:47:11.270988');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('BATCH_INTERVAL_SEC', '60', 'NUMBER', '배치 트리거 간격 (초, 10~3600)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('BATCH_CONCURRENCY', '1', 'NUMBER', '동시 배치 잡 수 (1=직렬, 1~10)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('YOLO_IOU', '50', 'NUMBER', 'YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('YOLO_CONF_THRESHOLD', '25', 'NUMBER', 'YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('POLYGON_SIMPLIFY_TOLERANCE', '1.0', 'DECIMAL', '폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.frame-interval-sec', '5', 'NUMBER', '포털 업로드 영상 프레임 추출 간격(초, 1~600)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('autolabel.polygon.max-boxes', '20', 'NUMBER', '폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('eventtype.excluded-class-codes', '["08"]', 'JSON', '이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.masking-type', '0', 'NUMBER', '비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.masking-range', '1.0', 'DECIMAL', '비식별 마스킹 영역 배율 (0.5~2.0)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('kpst.deid.db-save', '0', 'NUMBER', '비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)', 'SYSTEM', '2026-09-09 08:44:25.984229');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.datamart.retention-days', '7', 'NUMBER', '포털 데이터마트 라벨 보존일수 (1~3650)', 'SYSTEM', '2026-09-09 08:44:26.814726');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.retention-days', '7', 'NUMBER', '포털 업로드 자산 보존일수 (1~3650)', 'SYSTEM', '2026-09-09 08:44:26.814726');
+INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) VALUES ('portal.upload.failed-retention-days', '1', 'NUMBER', '포털 업로드 실패 자산 보존일수 (1~3650)', 'SYSTEM', '2026-09-09 08:44:26.814726');
 
 
 --
@@ -474,26 +474,26 @@ INSERT INTO klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln,
 -- Data for Name: ls_vrfc_evnt_type; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('fire', '화재', '불꽃 등 화재 상황', 1, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('smoke', '연기', '연기 등 화재 상황', 2, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('fall', '쓰러짐', '사람이 쓰러지거나 바닥에 누워 있는 상황', 3, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('violence', '폭력', '폭행, 몸싸움, 물리적 충돌 상황', 4, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('flooding', '침수', '물이 차오르거나 공간이 물에 잠긴 상황', 5, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('car_accident', '교통사고', '차량 충돌, 전복, 사고 정황', 6, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('kidnapping', '납치', '강제로 끌고 가거나 납치로 의심되는 상황', 7, NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('fire', '화재', '불꽃 등 화재 상황', 1, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('smoke', '연기', '연기 등 화재 상황', 2, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('fall', '쓰러짐', '사람이 쓰러지거나 바닥에 누워 있는 상황', 3, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('violence', '폭력', '폭행, 몸싸움, 물리적 충돌 상황', 4, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('flooding', '침수', '물이 차오르거나 공간이 물에 잠긴 상황', 5, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('car_accident', '교통사고', '차량 충돌, 전복, 사고 정황', 6, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES ('kidnapping', '납치', '강제로 끌고 가거나 납치로 의심되는 상황', 7, NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
 
 
 --
 -- Data for Name: ls_vrfc_evnt_qstn; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (1, 'fire', 1, '영상에서 ''화염이 보이는 불'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (2, 'smoke', 1, '영상에서 ''특정 지점에서 피어올라 확산되는 연기'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (3, 'fall', 1, '영상에서 ''사람이 바닥에 쓰러지거나 쓰러져 있음'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (4, 'violence', 1, '영상에서 ''신체적 충돌을 동반한 싸움'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (5, 'flooding', 1, '영상에서 ''평소 물이 없던 공간이 물에 잠기는 침수'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (6, 'car_accident', 1, '영상에서 ''차량 충돌을 동반한 교통사고'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
-INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (7, 'kidnapping', 1, '영상에서 ''저항하는 사람을 강제로 데려가는 강제 이동'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-07 00:47:11.390025', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (1, 'fire', 1, '영상에서 ''화염이 보이는 불'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (2, 'smoke', 1, '영상에서 ''특정 지점에서 피어올라 확산되는 연기'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (3, 'fall', 1, '영상에서 ''사람이 바닥에 쓰러지거나 쓰러져 있음'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (4, 'violence', 1, '영상에서 ''신체적 충돌을 동반한 싸움'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (5, 'flooding', 1, '영상에서 ''평소 물이 없던 공간이 물에 잠기는 침수'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (6, 'car_accident', 1, '영상에서 ''차량 충돌을 동반한 교통사고'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
+INSERT INTO klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) VALUES (7, 'kidnapping', 1, '영상에서 ''저항하는 사람을 강제로 데려가는 강제 이동'' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?', NULL, '2026-09-09 08:44:26.944538', NULL, NULL);
 
 
 --
@@ -964,5 +964,5 @@ SELECT pg_catalog.setval('klid_at.ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq', 7, t
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wFx1ddV1SAnwefqcvCgPnetoj6pig3U2wxtDAWVAYaU2kdKattLw1xT12jfa9dL
+\unrestrict jeIc9HXsIBbJu53rxECMBkj3UNX6g1jyiYqS0Kq58BT66dWV2uxCuOTttRe50Is
 
