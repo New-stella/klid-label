@@ -91,7 +91,21 @@ class WriteEndpointAuthorizationGuardTest {
             "RoleClaimController#claim",
             // dev 전용 토큰 발급 — permitAll(authoring.dev.login.enabled=true 시) + @ConditionalOnProperty
             // (운영 prd 빈 미등록). dev/stg/local 한정 부트스트랩 토큰 진입점.
-            "DevTokenController#issue"
+            "DevTokenController#issue",
+            // 포털 서버간 <시스템 주체> 창구 — 역할 축이 아니라 <주체 축>으로 보호한다
+            // (@design INT-014 · API-244 · AC-1103).
+            //
+            // ★ 역할 가드를 둘 수 없는 것이 이 창구의 <설계>다. 부르는 쪽이 시스템 계정이라
+            //   저작도구 역할을 갖지 않으며, 오히려 JwtAuthenticationFilter 가 그 토큰에
+            //   ROLE_PORTAL_USER 를 <부여하지 않는 것>이 격리의 핵심이다. 역할을 요구하면
+            //   그 격리가 성립할 수 없다.
+            //
+            // 별도 보호 계층 — SecurityConfig 의 /v1/portal-system/** 매처가
+            //   CHANNEL_PORTAL + SUBJECT_PORTAL_SYSTEM 을 <함께> 요구한다. 그러므로
+            //   이 가드가 걱정하는 「role=null INTERNAL 사용자」는 채널 조건에서 먼저 걸리고,
+            //   포털 사용자 토큰은 주체 축 권한이 없어 걸린다. 그 권한을 부여하는 자리는
+            //   필터 한 곳뿐이라 사용자가 스스로 획득할 수 없다.
+            "PortalDatasetCleanupTriggerController#receiveDatasetCleanupTrigger"
     );
 
     @Autowired
