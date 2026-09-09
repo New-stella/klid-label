@@ -152,3 +152,10 @@ deploy/반입/*
 
 # 패치 회차 매체 (조립 산출물 — 재생성 가능)
 deploy/klid-at-patch-*/
+
+# VS Code Java 확장(Red Hat JDT)의 컴파일 산출물 — 소스가 아니라 빌드 결과다.
+#   bin/main · bin/test · bin/default 구조이며 IDE 가 프로젝트를 열 때마다 다시 만든다.
+#   실측 2,999 파일 27MB(.class 2,678 · QueryDSL 생성 Q*.java 62 · 리소스 복사본).
+#   ⚠ 앵커(/)가 반드시 필요하다 — 통짜 `bin/` 으로 적으면 위에서 「제외 대상이 아니다」라고
+#     못박은 docs/screen-design/*/bin/ 의 검증 도구 8건까지 함께 사라진다.
+/backend/bin/
