@@ -611,7 +611,10 @@ class DeidentReportControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         Long rprtSn = objectMapper.readTree(json).get("data").asLong();
-        // 신고 이후 외부 수동 재비식별이 완료된 상태를 재현 — resolve 시간조건(mtime > 신고시각) 전제.
+        // 신고 이후 외부 수동 재비식별이 완료된 통상 동선을 재현한다.
+        //   ⚠ 이제 <전제>가 아니다 — 시간 조건은 2026-09-09 에 걷혔다(@design ADR-027). 그래도
+        //   대다수 케이스가 정상 동선 위에서 다른 축(인가·상태·경로)을 검증하도록 그대로 둔다.
+        //   시간 조건이 실제로 빠졌는지는 resolveWithPreReportArtifactSucceeds200 가 단독으로 고정한다.
         simulateExternalRedeident(rprtSn);
         return rprtSn;
     }
@@ -633,6 +636,39 @@ class DeidentReportControllerTest {
         assertThat(reloaded.getResolvedDt()).isNotNull();
         assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
                 "RAW", rawSn, "LOCKED")).isFalse();
+    }
+
+    /**
+     * ★ 이번 완화의 end-to-end 가드 — <b>신고 이전부터 있던 산출물</b>(지금 쓰고 있는 비식별 영상)을
+     * 그대로 골라도 해소가 성립한다 (@design ADR-027 · API-094).
+     *
+     * <p>구 동작은 409 였고, 외부 솔루션이 새 산출물을 내놓기 전에는 신고를 닫을 수단이 없어 그
+     * 영상이 작업락 + {@code DE_IDNTF_YN='F'} 로 묶인 채 남았다. 여기서는 픽스처가 재현하는 정상
+     * 동선(신고 → 외부 재비식별 → resolve)을 <b>일부러 되돌려</b> 산출물 mtime 을 신고 이전으로
+     * 되돌린 뒤 해소가 통과함을 단정한다.
+     */
+    @Test
+    @DisplayName("★신고이전_산출물을_골라도_resolve_200이다_시간조건_폐기")
+    void resolveWithPreReportArtifactSucceeds200() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+        // 정상 동선 재현을 되돌린다 — 산출물은 신고보다 10분 과거(= 신고를 유발한 그 파일).
+        Files.setLastModifiedTime(deidArtifact, FileTime.from(
+                reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
+
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        LsDeidentReport reloaded = reportRepository.findById(rprtSn).orElseThrow();
+        assertThat(reloaded.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isFalse();
+        assertThat(rawRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
+        assertThat(deidArtifact).exists(); // 산출물 삭제 금지
     }
 
     @Test
@@ -889,7 +925,9 @@ class DeidentReportControllerTest {
             Files.setLastModifiedTime(deidArtifact, FileTime.from(
                     reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
 
-            // and — 후보 목록에 두 파일이 모두 뜨고, 새 산출물만 자격을 갖췄다.
+            // and — 후보 목록에 두 파일이 모두 뜨고 <둘 다> 자격을 갖췄다.
+            //   신고 이전 산출물도 고를 수 있다(@design ADR-027 · API-202 — 시간 조건 폐기).
+            //   구분은 자격이 아니라 current 표시로만 남는다.
             mockMvc.perform(get(candidatesUrl(rprtSn))
                             .header("Authorization", "Bearer " + reviewerToken))
                     .andExpect(status().isOk())
@@ -897,7 +935,9 @@ class DeidentReportControllerTest {
                     .andExpect(jsonPath("$.data[?(@.fileName=='clip-mask.mp4')].eligible")
                             .value(org.hamcrest.Matchers.hasItem(true)))
                     .andExpect(jsonPath("$.data[?(@.fileName=='" + deidArtifact.getFileName()
-                            + "')].eligible").value(org.hamcrest.Matchers.hasItem(false)));
+                            + "')].eligible").value(org.hamcrest.Matchers.hasItem(true)))
+                    .andExpect(jsonPath("$.data[?(@.fileName=='" + deidArtifact.getFileName()
+                            + "')].current").value(org.hamcrest.Matchers.hasItem(true)));
 
             // when — 사람이 새 산출물을 고른다.
             mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")

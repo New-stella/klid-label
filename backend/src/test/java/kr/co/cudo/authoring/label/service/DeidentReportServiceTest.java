@@ -1113,7 +1113,7 @@ class DeidentReportServiceTest {
         // ★ R3 — 거부 코드가 409 → 400 으로 바뀌었다(계약 변경, 의도된 것):
         //   해소는 이제 "서버가 열거한 후보 목록에 그 파일명이 있을 때만" 수락한다. 파일이 실재하지
         //   않으면 애초에 후보로 열거되지 않으므로, 요청은 <존재하지 않는 대상>을 가리킨 것이라 400 이다.
-        //   409 는 "목록에는 있으나 무결성·시간조건 미달"에 남는다. 어느 쪽이든 fail-closed 는 동일하다.
+        //   409 는 "목록에는 있으나 무결성 미달"에 남는다. 어느 쪽이든 fail-closed 는 동일하다.
         // given — procLog 에 비식별 경로는 기록되어 있으나 실제 파일이 스토리지에 없음.
         LsDeidentReport rep = report(720L, 9720L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(720L)).thenReturn(Optional.of(rep));
@@ -1306,45 +1306,71 @@ class DeidentReportServiceTest {
     }
 
     // ------------------------------------------------------------
-    // 시간 조건 보강 (CWE-359) — 신고 이후 재비식별된 산출물만 통과
+    // 해소 자격 판정 = 무결성 하나 (@design ADR-027 · API-094 — 2026-09-09)
+    //   구 게이트는 무결성에 더해 「신고 이후에 만들어졌는가」(파일 mtime 또는 원장 완료시각 >
+    //   신고시각)를 AND 로 요구했다. 그 조건을 충족시킬 새 산출물을 만드는 경로가 저작도구 안에
+    //   없어(재비식별 창구는 검수 완료 영상 전용이라 신고된 영상에는 성립하지 않는다) 신고된
+    //   영상이 작업락 + DE_IDNTF_YN='F' 로 묶인 채 해소할 문이 없었다.
+    //
+    //   ⚠ 그래서 이 절의 구 케이스들(스큐 -30초 / mtime == 신고시각 거부 / procLog == 신고시각
+    //     거부 / 서브초 정밀도 경계 2건)은 <제거된 비교식의 경계>를 고정하던 것이라 함께 걷어냈다.
+    //     지금은 그 전부가 "시간과 무관하게 통과"로 수렴해 서로를 구분하지 못한다.
+    //     남긴 축은 둘이고 방향이 반대다:
+    //       (1) 시간은 판정에 들어가지 않는다 — 아래 케이스들
+    //       (2) 무결성은 여전히 막는다(양성 대조) — resolveWithTextStubArtifactRejected ·
+    //           resolveWithoutContainerSignatureRejected (위 「산출물 무결성 판정 단일화」 절)
+    //
+    //   ★ 인지·수용한 대가: 신고 대상이 된 바로 그 파일로 신고를 닫을 수 있다(ADR-027 consequences).
     // ------------------------------------------------------------
 
+    /**
+     * ★ 이번 완화의 핵심 가드 — <b>신고 이전부터 있던 산출물</b>(지금 쓰고 있는 비식별 영상)만
+     * 있어도 해소가 성립한다.
+     *
+     * <p>구 동작은 여기서 409 였고, 그 결과 외부 솔루션이 새 산출물을 내놓기 전에는 신고를 닫을
+     * 방법이 없었다. 파일 mtime 과 원장 완료시각을 <b>둘 다</b> 신고 이전으로 고정해, 구 판정의
+     * 두 OR 항이 <b>모두 거짓인 상태</b>에서도 통과함을 단정한다(시간축이 실제로 빠졌다는 증거).
+     */
     @Test
-    @DisplayName("신고이전_비식별본만_존재시_resolve_거부된다")
-    void resolveWithPreReportArtifactRejected() throws Exception {
+    @DisplayName("★신고이전_비식별본만_있어도_resolve_성공한다_시간조건_폐기")
+    void resolveWithPreReportArtifactSucceeds() throws Exception {
         // given — 신고를 유발한 그 비식별본(신고 이전 mtime + 신고 이전 procLog)만 존재.
-        //         파일은 실존·>0바이트라 기존 존재 게이트는 통과하지만, 시간 조건에서 걸러져야 한다.
         LsDeidentReport rep = report(730L, 9730L, LsDeidentReport.REPORT_OPEN);
         LocalDateTime reportTime = LocalDateTime.now();
         setField(rep, "reportDt", reportTime);
         when(reportRepository.findById(730L)).thenReturn(Optional.of(rep));
         LsDataRaw r = raw(9730L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
         r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9730L)).thenReturn(Optional.of(r));
 
         Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("pre-report-9730.mp4"));
-        // 파일 mtime 을 신고보다 10분 과거로 강제 (스큐 60초를 훨씬 넘는 과거).
+        // 파일 mtime 을 신고보다 10분 과거로 강제 — 구 판정의 mtime 항이 거짓이다.
         Files.setLastModifiedTime(deidFile, FileTime.from(
                 reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
         LsDeidentProcLog procLog = LsDeidentProcLog.request(9730L, "req", "/orgnl/9730.mp4", "system");
         procLog.succeed(deidFile.toString());
-        // procLog 완료시각도 신고 이전으로 강제 (옛 성공 이력).
+        // procLog 완료시각도 신고 이전으로 강제 — 구 판정의 procLog 항도 거짓이다.
         setField(procLog, "resDt", reportTime.minusMinutes(10));
         when(procLogRepository.findLatestSuccessByDataRawSn(9730L)).thenReturn(Optional.of(procLog));
 
-        // when / then — 신고 이후 재비식별 산출물 미확인 → 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(730L, "pre-report-9730.mp4", reviewerActor))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+        // when
+        service.resolveManually(730L, "pre-report-9730.mp4", reviewerActor);
+
+        // then — RESOLVED 원자 클레임 + 'F'→'Y' 복원 + 작업락 해제.
+        //   V171 이후 전이는 조건부 UPDATE 라 엔티티는 OPEN 그대로다(전이 사실은 claimResolve 로 단정).
+        verify(reportRepository).claimResolve(eq(730L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        verify(workLockService).releaseRaw(eq(9730L), anyString(), anyString());
+        assertThat(deidFile).exists(); // 원본·산출물 삭제 금지
     }
 
     @Test
     @DisplayName("신고이후_파일교체시_resolve_성공한다")
     void resolveWithPostReportFileReplacementSucceeds() throws Exception {
         // given — 외부 도구가 신고 이후 비식별본을 제자리 교체(mtime 최신). procLog 은 옛것(신고 이전).
+        //         통상 동선이 완화 이후에도 그대로 성립하는지 고정한다(회귀 방어).
         LsDeidentReport rep = report(731L, 9731L, LsDeidentReport.REPORT_OPEN);
         LocalDateTime reportTime = LocalDateTime.now().minusHours(1);
         setField(rep, "reportDt", reportTime);
@@ -1365,7 +1391,7 @@ class DeidentReportServiceTest {
         // when
         service.resolveManually(731L, "replaced-9731.mp4", reviewerActor);
 
-        // then — mtime 조건으로 통과 → RESOLVED + 'Y' 복원.
+        // then — RESOLVED + 'Y' 복원.
         verify(reportRepository).claimResolve(eq(731L),
                 eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
@@ -1375,7 +1401,7 @@ class DeidentReportServiceTest {
     @Test
     @DisplayName("신고이후_자동재비식별_procLog가_있으면_성공한다")
     void resolveWithPostReportProcLogSucceeds() throws Exception {
-        // given — 신고 이후 자동 재비식별 성공(procLog 완료시각 최신). 파일 mtime 은 신고 이전이어도 통과.
+        // given — 신고 이후 자동 재비식별 성공(procLog 완료시각 최신). 파일 mtime 은 신고 이전.
         LsDeidentReport rep = report(732L, 9732L, LsDeidentReport.REPORT_OPEN);
         LocalDateTime reportTime = LocalDateTime.now().minusHours(1);
         setField(rep, "reportDt", reportTime);
@@ -1386,31 +1412,22 @@ class DeidentReportServiceTest {
         when(videoRepository.findByRawSnForUpdate(9732L)).thenReturn(Optional.of(r));
 
         Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("auto-9732.mp4"));
-        // 파일 mtime 은 신고 이전으로 강제 (procLog 완료시각 단독으로 통과함을 격리 검증).
         Files.setLastModifiedTime(deidFile, FileTime.from(
                 reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
         LsDeidentProcLog procLog = LsDeidentProcLog.request(9732L, "req", "/orgnl/9732.mp4", "system");
         procLog.succeed(deidFile.toString());
-        // 신고 이후 자동 재비식별 성공 → 완료시각 최신.
         setField(procLog, "resDt", LocalDateTime.now());
         when(procLogRepository.findLatestSuccessByDataRawSn(9732L)).thenReturn(Optional.of(procLog));
 
         // when
         service.resolveManually(732L, "auto-9732.mp4", reviewerActor);
 
-        // then — procLog 완료시각 조건으로 통과 → RESOLVED + 'Y' 복원.
+        // then — RESOLVED + 'Y' 복원.
         verify(reportRepository).claimResolve(eq(732L),
                 eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         verify(workLockService).releaseRaw(eq(9732L), anyString(), anyString());
     }
-
-    // ------------------------------------------------------------
-    // 스큐 관용 방향 (B-ISSUE-42 / 1차 B-ISSUE-102 이월) — CWE-359
-    //   구 비교식 mtime > (신고시각 - 60초) 은 "신고보다 최대 60초 과거"인 파일,
-    //   즉 신고를 유발한 옛 비식별본까지 통과시켜 재비식별 없이 게이트를 열었다.
-    //   관용을 감산 방향으로 두지 않는다 — procLog 완료시각 비교와 동일한 엄격 비교로 통일.
-    // ------------------------------------------------------------
 
     /**
      * 신고시각을 초 단위로 절삭해 만든다 — 파일시스템 mtime 정밀도(초/밀리초 단위 절삭)에 좌우되지 않는
@@ -1420,7 +1437,7 @@ class DeidentReportServiceTest {
         return LocalDateTime.now().minusMinutes(5).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    /** mtime 단독 판정을 격리하기 위해 procLog 완료시각은 항상 신고 이전으로 고정한 산출물 스텁. */
+    /** mtime 을 지정한 산출물 스텁 — procLog 완료시각은 항상 신고 이전으로 고정한다. */
     private Path stubArtifactWithMtime(long rawSn, LocalDateTime reportTime, LocalDateTime mtime)
             throws Exception {
         Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("skew-" + rawSn + ".mp4"));
@@ -1434,73 +1451,22 @@ class DeidentReportServiceTest {
         return deidFile;
     }
 
+    /**
+     * 구 경계값(mtime == 신고시각)의 <b>거부가 폐기됐음</b>을 고정한다.
+     *
+     * <p>구 판정은 엄격 비교(mtime &gt; 신고시각)라 동일 시각을 "신고 이후 교체 증거 없음"으로 보고
+     * 거부했다. 그 비교식 자체가 사라졌으므로 이제는 통과다 — 이 케이스를 남기는 이유는 누군가
+     * 엄격 비교를 되살리면 <b>여기서 먼저 터지게</b> 하기 위해서다.
+     */
     @Test
-    @DisplayName("resolve_검증시_비식별본_mtime이_신고시각보다_이전이면_거부된다")
-    void resolveRejectedWhenArtifactMtimeIsBeforeReportTime() throws Exception {
-        // given — mtime = 신고시각 - 30초. 구 스큐 관용(60초)의 감산 창 안이라 예전엔 통과하던 케이스이며,
-        //         실체는 "신고 이전부터 있던 그 비식별본"이다(재비식별 없음).
-        LsDeidentReport rep = report(750L, 9750L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = secondAlignedReportTime();
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(750L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9750L, LsDataRaw.PRVC_TYPE_PRVC);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9750L)).thenReturn(Optional.of(r));
-        Path deidFile = stubArtifactWithMtime(9750L, reportTime, reportTime.minusSeconds(30));
-        // 스큐 감산 창(60초) 안임을 고정 — 이 테스트가 "10분 과거" 케이스의 중복이 아님을 증명한다.
-        assertThat(Files.getLastModifiedTime(deidFile).toInstant())
-                .isAfter(reportTime.minusSeconds(60).atZone(ZoneId.systemDefault()).toInstant())
-                .isBefore(reportTime.atZone(ZoneId.systemDefault()).toInstant());
-
-        // when / then — 409 거부, fail-closed (게이트 유지).
-        assertThatThrownBy(() -> service.resolveManually(750L, "skew-9750.mp4", reviewerActor))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-        verify(streamMetaCacheEvictor, never()).evictAfterCommit(anyLong());
-    }
-
-    @Test
-    @DisplayName("resolve_검증시_비식별본_mtime이_신고시각_이후면_정상_통과한다")
-    void resolveAcceptedWhenArtifactMtimeIsAfterReportTime() throws Exception {
-        // given — mtime = 신고시각 + 1초. 신고 직후 외부 솔루션이 제자리 교체한 정상 재비식별 케이스로,
-        //         스큐 관용 제거가 정상 경로를 오탐 거부하지 않음을 고정한다(회귀 방어).
-        LsDeidentReport rep = report(751L, 9751L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = secondAlignedReportTime();
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(751L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9751L, LsDataRaw.PRVC_TYPE_PRVC);
-        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9751L)).thenReturn(Optional.of(r));
-        stubArtifactWithMtime(9751L, reportTime, reportTime.plusSeconds(1));
-
-        // when
-        service.resolveManually(751L, "skew-9751.mp4", reviewerActor);
-
-        // then — RESOLVED 전이 + 'Y' 복원 + 작업락 해제.
-        //   ⚠ V171(원자 클레임) 이후 전이는 엔티티 setter 가 아니라 <조건부 UPDATE> 로 수행되므로
-        //     rep.getReportSttsCd() 는 OPEN 그대로다. 전이 사실은 claimResolve 호출로 단정한다.
-        verify(reportRepository).claimResolve(eq(751L),
-                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
-        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
-        verify(workLockService).releaseRaw(eq(9751L), anyString(), anyString());
-    }
-
-    @Test
-    @DisplayName("resolve_검증시_비식별본_mtime이_신고시각과_동일하면_경계값_처리를_확인한다")
-    void resolveRejectedWhenArtifactMtimeEqualsReportTime() throws Exception {
-        // given — mtime == 신고시각(정확히 동일). 기대 동작은 <거부>다: 동일 시각이면 그 파일은
-        //         신고 시점에 이미 존재하던 산출물(=신고를 유발한 그 파일)이며, 재비식별로 교체됐다는
-        //         증거가 아니다. 게이트는 fail-closed 이므로 '증거 없음'은 거부로 수렴한다.
+    @DisplayName("mtime이_신고시각과_동일해도_resolve_성공한다_구_경계값_거부_폐기")
+    void resolveAcceptsArtifactWhoseMtimeEqualsReportTime() throws Exception {
         LsDeidentReport rep = report(752L, 9752L, LsDeidentReport.REPORT_OPEN);
         LocalDateTime reportTime = secondAlignedReportTime();
         setField(rep, "reportDt", reportTime);
         when(reportRepository.findById(752L)).thenReturn(Optional.of(rep));
         LsDataRaw r = raw(9752L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
         r.markDeidentified("F");
         when(videoRepository.findByRawSnForUpdate(9752L)).thenReturn(Optional.of(r));
         Path deidFile = stubArtifactWithMtime(9752L, reportTime, reportTime);
@@ -1508,180 +1474,14 @@ class DeidentReportServiceTest {
         assertThat(Files.getLastModifiedTime(deidFile).toInstant())
                 .isEqualTo(reportTime.atZone(ZoneId.systemDefault()).toInstant());
 
-        // when / then — 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(752L, "skew-9752.mp4", reviewerActor))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-    }
-
-    // ------------------------------------------------------------
-    // procLog 분기 경계값 — mtime 분기와의 <대칭> 고정 (B-ISSUE-42 보강)
-    //   verifyDeidentArtifact 는 독립된 두 시각 비교를 OR 로 묶는다:
-    //     (1) procTime.isAfter(reportTime)   — DeidentReportService.java:586
-    //     (2) mtime.isAfter(reportTime)      — DeidentReportService.java:607
-    //   (2)는 105a/b/c 로 경계가 고정됐으나 (1)은 "신고 이전 / 한참 이후"만 있고
-    //   <정확히 동일 시각> 케이스가 없어, 누군가 (1)만 관대 비교(!isBefore 등)로
-    //   되돌려도 잡히지 않았다. 두 분기 모두 엄격 비교임을 대칭으로 못 박는다.
-    // ------------------------------------------------------------
-
-    /**
-     * procLog 완료시각 단독 판정을 격리하기 위해 파일 mtime 을 항상 신고 이전으로 고정한 산출물 스텁.
-     * ({@link #stubArtifactWithMtime} 의 정확한 대칭 — 그쪽은 procLog 을 신고 이전으로 고정한다.)
-     */
-    private Path stubArtifactWithProcTime(long rawSn, LocalDateTime reportTime, LocalDateTime procTime)
-            throws Exception {
-        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("proc-" + rawSn + ".mp4"));
-        Files.setLastModifiedTime(deidFile, FileTime.from(
-                reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
-        LsDeidentProcLog procLog = LsDeidentProcLog.request(
-                rawSn, "req-" + rawSn, "/orgnl/" + rawSn + ".mp4", "system");
-        procLog.succeed(deidFile.toString());
-        setField(procLog, "resDt", procTime);
-        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn)).thenReturn(Optional.of(procLog));
-        return deidFile;
-    }
-
-    @Test
-    @DisplayName("resolve_검증시_procLog_시각이_신고시각과_동일하면_거부된다")
-    void resolveRejectedWhenProcLogTimeEqualsReportTime() throws Exception {
-        // given — procLog 완료시각 == 신고시각(정확히 동일, 나노초까지). mtime 은 신고 이전으로 고정해
-        //         procLog 분기만 단독 노출시킨다. 기대 동작은 mtime 경계값(105b)과 <대칭>인 거부다:
-        //         동일 시각의 성공 이력은 신고 시점에 이미 존재하던 그 비식별본이며 '신고 이후 재비식별'
-        //         증거가 아니다. 증거 없음은 fail-closed 로 거부에 수렴한다.
-        //         ※ 신고시각을 초 정렬하지 않는다 — 이 분기는 파일시스템을 거치지 않는 순수 LocalDateTime
-        //           비교라 나노초 정밀도의 동일성을 그대로 검증할 수 있다.
-        LsDeidentReport rep = report(753L, 9753L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = LocalDateTime.now().minusMinutes(5);
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(753L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9753L, LsDataRaw.PRVC_TYPE_PRVC);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9753L)).thenReturn(Optional.of(r));
-        stubArtifactWithProcTime(9753L, reportTime, reportTime);
-
-        // when / then — 409 거부, fail-closed (게이트 유지).
-        assertThatThrownBy(() -> service.resolveManually(753L, "proc-9753.mp4", reviewerActor))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-        verify(streamMetaCacheEvictor, never()).evictAfterCommit(anyLong());
-    }
-
-    @Test
-    @DisplayName("resolve_검증시_procLog_시각이_신고시각_직후면_정상_통과한다")
-    void resolveAcceptedWhenProcLogTimeIsJustAfterReportTime() throws Exception {
-        // given — procLog 완료시각 = 신고시각 + 1초(경계 바로 바깥). 기존 통과 케이스
-        //         (resolveWithPostReportProcLogSucceeds)는 완료시각이 신고보다 1시간 뒤라 "경계가 정확히
-        //         동일 시각에 있다"를 증명하지 못한다. 거부(동일)/통과(+1초)를 붙여야 경계가 고정된다.
-        LsDeidentReport rep = report(754L, 9754L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = LocalDateTime.now().minusMinutes(5);
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(754L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9754L, LsDataRaw.PRVC_TYPE_PRVC);
-        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9754L)).thenReturn(Optional.of(r));
-        stubArtifactWithProcTime(9754L, reportTime, reportTime.plusSeconds(1));
-
         // when
-        service.resolveManually(754L, "proc-9754.mp4", reviewerActor);
+        service.resolveManually(752L, "skew-9752.mp4", reviewerActor);
 
-        // then — procLog 조건 단독으로 통과 → RESOLVED + 'Y' 복원 + 작업락 해제.
-        //   V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
-        verify(reportRepository).claimResolve(eq(754L),
+        // then
+        verify(reportRepository).claimResolve(eq(752L),
                 eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
-        verify(workLockService).releaseRaw(eq(9754L), anyString(), anyString());
-    }
-
-    // ------------------------------------------------------------
-    // mtime 비교의 <파일시스템 정밀도> 경계 (B-ISSUE-42 보강)
-    //   기존 mtime 케이스는 전부 초 정렬 신고시각 + 초 단위 오프셋(±30s/±1s)이라,
-    //   FS 가 mtime 을 절삭할 때 서브초 경계가 어느 쪽으로 밀리는지 고정하지 못한다.
-    //
-    //   실측(이 저장소 개발 환경, java.io.tmpdir = APFS): setLastModifiedTime 왕복이
-    //   나노초까지 완전 보존된다(+1ms→.001, +1ns→.000000001). 그러나 ext3/HFS+/일부
-    //   overlayfs 는 초 단위로 절삭하므로 고정 기대값을 박으면 환경별로 플래키가 된다.
-    //   따라서 <저장된 mtime 을 되읽어> 그 값 기준으로 기대를 분기하고, 보안상 중요한
-    //   방향(절삭이 '신고 이전 파일'을 '이후'로 뒤집지 않음)은 정밀도와 무관하게 단정한다.
-    // ------------------------------------------------------------
-
-    @Test
-    @DisplayName("resolve_검증시_mtime이_신고시각_직후_서브초면_저장된_mtime_기준으로_판정된다")
-    void resolveJudgesSubSecondPostReportMtimeByStoredValue() throws Exception {
-        // given — 의도한 mtime = 신고시각 + 1ms. 저장 결과는 파일시스템 정밀도에 좌우된다.
-        LsDeidentReport rep = report(755L, 9755L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = secondAlignedReportTime();
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(755L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9755L, LsDataRaw.PRVC_TYPE_PRVC);
-        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_MARKING_READY);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9755L)).thenReturn(Optional.of(r));
-        Path deidFile = stubArtifactWithMtime(9755L, reportTime, reportTime.plusNanos(1_000_000L));
-
-        Instant reportInstant = reportTime.atZone(ZoneId.systemDefault()).toInstant();
-        Instant storedMtime = Files.getLastModifiedTime(deidFile).toInstant();
-        // 절삭은 내림이어야 한다 — 올림이면 신고 이전 파일이 '이후'로 승격되어 오탐 통과가 생긴다.
-        assertThat(storedMtime).isBeforeOrEqualTo(reportInstant.plusMillis(1));
-
-        // when / then — 프로덕션 판정(mtime.isAfter(reportTime))이 <저장된> mtime 과 일치해야 한다.
-        if (storedMtime.isAfter(reportInstant)) {
-            // 서브초 정밀도 보존 FS(APFS/ext4 등) — 신고 1ms 후 교체는 정상 재비식별이므로 통과.
-            service.resolveManually(755L, "skew-9755.mp4", reviewerActor);
-            // V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
-            verify(reportRepository).claimResolve(eq(755L),
-                    eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
-            assertThat(r.getDeIdntfYn()).isEqualTo("Y");
-            verify(workLockService).releaseRaw(eq(9755L), anyString(), anyString());
-        } else {
-            // 초 단위 절삭 FS — 저장값이 신고시각과 같은 초로 내려앉아 '이후' 증거가 사라진다.
-            // 이 경우의 정답은 fail-closed 거부다(경계 오판으로 게이트가 열리면 PII 재노출).
-            assertThat(storedMtime).isEqualTo(reportInstant);
-            assertThatThrownBy(() -> service.resolveManually(755L, "skew-9755.mp4", reviewerActor))
-                    .isInstanceOf(CustomException.class)
-                    .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.CONFLICT);
-            assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-            assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        }
-    }
-
-    @Test
-    @DisplayName("resolve_검증시_mtime이_신고시각_직전_서브초면_정밀도와_무관하게_거부된다")
-    void resolveRejectsSubSecondPreReportMtimeRegardlessOfFsPrecision() throws Exception {
-        // given — 의도한 mtime = 신고시각 - 1ms(신고 직전, 즉 신고를 유발한 그 산출물).
-        //         이 방향은 정밀도와 무관하게 항상 거부여야 한다: 서브초 보존 FS 면 저장값이 그대로
-        //         신고 이전이고, 초 단위 절삭 FS 면 한 초 더 과거로 내려앉아 역시 신고 이전이다.
-        //         절삭이 <올림>이면 신고 이후로 뒤집혀 오탐 통과가 되므로 그 사실도 함께 단정한다.
-        LsDeidentReport rep = report(756L, 9756L, LsDeidentReport.REPORT_OPEN);
-        LocalDateTime reportTime = secondAlignedReportTime();
-        setField(rep, "reportDt", reportTime);
-        when(reportRepository.findById(756L)).thenReturn(Optional.of(rep));
-        LsDataRaw r = raw(9756L, LsDataRaw.PRVC_TYPE_PRVC);
-        r.markDeidentified("F");
-        when(videoRepository.findByRawSnForUpdate(9756L)).thenReturn(Optional.of(r));
-        Path deidFile = stubArtifactWithMtime(9756L, reportTime, reportTime.minusNanos(1_000_000L));
-
-        Instant reportInstant = reportTime.atZone(ZoneId.systemDefault()).toInstant();
-        assertThat(Files.getLastModifiedTime(deidFile).toInstant()).isBefore(reportInstant);
-
-        // when / then — 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(756L, "skew-9756.mp4", reviewerActor))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
-        assertThat(r.getDeIdntfYn()).isEqualTo("F");
-        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-        verify(streamMetaCacheEvictor, never()).evictAfterCommit(anyLong());
+        verify(workLockService).releaseRaw(eq(9752L), anyString(), anyString());
     }
 
     @Test
@@ -2022,16 +1822,17 @@ class DeidentReportServiceTest {
         Files.setLastModifiedTime(fresh, FileTime.from(
                 reportTime.plusMinutes(5).atZone(ZoneId.systemDefault()).toInstant()));
 
-        // and — 후보 목록에 둘 다 뜨고, 새 산출물만 자격을 갖췄다(옛것은 신고 이전이라 부적격).
+        // and — 후보 목록에 둘 다 뜨고 <둘 다> 자격을 갖췄다(@design ADR-027 — 시간 조건 폐기로
+        //   신고 이전 산출물도 고를 수 있다). 옛것은 current 표시로만 구분된다.
         List<kr.co.cudo.authoring.label.dto.DeidentCandidateResponse> candidates =
                 service.listDeidentCandidates(773L, reviewerActor);
         assertThat(candidates).extracting(
                         kr.co.cudo.authoring.label.dto.DeidentCandidateResponse::fileName)
                 .containsExactlyInAnyOrder("clip-mask.mp4", "deid-9773.mp4");
         assertThat(candidates).filteredOn(c -> c.fileName().equals("clip-mask.mp4"))
-                .allMatch(kr.co.cudo.authoring.label.dto.DeidentCandidateResponse::eligible);
+                .allMatch(c -> c.eligible() && !c.current());
         assertThat(candidates).filteredOn(c -> c.fileName().equals("deid-9773.mp4"))
-                .allMatch(c -> !c.eligible() && c.current());
+                .allMatch(c -> c.eligible() && c.current());
 
         // when — 사람이 새 산출물을 고른다.
         service.resolveManually(773L, "clip-mask.mp4", reviewerActor);

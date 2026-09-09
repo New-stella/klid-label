@@ -72,7 +72,23 @@ import java.util.stream.Stream;
  * <p>{@code DE_IDNTF_FILE_PATH_NM} 은 <b>DB 적재값</b>(사용자 입력 아님)이며 구 판정이 유일하게 쓰던
  * 값이다. 열거 디렉터리 밖에 있어도(전략 전환 이전 산출물 등) 목록에서 빠지면 <b>제자리 덮어쓰기
  * 정상 해소</b>가 막히므로, 이름이 중복되지 않는 한 항상 {@code current=true} 로 덧붙인다. 이 항목의
- * 자격 판정만은 구 규약을 그대로 유지한다(아래 시간 조건 참조).
+ * 자격 판정은 다른 후보와 동일하다(아래 「자격 판정」 절).
+ *
+ * <h3>★ 자격 판정은 무결성 하나다 — 판정 지점도 한 곳이다 (@design ADR-027)</h3>
+ * <p>후보가 해소에 쓰일 수 있는지({@code eligible})는 {@link #isEligibleForResolve(Path)} <b>한
+ * 메서드</b>가 정한다. 그 판정은 무결성({@link DeidentArtifactIntegrity}) 하나이며, 산출물이 언제
+ * 만들어졌는지는 <b>보지 않는다</b>.
+ * <p>2026-09-09 이전에는 「신고 이후에 만들어졌는가」(파일 mtime 또는 원장 완료시각 &gt; 신고시각)를
+ * 함께 요구했다. 그 조건은 외부 비식별 솔루션이 <b>신고 이후에 새 산출물을 내놓아야만</b> 충족되는데,
+ * 그 산출물을 만드는 경로가 저작도구 안에 없다(재비식별 창구는 검수 완료 영상 전용이라 신고된 영상에는
+ * 성립하지 않는다). 그래서 신고된 영상이 작업락 + {@code DE_IDNTF_YN='F'} 로 묶인 채 <b>해소할 문이
+ * 없었다</b>.
+ * <p>⚠ <b>대가를 알고 고른 완화다</b> — 신고 대상이 된 바로 그 파일로 신고를 닫을 수 있고, 그렇게
+ * 복원된 영상은 다시 라벨링·검수·산출물·통지 경로를 탄다. 되돌릴 일이 생기면
+ * {@link #isEligibleForResolve(Path)} <b>한 자리만</b> 보면 된다.
+ * <p>「신고 이후에 만들어졌는가」와 「지금 쓰이고 있는가」는 <b>표시용으로 남는다</b> —
+ * {@code modifiedAt}·{@code current} 로 나가며 화면이 그 둘을 구분해 보여준다(신고시각은 화면이 이미
+ * 신고 목록에서 갖고 있다). 응답 계약은 이 변경으로 <b>바뀌지 않는다</b>.
  *
  * <h3>자원 상한 — <b>둘</b>이다 (CWE-770)</h3>
  * <p>이 디렉터리는 <b>외부 비식별 솔루션이 결과를 쓰는 위치</b>라 오작동·오설정으로 항목이 대량으로
@@ -152,7 +168,7 @@ public class DeidentArtifactCandidateFinder {
      * @param path       실경로(내부 전용)
      * @param sizeBytes  파일 크기
      * @param modifiedAt 파일 수정 시각
-     * @param eligible   무결성 + 시간조건을 모두 통과했는가(해소에 쓸 수 있는가)
+     * @param eligible   해소에 쓸 수 있는가 — 판정은 무결성 하나다({@link #isEligibleForResolve})
      * @param current    현재 원장({@code DE_IDNTF_FILE_PATH_NM})이 가리키는 그 파일인가
      */
     public record Candidate(String fileName, Path path, long sizeBytes,
@@ -173,7 +189,6 @@ public class DeidentArtifactCandidateFinder {
                 .orElse(null);
         LsDeidentProcLog latest = procLogRepository.findLatestSuccessByDataRawSn(rawSn).orElse(null);
         Path currentPath = currentArtifactPath(latest);
-        boolean currentProcAfterReport = procTimeAfterReport(latest, report);
 
         LinkedHashMap<String, Candidate> byName = new LinkedHashMap<>();
         for (Path dir : candidateDirs(rawSn, rawFilePathNm)) {
@@ -181,12 +196,12 @@ public class DeidentArtifactCandidateFinder {
                 log.warn("[DeidentReport] candidate scan truncated rawSn={} limit={}", rawSn, maxCandidates);
                 break;
             }
-            scanDir(dir, report, currentPath, currentProcAfterReport, byName);
+            scanDir(dir, report, currentPath, byName);
         }
 
         // 현재 원장 경로는 열거 밖이어도 후보에서 빠지지 않는다(제자리 덮어쓰기 정상 해소 보존).
         if (currentPath != null && !byName.containsKey(fileNameOf(currentPath))) {
-            describe(fileNameOf(currentPath), currentPath, report, true, currentProcAfterReport)
+            describe(fileNameOf(currentPath), currentPath, true)
                     .ifPresent(c -> byName.put(c.fileName(), c));
         }
         return List.copyOf(byName.values());
@@ -234,7 +249,6 @@ public class DeidentArtifactCandidateFinder {
      * CWE-770). 정렬은 그렇게 확보한 <b>스캔 창 안에서만</b> 적용된다.
      */
     private void scanDir(Path dir, LsDeidentReport report, Path currentPath,
-                         boolean currentProcAfterReport,
                          LinkedHashMap<String, Candidate> byName) {
         if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
             return;
@@ -290,38 +304,35 @@ public class DeidentArtifactCandidateFinder {
                 continue; // 실경로가 디렉터리 밖(심링크 우회 등) — fail-secure 로 후보에서 제외.
             }
             boolean current = isSamePath(real, currentPath);
-            describe(name, real, report, current, current && currentProcAfterReport)
-                    .ifPresent(c -> byName.put(name, c));
+            describe(name, real, current).ifPresent(c -> byName.put(name, c));
         }
     }
 
     /**
-     * 원장 완료시각이 신고시각 이후인가 — <b>현재 원장이 가리키는 후보에만</b> 적용하는 구 규약 보존.
+     * ★ <b>해소 자격 판정의 단일 지점</b> — 이 메서드가 판정의 전부다 (@design ADR-027).
      *
-     * <p>구 판정은 시간 조건을 OR 로 묶었다: ① 원장 완료시각({@code RSPNS_DT}, 없으면 {@code REQ_DT})
-     * &gt; 신고시각(신고 후 <b>자동</b> 재비식별이 성공한 경우) 또는 ② 파일 mtime &gt; 신고시각(외부
-     * 도구의 제자리 교체). ②만 남기면 배치가 재비식별을 성공시킨 건이 수동 해소에서 거부되므로 ①을
-     * 유지한다. 열거로 발견한 <b>다른</b> 후보에는 대응 원장이 없어 ②만 적용된다.
+     * <p>판정은 <b>무결성 하나</b>다: {@link DeidentArtifactIntegrity#isValidVideoArtifact}
+     * (정규파일 + 크기 하한 + 컨테이너 시그니처). 정상적으로 열리는 영상 파일이 아니면 해소가
+     * 성립하지 않는다 — 이 축은 <b>여전히 fail-closed</b> 이며 이번 완화의 대상이 아니었다.
+     *
+     * <p><b>산출물이 언제 만들어졌는지는 보지 않는다.</b> 구 판정은 여기에
+     * 「신고 이후에 만들어졌는가」(파일 mtime &gt; 신고시각 <b>또는</b> 원장 완료시각 &gt; 신고시각)를
+     * AND 로 묶었으나 2026-09-09 에 걷어냈다 — 사유·대가는 클래스 javadoc 「자격 판정」 절 참조.
+     * <b>되돌린다면 여기 한 자리다.</b>
      */
-    private boolean procTimeAfterReport(LsDeidentProcLog latest, LsDeidentReport report) {
-        LocalDateTime reportTime = report.getReportDt();
-        if (latest == null || reportTime == null) {
-            return false;
-        }
-        LocalDateTime procTime = latest.getResDt() != null ? latest.getResDt() : latest.getReqDt();
-        return procTime != null && procTime.isAfter(reportTime);
+    static boolean isEligibleForResolve(Path path) {
+        return DeidentArtifactIntegrity.isValidVideoArtifact(path.toString());
     }
 
     /**
      * 파일 1건을 후보로 기술한다. 정규 파일이 아니거나 속성을 읽을 수 없으면 후보가 아니다(빈 결과).
      *
-     * <p>{@code eligible} = 무결성({@link DeidentArtifactIntegrity} <b>단일 판정기 위임</b>)
-     * &amp;&amp; (mtime &gt; 신고시각 <b>엄격</b> || {@code procAfterReport}).
-     * 경계값(mtime == 신고시각)은 거부다 — 동일 시각 파일은 신고 시점에 이미 존재하던 산출물이라
-     * "신고 이후 교체" 증거가 아니며, 증거 없음은 fail-closed 로 거부에 수렴한다.
+     * <p>{@code eligible} 판정은 {@link #isEligibleForResolve} 에 <b>위임</b>한다 — 여기서
+     * 조건을 덧붙이지 않는다(판정 지점이 둘이 되면 되돌릴 자리가 흩어진다).
+     * <p>{@code modifiedAt} 은 계속 싣는다. 다만 그것은 <b>화면이 「신고 이후 산출물인가」를 구분해
+     * 보여주기 위한 표시값</b>이며 자격을 좌우하지 않는다.
      */
-    private Optional<Candidate> describe(String fileName, Path path, LsDeidentReport report,
-                                         boolean current, boolean procAfterReport) {
+    private Optional<Candidate> describe(String fileName, Path path, boolean current) {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             return Optional.empty();
         }
@@ -334,11 +345,8 @@ public class DeidentArtifactCandidateFinder {
         } catch (IOException e) {
             return Optional.empty();
         }
-        LocalDateTime reportTime = report.getReportDt();
-        // 신고시각을 모르면 시간 판정이 불가능하므로 보수적으로 부적격(fail-closed).
-        boolean timeOk = reportTime != null && (modifiedAt.isAfter(reportTime) || procAfterReport);
-        boolean eligible = timeOk && DeidentArtifactIntegrity.isValidVideoArtifact(path.toString());
-        return Optional.of(new Candidate(fileName, path, size, modifiedAt, eligible, current));
+        return Optional.of(new Candidate(fileName, path, size, modifiedAt,
+                isEligibleForResolve(path), current));
     }
 
     /** 원장에 적재된 비식별 산출물 경로(없거나 손상이면 null) — 문자열 조합·추측 금지, 적재값 그대로. */

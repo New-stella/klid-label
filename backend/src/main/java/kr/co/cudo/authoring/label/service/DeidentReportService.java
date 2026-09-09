@@ -497,9 +497,13 @@ public class DeidentReportService {
      *   <li>WORKER 타인 영상 → 403 (verifyRawAccess), REVIEWER 전체 허용</li>
      *   <li>OPEN 아니면 → 409 (이미 RESOLVED/DISMISSED 재-resolve 차단)</li>
      *   <li>후보 목록에 없는 파일명 → 400 ({@link #selectArtifact} — 목록이 곧 허용목록, CWE-22)</li>
-     *   <li>선택 파일이 무결성·시간조건 미통과 → 409 (실제 비식별 없이 resolve 시 PII 재노출 차단,
-     *       fail-closed: report OPEN·작업락·'F' 유지)</li>
+     *   <li>선택 파일이 <b>무결성</b> 미통과 → 409 (fail-closed: report OPEN·작업락·'F' 유지)</li>
      * </ul>
+     *
+     * <p>★ 산출물이 <b>신고 이후에 만들어졌는지는 보지 않는다</b>(@design ADR-027 · API-094) —
+     * 신고 이전부터 있던 산출물, 곧 지금 쓰고 있는 비식별 영상을 그대로 골라도 해소가 성립한다.
+     * 그 시간 조건으로 거부하던 경로는 2026-09-09 에 사라졌다(판정 지점은
+     * {@code DeidentArtifactCandidateFinder.isEligibleForResolve} 한 곳이다).
      *
      * <h3>★ 선택 결과를 원장에 반영한다 — 안 하면 선택이 반쪽이 된다</h3>
      * <p>해소 이후의 프레임 재추출({@code DeidentFrameAttacher})·영상 스트리밍은 모두
@@ -525,11 +529,10 @@ public class DeidentReportService {
             throw new CustomException(ErrorCode.CONFLICT, "이미 처리된 신고입니다.");
         }
 
-        // 비식별 산출물 검증 게이트 (CWE-359) — 실제 외부 수동 비식별 없이 resolve 를 호출하면
-        // deIdntfYn 'F'→'Y' 복원으로 마킹 게이트·영상 스트리밍이 재개방되어 PII 가 재노출된다.
-        // resolve 진행(RESOLVED 전이/락해제/'Y' 복원) 전에 선택 산출물의 실재·무결성·시간조건을
-        // 확인하고, 실패 시 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는 OPEN,
-        // 작업락은 유지된다(fail-closed).
+        // 비식별 산출물 검증 게이트 — resolve 진행(RESOLVED 전이/락해제/'Y' 복원) 전에 선택 산출물의
+        // 실재·무결성을 확인하고, 실패 시 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는
+        // OPEN, 작업락은 유지된다(fail-closed).
+        // ★ 시간 조건(신고 이후 산출물인가)은 판정에 없다 — @design ADR-027 (2026-09-09).
         DeidentArtifactCandidateFinder.Candidate selected = selectArtifact(report, fileName);
 
         // ★ 원자 클레임 (CWE-362 — 2노드 Active-Active, V171): 위 OPEN 검증은 read-then-write 라
@@ -771,9 +774,14 @@ public class DeidentReportService {
      *   <li>무결성 — {@code DeidentArtifactIntegrity.isValidVideoArtifact}(정규파일 + 크기 하한 +
      *       컨테이너 시그니처). 구 판정("&gt;0바이트")이 18바이트 텍스트 스텁을 통과시켜 실제 비식별
      *       없이 {@code 'F'→'Y'} 가 복원되던 결함(B-ISSUE-01, CWE-345)을 막는 단일 지점이다.</li>
-     *   <li>시간 조건 — mtime &gt; 신고시각(<b>엄격</b>). 현재 원장이 가리키는 후보에 한해 원장 완료시각
-     *       비교도 유지한다(자동 재비식별 성공 건 — {@code DeidentArtifactCandidateFinder} javadoc).</li>
      * </ul>
+     *
+     * <h3>시간 조건은 없다 (@design ADR-027 — 2026-09-09)</h3>
+     * <p>구 게이트는 무결성에 더해 「신고 이후에 만들어졌는가」(mtime 또는 원장 완료시각 &gt; 신고시각)를
+     * 요구했다. 그 조건을 충족시킬 새 산출물을 만드는 경로가 저작도구 안에 없어(재비식별 창구는 검수
+     * 완료 영상 전용) 신고된 영상이 작업락 + {@code 'F'} 로 묶인 채 <b>해소할 문이 없었다</b>. 이제
+     * 신고 이전부터 있던 산출물도 고를 수 있다 — 대가(재비식별 없이도 해소 가능)는 인지·수용했고,
+     * 되돌릴 자리는 {@code DeidentArtifactCandidateFinder.isEligibleForResolve} 한 곳이다.
      *
      * <p>목록에 없는 이름은 400(요청이 가리키는 대상이 존재하지 않음), 목록에는 있으나 자격 미달이면
      * 409 다. 두 경우 모두 <b>내부 경로를 노출하지 않는다</b>(CWE-209). 예외 전파 → 트랜잭션 롤백 →

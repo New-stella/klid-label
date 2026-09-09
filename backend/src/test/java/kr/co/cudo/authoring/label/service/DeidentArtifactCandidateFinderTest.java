@@ -44,7 +44,9 @@ import static org.mockito.Mockito.when;
  *   <li>목록 키는 언제나 <b>basename</b> 이다 → 경로 순회 입력은 어떤 항목과도 일치하지 않는다(CWE-22).</li>
  *   <li>심링크 엔트리는 후보가 되지 않는다(CWE-59).</li>
  *   <li>디렉터리 부재/빈 디렉터리는 <b>빈 목록</b>(예외 아님).</li>
- *   <li>자격 판정 = 무결성 + mtime &gt; 신고시각(<b>엄격</b>). 경계값(동일 시각)은 부적격.</li>
+ *   <li>★ 자격 판정 = <b>무결성 하나</b>({@link DeidentArtifactCandidateFinder#isEligibleForResolve}).
+ *       산출물이 언제 만들어졌는지는 보지 않는다 — 「신고 이후에 만들어졌는가」 조건은 2026-09-09 에
+ *       걷어냈다(@design ADR-027 · API-202). {@code modifiedAt}·{@code current} 는 화면 표시용으로 남는다.</li>
  *   <li>상한은 <b>둘</b>이다(CWE-770) — 결과 후보 수({@link DeidentArtifactCandidateFinder#MAX_CANDIDATES})와
  *       디렉터리 1개당 스캔 항목 수({@link DeidentArtifactCandidateFinder#MAX_SCAN_ENTRIES}).
  *       후자는 <b>적재·정렬 이전에</b> 걸려야 실제로 자원을 묶는다. 둘 다 걸리면 WARN 을 남긴다.</li>
@@ -155,11 +157,12 @@ class DeidentArtifactCandidateFinderTest {
                     assertThat(c.current()).isFalse();
                     assertThat(c.sizeBytes()).isEqualTo(Files.size(fresh));
                 });
-        // 옛 산출물은 목록에는 있지만(현재 원장 표시) 신고 이전이라 자격이 없다.
+        // 옛 산출물(신고 이전 mtime)도 자격이 있다 — 시간 조건 폐기(@design ADR-027).
+        //   구분은 자격이 아니라 current 표시로만 남는다.
         assertThat(found).filteredOn(c -> c.fileName().equals("001.mp4"))
                 .singleElement()
                 .satisfies(c -> {
-                    assertThat(c.eligible()).isFalse();
+                    assertThat(c.eligible()).isTrue();
                     assertThat(c.current()).isTrue();
                 });
         assertThat(old).exists();
@@ -208,7 +211,7 @@ class DeidentArtifactCandidateFinderTest {
     }
 
     @Test
-    @DisplayName("무결성_미달_산출물은_목록에는_있으나_자격이_없다")
+    @DisplayName("★양성_대조_무결성_미달_산출물은_목록에는_있으나_자격이_없다_이_축은_안_풀린다")
     void integrityFailureIsListedButIneligible() throws Exception {
         Path dir = Files.createDirectories(tempDir.resolve("videos").resolve(String.valueOf(RAW_SN)));
         Path stub = Files.write(dir.resolve("stub.mp4"), "MOCK_DEIDENTIFIED\n".getBytes(StandardCharsets.UTF_8));
@@ -223,23 +226,29 @@ class DeidentArtifactCandidateFinderTest {
     }
 
     @Test
-    @DisplayName("mtime이_신고시각과_같으면_부적격이다_엄격_비교_경계값")
-    void mtimeEqualToReportTimeIsIneligible() throws Exception {
-        artifact("boundary.mp4", reportTime);
+    @DisplayName("★mtime이_신고시각_이전이거나_같아도_적격이다_시간조건_폐기")
+    void preReportArtifactIsEligible() throws Exception {
+        // 구 판정(mtime > 신고시각 엄격)이라면 둘 다 부적격이던 케이스다. 그 비교식이 사라졌으므로
+        // 둘 다 적격이며, 누군가 시간 조건을 되살리면 여기서 먼저 터진다.
+        artifact("boundary.mp4", reportTime);            // 경계값(동일 시각)
+        artifact("older.mp4", reportTime.minusHours(3)); // 신고 훨씬 이전
 
-        assertThat(finder.find(report())).singleElement()
-                .satisfies(c -> assertThat(c.eligible()).isFalse());
+        assertThat(finder.find(report()))
+                .hasSize(2)
+                .allSatisfy(c -> assertThat(c.eligible()).isTrue());
     }
 
     @Test
-    @DisplayName("신고시각이_없으면_모든_후보가_부적격이다_fail_closed")
-    void missingReportTimeMakesEverythingIneligible() throws Exception {
+    @DisplayName("신고시각을_몰라도_자격_판정에_영향이_없다_시간축_미참조")
+    void missingReportTimeDoesNotAffectEligibility() throws Exception {
+        // 구 판정은 신고시각이 없으면 시간 비교가 불가능해 전부 부적격이었다(fail-closed).
+        // 이제 신고시각은 자격 판정에 쓰이지 않으므로 무결성만으로 결정된다.
         artifact("fresh.mp4", reportTime.plusMinutes(5));
         LsDeidentReport rep = report();
         setField(rep, "reportDt", null);
 
         assertThat(finder.find(rep)).singleElement()
-                .satisfies(c -> assertThat(c.eligible()).isFalse());
+                .satisfies(c -> assertThat(c.eligible()).isTrue());
     }
 
     @Test

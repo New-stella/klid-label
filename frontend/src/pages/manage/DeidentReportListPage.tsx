@@ -300,6 +300,9 @@ export function DeidentReportListPage() {
       <DeidentResolveDialog
         rprtSn={resolving?.rprtSn ?? null}
         rawSn={resolving?.rawSn}
+        /* 후보가 신고 이후에 만들어졌는지 화면이 구분해 보여주는 기준 — 서버는 그 축의 전용 필드를
+           주지 않고 후보의 수정시각만 준다(@design API-202). 신고 시각은 이 목록이 이미 갖고 있다. */
+        reportDt={resolving?.reportDt}
         submitting={isPending}
         onClose={() => setResolving(null)}
         onConfirm={(fileName) => {
