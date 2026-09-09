@@ -111,11 +111,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-104"
+          "IMPREC-104",
+          "IMPREC-440"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:32.704Z",
+        "last_updated": "2026-09-08T12:03:42.097Z",
         "module_paths": []
       },
       "required_roles": [],
@@ -147,8 +148,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "'인증 실패 안내' 섹션에 재시도 조작(Button '다시 시도', secondary, API-006)을 추가하고 설명 끝에 그 동작 한 문장을 덧붙였다. 기존 문장·부품은 손대지 않았고 순수 추가다. 근거: 그 섹션 설명이 이미 '다시 시도는 사람이 하며 자동으로 반복하지 않는다'를 담는데 부품에는 Alert 하나뿐이라 누를 수단이 없어, 안내가 시도를 권하면서 시도할 수단이 없는 상태였다(ADR-063 규정 ⑨ · UC-041 대체 흐름). 자동 반복은 도입하지 않는다. 표기는 SCREEN-023 오류 배너의 재시도 버튼(Button·secondary)과 SCREEN-041 재시도 버튼의 triggers_api 관례를 따랐다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-08T06:39:53.494Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-08T12:03:42.097Z",
     "created_at": "2026-05-30T07:53:20.685Z"
   }
 }

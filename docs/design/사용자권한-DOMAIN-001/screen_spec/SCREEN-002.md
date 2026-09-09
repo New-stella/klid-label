@@ -4,11 +4,11 @@ type: screen_spec
 version: 34
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T12:01:37.123Z
+synced_at: 2026-09-09T07:56:51.796Z
 status: CHANGED
-prev_version: 33
-content_hash: eb6a94b43b002629cdc713646b9e5c7b790e77c16426b4938b64c4b9151a0d5a
-stale: false
+prev_version: 34
+content_hash: ef276b7ac954c175d8156ca41a3a19521c526918a8bef302223bd66d41210905
+stale: true
 raw: ./_raw/SCREEN-002.json
 links:
   based_on: ["[[ADR-012]]"]
@@ -278,6 +278,7 @@ implemented
 
 - IMPREC-105
 - IMPREC-410
+- IMPREC-441
 
 ### progress
 
@@ -317,7 +318,7 @@ implemented
 
 ### last_updated
 
-2026-09-07T03:54:56.401Z
+2026-09-08T12:03:42.171Z
 
 ### module_paths
 

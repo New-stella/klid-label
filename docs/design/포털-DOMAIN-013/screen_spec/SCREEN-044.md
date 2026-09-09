@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-044
 type: screen_spec
-version: 13
+version: 14
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T12:01:45.849Z
+synced_at: 2026-09-09T07:56:49.127Z
 status: CHANGED
-prev_version: 8
-content_hash: 368e11ec14965bb50e8784e9b5e52e513d5d5e80e04a149e370bf01d2499be1d
+prev_version: 13
+content_hash: 00fcad95630f0c372bb5f04b206c8cce0debb9c93aca1ff560a5145d11323f25
 stale: false
 raw: ./_raw/SCREEN-044.json
 links:
@@ -85,7 +85,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: 실패한 줄에만 보인다. 자르지 않고 줄바꿈해 전문을 보인다 — 무엇을 고쳐 다시 요청해야 하는지가 사유에 담겨 있어, 잘라 놓으면 이용자가 그것을 읽으려고 매번 결과 확인으로 들어가야 한다. 구 처리 폐기 — 「상태 표시 옆 같은 칸에 한 줄, 넘치면 줄임표, 전문은 가리키면 뜨는 말풍선」. 말풍선은 터치 환경에서 뜨지 않고 게시본 정리기가 그 속성을 지우므로 보완책이 되지 못한다. 되살리지 말 것.
+- **note**: 실패한 줄에만 보인다. 자르지 않고 줄바꿈해 전문을 보인다 — 무엇을 고쳐 다시 요청해야 하는지가 사유에 담겨 있어, 잘라 놓으면 이용자가 그것을 읽으려고 매번 결과 확인으로 들어가야 한다.
 - **type**: Text
 - **label**: 실패 사유 — 그 줄 안에서 전문을 보인다
 

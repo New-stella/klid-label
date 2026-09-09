@@ -3,13 +3,15 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-013",
   "decided_by": "llm",
-  "decided_at": "2026-09-05T00:44:58Z",
+  "decided_at": "2026-09-09T07:58:06Z",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26(2회차) pending 판정: ADR-026 승격(Tier 2 ADR · ADR 필터 ① 그래프 상호참조) · 나머지 기각(제외 타입 — MOD·IMPREC·NAV·DEP/diagram_deployment) | 2026-08-26(3회차) pending 판정: INT-013 승격(integration_point · belongs_to_domain=DOMAIN-013 · provided_by=EXTSYS-006 · Tier 3 조건 충족 — 도메인에 INT-009 기존재) · 나머지 기각(제외 타입 — MOD=code_module 3건 · DEP=diagram_deployment 1건 · IMPREC=implementation_record 14건) | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-1068",
     "AC-1069",
     "AC-1070",
     "AC-1071",
+    "AC-1102",
+    "AC-1103",
     "ADR-012",
     "ADR-013",
     "ADR-026",
@@ -64,6 +66,7 @@
     "ERD-018",
     "ERD-026",
     "ERD-028",
+    "ERD-035",
     "EVT-012",
     "EXTSYS-006",
     "INT-008",
@@ -174,6 +177,7 @@
     "IMPREC-372",
     "IMPREC-393",
     "IMPREC-399",
+    "IMPREC-400",
     "OSS-102",
     "UI-131",
     "UI-146",
@@ -187,6 +191,6 @@
     "UI-154",
     "UI-155"
   ],
-  "last_sync_at": "2026-09-08T12:01:45.901Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 4(핵심타입) / 기각 23(제외타입) / 보류 2(미분류·배포형상) | SCREEN-034 pin 제거 — 서버 status=deprecated(포털 라벨링 화면이 SCREEN-029 로 통합). _retired/ 에 보존돼 유실 아님 | 2026-09-05 2차 판정: 승격 4(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 38(제외타입) / 보류 2 | 2026-09-08 판정: API-139 pin 제거 — 서버 status=deprecated 전수 확인. 파일은 _retired/ 에 보존돼 유실 아님 | 2026-09-08 판정: 승격 0 / 기각 38 / 보류 2. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 보류 DEP-001·OSS-102(배포 형상·미분류 타입 — 2026-09-05 판정 승계)"
+  "last_sync_at": "2026-09-09T07:58:21.133Z",
+  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 4(핵심타입) / 기각 23(제외타입) / 보류 2(미분류·배포형상) | SCREEN-034 pin 제거 — 서버 status=deprecated(포털 라벨링 화면이 SCREEN-029 로 통합). _retired/ 에 보존돼 유실 아님 | 2026-09-05 2차 판정: 승격 4(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 38(제외타입) / 보류 2 | 2026-09-08 판정: API-139 pin 제거 — 서버 status=deprecated 전수 확인. 파일은 _retired/ 에 보존돼 유실 아님 | 2026-09-08 판정: 승격 0 / 기각 38 / 보류 2. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 보류 DEP-001·OSS-102(배포 형상·미분류 타입 — 2026-09-05 판정 승계)\n\n2026-09-09 판정: 포털 2차 회신 라운드 산출물 승격 3건 — AC-1102(접수·재수신 멱등)·AC-1103(인증 거부, 사전 공유 키 축 두 창구)·ERD-035(정리 트리거 접수 원장). 이 도메인이 그 셋의 소유 도메인이고 이미 pin 된 API-244·API-243·INT-014 가 직접 참조한다. 보류: UI-131·UI-146~155(11건) — ui_component 는 Tier3 조건(SCREEN 3건 이상)을 충족하나 이 키트는 여러 SYNC 동안 UI-* 0건을 유지해 왔고, 그 카탈로그의 정본은 화면 키트다. 그래프로 닿는다는 이유로 편입하면 키트 성격이 바뀌므로 따라잡기가 아니라 스코프 확대 결정으로 분리한다. 기각: IMPREC 37·MOD 3·DEP 1·OSS 1 — 제외 타입이며 다음 SYNC 에 다시 올라오는 것이 정상이다."
 }

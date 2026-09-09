@@ -3,7 +3,7 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-001",
   "decided_by": "llm",
-  "decided_at": "2026-09-05T00:44:58Z",
+  "decided_at": "2026-09-09T07:58:06Z",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 · 이번 승격: 이 도메인 소속으로 신규 등록된 인수기준(도메인 지정 + 유스케이스/비기능요구 링크 보유) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-28 승격: 관리자 페이지 분리 라운드(PR #158)에서 신설·이동된 화면·수용기준·API·도해를 pin 에 올렸다. | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-1016",
@@ -17,6 +17,7 @@
     "AC-1096",
     "AC-1097",
     "AC-1098",
+    "AC-1103",
     "ADR-001",
     "ADR-004",
     "ADR-007",
@@ -121,6 +122,7 @@
     "UC-041"
   ],
   "pending": [
+    "AC-1102",
     "SHELL-001",
     "MOD-001",
     "MOD-002",
@@ -137,6 +139,7 @@
     "MOD-054",
     "CTX-001",
     "DEP-001",
+    "ERD-035",
     "IMPREC-002",
     "IMPREC-104",
     "IMPREC-105",
@@ -167,13 +170,14 @@
     "IMPREC-407",
     "IMPREC-410",
     "IMPREC-412",
+    "IMPREC-435",
     "LEGACY-001",
     "LEGACY-041",
     "LEGACY-125",
     "NAV-001"
   ],
-  "last_sync_at": "2026-09-08T12:01:37.211Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 1(핵심타입) / 기각 1(제외타입) / 보류 1(미분류·배포형상) | 2026-09-05 2차 판정: 승격 8(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 45(제외타입) / 보류 1 | 2026-09-08 판정: 승격 2 / 기각 50 / 보류 1. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 승격 AC-1098·API-245. 기각에 AC-1095~1097 포함 — 소속은 DOMAIN-016(UC-009)이라 이 도메인 축이 아니다. 보류 DEP-001(배포 형상 축·미분류) | 2026-09-08 판정(AI 장비 이중화 라운드): 승격 3건 (AC-1095, AC-1096, AC-1097) — 핵심 타입(acceptance) — Tier 1 관례대로 승격. 이번 AI 장비 라운드 산물은 아니나 서버에 실재하는데 키트가 못 보던 상태였다. 기각 48건 — 전부 제외 타입(MOD·IMPREC·SHELL·NAV·LEGACY·REQ·RFP·OSS·CTX·DEP). 제외 타입은 판정을 기록할 필드가 스키마에 없어 다음 SYNC 에도 다시 올라오며 그것이 정상이다.",
+  "last_sync_at": "2026-09-09T07:58:22.465Z",
+  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 1(핵심타입) / 기각 1(제외타입) / 보류 1(미분류·배포형상) | 2026-09-05 2차 판정: 승격 8(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 45(제외타입) / 보류 1 | 2026-09-08 판정: 승격 2 / 기각 50 / 보류 1. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 승격 AC-1098·API-245. 기각에 AC-1095~1097 포함 — 소속은 DOMAIN-016(UC-009)이라 이 도메인 축이 아니다. 보류 DEP-001(배포 형상 축·미분류) | 2026-09-08 판정(AI 장비 이중화 라운드): 승격 3건 (AC-1095, AC-1096, AC-1097) — 핵심 타입(acceptance) — Tier 1 관례대로 승격. 이번 AI 장비 라운드 산물은 아니나 서버에 실재하는데 키트가 못 보던 상태였다. 기각 48건 — 전부 제외 타입(MOD·IMPREC·SHELL·NAV·LEGACY·REQ·RFP·OSS·CTX·DEP). 제외 타입은 판정을 기록할 필드가 스키마에 없어 다음 SYNC 에도 다시 올라오며 그것이 정상이다.\n\n2026-09-09 판정: 승격 1건 — AC-1103(인증 거부 수용기준). 이 키트가 포털 서버간 창구 API-242·243·244 와 INT-014 를 pin 한 축이 인증이며 AC-1103 이 바로 그 축을 검증한다. 기각: AC-1102(접수·재수신 멱등)·ERD-035(접수 원장) — 업무·데이터 축이라 이 도메인 소관이 아니다. 같은 기준으로 DFEAT-055 도 종전대로 담지 않는다(기존 결정과 일관). 기각: IMPREC 31·MOD 13·LEGACY 3·SHELL 1·NAV 1·CTX 1·DEP 1 — 제외 타입.",
   "note_promoted": [
     {
       "at": "2026-09-08",

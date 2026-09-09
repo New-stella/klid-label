@@ -64,14 +64,15 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "in_progress",
+        "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-392"
+          "IMPREC-392",
+          "IMPREC-437"
         ],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-09-07T02:51:28.000Z",
+        "last_updated": "2026-09-08T12:03:41.782Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -86,11 +87,11 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 15,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "UC-041의 2개 필드 변경 — derived_from",
     "change_summary": "ADR-063 과 UC-041 이 확정한 두 축을 happy 기준에 더한다 — 추가만 하고 기존 단언·시나리오 원소는 한 글자도 건드리지 않았다. (1) 조건에 세션이 끊긴 뒤 같은 인계 토큰으로 다시 서는 계기를 한 줄 더한다. (2) 결과에 두 단언을 더한다 — 세션이 끊긴 뒤 같은 인계 토큰으로 다시 서도 역할 보유자가 자기 도착지에 이르며, 앞서 확보한 결과를 다시 쓰더라도 그 결과가 지금 상태에 실제로 반영돼 있어야 하고 역할이 비어 있는 채로 판정하지 않는다(직전 리비전은 화면을 다시 불러오는 계기만 담아, 세션이 갈렸다가 같은 토큰으로 다시 서는 경로가 통째로 빠져 있었다) · 확보 상태에 따라 판정이 갈려 세션이 없으면 역할 판정을 통과시키고 세션은 있는데 아직 확보하지 않았으면 역할 판정에 도달하지 않는다(두 상태를 한 상태로 묶은 것이 그 공백의 원인이었다). (3) 본문 서술에 같은 두 축을 이어 붙인다 — 결과만 늘리고 본문을 옛 상태로 두면 같은 기준 안에서 앞뒤가 어긋나기 때문이며, 기존 본문 문자열은 그대로 두고 뒤에 덧붙이기만 했다. 검증 수단·검증 상태·구현 상태·증빙·마지막 실행 기록·상태는 건드리지 않았다 — 다만 그 메타는 이번 두 단언이 더해지기 이전 시점의 값이므로 갱신 대상이다. 직전 리비전 이후 UC-041 이 새 축을 확정해 이 기준이 재검토 대상으로 서 있었고, 그중 이 기준 소관인 두 축을 이번에 담았다(나머지 축은 확보 실패·응답 귀속을 다루는 별도 부정 기준 소관이다).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-08T06:36:53.490Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-08T12:03:41.782Z",
     "created_at": "2026-08-31T02:10:30.533Z"
   }
 }
