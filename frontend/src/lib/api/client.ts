@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 
+import { markPortalTokenRejected } from '@/features/auth/portalSession';
 import { detectChannel, redirectToUpstream } from '@/features/auth/redirectToUpstream';
 import {
   buildAuthHeader,
@@ -123,6 +124,16 @@ apiClient.interceptors.response.use(
       // ⚠ 포털 계약의 `onUnauthorized`(인증 끊김을 Host 에 알림) 창구는 열려 있으나 **여기에
       //   배선하지 않았다.** Host 가 그 통지를 받아 스스로 재로그인을 시작하면 우리 이동과
       //   경쟁해 어느 쪽이 이기는지 정해지지 않는다. 순서 규약을 포털과 확정한 뒤 배선한다.
+      //
+      // [@design INT-013] ★ **포털 채널에서 비우기 전에 「무엇이 거부당했는지」를 남긴다.**
+      //   그 채널의 스토어 세션은 진실원이 아니라 Host 메모리의 거울이고, 화면 가드는 거울이
+      //   비면 창구에 다시 물어 되살린다(`features/auth/portalSession`). 그때 **방금 거부당한
+      //   그 토큰을 도로 집으면 401 되풀이**가 되므로, 되맞춤이 그것을 알아볼 수 있게 여기서
+      //   기록한다. Host 가 토큰을 갈면 값이 달라져 되맞춤이 정상적으로 세션을 되살린다.
+      //   ⚠ 기록하는 값은 **요청에 실제로 실어 보낸 것**이지 지금 창구가 들고 있는 값이 아니다 —
+      //     응답을 기다리는 사이 Host 가 갱신했을 수 있고, 그 새 토큰까지 거부된 것으로 표시하면
+      //     되살아나야 할 세션이 막힌다.
+      markPortalTokenRejected(typeof sentAuth === 'string' ? sentAuth : null);
       useAuthStore.getState().clear();
       redirectToUpstreamLogin();
     }

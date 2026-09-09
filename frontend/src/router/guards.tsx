@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 
+import { syncPortalSessionFromHandoff } from '@/features/auth/portalSession';
 import { redirectToUpstream } from '@/features/auth/redirectToUpstream';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { roleSatisfiesAny } from '@/lib/authz';
@@ -59,6 +60,34 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
   );
 }
 
+// [@design INT-013]
+/**
+ * 포털 채널에서 세션이 비었을 때 <b>Host 창구에 다시 물어 되살린다</b>.
+ *
+ * 포털 채널의 스토어 세션은 진실원이 아니라 Host 메모리의 거울이다. 그런데 그것을 비우는 자리는
+ * 셋(요청 인터셉터의 401 · 이 파일의 만료 분기 둘)인데 <b>채우는 자리는 진입 화면 하나뿐이고,
+ * 포털 채널 가드는 그 화면으로 가지 않는다</b>(이동 대신 제자리 안내를 그리므로). 그래서 한 번
+ * 비면 영영 다시 차지 않았고, 쓰던 화면이 갑자기 인증 안내로 바뀌어 새로고침 외에는 방법이 없었다.
+ *
+ * 여기서 다시 묻는 것이 설계가 규정한 모습이다 — *"Remote 는 매 호출 시점에 토큰 획득 창구로
+ * 토큰을 취득한다"*. 요청 헤더 축은 이미 그렇게 하고 있었고 화면 가드 축만 한 번 베낀 값에
+ * 머물러 있었다.
+ *
+ * ⚠ <b>되풀이는 되맞춤 쪽이 막는다</b> — 거부당한 토큰과 같은 값이면 다시 채우지 않는다
+ *   (`features/auth/portalSession`). 여기서 조건을 하나 더 두면 판정이 두 곳으로 갈린다.
+ * ⚠ <b>렌더 중에 부르지 않는다.</b> 되맞춤은 스토어에 쓰므로 렌더 도중 호출하면 렌더 중 상태
+ *   변경이 된다. 효과로 미루면 안내가 한 프레임 비쳤다가 화면으로 바뀐다 — 그 대가를 받는다.
+ *   (첫 진입의 한 프레임은 `App` 이 hydrate 와 함께 미리 맞춰 없앤다.)
+ *
+ * @param shouldRecover 세션이 없다고 판정된 상태인지. 거짓이면 아무것도 하지 않는다.
+ */
+function usePortalSessionRecovery(shouldRecover: boolean): void {
+  useEffect(() => {
+    if (!shouldRecover) return;
+    syncPortalSessionFromHandoff();
+  }, [shouldRecover]);
+}
+
 interface RoleGuardProps {
   /**
    * 그 자리가 요구하는 역할. 내부 채널 라우트는 `@/lib/routeAccess` 의 선언에서
@@ -83,6 +112,8 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   const claims = useAuthStore((s) => s.claims);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const expired = isExpired(claims?.exp);
+
+  usePortalSessionRecovery(isHydrated && !claims);
 
   useEffect(() => {
     if (claims && expired) {
@@ -151,6 +182,8 @@ export function ChannelGuard({ channel, children }: ChannelGuardProps) {
   const claims = useAuthStore((s) => s.claims);
   const isHydrated = useAuthStore((s) => s.isHydrated);
 
+  usePortalSessionRecovery(isHydrated && !claims);
+
   if (!isHydrated) {
     return (
       <div className="flex h-full items-center justify-center py-10">
@@ -193,6 +226,8 @@ export function AuthenticatedGuard({ children }: AuthenticatedGuardProps) {
   const claims = useAuthStore((s) => s.claims);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const expired = isExpired(claims?.exp);
+
+  usePortalSessionRecovery(isHydrated && !claims);
 
   useEffect(() => {
     if (claims && expired) {

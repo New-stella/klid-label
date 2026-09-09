@@ -1,4 +1,5 @@
 import type { Channel } from '@/lib/api/types';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { resolveConfig, type RuntimeConfigKey } from '@/lib/runtimeConfig';
 
 /**
@@ -78,11 +79,21 @@ export function redirectToUpstream(channel?: Channel): boolean {
 }
 
 /**
- * URL 경로 또는 환경에서 채널을 추론한다.
- * - `/portal/*` 진입은 PORTAL
- * - 그 외엔 INTERNAL (기본)
+ * 토큰 클레임을 못 쓰는 자리에서 채널을 추론한다 — <b>산출물 채널이 1순위</b>, 경로가 폴백.
+ *
+ * ★ [@design INT-013] <b>포털 채널 산출물은 포털 채널만 담는다</b>(반대 향 화면이 산출물에서
+ *   통째로 빠진다). 그러니 그 산출물에서의 답은 언제나 `PORTAL` 이며, 경로를 볼 것도 없다.
+ *
+ * ⚠ 경로만 보던 구 동작은 <b>포털 채널에서 틀린 답을 냈다</b>. 그 산출물은 Host 마운트 경로를
+ *   라우터 기준 경로로 물어 실제 주소가 `/workspace/authoring/portal/...` 이다 — `/portal` 로
+ *   시작하지 않으므로 판정이 `INTERNAL` 로 떨어졌고, 세션이 끊겼을 때 <b>포털 로그인 주소 대신
+ *   관제 로그인 주소</b>(`VITE_CONTROL_LOGIN_URL`)를 찾아 이동에 실패했다. 되돌리지 말 것.
+ *
+ * 관제 채널의 동작은 그대로다 — 그 산출물에는 포털 라우트가 없어 아래 경로 폴백이 사실상
+ * `INTERNAL` 을 돌려주며, 판정 결과가 한 글자도 바뀌지 않는다.
  */
 export function detectChannel(): Channel {
+  if (isPortalEmbedChannel()) return 'PORTAL';
   if (typeof window === 'undefined' || !window.location) return 'INTERNAL';
   const path = window.location.pathname ?? '';
   if (path.startsWith('/portal')) return 'PORTAL';
