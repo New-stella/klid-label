@@ -394,3 +394,39 @@ def test_전처리는_검출_입력에만_쓰고_산출물은_원본_화질이�
     assert np.array_equal(frame, before), "전처리가 원본 프레임을 바꿨다"
     assert out.shape == frame.shape
     assert not np.array_equal(out, frame), "전처리가 아무 일도 하지 않았다"
+
+# ── 조용한 폴백 차단 (2026-09-09 실사고) ──────────────────────────
+def test_마스킹_없이_복사할_때는_경고로_남긴다(tmp_path, monkeypatch, caplog) -> None:
+    """★회귀 — 모델이 빠진 채 이틀간 돌면서 "비식별 완료"로 기록된 <b>원본</b>이 쌓였다.
+    그 경로가 INFO 한 줄이라 아무도 눈치채지 못했다.
+
+    이 경로로 나가는 산출물은 마스킹되지 않은 원본인데 BE 는 정상 비식별본으로 받아
+    DE_IDENT_YN='Y' 로 마감한다. <b>WARNING 이어야 하고, 원인 판정에 필요한 것
+    (엔진 가용성·모델 경로·빠진 모델)이 함께 있어야 한다.</b>
+    """
+    import logging
+
+    from app.config import reload_settings
+    from app.services import deid_sim
+
+    monkeypatch.delenv("MOCK_DEID_WATERMARK_ENABLED", raising=False)
+    monkeypatch.setattr(E, "MODELS_DIR", tmp_path / "nomodels")
+    reload_settings()
+
+    in_dir = tmp_path / "raw"; in_dir.mkdir()
+    out_dir = tmp_path / "deid"; out_dir.mkdir()
+    src = in_dir / "a.mp4"
+    src.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"BODY" * 200)
+
+    with caplog.at_level(logging.INFO, logger="app.services.deid_sim"):
+        deid_sim._burn_deid_watermark(
+            src, out_dir / "a-mask.mp4",
+            input_path=str(in_dir) + "/", input_base=str(in_dir),
+            output_dir=out_dir, export_path=str(out_dir), output_base=str(out_dir),
+        )
+
+    warns = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert warns, "마스킹 없이 복사하는데 경고가 없다 — 조용한 폴백은 이 사고의 원인이었다"
+    msg = " ".join(r.getMessage() for r in warns)
+    assert "engine_available" in msg, "엔진 가용성이 로그에 없어 원인 판정이 안 된다"
+    assert "models_dir" in msg, "모델 경로가 로그에 없어 어디를 봐야 할지 알 수 없다"
