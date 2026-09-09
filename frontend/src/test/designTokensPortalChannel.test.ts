@@ -410,6 +410,36 @@ describe('★두 축 분리 — DS-001 과 DS-002 가 실제로 다른 값을 �
     }
   });
 
+  /**
+   * ★<b>일반 단(sm·md·lg)도 채널이 값을 정한다.</b>
+   *
+   * 두 채널이 <b>함께 쓰는 화면</b>이 있기 때문이다 — 라벨링 도구가 그렇고, 그 본문은 역할
+   * 이름을 모른 채 일반 단만 쓴다. 일반 단을 관제 값으로 두면 포털 산출물에서 그 화면만
+   * KRDS 모서리로 남아 <b>색은 갈리는데 모양은 안 갈리는</b> 상태가 된다.
+   *
+   * ⚠ 값은 DS-002 자기 사다리에서 온다 — 지어낸 수가 없다는 것을 <b>역할 토큰과 대조해</b>
+   *   고정한다(숫자 리터럴만 적으면 나중에 사다리가 바뀌어도 이 시험이 신호를 주지 않는다).
+   */
+  it('★일반_단도_포털에서는_DS_002_사다리_값이다_관제는_불변', () => {
+    const portalRadius = themeOf('portal').borderRadius as Record<string, string>;
+    const controlRadius = themeOf('control').borderRadius as Record<string, string>;
+
+    // 포털 — 일반 단이 역할 토큰과 같은 값을 가리킨다(사다리 밖 값을 지어내지 않았다).
+    expect(portalRadius.sm).toBe(portalRadius.tag);
+    expect(portalRadius.md).toBe(portalRadius.input);
+    expect(portalRadius.lg).toBe(portalRadius.tile);
+    // 오름차순 보존 — 단이 뒤집히면 중첩 모서리가 눌린 것처럼 보인다.
+    expect(Number.parseInt(portalRadius.sm, 10)).toBeLessThan(Number.parseInt(portalRadius.md, 10));
+    expect(Number.parseInt(portalRadius.md, 10)).toBeLessThan(Number.parseInt(portalRadius.lg, 10));
+
+    // 관제 — KRDS 값 그대로다. 이 단언이 「관제 영향 0」의 값 축 증거다.
+    expect(controlRadius.sm).toBe('4px');
+    expect(controlRadius.md).toBe('6px');
+    expect(controlRadius.lg).toBe('8px');
+    // 음성 대조 — 두 채널이 실제로 갈렸는가(같으면 remap 이 안 걸린 것이다).
+    expect(portalRadius.md).not.toBe(controlRadius.md);
+  });
+
   it('음영_체계가_채널마다_다르다', () => {
     const portalShadow = themeOf('portal').boxShadow as Record<string, string>;
     const controlShadow = themeOf('control').boxShadow as Record<string, string>;
