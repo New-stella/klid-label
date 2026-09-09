@@ -284,6 +284,16 @@ services:
       - /data/klid/storage:/app/storage
       # 생성형AI 산출물 전용 — 입력 트리와 분리(위 주석 참조).
       - /data/klid/genai-out:/app/genai-out
+      # ★ 실제 비식별 엔진 검출 모델 — <b>base 에 둔다</b>(2026-09-09 실사고).
+      #   이 볼륨이 빠지면 엔진이 비활성화되고 목이 마스킹 없이 원본을 복사하는데,
+      #   BE 는 그것을 정상 비식별본으로 받아 DE_IDENT_YN='Y' 로 마감한다 — 즉 "비식별
+      #   완료"로 기록된 영상이 실제로는 원본이다. 처음에는 이 볼륨을 override 파일 하나
+      #   (docker-compose.mock.yml, -f 로 명시해야 쓰인다)에만 뒀는데, 평소 기동이 쓰는
+      #   override 조합으로 재기동되자 통째로 빠져 이틀간 그 상태로 돌았다.
+      #   base 에 두면 어떤 override 조합으로 떠도 붙는다. 호스트에 디렉터리가 없으면
+      #   Docker 가 빈 디렉터리를 만들 뿐이고 엔진은 기존대로 폴백한다(무해).
+      #   조달: mock-server/bin/fetch-deid-models.sh
+      - /data/klid/deid-models:/app/models:ro
     ports:
       # ★ 루프백 전용 발행 — 목 서버는 인증이 없고 임의 URL 로 outbound POST 를 발사하며(SSRF),
       #   input_path/export_path 로 파일 생성을 유발할 수 있다. 0.0.0.0 발행(구 "9400:9400")은

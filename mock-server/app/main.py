@@ -24,7 +24,7 @@ from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
 from app.routers import augment, control, deid, vlm
-from app.services import deid_sim, genai_sim
+from app.services import deid_engine, deid_sim, genai_sim
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 
@@ -61,6 +61,29 @@ async def lifespan(_: FastAPI):
         settings.sim_speed_factor,
         settings.callback_delay_seconds,
     )
+    # ★ 비식별 엔진 가용성을 <b>기동 시점에</b> 알린다(2026-09-09 실사고).
+    #   모델이 없으면 목은 마스킹 없이 원본을 복사하는데, 그 사실이 산출 시점 로그에만
+    #   있으면 늦다 — 실제로 모델 볼륨이 빠진 채 이틀간 돌면서 "비식별 완료"로 기록된
+    #   원본이 쌓였다. 기동 배너에서 바로 보이게 한다.
+    try:
+        engine_ok = deid_engine.engine_available()
+        _, missing = deid_engine.models_available()
+        if engine_ok:
+            logger.info(
+                "[MOCK][DEID] 비식별 엔진 활성 — 실제 마스킹을 산출한다 models_dir=%s",
+                deid_engine.MODELS_DIR,
+            )
+        else:
+            logger.warning(
+                "[MOCK][DEID] ⚠ 비식별 엔진 비활성 — 산출물은 <b>마스킹되지 않은 원본</b>이다. "
+                "models_dir=%s missing=%s (모델 조달: bin/fetch-deid-models.sh, "
+                "컨테이너면 그 경로가 마운트됐는지 확인)",
+                deid_engine.MODELS_DIR,
+                ",".join(missing) if missing else "-",
+            )
+    except Exception:  # noqa: BLE001 — 진단 실패가 기동을 막으면 안 된다
+        logger.warning("[MOCK][DEID] 엔진 가용성 확인 실패 — 기동은 계속한다")
+
     # MEDIUM-1 — 이전 기동이 강제 종료(SIGKILL/compose down/OOM)돼 남은 워터마킹 임시 산출물을
     # 정리한다. 기동 시점에는 우리 인코딩이 하나도 진행 중이 아니므로 남은 것은 전부 고아다.
     # 실패해도 기동을 막지 않는다(목 안정성 우선).

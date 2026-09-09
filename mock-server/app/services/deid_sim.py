@@ -1453,10 +1453,20 @@ def _burn_deid_watermark(
             from app.config import get_settings  # noqa: PLC0415 — 순환 import 회피
 
             if not get_settings().deid_watermark_enabled:
-                logger.info(
-                    "[MOCK][KPST] 실제 마스킹 미산출 + 워터마크 비활성 — 원본 복사로 폴백 "
-                    "file=%s",
+                # ★ WARNING 이다 — INFO 로 두지 말 것(2026-09-09 실사고).
+                #   이 경로로 나가는 산출물은 <b>마스킹되지 않은 원본 복사본</b>인데 BE 는
+                #   그것을 정상 비식별본으로 받아 DE_IDENT_YN='Y' 로 마감한다. 즉 "비식별
+                #   완료"로 기록된 영상이 실제로는 원본이다. 실제로 모델 볼륨이 빠진 채
+                #   이틀간 돌았고 INFO 한 줄이라 아무도 눈치채지 못했다.
+                #   원인 판정에 필요한 것을 함께 남긴다 — 엔진이 왜 못 돌았는지가 핵심이다.
+                available, missing = deid_engine.models_available()
+                logger.warning(
+                    "[MOCK][KPST] ⚠ 마스킹 없이 원본을 복사한다 — 산출물은 비식별본이 "
+                    "아니다 file=%s engine_available=%s models_dir=%s missing=%s",
                     sanitize_for_log(src.name),
+                    deid_engine.engine_available(),
+                    sanitize_for_log(str(deid_engine.MODELS_DIR)),
+                    ",".join(missing) if missing else "-",
                 )
                 return False
             # 엔진이 남긴 부분 산출물을 먼저 치운다(ffmpeg -n 은 기존 파일이 있으면 실패한다).
