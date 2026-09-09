@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-009
 type: class_diagram
-version: 5
+version: 6
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:17.815Z
+synced_at: 2026-09-08T12:01:39.663Z
 status: CHANGED
-prev_version: 4
-content_hash: 9bf6a8a0895bf56aa1bb46ecd1f6dddd48b43609e2dc3c387dc2273b8688ca90
+prev_version: 5
+content_hash: aa29ebbb96ace871249d1a81f3bd1462f8424a0907e44e058d9dede28952759a
 stale: false
 raw: ./_raw/CDIAG-009.json
 links:
@@ -688,7 +688,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 데이터(작업) 상태. 상태별 통계 집계 차원이며, 코드값은 검수 도메인의 작업·검수 워크플로 축 LS_RAW_DATA_STATUS.DATA_STTS_CD(상수 LsRawDataStatus.STTS_*)를 따른다 — 이 도메인의 상태별 집계는 그 컬럼을 직접 센다. 검수 종결값은 APPROVED 다. [폐기] IN_PROGRESS·COMPLETED·REVIEW_REQUESTED(구 '확인요청') 세 값은 지금은 두지 않는다 — 이 축에 존재하지 않으며, 그대로 집계하면 검수 완료 작업이 어느 항목에도 잡히지 않는다. ⚠ 배정 목록 응답(AssignmentWorkStatus)은 PENDING·IN_PROGRESS·REVIEW_PENDING·COMPLETED·REJECTED 라는 별개의 표시 축을 쓰며 거기서는 COMPLETED·IN_PROGRESS 가 정상값이다. 두 축을 같은 이름으로 섞어 읽지 말 것.
+- **description**: 데이터(작업) 상태. 상태별 통계 집계 차원이며, 코드값은 검수 도메인의 작업·검수 워크플로 축 LS_RAW_DATA_STATUS.DATA_STTS_CD(상수 LsRawDataStatus.STTS_*)를 따른다 — 이 도메인의 상태별 집계는 그 컬럼을 직접 센다. 검수 종결값은 APPROVED 다. IN_PROGRESS·COMPLETED·REVIEW_REQUESTED(구 '확인요청') 세 값은 이 축에 두지 않는다 — 존재하지 않으며, 그대로 집계하면 검수 완료 작업이 어느 항목에도 잡히지 않는다. ⚠ 배정 목록 응답(AssignmentWorkStatus)은 PENDING·IN_PROGRESS·REVIEW_PENDING·COMPLETED·REJECTED 라는 별개의 표시 축을 쓰며 거기서는 COMPLETED·IN_PROGRESS 가 정상값이다. 두 축을 같은 이름으로 섞어 읽지 말 것.
 
 **enum_values**:
 
@@ -697,9 +697,6 @@ _(empty)_
 - IN_REVIEW
 - APPROVED
 - REJECTED
-- [폐기] IN_PROGRESS
-- [폐기] COMPLETED
-- [폐기] REVIEW_REQUESTED
 
 **stereotypes**:
 

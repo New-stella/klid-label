@@ -349,14 +349,6 @@
               "return_type": "TaskAssignment"
             },
             {
-              "name": "[폐기] findAssignHistory",
-              "params": [],
-              "is_static": false,
-              "visibility": "public",
-              "is_abstract": false,
-              "return_type": "List<TaskEventLog>"
-            },
-            {
               "name": "getHistory",
               "params": [],
               "is_static": false,
@@ -437,12 +429,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정합(코드 진실원): TaskEventType enum 을 실제 EVNT_TYPE_CD 11종(CANCEL_SUBMIT·개인정보2·프레임2·START_VERSION_APPLY 추가)으로 확장, TaskAssignment 메서드를 실제 코드(createLabeler/createReviewer/reassignTo)로 정합(존재하지 않던 isLabeler/isReviewer/reassign 제거), 서비스 클래스명 TaskAssignmentService→AssignmentService 개명 및 findEventTimeline→getHistory 정합",
+    "change_summary": "배정 서비스에서 폐기된 연산 findAssignHistory 를 제거. 연산 이름 자체에 \"[폐기]\" 표기가 붙은 채 선언돼 있었다. 표기가 이름에 있으면 산출물 생성 시 그 표기가 문서에 그대로 실리고, 표기만 걷어내면 폐기된 연산이 현행처럼 보이게 되어 어느 쪽으로도 옳게 나갈 수 없었다. 선언을 지워 실재하는 연산만 남긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T05:09:49.769Z",
+    "last_updated_at": "2026-09-08T07:20:39.536Z",
     "created_at": "2026-06-02T08:51:23.635Z"
   }
 }

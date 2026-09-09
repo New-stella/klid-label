@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-09-07T15:21:51.934Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 87 |
+| Last sync | 2026-09-08T12:01:43.260Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 82 |
 | 출력 루트 | docs/design/마킹-DOMAIN-011 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-011 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 14건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,10 +26,10 @@
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 36건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   ℹ️  domain_event: 이번 키트 3건 / 스코프 밖 9건
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 83건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 86건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 9건 / 스코프 밖 49건 (그중 domain_id 없음 9건)
-  ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
+  ℹ️  feature: 이번 키트 1건 / 스코프 밖 13건 (그중 domain_id 없음 12건)
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -41,7 +41,11 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[CDIAG-002]] (prev v10)
+- CHANGED [[INTSPEC-003]] (prev v18)
+- CHANGED [[NFR-020]] (prev v10)
+- CHANGED [[ROLE-002]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v14)
 
 ## ITEM 표
 
@@ -56,7 +60,7 @@
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
-| [[ADR-046]] | adr | 14 | UNCHANGED |
+| [[ADR-046]] | adr | 17 | UNCHANGED |
 | [[ADR-052]] | adr | 3 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-043]] | api_endpoint | 27 | UNCHANGED |
@@ -64,7 +68,7 @@
 | [[API-084]] | api_endpoint | 8 | UNCHANGED |
 | [[API-091]] | api_endpoint | 12 | UNCHANGED |
 | [[API-114]] | api_endpoint | 2 | UNCHANGED |
-| [[CDIAG-002]] | class_diagram | 10 | UNCHANGED |
+| [[CDIAG-002]] | class_diagram | 11 | CHANGED |
 | [[CDIAG-024]] | class_diagram | 1 | UNCHANGED |
 | [[CDIAG-042]] | class_diagram | 2 | UNCHANGED |
 | [[CMP-002]] | diagram_c4_component | 3 | UNCHANGED |
@@ -76,9 +80,9 @@
 | [[EVT-001]] | domain_event | 5 | UNCHANGED |
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
-| [[FEAT-005]] | feature | 10 | UNCHANGED |
-| [[INT-002]] | integration_point | 21 | UNCHANGED |
-| [[INTSPEC-003]] | integration_spec | 16 | UNCHANGED |
+| [[FEAT-005]] | feature | 11 | UNCHANGED |
+| [[INT-002]] | integration_point | 23 | UNCHANGED |
+| [[INTSPEC-003]] | integration_spec | 20 | CHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
@@ -91,7 +95,7 @@
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 10 | UNCHANGED |
+| [[NFR-020]] | nfr | 11 | CHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -121,10 +125,10 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 10 | CHANGED |
+| [[ROLE-003]] | permission_role | 15 | CHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
-| [[SCREEN-006]] | screen_spec | 51 | UNCHANGED |
+| [[SCREEN-006]] | screen_spec | 52 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
 | [[SD-012]] | screen_design | 11 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 25 | UNCHANGED |
@@ -132,5 +136,5 @@
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-036]] | diagram_sequence | 3 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 12 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
-| [[UC-019]] | use_case | 30 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 18 | UNCHANGED |
+| [[UC-019]] | use_case | 32 | UNCHANGED |

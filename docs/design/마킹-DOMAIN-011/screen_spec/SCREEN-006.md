@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 51
+version: 52
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:51.988Z
+synced_at: 2026-09-08T00:22:51.262Z
 status: CHANGED
-prev_version: 49
-content_hash: 8c12b35830fc7710e3207fedd0529e0c5c385ac73e11a829e94144fc1e31d81c
+prev_version: 51
+content_hash: 40ddd1fc57fe69544500c0dc8e09fc7b8c5cee674fae7bbc64586d160bf8eeae
 stale: false
 raw: ./_raw/SCREEN-006.json
 links:
@@ -519,6 +519,7 @@ _(empty)_
 - IMPREC-120
 - IMPREC-122
 - IMPREC-124
+- IMPREC-421
 
 ### progress
 
@@ -530,7 +531,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T10:36:59.596Z
+2026-09-07T15:30:03.835Z
 
 ### module_paths
 
@@ -555,8 +556,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: c8eb94c2deb07079d3492dd32e3012ff1b897deeed3d230a085072557fb2e3f9
-- **generated_at**: 2026-08-25T10:05:08.451Z
+- **source_hash**: 05f209ad17c03105793c6347d80d6f747abfcc2c7bd2401fa05c204de0997304
+- **generated_at**: 2026-09-07T15:25:32.726Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

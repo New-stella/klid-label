@@ -199,7 +199,7 @@ class BatchStepExecuteTest {
                 systemConfigService, mock(LabelMasterService.class), frameBoundsResolver,
                 new com.fasterxml.jackson.databind.ObjectMapper(),
                 java.nio.file.Files.createTempDirectory("yolo-exec-").toString(),
-                new DeployedEnvironmentDetector(env));
+                new DeployedEnvironmentDetector(env), mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
 
         BatchContext ctx = new BatchContext(6L, raw);
         real.execute(ctx);

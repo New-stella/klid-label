@@ -197,7 +197,7 @@ fi
 #      './build' · './dist' 는 <고정이 의도>다 — 비고정으로 바꾸면 소스 트리 안의 동명
 #      디렉터리까지 통째로 빠진다.
 #
-#    ⚠ deploy/onprem/src/ 는 gitignore 된 **생성물**이다(정본 아님). copy_src 가 매 패키징마다
+#    ⚠ deploy/onprem/src/ 는 gitignore 된 **생성물**이다(정본 아님). klid_export_source 가 매 패키징마다
 #      rm -rf 후 저장소 정본(${REPO}/backend 등)에서 새로 복사하므로, 그 안의 낡은 사본을 직접
 #      수정해도 패키지에 반영되지 않는다(=구버전 취약 코드가 폐쇄망으로 새지 않는다, S-26).
 #      소스 수정은 반드시 저장소 정본에서 한다.
@@ -207,33 +207,15 @@ if [[ "${SKIP_SRC:-0}" == "1" ]]; then
 else
   info "[buildtools] (6/6) 빌드용 소스 복사 → ${SRC_OUT}"
   ensure_dir "${SRC_OUT}"
-  copy_src() {
-    local name="$1"
-    local from="${REPO}/${name}"
-    local to="${SRC_OUT}/${name}"
-    [[ -d "${from}" ]] || { warn "[buildtools] 소스 없음(생략): ${from}"; return 0; }
-    rm -rf "${to}"
-    # tar 파이프로 제외 패턴을 적용해 복사(멱등 — to 를 먼저 제거).
-    ensure_dir "${to}"
-    ( cd "${from}" && tar -cf - \
-        --exclude='./.git' \
-        --exclude='./node_modules' \
-        --exclude='./build' \
-        --exclude='./dist' \
-        --exclude='./.gradle' \
-        --exclude='./venv' \
-        --exclude='./.venv' \
-        --exclude='./__pycache__' \
-        --exclude='*/__pycache__' \
-        --exclude='*.pyc' \
-        --exclude='*.pyo' \
-        . ) | ( cd "${to}" && tar -xf - ) \
-      || die "[buildtools] 소스 복사 실패: ${name}"
-    ok "[buildtools] 소스: ${to}  ($(du -sh "${to}" | cut -f1))"
-  }
-  copy_src "backend"
-  copy_src "frontend"
-  copy_src "ai-server"
+  # ★★ 구 방식(tar --exclude 나열)은 폐기했다 — 제외 목록은 fail-open 이라
+  #   `backend/storage/`(원본 영상 mp4 11,012 · 프레임 jpg 6,380 · 447MB 는 비식별 전)가
+  #   그대로 실릴 상태였다. 개인정보가 매체로 나가는 경로다. 되살리지 말 것.
+  #   판정은 git 추적 목록이 한다(.gitignore 가 이미 정본) — klid_export_source 주석 참조.
+  #   ⚠ 그 헬퍼는 2026-09-05 에 만들어졌는데 <호출처가 없어 그동안 돌지 않았다>.
+  klid_export_source "backend"   "${SRC_OUT}"
+  klid_export_source "frontend"  "${SRC_OUT}"
+  klid_export_source "ai-server" "${SRC_OUT}"
+  klid_write_source_info "${SRC_OUT}"
 fi
 
 # ---- 무결성 체크섬(다운로드 tarball/zip) ----

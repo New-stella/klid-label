@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-09-07T15:21:47.564Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 138 |
+| Last sync | 2026-09-08T12:01:38.483Z |
+| Mode | SYNC — NEW 0 / CHANGED 11 / UNCHANGED 127 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,10 +26,10 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 77건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 80건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 8건)
-  ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
+  ℹ️  feature: 이번 키트 4건 / 스코프 밖 10건 (그중 domain_id 없음 9건)
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -41,7 +41,17 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[CDIAG-006]] (prev v15)
+- CHANGED [[CDIAG-014]] (prev v17)
+- CHANGED [[ERD-015]] (prev v17)
+- CHANGED [[NFR-020]] (prev v10)
+- CHANGED [[ROLE-002]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v14)
+- CHANGED [[UC-007]] (prev v15)
+- CHANGED [[UC-009]] (prev v25)
+- CHANGED [[UC-010]] (prev v17)
+- CHANGED [[UC-022]] (prev v29)
+- CHANGED [[UC-023]] (prev v30)
 
 ## ITEM 표
 
@@ -92,8 +102,8 @@
 | [[API-172]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
-| [[CDIAG-006]] | class_diagram | 15 | UNCHANGED |
-| [[CDIAG-014]] | class_diagram | 16 | UNCHANGED |
+| [[CDIAG-006]] | class_diagram | 16 | CHANGED |
+| [[CDIAG-014]] | class_diagram | 18 | CHANGED |
 | [[CDIAG-019]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 9 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 9 | UNCHANGED |
@@ -103,7 +113,7 @@
 | [[DFEAT-049]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-005]] | domain | 16 | UNCHANGED |
-| [[ERD-015]] | erd | 17 | UNCHANGED |
+| [[ERD-015]] | erd | 18 | CHANGED |
 | [[ERD-023]] | erd | 12 | UNCHANGED |
 | [[ERD-030]] | erd | 2 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
@@ -129,7 +139,7 @@
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 10 | UNCHANGED |
+| [[NFR-020]] | nfr | 11 | CHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -159,8 +169,8 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 10 | CHANGED |
+| [[ROLE-003]] | permission_role | 15 | CHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 106 | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 29 | UNCHANGED |
@@ -173,15 +183,15 @@
 | [[SEQ-011]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[TEST-002]] | test_scenario | 17 | UNCHANGED |
+| [[TEST-002]] | test_scenario | 18 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 5 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 4 | UNCHANGED |
-| [[UC-007]] | use_case | 15 | UNCHANGED |
-| [[UC-009]] | use_case | 25 | UNCHANGED |
-| [[UC-010]] | use_case | 17 | UNCHANGED |
-| [[UC-022]] | use_case | 29 | UNCHANGED |
-| [[UC-023]] | use_case | 30 | UNCHANGED |
+| [[UC-007]] | use_case | 16 | CHANGED |
+| [[UC-009]] | use_case | 26 | CHANGED |
+| [[UC-010]] | use_case | 18 | CHANGED |
+| [[UC-022]] | use_case | 30 | CHANGED |
+| [[UC-023]] | use_case | 31 | CHANGED |
 | [[UI-097]] | ui_component | 5 | UNCHANGED |

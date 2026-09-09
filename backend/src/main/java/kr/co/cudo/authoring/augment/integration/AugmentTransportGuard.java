@@ -9,13 +9,14 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.util.function.Function;
 
 /**
  * 증강 위탁 전송 계층 가드 — <b>보낼 수 없는 상태면 아무 데도 보내지 않는다</b>.
  *
  * <p>두 축을 막는다: <b>주소</b>가 정해지지 않았거나 정책을 위반한 경우
  * ({@link #requireUsableAddress(String)}), 그리고 주소가 멀쩡해도 <b>결과를 되받을 수 없는</b>
- * 경우({@link #requirePairedCallbackIntake(String)}). 둘 다 <b>기동을 막던 것을 위탁 시점으로</b>
+ * 경우({@link #requirePairedCallbackIntake(Function)}). 둘 다 <b>기동을 막던 것을 위탁 시점으로</b>
  * 옮긴 것이다.
  *
  * <h3>왜 필요한가 (실측)</h3>
@@ -38,10 +39,14 @@ import java.net.URI;
  * <p>메시지·로그에 <b>주소도 경로도 싣지 않는다</b>(CWE-209/532) — 대상 이름만 남긴다.
  *
  * <p>⚠ 이 필터는 시계열 위탁이 쓰는
- * {@code IntegrationEndpointTransportGuards#requireResolvedHost} 와 <b>같은 판정</b>이다. 그 공용
- * 구현을 그대로 부르지 못하는 이유는 인자가 「운영 화면에서 주소를 바꿀 수 있는 연동」 열거값인데
- * <b>증강이 아직 그 열거에 없기 때문</b>이다(등록은 시스템 설정 도메인 소관 — 별건). 증강이 등록되면
- * 이 클래스를 지우고 공용 구현으로 갈아끼운다.
+ * {@code IntegrationEndpointTransportGuards#requireResolvedHost} 와 <b>같은 판정</b>이다.
+ *
+ * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"그 공용 구현을 그대로 부르지 못하는 이유는 인자가
+ * 「운영 화면에서 주소를 바꿀 수 있는 연동」 열거값인데 증강이 아직 그 열거에 없기 때문이다"</i>.
+ * 증강은 {@code IntegrationEndpoint.AUGMENT} 로 <b>등록됐다</b>. 그 문장이 예고한 후속(이 클래스를
+ * 지우고 공용 구현으로 갈아끼우기)은 <b>아직 하지 않았다</b> — 거부 메시지 문구와
+ * {@link #requirePairedCallbackIntake(Function)}(증강 전용 짝 맞춤 축)가 공용 구현에 없어 그대로
+ * 바꾸면 계약이 바뀐다. <b>「등록됐으니 이미 갈아끼웠다」로 읽지 말 것</b> — 남은 작업이다.
  *
  * @design ADR-062
  */
@@ -120,14 +125,36 @@ public final class AugmentTransportGuard {
      * 제외된다)이고, 메시지에는 <b>대상 이름과 사유 분류만</b> 싣는다. 설정 키·대역 값은 서버
      * 로그에만 남긴다(CWE-209/532).
      *
-     * @param rejectionLabel 짝 맞춤 거부 사유({@code GenAiIntegrationWiringGuard#commissionRejectionLabel()}).
-     *                       {@code null}/공백이면 짝이 맞다는 뜻이라 아무것도 하지 않는다.
+     * <h3>★★ 판정은 <b>요청 시점</b>에 그 요청이 실제로 향하는 주소로 이뤄진다 (2026-09-08)</h3>
+     * <p>구 배선은 <b>기동 시점에 계산된 문자열 하나</b>를 받아 들고 있었다. 증강 위탁 주소가 운영
+     * 화면 교체 대상이 되면서 그 값이 <b>배포 기본값만</b> 보게 됐고, 배포 기본값이 빈 배포에서는
+     * 「미연동 → 요구 없음」으로 계산되어 <b>허용 대역이 비었는데도 위탁이 나갔다</b>.
+     * 그래서 문자열이 아니라 <b>주소를 받아 사유를 돌려주는 판정</b>을 받는다.
+     *
+     * <p>⚠ <b>여기서 허용 대역 규칙을 다시 읽지 않는다</b> — 규칙의 주인은
+     * {@code GenAiIntegrationWiringGuard} 하나이며, 이 자리는 <b>입력(그 요청의 유효 주소)만</b>
+     * 넘긴다. 사본을 만들면 두 번째 진실원이 되어 한쪽만 갱신되는 순간 갈린다.
+     *
+     * <p>주소는 <b>재작성 필터가 지나간 뒤의 최종 URL</b>에서 뽑으므로, 운영 화면에서 저장한 주소가
+     * 그대로 판정 입력이 된다. 이 필터가 재작성 필터보다 <b>앞에</b> 놓이면 저장 전 주소로 판정하게
+     * 되어 이 수정이 무의미해진다.
+     *
+     * @param rejectionLabelForAddress 그 요청의 유효 주소를 받아 짝 맞춤 거부 사유를 돌려주는 판정
+     *                       ({@code GenAiIntegrationWiringGuard#commissionRejectionLabel(String)}).
+     *                       {@code null}/공백을 돌려주면 짝이 맞다는 뜻이라 아무것도 하지 않는다.
+     * @design ADR-046
      * @design ADR-062
      * @design INT-006
      */
-    public static ExchangeFilterFunction requirePairedCallbackIntake(String rejectionLabel) {
+    public static ExchangeFilterFunction requirePairedCallbackIntake(
+            Function<String, String> rejectionLabelForAddress) {
         return (request, next) -> {
-            if (rejectionLabel == null || rejectionLabel.isBlank() || !isCommission(request)) {
+            // 위탁(job 생성)이 아니면 판정 자체를 하지 않는다 — 조회·취소는 새 수신구를 열지 않는다.
+            if (rejectionLabelForAddress == null || !isCommission(request)) {
+                return next.exchange(request);
+            }
+            String rejectionLabel = rejectionLabelForAddress.apply(originOf(request.url()));
+            if (rejectionLabel == null || rejectionLabel.isBlank()) {
                 return next.exchange(request);
             }
             log.error("[Augment] 위탁 ↔ 콜백 수신 배선의 짝이 맞지 않아 위탁을 보내지 않았습니다 — "
@@ -138,6 +165,24 @@ public final class AugmentTransportGuard {
                     DISPLAY_NAME + " 위탁 ↔ 콜백 수신 배선의 짝이 맞지 않아 요청을 보내지 않았습니다 ("
                             + rejectionLabel + ")."));
         };
+    }
+
+    /**
+     * 이 요청이 <b>실제로 향하는 주소</b>({@code scheme://authority}) — 경로·쿼리는 뺀다.
+     *
+     * <p>짝 맞춤 판정의 입력은 <b>연동 주소</b>이지 개별 요청 경로가 아니다. 경로를 함께 넘기면
+     * 주소 판정기가 그것을 주소의 일부로 보게 된다.
+     *
+     * <p>authority 를 뽑을 수 없으면 빈 문자열을 돌려준다 — 판정기가 「아직 연동 안 됨」으로 읽어
+     * 요구하지 않는다. 이 조합은 앞선 {@link #requireUsableAddress(String)} 가 이미 막으므로
+     * 실제로는 도달하지 않는다(그 필터가 <b>먼저</b> 놓인다는 전제가 여기서도 쓰인다).
+     */
+    private static String originOf(URI url) {
+        if (url == null || url.getScheme() == null) {
+            return "";
+        }
+        String authority = url.getRawAuthority();
+        return authority == null || authority.isBlank() ? "" : url.getScheme() + "://" + authority;
     }
 
     /**

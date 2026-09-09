@@ -13,7 +13,7 @@
       "title": "이관 이력 조회",
       "status": "draft",
       "priority": "should",
-      "frequency": "상시 — 이관 현황을 확인하거나 실패한 이관의 경위를 되짚을 때마다",
+      "frequency": "수시 — 이관 현황을 확인하거나 실패한 이관의 경위를 되짚을 때마다 조회한다.",
       "main_flow": [
         {
           "step": 1,
@@ -155,12 +155,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "액터 표기 통일 — 관리자 → 관리자(ADMIN)",
+    "change_summary": "발생 빈도 기입 — 원천이 「상시 — 이관 현황을 확인하거나 실패한 이관의 경위를 되짚을 때마다」로 적고 있었으나 상시와 조건부 서술이 섞여 읽혔다. 조회 시점이 사용자 필요에 달린 것이므로 수시로 바로잡고 뒤 서술은 그대로 두었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T05:36:36.209Z",
+    "last_updated_at": "2026-09-08T06:15:48.942Z",
     "created_at": "2026-08-20T23:24:36.952Z"
   }
 }

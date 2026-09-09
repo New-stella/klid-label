@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 15
+version: 16
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-03T07:39:15.568Z
+synced_at: 2026-09-08T12:01:38.473Z
 status: CHANGED
-prev_version: 13
-content_hash: 84576335cd518f7ca0f4de684c281d46095d5c7a23b292c0ba0bf0a05e40e6fd
+prev_version: 15
+content_hash: 0b980bb7140b00340bba7a53e5d0fd4150148d485adbdb556695809a900f7ddf
 stale: false
 raw: ./_raw/CDIAG-006.json
 links:
@@ -33,66 +33,6 @@ neutral
 - **kind**: aggregate_root
 
 **methods**:
-
-#### assignToWorker
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 AssignmentService 가 작업 배정 시 LsRawDataStatus.markAssigned() 를 호출해 ASSIGNED 로 전이시킨다.
-- **is_abstract**: false
-- **return_type**: void
-
-#### submitForReview
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService 가 제출 시 ReviewStateMachine.verify(from,to) 로 전이를 검증한 뒤 LsRawDataStatus.transitionTo(PENDING) 을 호출한다.
-- **is_abstract**: false
-- **return_type**: void
-
-#### approve
-
-**params**:
-
-- reviewerId: Long
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.approve 가 승인을 수행하며 그 순서는 ①비식별화완료여부(deIdntfCmptnYn)가 완료(Y)인지 판정해 미완료(N)면 거부 ②ReviewStateMachine.verify(IN_REVIEW, APPROVED) ③transitionTo(APPROVED) 다. 가드가 상태 전이보다 앞서므로 거부될 때는 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 하나도 만들어지지 않는다. reviewerId 매개변수에 해당하는 승인자 식별은 이 메서드가 받지 않으며 별도 감사 경로가 기록한다.
-- **is_abstract**: false
-- **return_type**: void
-
-#### reject
-
-**params**:
-
-- issue: DataIssue
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.reject 가 ReviewStateMachine.verify(IN_REVIEW, REJECTED) 검증 후 LsRawDataStatus.transitionTo(REJECTED) 를 호출한다. DataIssue 매개변수에 해당하는 반려 사유는 이 메서드가 받지 않는다(별도 저장 경로).
-- **is_abstract**: false
-- **return_type**: void
-
-#### incrementReviewCycle
-
-**params**:
-
-_(empty)_
-
-- **is_static**: false
-- **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — STP_CYCL/IGI_CYCL 필드는 존재하지만 생성 시점(initial, 항상 0)에만 값이 정해지고 그 이후 값을 증가시키는 공개 메서드가 실제 엔티티에 없다.
-- **is_abstract**: false
-- **return_type**: void
 
 #### initial
 

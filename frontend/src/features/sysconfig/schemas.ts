@@ -128,7 +128,11 @@ export const deidentConfigSchema = z.object({
 export type DeidentConfigForm = z.infer<typeof deidentConfigSchema>;
 
 /**
- * R11 연동 서버 주소 zod 스키마.
+ * R11 연동 서버 주소 zod 스키마 — **저장한 값이 곧 진실원인 축만** 담는다.
+ *
+ * ⚠ AI 추론 서버·외부 시계열 분석 벤더 칸은 **여기 없는 것이 맞다**. 그 두 축의 주소 진실원은
+ * 장비 원장이고 위탁도 원장 주소로 나가므로, 이 스키마에 필드를 되살리면 저장은 되는데 위탁
+ * 주소는 그대로인 **조용한 실패**가 된다(SCREEN-042 v19 · API-069 v11).
  *
  * ⚠ **1차 검증일 뿐이다.** 서버도 같은 축(스킴·형식)을 다시 본다. 두 검증의 범위가 완전히 같지는
  * 않으므로 화면을 통과한 값도 서버가 400 을 줄 수 있고, 그때는 서버 문구를 그대로 보여준다.
@@ -152,8 +156,15 @@ const endpointUrl = z
 
 export const integrationEndpointsSchema = z.object({
   deidentify: endpointUrl,
-  aiServer: endpointUrl,
-  vlm: endpointUrl,
+  /**
+   * 외부 증강 벤더 — **비워 두는 것이 정상 상태**다.
+   *
+   * ★ 비어 있음이 «아직 연동하지 않았다»를 나타내는 **유일한 표현**이다. 미리 채워 두면 연동된
+   * 것으로 판정돼 아무도 받지 않는 주소로 위탁이 나가고, 그 실패가 **벤더 장애처럼** 보인다.
+   * 그래서 이 칸에는 필수 검증을 걸지 않는다 — 빈 값은 다른 칸과 같이 «바꾸지 않음»이라
+   * 전송 대상에서 빠지고, 저장 행이 생기지 않는다.
+   */
+  augment: endpointUrl,
   controlNotify: endpointUrl,
 });
 

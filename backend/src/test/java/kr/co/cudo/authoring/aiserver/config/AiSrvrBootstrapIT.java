@@ -258,7 +258,7 @@ class AiSrvrBootstrapIT {
                 jdbcTemplate.update("""
                         INSERT INTO ls_ai_srvr (srvr_id, srvr_addr, srvr_type_cd, srvr_stts_cd,
                                                 chck_fail_nocs, reg_dt)
-                        VALUES ('klid-ai-gpu-01', 'http://10.0.0.11:9300', 'INFERENCE', 'AVAILABLE',
+                        VALUES ('klid.ai.gpu.01', 'http://10.0.0.11:9300', 'INFERENCE', 'AVAILABLE',
                                 0, now()),
                                ('GPU02', 'http://10.0.0.12:9300', 'INFERENCE', 'AVAILABLE',
                                 0, now())
@@ -275,7 +275,9 @@ class AiSrvrBootstrapIT {
             assertThat(appender.list)
                     .as("기동을 막지 않는 대신 오류 수준 기록이 유일한 단서가 된다")
                     .anyMatch(event -> event.getLevel() == Level.ERROR
-                            && event.getFormattedMessage().contains("klid-ai-gpu-01")
+                            // ⚠구 표본 폐기(2026-09-08): 'klid-ai-gpu-01' 이었다. 하이픈이 허용되면서
+                            //   그 값은 <위반이 아니게> 됐고, 이 단언은 그대로 두면 영영 실패한다.
+                            && event.getFormattedMessage().contains("klid.ai.gpu.01")
                             && event.getFormattedMessage().contains("GPU02"));
         } finally {
             guardLogger.detachAppender(appender);

@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.augment.integration;
 
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -23,12 +25,27 @@ import org.springframework.util.StringUtils;
  * 검사는 AOP 프록시가 끼면 조용히 거짓이 된다. 그래서 <b>위탁 WebClient 의 base-url 을 정하는 같은
  * 프로퍼티</b>를 같은 기본값(빈 문자열)으로 읽는다 — 판정과 배선이 같은 값을 본다.
  *
- * <p><b>생명주기</b>: 프로퍼티라 재기동 없이 바뀌지 않는다 — 위탁 WebClient 의 base-url 과 같은
- * 생명주기다. 동적 override(설정 화면·DB 기반 토글)를 여기에 얹지 말 것. 얹는 순간 "판정은 연동인데
- * 클라이언트가 보는 주소는 비었다" 같은 어긋남이 다시 열린다. ⚠ 증강은 아직
- * {@code IntegrationEndpoint} 에 등록돼 있지 않아 <b>운영 화면 주소 override 대상이 아니다</b>.
+ * <h3>★ 지켜야 하는 불변식 — 판정과 배선이 <b>같은 값</b>을 본다</h3>
+ * <p>이 클래스의 구속 규칙은 「동적이냐 정적이냐」가 아니라 <b>「판정이 보는 주소와 위탁 클라이언트가
+ * 실제로 쓰는 주소가 같아야 한다」</b> 하나다. 한쪽만 override 를 읽으면 "판정은 연동인데 클라이언트가
+ * 보는 주소는 비었다"(또는 그 반대) 같은 어긋남이 열린다.
  *
+ * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"프로퍼티라 재기동 없이 바뀌지 않는다 … 동적
+ * override(설정 화면·DB 기반 토글)를 여기에 얹지 말 것"</i> · <i>"증강은 아직
+ * {@code IntegrationEndpoint} 에 등록돼 있지 않아 운영 화면 주소 override 대상이 아니다"</i>.
+ * 증강이 {@link IntegrationEndpoint#AUGMENT} 로 등록되어 <b>화면에서 주소를 저장할 수 있게 됐고</b>,
+ * 위탁 WebClient 도 같은 라운드에 {@code IntegrationEndpointExchangeFilter} 로 <b>호출 시점 해석</b>이
+ * 됐다. 그래서 override 를 여기 <b>얹지 않는 쪽이</b> 위 불변식을 깬다 — 저장해도 이 판정이
+ * 「연동 안 됨」으로 남아 <b>요청 접수가 계속 503</b> 이고, 화면의 저장이 실동작 0건이 된다.
+ * <b>구 문장을 근거로 이 배선을 되돌리지 말 것.</b>
+ *
+ * <p>★ <b>여전히 금지되는 것</b>: 「연동 여부」를 <b>별도 토글</b>(모드 키·활성 플래그)로 고르는 것.
+ * 판정 규칙은 그대로 <b>「유효 주소가 비어 있는가」</b> 하나이며, 바뀐 것은 <b>규칙이 아니라 그 주소를
+ * 읽는 자리</b>다(배포 기본값만 → 설정 override 우선 + 배포 기본값 폴백).
+ *
+ * @design ADR-046
  * @design ADR-062
+ * @design API-069
  */
 @Component
 public class AugmentExternalLinkPolicy {
@@ -36,10 +53,20 @@ public class AugmentExternalLinkPolicy {
     /** 위탁 주소 프로퍼티 키 — 위탁 WebClient 가 읽는 것과 <b>같은 키</b>다. */
     public static final String KEY_BASE_URL = "authoring.augment.external.base-url";
 
-    private final String baseUrl;
+    /** 배포 기본값(@Value). override 가 없을 때만 쓰인다. */
+    private final String bootDefault;
 
-    public AugmentExternalLinkPolicy(@Value("${" + KEY_BASE_URL + ":}") String baseUrl) {
-        this.baseUrl = baseUrl;
+    /**
+     * 저장된 주소를 읽는 <b>단일 지점</b>. {@code null} 이면 배포 기본값만 본다 —
+     * 재작성 필터({@code IntegrationEndpointExchangeFilter.of}) 와 <b>같은 관용</b>이라
+     * 컨테이너 없는 단위 시험에서 두 자리가 같은 방식으로 구성된다.
+     */
+    private final IntegrationEndpointResolver endpointResolver;
+
+    public AugmentExternalLinkPolicy(@Value("${" + KEY_BASE_URL + ":}") String bootDefault,
+                                     IntegrationEndpointResolver endpointResolver) {
+        this.bootDefault = bootDefault;
+        this.endpointResolver = endpointResolver;
     }
 
     /**
@@ -58,6 +85,18 @@ public class AugmentExternalLinkPolicy {
      * 확정 실패</b>하는 조합이 성립한다 — 실패는 기록되며 조용히 사라지지 않는다.
      */
     public boolean isNotLinked() {
-        return !StringUtils.hasText(baseUrl);
+        return !StringUtils.hasText(effectiveBaseUrl());
+    }
+
+    /**
+     * 지금 유효한 위탁 주소 — <b>설정에 값이 있으면 그것, 없으면 배포 기본값</b>.
+     *
+     * <p>위탁 WebClient 가 호출 시점에 쓰는 주소와 <b>같은 조달 순서·같은 판정 지점</b>이다. 여기서
+     * 우선순위를 다시 쓰면 그 사본이 두 번째 진실원이 되어 한쪽만 갱신되는 순간 갈린다.
+     */
+    private String effectiveBaseUrl() {
+        return endpointResolver == null
+                ? bootDefault
+                : endpointResolver.resolve(IntegrationEndpoint.AUGMENT, bootDefault);
     }
 }

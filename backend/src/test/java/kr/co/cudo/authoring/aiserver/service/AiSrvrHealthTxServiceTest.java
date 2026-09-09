@@ -24,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -47,9 +48,51 @@ class AiSrvrHealthTxServiceTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 1, 4, 12, 33);
 
+    /**
+     * 시험용 원장 — 저장소의 <b>원자 증감</b>을 흉내 낸다.
+     *
+     * <p>연속 횟수를 엔티티에서 올리던 구 방식은 <b>갱신 유실</b>이 나서 저장소의 증감 문장으로
+     * 옮겼다({@code LsAiSrvrRepository#recordCheckFailure}). 그래서 목이 그 문장을 대신 수행해야
+     * 이 클래스의 판정(연속 N회에서 내린다)을 잴 수 있다. <b>원자성 자체</b>는 목으로 잴 수 없으므로
+     * 실제 DB 시험({@code AiSrvrHealthApplyIT})이 따로 지킨다 — 두 축은 서로를 대신하지 못한다.
+     */
+    private final java.util.Map<String, LsAiSrvr> ledger = new java.util.HashMap<>();
+
     @BeforeEach
     void setUp() {
-        service = new AiSrvrHealthTxService(repository, usgRepository, 3, 3);
+        service = new AiSrvrHealthTxService(repository, usgRepository, 3, 3, 3, 3);
+        given(repository.recordCheckSuccess(anyString(), any())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            if (node == null) {
+                return 0;
+            }
+            ReflectionTestUtils.setField(node, "chckDt", call.getArgument(1));
+            ReflectionTestUtils.setField(node, "chckFailNocs", 0);
+            ReflectionTestUtils.setField(node, "chckScsNocs", nz(node.getChckScsNocs()) + 1);
+            return 1;
+        });
+        given(repository.recordCheckFailure(anyString(), any())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            if (node == null) {
+                return 0;
+            }
+            ReflectionTestUtils.setField(node, "chckDt", call.getArgument(1));
+            ReflectionTestUtils.setField(node, "chckScsNocs", 0);
+            ReflectionTestUtils.setField(node, "chckFailNocs", nz(node.getChckFailNocs()) + 1);
+            return 1;
+        });
+        given(repository.findSuccessStreak(anyString())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            return node == null ? null : node.getChckScsNocs();
+        });
+        given(repository.findFailureStreak(anyString())).willAnswer(call -> {
+            LsAiSrvr node = ledger.get(call.<String>getArgument(0));
+            return node == null ? null : node.getChckFailNocs();
+        });
+    }
+
+    private static int nz(Integer value) {
+        return value == null ? 0 : value;
     }
 
     @Test
@@ -65,7 +108,7 @@ class AiSrvrHealthTxServiceTest {
 
         // then
         assertThat(node.getChckFailNocs()).isEqualTo(2);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -73,31 +116,104 @@ class AiSrvrHealthTxServiceTest {
     void 연속_세번_실패하면_노드가_이용불가로_바뀐다() {
         LsAiSrvr node = available("gpu01");
         given(repository.findById("gpu01")).willReturn(Optional.of(node));
-        given(repository.demoteIfNotLastAvailable(anyString(), anyString())).willReturn(1);
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
         for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        verify(repository).demoteIfNotLastAvailable("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
     }
 
+    /**
+     * ★★ <b>이 라운드의 핵심</b> — 상태점검 강등은 <b>마지막 가용 노드 보호를 타지 않는다</b>.
+     * [@design AC-1093] [@design AC-1091]
+     *
+     * <p>구 코드는 {@code demoteIfNotLastAvailable} 을 불렀고, 그 쿼리는 가용이 하나뿐이면 강등을
+     * 거부한다. 그래서 두 장비가 <b>같은 시각에 둘 다 죽으면</b> 나중 쪽이 「가용」으로 남아
+     * <b>화면이 「한 대는 살아 있다」고 거짓을 말한다</b>(현장 실측: gpu01 연속 실패 3회인데 가용).
+     *
+     * <p>그 보호는 <b>사람의 조작</b>({@code demoteIfNotLastAvailableOfType})에 거는 것이고, 상태점검이
+     * 내리는 이용불가는 <b>관측</b>이다. 그래서 두 보호 쿼리 어느 쪽도 부르지 않는 것까지 못 박는다 —
+     * 「일관성」을 이유로 다시 배선하면 이 단언이 죽는다.
+     */
     @Test
-    @DisplayName("강등은_마지막_가용노드_보호_쿼리를_거친다")
-    void 강등은_마지막_가용노드_보호_쿼리를_거친다() {
-        // given — 마지막 가용 노드라 보호 쿼리가 0행을 돌려준다
+    @DisplayName("★★상태점검_강등은_마지막_가용노드_보호_쿼리를_타지_않는다")
+    void 상태점검_강등은_마지막_가용노드_보호_쿼리를_타지_않는다() {
         LsAiSrvr node = available("gpu01");
         given(repository.findById("gpu01")).willReturn(Optional.of(node));
-        given(repository.demoteIfNotLastAvailable(anyString(), anyString())).willReturn(0);
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
-        // when
         for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        // then — ★상태를 직접 UPDATE 하지 않는다. 보호 판정은 그 쿼리 하나가 소유한다.
-        verify(repository).demoteIfNotLastAvailable("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never())
+                .demoteIfNotLastAvailableOfType(anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    /**
+     * ★ 강등이 실제로 일어났을 때만 <b>그 유형의 가용이 0이 되었는지</b> 확인한다.
+     *
+     * <p>운영자가 알아야 할 것은 「한 대가 내려갔다」가 아니라 <b>「이 유형으로 나갈 길이 없어졌다」</b>
+     * 다 — 그 순간부터 그 유형의 위탁은 폴백 없이 거부되기 때문이다. [@design AC-1093]
+     */
+    @Test
+    @DisplayName("★강등이_일어나면_그_유형의_가용이_0인지_확인한다")
+    void 강등이_일어나면_그_유형의_가용이_0인지_확인한다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
+        given(repository.countBySrvrTypeCdAndSrvrSttsCd(any(), any())).willReturn(0L);
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).countBySrvrTypeCdAndSrvrSttsCd(
+                LsAiSrvr.SrvrType.INFERENCE, AiSrvrStatus.AVAILABLE);
+    }
+
+    /**
+     * ★ <b>알림이 실패해도 강등은 유지된다</b> — 알림은 부수 효과이고, 여기서 예외가 올라가면 이미
+     * 옳게 내린 상태 전이가 트랜잭션과 함께 롤백된다.
+     */
+    @Test
+    @DisplayName("★가용_수_확인이_실패해도_강등이_롤백되지_않는다")
+    void 가용_수_확인이_실패해도_강등이_롤백되지_않는다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
+        given(repository.countBySrvrTypeCdAndSrvrSttsCd(any(), any()))
+                .willThrow(new org.springframework.dao.QueryTimeoutException("pool exhausted"));
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+    }
+
+    /**
+     * 조건부 UPDATE 가 0행을 돌려주는 것은 <b>그 사이 누가 상태를 바꿨다</b>는 뜻이다(정상).
+     * 상태를 직접 UPDATE 해 그것을 덮어쓰지 않는다.
+     */
+    @Test
+    @DisplayName("강등이_0행이면_상태를_직접_고쳐_덮어쓰지_않는다")
+    void 강등이_0행이면_상태를_직접_고쳐_덮어쓰지_않는다() {
+        LsAiSrvr node = available("gpu01");
+        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(0);
+
+        for (int i = 0; i < 3; i++) {
+            service.applyHealth("gpu01", false, NOW);
+        }
+
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
         verify(repository, never()).promoteIfUnavailable(anyString());
+        verify(repository, never()).countBySrvrTypeCdAndSrvrSttsCd(any(), any());
         assertThat(node.getSrvrSttsCd()).isEqualTo(AiSrvrStatus.AVAILABLE);
     }
 
@@ -113,7 +229,7 @@ class AiSrvrHealthTxServiceTest {
         service.applyHealth("gpu01", false, NOW);
 
         assertThat(node.getChckFailNocs()).isEqualTo(1);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -146,23 +262,43 @@ class AiSrvrHealthTxServiceTest {
         verify(repository, never()).promoteIfUnavailable(anyString());
     }
 
+    /**
+     * ★★ <b>정비중 장비도 죽으면 내려간다</b> (2026-09-08). [@design API-229] [@design AC-1100]
+     *
+     * <p>⚠ <b>구 시험 폐기</b> — 여기 <i>「정비중 노드는 헬스가 실패해도 상태가 바뀌지 않는다 —
+     * 사람이 의도적으로 세운 상태를 배치가 덮어쓰지 않는다」</i>를 고정하고 있었다. 정비중은
+     * <b>하던 일을 끝까지 흘려보낸다</b>는 뜻이지 <b>죽어도 살아 있는 것으로 친다</b>는 뜻이 아니며,
+     * 그 길이 없으면 정비 중에 실제로 멈춘 장비에 고정된 영상이 <b>죽은 주소에 영구히 묶인다</b>
+     * (재배정 조항도 이용불가로 관측되지 않아 발동하지 않는다).
+     *
+     * <p>이 단언의 <b>반대 방향 짝</b>은 「살아 있는 정비중 장비에 고정된 영상은 그 장비에서 끝까지
+     * 처리된다」이며 {@code AiSrvrBatchAssignmentTest} 가 갖는다. 한쪽만 두면 다음 사람이 반대쪽을 깬다.
+     */
     @Test
-    @DisplayName("정비중_노드는_헬스가_실패해도_상태가_바뀌지_않는다")
-    void 정비중_노드는_헬스가_실패해도_상태가_바뀌지_않는다() {
-        // given — 사람이 의도적으로 세운 상태를 배치가 덮어쓰지 않는다
+    @DisplayName("★★정비중_노드도_연속_실패_임계에_닿으면_이용불가로_내려간다")
+    void 정비중_노드도_연속_실패하면_이용불가로_내려간다() {
         LsAiSrvr node = withStatus("gpu01", AiSrvrStatus.DRAINING);
-        given(repository.findById("gpu01")).willReturn(Optional.of(node));
+        given(repository.demoteByHealthCheck(anyString(), anyString())).willReturn(1);
 
-        // when
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 3; i++) {
             service.applyHealth("gpu01", false, NOW);
         }
 
-        // then — 상태는 그대로, 기록(연속 실패·점검 시각)만 남는다
-        assertThat(node.getSrvrSttsCd()).isEqualTo(AiSrvrStatus.DRAINING);
-        assertThat(node.getChckFailNocs()).isEqualTo(5);
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        assertThat(node.getChckFailNocs()).isEqualTo(3);
         assertThat(node.getChckDt()).isEqualTo(NOW);
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+    }
+
+    /** 임계에 닿기 전에는 정비중도 그대로다 — 한 번의 흔들림으로 정비 상태를 잃지 않는다. */
+    @Test
+    @DisplayName("정비중_노드가_임계에_못_미치면_상태를_건드리지_않는다")
+    void 정비중_노드가_임계에_못_미치면_상태를_건드리지_않는다() {
+        withStatus("gpu01", AiSrvrStatus.DRAINING);
+
+        service.applyHealth("gpu01", false, NOW);
+        service.applyHealth("gpu01", false, NOW);
+
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
     }
 
     @Test
@@ -186,7 +322,8 @@ class AiSrvrHealthTxServiceTest {
 
         service.applyHealth("gone", false, NOW);
 
-        verify(repository, never()).demoteIfNotLastAvailable(anyString(), anyString());
+        verify(repository, never()).demoteByHealthCheck(anyString(), anyString());
+        verify(repository, never()).recordCheckFailure(anyString(), any());
     }
 
     @Test
@@ -226,16 +363,196 @@ class AiSrvrHealthTxServiceTest {
         verify(usgRepository, never()).save(any(LsAiSrvrUsg.class));
     }
 
-    // --- fixtures ------------------------------------------------------------------------------
+    // --- 계통별 임계 (AC-1099) -------------------------------------------------------------------
+    //
+    // ★검증하는 것은 임계의 <특정 값>이 아니라 <자리가 갈려 서로를 움직이지 않는가>다.
+    //   공통값을 두고 물려받게 하면 그 값을 바꾸는 순간 두 계통이 함께 움직여, 계통을 가른
+    //   이 조항이 이름만 남고 실질이 없어진다.
 
-    private static LsAiSrvr available(String srvrId) {
-        return LsAiSrvr.register(srvrId, null, "http://ai-1:9300",
-                LsAiSrvr.SrvrType.INFERENCE, NOW);
+    @Test
+    @DisplayName("★계통마다_다른_연속실패_임계로_판정한다")
+    void 계통마다_다른_연속실패_임계로_판정한다() {
+        // given — 추론 2회 / 시계열 4회
+        AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 2, 9, 4, 9);
+        LsAiSrvr inference = available("gpu01");
+        LsAiSrvr timeseries = timeseries("vendor1");
+        given(repository.findById("gpu01")).willReturn(Optional.of(inference));
+        given(repository.findById("vendor1")).willReturn(Optional.of(timeseries));
+
+        // when — 둘 다 두 번 연속 실패
+        svc.applyHealth("gpu01", false, NOW);
+        svc.applyHealth("gpu01", false, NOW);
+        svc.applyHealth("vendor1", false, NOW);
+        svc.applyHealth("vendor1", false, NOW);
+
+        // then — 추론만 임계에 닿았다. 시계열은 자기 임계(4)를 쓰므로 아직 내려가지 않는다.
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository, never()).demoteByHealthCheck(eq("vendor1"), anyString());
     }
 
-    private static LsAiSrvr withStatus(String srvrId, AiSrvrStatus status) {
+    @Test
+    @DisplayName("★한_계통의_임계를_바꿔도_다른_계통의_판정_기준은_그대로다")
+    void 한_계통의_임계를_바꿔도_다른_계통의_판정_기준은_그대로다() {
+        // given — 시계열만 1회로 조인다. 추론은 손대지 않았다.
+        AiSrvrHealthTxService tightened =
+                new AiSrvrHealthTxService(repository, usgRepository, 3, 3, 1, 1);
+        // ★register() 가 findById 목까지 함께 세운다 — 여기서 다시 감싸면 <중첩 스터빙>이 된다.
+        available("gpu01");
+        timeseries("vendor1");
+
+        // when — 각각 한 번씩만 실패
+        tightened.applyHealth("vendor1", false, NOW);
+        tightened.applyHealth("gpu01", false, NOW);
+
+        // then — 조인 쪽만 즉시 내려간다. 값이 새지 않았다.
+        verify(repository).demoteByHealthCheck("vendor1", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository, never()).demoteByHealthCheck(eq("gpu01"), anyString());
+    }
+
+    @Test
+    @DisplayName("★한_계통에만_값을_줘도_다른_계통은_자기_기본값으로_판정한다_공통값_승계_없음")
+    void 한_계통에만_값을_줘도_다른_계통은_자기_기본값으로_판정한다() {
+        // given — 추론만 1회로 주고 시계열은 기본값(3)을 그대로 둔다.
+        AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 1, 1, 3, 3);
+        timeseries("vendor1");
+
+        // when — 시계열이 두 번 실패(기본값 3에 못 미친다)
+        svc.applyHealth("vendor1", false, NOW);
+        svc.applyHealth("vendor1", false, NOW);
+
+        // then — 추론 값(1)을 물려받지 않았다. 물려받았다면 첫 실패에 이미 내려갔을 것이다.
+        verify(repository, never()).demoteByHealthCheck(eq("vendor1"), anyString());
+    }
+
+    @Test
+    @DisplayName("★계통마다_다른_복귀_임계로_판정한다")
+    void 계통마다_다른_복귀_임계로_판정한다() {
+        // given — 복귀 임계: 추론 1 / 시계열 3
+        AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 9, 1, 9, 3);
+        withStatus("gpu01", AiSrvrStatus.UNAVAILABLE);
+        LsAiSrvr downTimeseries = timeseries("vendor1");
+        ReflectionTestUtils.setField(downTimeseries, "srvrSttsCd", AiSrvrStatus.UNAVAILABLE);
+
+        // when — 각각 한 번씩 성공
+        svc.applyHealth("gpu01", true, NOW);
+        svc.applyHealth("vendor1", true, NOW);
+
+        // then — 추론만 복귀한다.
+        verify(repository).promoteIfUnavailable("gpu01");
+        verify(repository, never()).promoteIfUnavailable("vendor1");
+    }
+
+    /**
+     * ★ 오설정 하한({@code Math.max(1, …)})은 <b>값을 직접 읽어야만</b> 관측된다.
+     *
+     * <p>⚠ <b>구 시험의 근거 폐기(2026-09-08)</b> — 여기 <i>「각각 한 번 실패시켜 둘 다 내려가는 것으로
+     * 하한을 확인한다(0 이하가 그대로 쓰였다면 0회 실패에도 내려갔을 것이다)」</i>고 적혀 있었다.
+     * <b>그 근거는 거짓이다</b> — 연속 횟수는 첫 실패에 이미 1이라 임계가 0이든 1이든
+     * {@code 1 < threshold} 가 똑같이 거짓이고, 판정 시점에 0회인 상태가 <b>존재하지 않는다</b>.
+     * 실제로 하한을 통째로 걷어내는 변이를 심었을 때 이 클래스가 <b>전건 통과</b>했다. 그래서 행위가
+     * 아니라 <b>확정된 임계값 자체</b>를 단언한다.
+     *
+     * <p>하한이 필요한 이유 자체는 그대로다 — 0 이하를 그대로 쓰면 「연속을 센다」는 성질이 사라져
+     * <b>한 번의 네트워크 흔들림으로 장비를 잃는다</b>(그 손실은 관측 가능하지만, 그 상태에 이르게
+     * 하려면 임계가 <b>1보다 커야</b> 하므로 이 시험으로는 잴 수 없다).
+     */
+    @Test
+    @DisplayName("★오설정_하한은_두_자리_모두에_걸린다_임계값을_직접_단언한다")
+    void 오설정_하한은_두_자리_모두에_걸린다() {
+        // given — 두 계통 · 실패/복귀 네 자리 모두 0·음수.
+        AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 0, -1, 0, -5);
+
+        // then — 네 자리 전부 1로 눌린다. 한 자리라도 빠지면 그 축이 「연속을 세지 않는」 상태가 된다.
+        assertThat(svc.failThresholdOf(LsAiSrvr.SrvrType.INFERENCE)).isEqualTo(1);
+        assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.INFERENCE)).isEqualTo(1);
+        assertThat(svc.failThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(1);
+        assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(1);
+
+        // 그리고 그 값이 실제 판정에 쓰인다 — 접근자만 맞고 판정이 다른 값을 보면 무의미하다.
+        available("gpu01");
+        timeseries("vendor1");
+        svc.applyHealth("gpu01", false, NOW);
+        svc.applyHealth("vendor1", false, NOW);
+        verify(repository).demoteByHealthCheck("gpu01", AiSrvrStatus.UNAVAILABLE.name());
+        verify(repository).demoteByHealthCheck("vendor1", AiSrvrStatus.UNAVAILABLE.name());
+    }
+
+    /** 정상값은 눌리지 않는다 — 하한이 「모든 값을 1로 만드는 것」이 되면 임계 설정이 무의미해진다. */
+    @Test
+    @DisplayName("하한은_정상값을_건드리지_않는다")
+    void 하한은_정상값을_건드리지_않는다() {
+        AiSrvrHealthTxService svc = new AiSrvrHealthTxService(repository, usgRepository, 3, 4, 5, 6);
+
+        assertThat(svc.failThresholdOf(LsAiSrvr.SrvrType.INFERENCE)).isEqualTo(3);
+        assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.INFERENCE)).isEqualTo(4);
+        assertThat(svc.failThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(5);
+        assertThat(svc.recoverThresholdOf(LsAiSrvr.SrvrType.TIMESERIES)).isEqualTo(6);
+    }
+
+    // --- 기록 정제 (CWE-117) ---------------------------------------------------------------------
+
+    /**
+     * ★ 원장 유래 식별자를 <b>정제 없이</b> 로그에 싣지 않는다 — 같은 클래스 안에서 갈려 있었다.
+     *
+     * <p>원장 행은 체크 제약을 우회해 들어왔을 수 있고(마이그레이션·수동 수정), 개행이 섞이면 그
+     * 값이 <b>기록 위조 통로</b>가 된다. 이 클래스는 강등 경로에서는 정제해 싣고 있었는데
+     * <b>복귀 경로와 「원장에 없는 노드」 경로에서는 원문을 그대로</b> 싣고 있었다 — 규칙이 아니라
+     * 습관이었던 것이다.
+     */
+    @Test
+    @DisplayName("★복귀_로그에_원장_식별자를_정제_없이_싣지_않는다")
+    void 복귀_로그에_원장_식별자를_정제_없이_싣지_않는다() {
+        String forged = "gpu01\nWARN [AiSrvr] 위조된 줄";
+        LsAiSrvr node = LsAiSrvr.register(forged, null, "http://ai-1:9300",
+                LsAiSrvr.SrvrType.INFERENCE, NOW);
+        ReflectionTestUtils.setField(node, "srvrSttsCd", AiSrvrStatus.UNAVAILABLE);
+        ledger.put(forged, node);
+        given(repository.findById(forged)).willReturn(Optional.of(node));
+        given(repository.promoteIfUnavailable(anyString())).willReturn(1);
+
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
+                new ch.qos.logback.core.read.ListAppender<>();
+        logs.start();
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(AiSrvrHealthTxService.class);
+        logger.addAppender(logs);
+        try {
+            for (int i = 0; i < 3; i++) {
+                service.applyHealth(forged, true, NOW);
+            }
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+
+        assertThat(logs.list).isNotEmpty();
+        assertThat(logs.list)
+                .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message).doesNotContain("\n"));
+    }
+
+    // --- fixtures ------------------------------------------------------------------------------
+
+    private LsAiSrvr timeseries(String srvrId) {
+        return register(LsAiSrvr.register(srvrId, null, "https://vendor.example",
+                LsAiSrvr.SrvrType.TIMESERIES, NOW));
+    }
+
+    private LsAiSrvr available(String srvrId) {
+        return register(LsAiSrvr.register(srvrId, null, "http://ai-1:9300",
+                LsAiSrvr.SrvrType.INFERENCE, NOW));
+    }
+
+    private LsAiSrvr withStatus(String srvrId, AiSrvrStatus status) {
         LsAiSrvr node = available(srvrId);
         ReflectionTestUtils.setField(node, "srvrSttsCd", status);
+        return node;
+    }
+
+    /** 시험용 원장에 심고 조회 목까지 함께 세운다 — 두 자리를 따로 세우면 한쪽만 빠뜨린다. */
+    private LsAiSrvr register(LsAiSrvr node) {
+        ledger.put(node.getSrvrId(), node);
+        given(repository.findById(node.getSrvrId())).willReturn(Optional.of(node));
         return node;
     }
 }

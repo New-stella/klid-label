@@ -193,6 +193,55 @@ class AiSrvrAssignmentIT {
         assertThat(countAssignments()).isZero();
     }
 
+    // --- 재배정 축 — <원장만 보고> 최초 배정과 구분돼야 한다 [@design AC-1100] --------------------
+
+    /**
+     * ★ 재배정 행에 <b>사유·새 장비·시각</b> 셋이 남는다 — 사유가 없으면 원장만 보고 최초 배정과
+     * 구분할 수 없다(응용 로그는 노드마다 흩어지고 보존 기간이 짧다).
+     *
+     * <p>추적 불연속의 원인 넷 가운데 우리가 기록을 남길 수 있는 것은 재배정 하나뿐이라, 「기록이
+     * 있으면 재배정 · 없는데 끊겼으면 나머지 셋」이라는 대조가 오진을 막는 유일한 수단이다.
+     */
+    @Test
+    @DisplayName("★재배정하면_사유와_새_장비와_시각이_원장에_남는다")
+    void 재배정하면_사유와_새_장비와_시각이_원장에_남는다() {
+        srvrRepository.saveAndFlush(node("gpu01"));
+        srvrRepository.saveAndFlush(node("gpu02"));
+        LsAiSrvrAltmnt first = assign(RAW_SN, "gpu01");
+        // 최초 배정은 사유 칸을 비운다 — 그래야 「값이 있으면 재배정」이라는 대조가 성립한다.
+        assertThat(first.getAltmntRsn()).isNull();
+
+        int moved = new TransactionTemplate(txManager).execute(status ->
+                altmntRepository.reassignIfCurrent(RAW_SN, "gpu01", "gpu02", LocalDateTime.now(),
+                        LsAiSrvrAltmnt.reassignReason("gpu01")));
+
+        assertThat(moved).isOne();
+        LsAiSrvrAltmnt after = altmntRepository.findByRawSn(RAW_SN).orElseThrow();
+        assertThat(after.getSrvrId()).isEqualTo("gpu02");
+        assertThat(after.getAltmntDt()).isNotNull();
+        assertThat(after.getAltmntRsn())
+                .as("사유가 비면 원장만 보고 최초 배정과 재배정을 구분할 수 없다")
+                .isNotBlank()
+                .contains("gpu01");
+        assertThat(countAssignments()).isOne();
+    }
+
+    /** 출발 장비가 다르면 갱신하지 않는다 — 두 노드가 같은 영상을 갈라 적지 않게 하는 조건이다. */
+    @Test
+    @DisplayName("출발_장비가_다르면_재배정하지_않는다_조건부_갱신")
+    void 출발_장비가_다르면_재배정하지_않는다() {
+        srvrRepository.saveAndFlush(node("gpu01"));
+        srvrRepository.saveAndFlush(node("gpu02"));
+        assign(RAW_SN, "gpu01");
+
+        int moved = new TransactionTemplate(txManager).execute(status ->
+                altmntRepository.reassignIfCurrent(RAW_SN, "gpu03", "gpu02", LocalDateTime.now(),
+                        LsAiSrvrAltmnt.reassignReason("gpu03")));
+
+        assertThat(moved).isZero();
+        assertThat(altmntRepository.findByRawSn(RAW_SN).orElseThrow().getSrvrId()).isEqualTo("gpu01");
+    }
+
     private LsAiSrvrAltmnt assign(long rawSn, String srvrId) {
         return new TransactionTemplate(txManager).execute(status ->
                 altmntRepository.assignIfAbsent(rawSn, srvrId, LocalDateTime.now()));

@@ -58,14 +58,26 @@ class AiSrvrLedgerIT {
         jdbcTemplate.update("DELETE FROM ls_ai_srvr");
     }
 
+    /**
+     * ⚠ <b>구 시험 폐기(2026-09-08)</b> — {@code 서버ID에_하이픈이_있으면_저장이_거부된다} 가 있었다.
+     * V36 이 체크 제약을 {@code ^[a-z0-9_-]&#123;1,20&#125;$} 로 넓혀 하이픈·밑줄은 이제 <b>정상</b>이다.
+     * 아래 시험이 그 자리를 대신하며, <b>DB 제약이 실제로 넓혀졌는지</b>를 저장으로 확인한다.
+     */
     @Test
-    @DisplayName("서버ID에_하이픈이_있으면_저장이_거부된다")
-    void 서버ID에_하이픈이_있으면_저장이_거부된다() {
-        // given — 실제 장비 호스트명을 그대로 쓴 식별자. 서킷 이름 ai-batch-{SRVR_ID} 가 복원 불가해진다.
-        LsAiSrvr node = node("klid-ai-gpu-01");
+    @DisplayName("★서버ID에_하이픈_밑줄이_있어도_저장된다_구_거부_폐기")
+    void 서버ID에_하이픈_밑줄이_있어도_저장된다() {
+        repository.saveAndFlush(node("klid-ai-gpu-01"));
+        repository.saveAndFlush(node("infer_gpu2"));
 
-        // when · then — 애플리케이션 검증이 아니라 DB 가 막는다
-        assertThatThrownBy(() -> repository.saveAndFlush(node))
+        assertThat(repository.findById("klid-ai-gpu-01")).isPresent();
+        assertThat(repository.findById("infer_gpu2")).isPresent();
+    }
+
+    @Test
+    @DisplayName("서버ID에_점이_있으면_저장이_거부된다")
+    void 서버ID에_점이_있으면_저장이_거부된다() {
+        // 넓힌 뒤에도 허용 집합 밖 문자는 그대로 DB 가 막는다(애플리케이션 검증이 아니다).
+        assertThatThrownBy(() -> repository.saveAndFlush(node("gpu.01")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

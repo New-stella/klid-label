@@ -311,20 +311,6 @@ label.btn { cursor: pointer; }
   color: var(--n-7);
 }
 .ep-empty .icon-sm { flex: 0 0 auto; }
-
-/* 바깥으로 나가는 주소 — 겁주지 않되 조용히 구분한다 */
-.ep-field.is-external {
-  padding: var(--sp-md);
-  margin: -2px;
-  border: 1px solid var(--w-2);
-  border-radius: var(--radius-md);
-  background: var(--w-0);
-}
-.ep-field.is-external .field-label { color: var(--w-7); }
-.ep-field.is-external .ep-role { color: var(--w-7); }
-.ep-field.is-external .ep-role strong { color: var(--w-8); }
-.ep-field.is-external .ep-key { color: var(--w-6); }
-.ep-field.is-external .input { background: var(--bg-page); }
 .ep-caution {
   display: flex; align-items: flex-start; gap: 6px;
   color: var(--w-8);
@@ -498,8 +484,8 @@ svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .countdown { margin-left: 0; }
 }
 
-/* ── AI 장비 목록 ─────────────────────────────────────────────────────────
-   위 「연동 서버 주소」의 네 칸 중 추론·시계열 둘이 목록으로 펼쳐지는 자리다.
+/* ── 추론·외부 시계열 분석 장비 목록 ───────────────────────────────
+   위 「연동 서버 주소」에 칸을 두지 않는 두 축이 목록으로 펼쳐지는 자리다.
    색·간격·radius 는 전부 위에서 선언한 토큰만 쓴다 — 임의 hex 를 두지 않는다. */
 
 .node-tabs {

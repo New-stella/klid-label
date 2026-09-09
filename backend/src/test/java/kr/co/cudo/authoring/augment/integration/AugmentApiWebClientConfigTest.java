@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.augment.integration;
 import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
 import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -31,7 +32,7 @@ class AugmentApiWebClientConfigTest {
      */
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(AugmentApiWebClientConfig.class, AugmentUrlPolicy.class,
-                    GenAiIntegrationWiringGuard.class)
+                    GenAiIntegrationWiringGuard.class, IntegrationEndpointResolver.class)
             .withPropertyValues("webhook.genai.allowed-ip-cidrs=0.0.0.0/0");
 
     @Test
@@ -199,7 +200,7 @@ class AugmentApiWebClientConfigTest {
     private ApplicationContextRunner pairingRunner(String allowlist) {
         return new ApplicationContextRunner()
                 .withUserConfiguration(AugmentApiWebClientConfig.class, AugmentUrlPolicy.class,
-                        GenAiIntegrationWiringGuard.class)
+                        GenAiIntegrationWiringGuard.class, IntegrationEndpointResolver.class)
                 .withPropertyValues(
                         "spring.profiles.active=prd",
                         // 주소는 <해석이 필요 없는 루프백> — 짝 축만 남기려고 주소 축을 통과시킨다.

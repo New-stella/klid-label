@@ -1,13 +1,13 @@
 ---
 logicraft_item: ROLE-003
 type: permission_role
-version: 14
+version: 15
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:40.277Z
+synced_at: 2026-09-08T12:01:33.177Z
 status: CHANGED
-prev_version: 12
-content_hash: 35113bf55eda3c02cf18c5d4c8d73e235a4c518ef1fa924a764425f62f1ceef8
+prev_version: 14
+content_hash: 1c09ac4b7db7068039c9259dfd23eb07e9bebe190fd133451654e537c9e4e45a
 stale: true
 raw: ./_raw/ROLE-003.json
 links:
@@ -108,19 +108,6 @@ PORTAL_USER
 - **target_kind**: screen_spec
 
 ### [4]
-
-**actions**:
-
-- view
-- create
-- update
-- delete
-
-- **condition**: [폐기] 포털 업로드 라벨링 — 화면이 포털 라벨링 화면으로 합쳐져 이 항목을 따로 두지 않는다. 본인 업로드 자산의 라벨링 권한은 위 포털 라벨링 항목이 담는다. 어느 항목이 없어졌는지를 남기기 위해 표기로만 둔다
-- **target_id**: SCREEN-034
-- **target_kind**: screen_spec
-
-### [5]
 
 **actions**:
 

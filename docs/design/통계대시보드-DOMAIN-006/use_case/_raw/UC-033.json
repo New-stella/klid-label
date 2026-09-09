@@ -95,7 +95,9 @@
       "extension_points": [],
       "secondary_actors": [],
       "extends_use_cases": [],
-      "realizes_features": [],
+      "realizes_features": [
+        "FEAT-014"
+      ],
       "includes_use_cases": [],
       "tech_considerations": [
         "확정 기준은 검수완료(APPROVED) 영상만 집계하고 전체 기준은 진행중을 포함해, 두 수치를 나란히 보인다",
@@ -109,12 +111,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이해관계자와 관심사항·구현 시 고려 사항 기입 — 유스케이스 목표(확정 기준과 전체 기준 병기, 관제 이벤트 유형 표시명 그룹)에서 도출",
+    "change_summary": "실현 기능에 신설된 학습데이터 구축 현황 통계 기능을 연결한다. 그 기능은 대응 요구사항이 없다는 결정을 본문에 적고 구현 요구사항 자리를 비워 두었으므로, 이 연결로 요구사항이 새로 붙지는 않는다. 기능 계층에 자리를 갖게 해 유스케이스가 어느 기능의 실현인지 드러내는 것이 목적이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T05:55:23.389Z",
+    "last_updated_at": "2026-09-08T05:59:12.564Z",
     "created_at": "2026-08-17T00:23:52.324Z"
   }
 }

@@ -18,10 +18,10 @@ set -euo pipefail
 #     복사 전에 `rm -f ${OUT}/*.war` 를 하므로 앞 향이 지워진다.
 #
 #   사용법
-#     ./scripts/make-patch-media.sh --baseline <커밋>            # 필수: 현장에 깔린 판
-#     ./scripts/make-patch-media.sh --baseline <커밋> --id klid-at-patch-YYYYMMDD
-#     ./scripts/make-patch-media.sh --baseline <커밋> --out <디렉터리>
-#     ./scripts/make-patch-media.sh --baseline <커밋> --no-tar   # tar.gz 생략
+#     ./scripts/make-patch-media.sh --baseline=<커밋>            # 필수: 현장에 깔린 판
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --id klid-at-patch-YYYYMMDD
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --out <디렉터리>
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --no-tar   # tar.gz 생략
 #
 #   ⚠ 기준선은 <추측하지 않는다>. 현장에 실제로 깔린 판이며, 모르면 만들지 않는다.
 #     증분 목록이 그 값에서 나오므로 틀리면 적용해야 할 스키마 변경이 <조용히 빠진다>.
@@ -30,6 +30,9 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SELF_DIR}/lib/common.sh"
+# shellcheck source=lib/schema_targets.sh
+source "${SELF_DIR}/lib/schema_targets.sh"
+
 
 REPO="$(repo_root)"
 ONPREM="$(onprem_root)"
@@ -230,35 +233,108 @@ cp -R "${ONPREM}/scripts/lib/."               "${MEDIA}/onprem/db/tools/lib/"
 chmod +x "${MEDIA}/onprem/db/tools/apply-migrations.sh"
 ok "[patch] db/ 자족 묶음 구성(tools 포함) — DB 서버에 이 폴더만 옮기면 됩니다"
 
-# 증분 — 이번 회차분만 싣는다(기준선에서 기계적으로 나온 목록).
+# ---- 증분 — <기준선 이후 누적 전량>을 싣는다 -------------------------------
+# ★ 지점 비교로 고르지 않는다(DEPLOY-001). 실어야 할 것은 「그 현장에 아직 적용되지 않은 것 전부」인데
+#   조립 시점에 현장의 적용 현황을 알 수 없다. 두 커밋을 견주어 고르면 <이미 합쳐진 판이 기준 밖으로
+#   밀려 매체에서 빠지고>, 적용 수단은 매체에 없는 증분을 적용할 수 없어 그 현장에는 끝내 서지 않는다.
+#   ⇒ 누적 전량을 싣고, 무엇이 실렸는지 드러내 사람이 현장 현황과 견주어 확인한다.
+#   ⚠ 중복 적용은 위험하지 않다 — 적용 수단이 이력 표로 이미 적용된 것을 건너뛴다(ADR-064).
 ensure_dir "${MEDIA}/onprem/db/incremental"
 cp "${ONPREM}/db/incremental/README.md" "${MEDIA}/onprem/db/incremental/README.md"
+
+SHIP_MIGS="$(cd "${ONPREM}/db/incremental" && ls -1 V*.sql 2>/dev/null | sort -t V -k2 -n || true)"
+[[ -n "${SHIP_MIGS}" ]] || info "[patch] 기준선 이후 증분이 하나도 없습니다."
+while IFS= read -r m; do
+  [[ -n "${m}" ]] || continue
+  cp "${ONPREM}/db/incremental/${m}" "${MEDIA}/onprem/db/incremental/${m}"
+done <<< "${SHIP_MIGS}"
+
+# 이번 회차에 <새로> 생긴 것이 증분 폴더에 실제로 옮겨져 있는지 — 옮기지 않으면 조용히 빠진다.
 _mig_missing=""
 while IFS= read -r m; do
   [[ -n "${m}" ]] || continue
-  if [[ -f "${ONPREM}/db/incremental/${m}" ]]; then
-    cp "${ONPREM}/db/incremental/${m}" "${MEDIA}/onprem/db/incremental/${m}"
-  else
-    _mig_missing+="${m} "
-  fi
+  [[ -f "${ONPREM}/db/incremental/${m}" ]] || _mig_missing+="${m} "
 done <<< "${NEW_MIGS}"
 [[ -z "${_mig_missing}" ]] || die "[patch] 증분 파일이 db/incremental 에 없습니다: ${_mig_missing}
      backend 의 마이그레이션을 db/incremental/ 로 먼저 옮기세요(파일명 그대로)."
 
-# ★ 증분이 만드는 대상이 통합 스키마에도 있는지 — 새 장비를 세울 때 어긋나지 않게.
+# ★ 매체 조립 전 스키마 정합 관문 (DEPLOY-001) — 통과하지 못하면 <조립을 세운다>.
+#   ⚠ 구 검사는 <표 생성문만> 봤다. 컬럼만 더하거나 제약만 갈아끼우는 회차가 걸리지 않아, 통합
+#     파일을 다시 만들지 않고도 조립이 통과했다. 실제 드리프트가 정확히 그 유형이었다.
+#   ⚠ 컬럼은 <그 표의 블록 안에서> 찾는다 — 전역 검색은 다른 표의 동명 컬럼에 걸려 없는 것을
+#     있다고 말한다(ls_marking.chck_dt 가 실제 예다).
+#   ★ 걸리는 것이 없다는 결과는 <통합 파일이 최신이어서>일 수도 <대조가 그 축을 못 보아서>일 수도
+#     있어 둘이 구분되지 않는다. 그래서 대조가 반드시 걸려야 하는 것을 실제로 잡는지 먼저 확인한다.
+schema_targets_selftest "${MEDIA}/onprem/db/schema.sql" \
+  || die "[patch] 스키마 대조기의 자체 시험이 실패했습니다 — 이 상태에서 나온 「이상 없음」은 신뢰할 수 없습니다."
+
 _absent=""
+_unverif=""
+_manifest="${MEDIA}/onprem/db/incremental/증분-대조-결과.txt"
+{
+  printf '증분 스키마 ↔ 통합 schema.sql 대조 결과\n'
+  printf '회차 %s   기준선 %s → %s\n' "${PATCH_ID}" "${BASE_SHORT}" "${HEAD_SHORT}"
+  printf '\n★ 이 매체에는 기준선 이후 증분이 <누적 전량> 실려 있습니다.\n'
+  printf '  적용 수단이 이력 표로 이미 적용된 것은 건너뜁니다. 그래도 내는 사람이 아래 목록을\n'
+  printf '  현장의 적용 현황과 한 번 견주어 확인하십시오.\n'
+  printf '\n이번 회차에 새로 생긴 증분: %s\n' "${_mig_vers:-없음}"
+  printf '판정: OK=통합 스키마에 있다 · MISSING=없다(조립을 세웁니다) · 확인불가=사람이 봐야 한다\n\n'
+} > "${_manifest}"
 while IFS= read -r m; do
   [[ -n "${m}" ]] || continue
+  printf '[%s]\n' "${m}" >> "${_manifest}"
+  _any=0
   while IFS= read -r t; do
-    # ⚠ \b 는 BSD grep(mac)에서 동작하지 않아 <전건 미발견>으로 흘러 거짓 경고가 된다. -w 로 쓴다.
-    grep -qiw "${t}" "${MEDIA}/onprem/db/schema.sql" || _absent+="${m}:${t} "
-  done < <(grep -oiE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+[a-z_][a-z0-9_.]*' \
-             "${MEDIA}/onprem/db/incremental/${m}" \
-           | sed -E 's/.*[[:space:]]//; s/^.*\.//' \
-           | grep -viE '^(if|not|exists|table)$' | sort -u)
-done <<< "${NEW_MIGS}"
-[[ -z "${_absent}" ]] && ok "[patch] 증분이 만드는 표가 통합 schema.sql 에 모두 있습니다" \
-                      || warn "[patch] 통합 schema.sql 에 없는 대상: ${_absent}— 새 장비 설치 시 어긋납니다."
+    [[ -n "${t}" ]] || continue
+    _any=1
+    _v="$(schema_target_verdict "${MEDIA}/onprem/db/schema.sql" "${t}")"
+    case "${_v}" in
+      OK)      printf '   OK      %s\n' "${t}" >> "${_manifest}" ;;
+      MISSING) printf '   MISSING %s\n' "${t}" >> "${_manifest}"; _absent+="${m}:${t} " ;;
+      *)       printf '   확인불가 %s  (이름은 그대로이고 정의만 바뀌어 이름 대조로는 판정할 수 없습니다)\n' "${t}" >> "${_manifest}"
+               _unverif+="${m}:${t} " ;;
+    esac
+  done < <(schema_targets_of "${MEDIA}/onprem/db/incremental/${m}")
+  [[ "${_any}" -eq 1 ]] || printf '   (검사 가능한 대상 없음 — 데이터 변경만 있는 증분입니다)\n' >> "${_manifest}"
+  printf '\n' >> "${_manifest}"
+done <<< "${SHIP_MIGS}"
+
+[[ -z "${_absent}" ]] || die "[patch] 통합 schema.sql 에 없는 대상이 있습니다: ${_absent}
+     통합 스키마를 재생성한 뒤 다시 조립하십시오. 이대로 내면 <새로 세우는 장비>에만 그 컬럼·제약이
+     생기지 않고, 기동은 성공하므로 화면·배치가 그것을 처음 건드릴 때 비로소 드러납니다.
+     상세: ${_manifest}"
+ok "[patch] 증분이 만드는 표·컬럼·제약이 통합 schema.sql 에 모두 있습니다"
+[[ -z "${_unverif}" ]] || warn "[patch] 이름 대조로는 판정 불가(사람 확인 필요): ${_unverif}"
+info "[patch] 실린 증분과 대조 결과 — db/incremental/증분-대조-결과.txt"
+
+# ---- 소스 반입 ------------------------------------------------------------
+# ★ 산출물(WAR·정적자산)만으로는 <무엇으로 만들어졌는지>를 현장이 확인할 수 없다.
+#   반입물은 산출물과 그것을 만든 소스가 짝이어야 한다.
+# ★★ 담는 기준은 <git 추적>이다 — 제외 목록이 아니다. 근거는 lib/common.sh 의
+#   klid_export_source 주석에 있다(구 제외목록 방식은 backend/storage 의 운영 영상·프레임
+#   636MB 를 매체로 함께 내보낼 상태였다). 그 헬퍼가 그동안 <호출처가 없어> 실제로는
+#   돌지 않았다 — 여기가 첫 배선이다.
+SRC_DEST="${MEDIA}/onprem/src"
+klid_export_source backend   "${SRC_DEST}"
+klid_export_source frontend  "${SRC_DEST}"
+klid_export_source ai-server "${SRC_DEST}"
+klid_write_source_info "${SRC_DEST}"
+
+# 담지 말아야 할 것이 실제로 없는지 <열어서> 확인한다 — 「제외했다」가 아니라 「없다」를 본다.
+# ⚠ 경로 조각으로 훑지 말 것 — `*/storage/*` 는 정당한 자바 패키지(common/storage/…)에 걸려
+#   깨끗한 트리에서도 조립을 죽인다(실제로 그렇게 만들었다가 잡았다). 런타임 산출물은
+#   <컴포넌트 바로 아래>에만 생기므로 그 깊이만 본다.
+_src_bad="$(find "${SRC_DEST}" -mindepth 2 -maxdepth 2 -type d \
+             \( -name storage -o -name node_modules -o -name .gradle -o -name build \
+                -o -name dist -o -name venv -o -name .venv \) -print -quit)"
+[[ -z "${_src_bad}" ]] || die "[patch] 소스에 런타임 산출물이 있습니다: ${_src_bad}
+     이 매체를 그대로 내면 운영 데이터가 함께 나갑니다."
+_src_pyc="$(find "${SRC_DEST}" -name '*.pyc' -print -quit)"
+[[ -z "${_src_pyc}" ]] || die "[patch] 소스에 컴파일 잔재가 있습니다: ${_src_pyc}"
+_src_media="$(find "${SRC_DEST}" -type f \( -iname '*.mp4' -o -iname '*.jpg' -o -iname '*.jpeg' \
+               -o -iname '*.png' -o -iname '*.webp' \) ! -path '*/src/test/resources/*' -print -quit)"
+[[ -z "${_src_media}" ]] || die "[patch] 소스에 시험 픽스처가 아닌 미디어가 있습니다(개인정보 유출 위험): ${_src_media}"
+ok "[patch] 소스 반입 검증 통과 — 운영 데이터 0 · 픽스처 밖 미디어 0"
 
 # GPU — 이 회차와 무관하나 읽기 전용 점검 수단은 함께 싣는다.
 [[ -f "${REPO}/deploy/onprem-gpu-delta/scripts/check-gpu-readiness.sh" ]] \
@@ -284,9 +360,12 @@ _n_runtime="$(git -C "${REPO}" diff --name-only "${BASELINE}" HEAD -- backend/sr
   echo "patch_commit_full=${HEAD_FULL}"
   echo "commits_between=${_n_commits}"
   echo "files_changed_runtime=${_n_runtime}   # 매체에 실리는 축(백엔드·프론트·ai·배포)"
-  echo "db_increments=${_mig_vers:-none}"
+  echo "db_increments_new=${_mig_vers:-none}   # 이번 회차에 새로 생긴 것"
+  # ★ 매체에는 기준선 이후 증분이 <누적 전량> 실린다 — 적용 수단이 이력으로 건너뛴다.
+  echo "db_increments_shipped=$(printf '%s\n' "${SHIP_MIGS}" | sed '/^$/d' | sed 's/__.*//' | paste -sd, - || true)"
   echo "war_flavors=api.war(${CTX_PASS}) api-strip.war(${CTX_STRIP})"
   echo "fe_channels=control,portal"
+  echo "source=onprem/src/{backend,frontend,ai-server}   # git 추적 파일만 · SOURCE-INFO.txt 참조"
   echo "gpu_delta_included=no   # 휠이 3.5GB 라 별도 매체"
 } > "${MEDIA}/VERSION.txt"
 

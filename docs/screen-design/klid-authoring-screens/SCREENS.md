@@ -1,4 +1,4 @@
-# KLID 저작도구 전체 화면 화면 키트 — SCREENS.md
+# 전체 통합 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-000 KLID 저작도구 전체 화면 |
-| last sync | 2026-09-07T15:22:15.762Z (session 36) |
+| Domain | DOMAIN-000 전체 통합 |
+| last sync | 2026-09-08T06:20:00.476Z (session 38) |
 | 화면 수 | 38개 |
 | ui_component 카탈로그 | populated 145건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
+| [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ | [[API-006]] |  |
 | [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]], [[API-245]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
@@ -52,7 +52,7 @@
 | [[SCREEN-039]] | 산출물 가져오기 | UNCHANGED | ✅ | [[API-205]], [[API-206]], [[API-207]], [[API-208]], [[API-209]], [[API-210]], [[API-211]], [[API-215]], [[API-221]], [[API-222]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-004]] |
 | [[SCREEN-040]] | 관리자 페이지 진입 화면 | UNCHANGED | ✅ | [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-041]] | 관리자 패스워드 교체 | UNCHANGED | ✅ | [[API-223]], [[API-194]] | [[ROLE-004]] |
-| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
+| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | CHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
 | [[SCREEN-043]] | 위험 작업 화면 | UNCHANGED | ✅ |  | [[ROLE-004]] |
 | [[SCREEN-044]] | 포털 증강 화면 | UNCHANGED | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
 | [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | UNCHANGED | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
@@ -121,6 +121,44 @@
 | 36 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
 | 37 | [[SCREEN-044]] — 포털 증강 화면 | screens/SCREEN-044/SCREEN-044.md | wireframe.html | uc/ | ac/ |
 | 38 | [[SCREEN-045]] — 포털 업로드 영상 마킹 화면 | screens/SCREEN-045/SCREEN-045.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-006]] | api_endpoint | CHANGED (v11→v12) |
+| [[API-069]] | api_endpoint | CHANGED (v10→v12) |
+| [[SD-017]] | screen_design | CHANGED (v3→v6) |
+| [[SD-036]] | screen_design | CHANGED (v7→v9) |
+| [[SCREEN-042]] | screen_spec | CHANGED (v17→v20) |
+| [[UC-001]] | use_case | CHANGED (v18→v19) |
+| [[UC-002]] | use_case | CHANGED (v21→v22) |
+| [[UC-003]] | use_case | CHANGED (v16→v17) |
+| [[UC-004]] | use_case | CHANGED (v18→v19) |
+| [[UC-005]] | use_case | CHANGED (v13→v14) |
+| [[UC-006]] | use_case | CHANGED (v11→v12) |
+| [[UC-007]] | use_case | CHANGED (v15→v16) |
+| [[UC-008]] | use_case | CHANGED (v17→v18) |
+| [[UC-009]] | use_case | CHANGED (v25→v26) |
+| [[UC-010]] | use_case | CHANGED (v17→v18) |
+| [[UC-011]] | use_case | CHANGED (v21→v22) |
+| [[UC-013]] | use_case | CHANGED (v12→v13) |
+| [[UC-016]] | use_case | CHANGED (v31→v32) |
+| [[UC-018]] | use_case | CHANGED (v24→v27) |
+| [[UC-019]] | use_case | CHANGED (v30→v32) |
+| [[UC-021]] | use_case | CHANGED (v23→v25) |
+| [[UC-022]] | use_case | CHANGED (v29→v30) |
+| [[UC-023]] | use_case | CHANGED (v30→v31) |
+| [[UC-024]] | use_case | CHANGED (v33→v34) |
+| [[UC-027]] | use_case | CHANGED (v32→v34) |
+| [[UC-028]] | use_case | CHANGED (v8→v9) |
+| [[UC-029]] | use_case | CHANGED (v13→v14) |
+| [[UC-030]] | use_case | CHANGED (v16→v17) |
+| [[UC-031]] | use_case | CHANGED (v18→v20) |
+| [[UC-032]] | use_case | CHANGED (v15→v16) |
+| [[UC-033]] | use_case | CHANGED (v7→v8) |
+| [[UC-036]] | use_case | CHANGED (v8→v9) |
+| [[UC-042]] | use_case | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

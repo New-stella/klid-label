@@ -133,7 +133,9 @@
       "extension_points": [],
       "secondary_actors": [],
       "extends_use_cases": [],
-      "realizes_features": [],
+      "realizes_features": [
+        "FEAT-011"
+      ],
       "includes_use_cases": [],
       "tech_considerations": [
         "이어 올리기·취소·진행 위치 조회는 단기 유효창을 요구하지 않는다 — 유효창보다 오래 걸리는 대용량 전송이 도중에 끊기기 때문이며, 그 자리는 전송의 소유자 판정이 대신 지킨다"
@@ -145,12 +147,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이해관계자와 관심사항 기입 — 유스케이스 목표(관제 인입을 기다리지 않고 직접 투입, 마킹 대기 도달 확인)에서 도출",
+    "change_summary": "실현 기능에 신설된 영상 수집·적재 기능을 연결한다. 관제 인입을 기다리지 않고 파일 업로드로 영상을 직접 투입하는 경로이며, 그 기능이 인입 폴링과 직접 투입 두 경로를 함께 담는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T05:56:44.655Z",
+    "last_updated_at": "2026-09-08T05:59:01.929Z",
     "created_at": "2026-09-01T08:24:46.295Z"
   }
 }

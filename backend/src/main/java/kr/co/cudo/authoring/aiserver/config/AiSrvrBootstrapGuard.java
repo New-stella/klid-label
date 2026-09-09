@@ -69,7 +69,7 @@ import java.util.List;
 @Component
 public class AiSrvrBootstrapGuard implements ApplicationRunner {
 
-    /** 부트스트랩으로 세우는 <b>추론</b> 노드의 식별자 — 스스로 형식 규약을 지킨다(하이픈 금지). */
+    /** 부트스트랩으로 세우는 <b>추론</b> 노드의 식별자 — 스스로 형식 규약을 지킨다. */
     public static final String DEFAULT_SRVR_ID = "default01";
 
     /**
@@ -205,9 +205,9 @@ public class AiSrvrBootstrapGuard implements ApplicationRunner {
         }
         // 위반은 <전부> 싣는다 — 하나씩 알려주면 고치고 다시 보기를 반복하게 된다.
         log.error("[AiSrvr] 원장의 AI 서버 식별자가 형식({})을 위반했습니다: {}."
-                        + " 이 값은 서킷브레이커 이름과 메트릭 라벨로 조립되므로 하이픈·대문자가 섞이면"
+                        + " 이 값은 기록과 메트릭 라벨에 그대로 실리므로 대문자·공백·제어문자가 섞이면"
                         + " 라벨이 조용히 어긋납니다. 실제 장비 호스트명은 SRVR_NM 에 두고,"
-                        + " SRVR_ID 는 소문자·숫자 {}자 이내로 바꾸세요."
+                        + " SRVR_ID 는 소문자·숫자·하이픈·밑줄 {}자 이내로 바꾸세요."
                         + " ★기동은 통과하지만 이 장비들은 위탁 후보에서 제외되며,"
                         + " 그 축에 쓸 수 있는 장비가 하나도 남지 않으면 위탁이 거부됩니다.",
                 AiSrvrIdPolicy.SRVR_ID_REGEX, violations, AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH);

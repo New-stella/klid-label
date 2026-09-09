@@ -145,7 +145,7 @@ class Sam2SegmentStepMockGateTest {
     private Sam2SegmentStep stepWith(DeployedEnvironmentDetector detector) {
         return new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, labelMasterService,
-                new ObjectMapper(), rawDir.toString(), detector);
+                new ObjectMapper(), rawDir.toString(), detector, mock(kr.co.cudo.authoring.aiserver.service.AiSrvrBatchAssignment.class));
     }
 
     private LsDataSrc newSrc(Long srcSn) {
@@ -200,7 +200,7 @@ class Sam2SegmentStepMockGateTest {
         // given / when / then — weights_missing / load_failed / env_mock 전부 동일하게 차단
         for (String reason : List.of("weights_missing", "load_failed", AiMockMeta.REASON_ENV_MOCK)) {
             frames(1L, 10L);
-            when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+            when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                     .thenReturn(Mono.just(mockResponse(reason)));
 
             assertThatThrownBy(() -> stepFor("stg").run(1L, hint(10L)))
@@ -219,7 +219,7 @@ class Sam2SegmentStepMockGateTest {
     void deployedEnvMarkerWins() {
         // given
         frames(2L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")));
         MockEnvironment env = new MockEnvironment();
         env.setActiveProfiles("dev");
@@ -235,7 +235,7 @@ class Sam2SegmentStepMockGateTest {
     void deployedEnvBlocksOmittedMockMeta() {
         // given — mock=false + source 미전송(AiMockMeta 규약상 신뢰 불가)
         frames(3L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.9, false, null, null)));
 
         // when / then
@@ -249,7 +249,7 @@ class Sam2SegmentStepMockGateTest {
     void deployedEnvAbortsOnNullResponse() {
         // given — 빈 200 바디·무본문 프록시 응답 등으로 body 가 통째로 비는 경우
         frames(4L, 10L, 11L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH))).thenReturn(Mono.empty());
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any())).thenReturn(Mono.empty());
 
         // when / then — 첫 프레임에서 중단, 남은 프레임은 추론하지 않는다.
         assertThatThrownBy(() -> stepFor("prd").run(4L, List.of(
@@ -257,7 +257,7 @@ class Sam2SegmentStepMockGateTest {
                 new BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null))))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXTERNAL_API_ERROR);
-        verify(aiServerClient, times(1)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(1)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any());
         verify(srcRepository, never()).bumpLabelVersionIn(any());
     }
 
@@ -266,7 +266,7 @@ class Sam2SegmentStepMockGateTest {
     void deployedEnvAbortsOnNullPolygon() {
         // given — source="model" 이라 untrusted() 는 false 인데 본문이 결측인 형상
         frames(5L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(new Sam2Response(null, 0.5, false, AiMockMeta.SOURCE_MODEL, null)));
 
         // when / then
@@ -282,7 +282,7 @@ class Sam2SegmentStepMockGateTest {
     void devSkipsMockPolygonWithoutSaving() {
         // given — ai-server 는 사유와 무관하게 합성 사각 폴리곤을 낸다(YOLO 의 빈 detections 와 다름).
         frames(6L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse("weights_missing")));
 
         // when — 예외 없이 완주(개발 동선 보존)
@@ -303,7 +303,7 @@ class Sam2SegmentStepMockGateTest {
     void devSkipsEnvMockPolygonToo() {
         // given — YOLO 는 dev 에서 env_mock 합성 박스를 허용하지만 SAM2 는 사유 면제가 없다.
         frames(7L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(mockResponse(AiMockMeta.REASON_ENV_MOCK)));
 
         // when
@@ -319,14 +319,14 @@ class Sam2SegmentStepMockGateTest {
     void devSkipsNullResponse() {
         // given
         frames(8L, 10L, 11L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH))).thenReturn(Mono.empty());
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any())).thenReturn(Mono.empty());
 
         // when / then — 프레임을 건너뛰고 완주(기존 동작 보존)
         assertThatCode(() -> stepFor("dev").run(8L, List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null),
                 new BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null))))
                 .doesNotThrowAnyException();
-        verify(aiServerClient, times(2)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH));
+        verify(aiServerClient, times(2)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any());
         verify(lblRepository, never()).saveAll(any());
     }
 
@@ -337,7 +337,7 @@ class Sam2SegmentStepMockGateTest {
     void realResponseStillPersistedOnDeployedEnv() {
         // given
         frames(9L, 10L);
-        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH), any()))
                 .thenReturn(Mono.just(realResponse()));
 
         // when

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head><link rel="stylesheet" href="design.css">
+<head><link rel="stylesheet" href="main.css"><link rel="stylesheet" href="design.css" />
   <meta charset="utf-8" />
   <title>SCREEN-042 연동 서버 주소 관리 화면 — 고충실도 디자인</title>
 </head>
@@ -21,17 +21,17 @@
       <h1 class="t-title-lg">연동 서버 주소</h1>
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>관리자 전용</span>
       <span class="badge badge-neutral only-locked">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+        <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
         저장 잠김
       </span>
       <span class="badge badge-success only-unlocked">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 7.5-2"></path></svg>
+        <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 7.5-2"></path></svg>
         저장 가능
       </span>
     </div>
-    <p class="page-desc t-body-sm text-muted">비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처</p>
+    <p class="page-desc t-body-sm text-muted">주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 / 장비 목록 — 추론 · 외부 시계열 분석</p>
     <p class="page-desc t-caption scope-note">
-      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+      <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
       <span>데이터베이스 접속정보는 이 화면에서 다루지 않습니다.</span>
     </p>
   </div>
@@ -44,15 +44,16 @@
         <header class="card-header">
           <div class="config-heading">
             <h2 class="t-title-md" id="cfg-endpoint-title">연동 서버 주소</h2>
-            <p class="t-caption text-muted">저작도구가 바깥으로 요청을 보내는 네 곳의 주소입니다.</p>
+            <p class="t-caption text-muted">저작도구가 다른 서버로 요청을 보내는 주소입니다. 이 절은 <strong>저장한 값이 곧 진실원인 축</strong>만 다룹니다 — <strong>비식별 서버</strong> · <strong>외부 증강 벤더</strong> · <strong>관제 통지 수신처</strong>이며, 셋 다 보낼 곳이 한 곳뿐이라 고를 일이 없습니다.</p>
+            <p class="t-caption text-muted"><strong>추론</strong>과 <strong>외부 시계열 분석</strong>의 주소 칸은 이 절에 두지 않습니다 — 그 둘은 장비를 여러 대 두고 골라 보내므로 진실원이 장비 원장이고, 주소를 바꾸는 자리는 아래 <strong>장비 목록</strong> 하나입니다.</p>
           </div>
           <div class="config-actions">
             <span class="badge badge-neutral only-locked">
-              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
               읽기 전용
             </span>
             <span class="badge badge-success only-unlocked">
-              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
               편집 가능
             </span>
           </div>
@@ -61,7 +62,7 @@
         <div class="card-content only-locked stack-lg">
 
           <div class="lock-banner">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
             <span class="lock-text t-body-sm">현재 값은 그대로 보입니다. <strong>바꾸려면</strong> 관리자 패스워드로 잠금을 해제하세요.</span>
             <a class="btn btn-secondary btn-sm" href="#dlg-admin">관리자 확인</a>
           </div>
@@ -71,7 +72,6 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-deid-ro">비식별 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">영상 비식별을 위탁하고 진행 상태를 되묻는 곳입니다.</p>
               <input class="input input-mono" id="ep-deid-ro" type="text" value="https://deid.klid.internal" disabled />
@@ -80,36 +80,25 @@
 
             <div class="field ep-field">
               <div class="field-head">
-                <label class="t-label field-label" for="ep-ai-ro">AI 추론 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
+                <label class="t-label field-label" for="ep-aug-ro">외부 증강 벤더 주소</label>
               </div>
-              <p class="t-caption ep-role">탐지·분할 추론을 요청하는 내부 추론 서버입니다.</p>
-              <input class="input input-mono" id="ep-ai-ro" type="text" value="http://ai-server.klid.internal:9300" disabled />
-              <p class="t-caption ep-key">authoring.integration.ai-server.base-url</p>
-            </div>
-
-            <div class="field ep-field is-external">
-              <div class="field-head">
-                <label class="t-label field-label" for="ep-vlm-ro">외부 시계열 분석 벤더 주소</label>
-                <span class="badge badge-warn">
-                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg>
-                  바깥으로 나감
-                </span>
-              </div>
-              <p class="t-caption ep-role">영상 묘사와 추가 질문을 위탁하는 <strong>외부 업체</strong> 서버입니다. 이 주소로 영상이 전송됩니다.</p>
-              <input class="input input-mono" id="ep-vlm-ro" type="text" value="https://vlm-vendor.klid.internal/api" disabled />
-              <p class="t-caption ep-key">vlm.client.url</p>
+              <p class="t-caption ep-role">영상 증강을 위탁하는 곳입니다.</p>
+              <input class="input input-mono" id="ep-aug-ro" type="text" placeholder="연동 전에는 비워 둔다 — 채울 때는 http:// 또는 https:// 로 시작하는 주소" disabled />
+              <p class="t-caption ep-key">authoring.augment.external.base-url</p>
+              <p class="t-caption ep-empty">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <span>비어 있음 — <strong>아직 연동하지 않았습니다.</strong> 비워 두는 것이 정상이며 연동이 확정된 뒤에 채웁니다.</span>
+              </p>
             </div>
 
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify-ro">관제 통지 수신처 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
               <input class="input input-mono" id="ep-notify-ro" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" disabled />
               <p class="t-caption ep-empty">
-                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
                 <span>저장된 값 없음 — 배포 기본값으로 동작 중</span>
               </p>
             </div>
@@ -123,7 +112,7 @@
         <div class="card-content only-unlocked stack-lg">
 
           <div class="unlock-banner">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
             <span class="lock-text t-body-sm">관리자 확인이 끝났습니다. 유효 시간이 지나면 저장이 다시 잠깁니다.</span>
             <span class="countdown" role="timer" aria-live="off">
               <span class="t-label">남은 유효 시간</span>
@@ -136,7 +125,6 @@
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-deid">비식별 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">영상 비식별을 위탁하고 진행 상태를 되묻는 곳입니다.</p>
               <input class="input input-mono" id="ep-deid" type="text" value="https://deid.klid.internal" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help" />
@@ -145,40 +133,29 @@
 
             <div class="field ep-field">
               <div class="field-head">
-                <label class="t-label field-label" for="ep-ai">AI 추론 서버 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
+                <label class="t-label field-label" for="ep-aug">외부 증강 벤더 주소</label>
               </div>
-              <p class="t-caption ep-role">탐지·분할 추론을 요청하는 내부 추론 서버입니다.</p>
-              <input class="input input-mono" id="ep-ai" type="text" value="http://ai-server.klid.internal:9300" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help" />
-              <p class="t-caption ep-key">authoring.integration.ai-server.base-url</p>
-            </div>
-
-            <div class="field ep-field is-external">
-              <div class="field-head">
-                <label class="t-label field-label" for="ep-vlm">외부 시계열 분석 벤더 주소</label>
-                <span class="badge badge-warn">
-                  <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg>
-                  바깥으로 나감
-                </span>
-              </div>
-              <p class="t-caption ep-role">영상 묘사와 추가 질문을 위탁하는 <strong>외부 업체</strong> 서버입니다. 이 주소로 영상이 전송됩니다.</p>
-              <input class="input input-mono" id="ep-vlm" type="text" value="https://vlm-vendor.klid.internal/api" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-vlm-note" />
-              <p class="t-caption ep-key">vlm.client.url</p>
-              <p class="t-caption ep-caution" id="ep-vlm-note">
-                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
-                <span>이 주소를 바꾸면 다음 위탁부터 영상이 그 주소로 전송됩니다. 받는 곳을 확인한 뒤 저장하세요.</span>
+              <p class="t-caption ep-role">영상 증강을 위탁하는 곳입니다.</p>
+              <input class="input input-mono" id="ep-aug" type="text" placeholder="연동 전에는 비워 둔다 — 채울 때는 http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-aug-empty ep-aug-pair" />
+              <p class="t-caption ep-key">authoring.augment.external.base-url</p>
+              <p class="t-caption ep-empty" id="ep-aug-empty">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <span>비어 있음 — <strong>아직 연동하지 않았습니다.</strong> 비워 두는 것이 정상이며, 미리 채우면 아무도 받지 않는 주소로 위탁이 나갑니다.</span>
+              </p>
+              <p class="t-caption ep-caution" id="ep-aug-pair">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+                <span>증강 주소를 채우면 <strong>결과를 되받을 콜백 허용 주소 목록</strong>도 함께 채워야 합니다 — 한쪽만 채우면 위탁을 걸려는 순간 거부되어 결과를 받지 못합니다. 그 목록 자체는 이 화면에서 다루지 않습니다.</span>
               </p>
             </div>
 
             <div class="field ep-field">
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify">관제 통지 수신처 주소</label>
-                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>내부망</span>
               </div>
               <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
               <input class="input input-mono" id="ep-notify" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-notify-empty" />
               <p class="t-caption ep-empty" id="ep-notify-empty">
-                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
                 <span>저장된 값 없음 — 배포 기본값으로 동작 중</span>
               </p>
             </div>
@@ -186,7 +163,7 @@
           </div>
 
           <div class="rule-note">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
             <div class="rule-body">
               <p class="t-body-sm" id="ep-scheme-help">http 또는 https 로 시작하는 주소만 저장됩니다. <strong>사설망·루프백 주소도 그대로 저장됩니다</strong> — 연동 대상이 내부망에 있을 수 있어 주소 대역으로는 막지 않습니다.</p>
               <p class="t-caption rule-sub">저장한 주소는 재기동 없이 다음 호출부터 쓰입니다. 값을 바꾼 노드는 즉시, 다른 노드는 설정 캐시 수명만큼 늦게 반영됩니다.</p>
@@ -196,7 +173,7 @@
           <div class="modal-footer">
             <label class="btn btn-secondary" for="lock-open">잠그기</label>
             <button type="button" class="btn btn-primary">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
               바뀐 주소 저장
             </button>
           </div>
@@ -207,8 +184,8 @@
       <section class="card config-card node-card" aria-labelledby="node-title">
         <header class="card-header">
           <div class="config-heading">
-            <h2 class="t-title-md" id="node-title">AI 장비 목록</h2>
-            <p class="t-caption text-muted">위 네 칸 중 <strong>추론</strong>과 <strong>시계열</strong> 둘은 장비를 여러 대 두고 부하로 나눠 보냅니다. 그 둘이 여기서 목록으로 펼쳐집니다.</p>
+            <h2 class="t-title-md" id="node-title">추론·외부 시계열 분석 장비 목록</h2>
+            <p class="t-caption text-muted">이 목록이 담는 것은 AI 서버 전부가 아니라 <strong>장비를 여러 대 두고 그중에서 골라 보내는 계통</strong>입니다 — 가르는 축은 「AI 인가」가 아니라 <strong>「고를 대상이 여럿인가」</strong>입니다. 증강도 AI 위탁이지만 보낼 곳이 한 곳뿐이라 위 주소 칸에 앉습니다. 이 두 유형의 주소 진실원은 이 목록이며, 주소를 바꾸는 자리도 여기 하나입니다.</p>
           </div>
           <div class="config-actions">
             <span class="badge badge-neutral only-locked">읽기 전용</span>
@@ -296,7 +273,7 @@
         <div class="card-content only-locked stack-lg">
           <div class="win-state">
             <span class="badge badge-neutral">
-              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
               확인 필요
             </span>
             <p class="t-body-sm win-desc">아직 유효창이 열려 있지 않습니다. 관리자 패스워드를 확인하면 정해진 시간 동안 재입력 없이 저장할 수 있습니다.</p>
@@ -323,7 +300,7 @@
         <div class="card-content only-unlocked stack-lg">
           <div class="win-state">
             <span class="badge badge-success">
-              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
               관리자 확인됨
             </span>
             <p class="t-body-sm win-desc">유효 시간이 남아 있는 동안 재입력 없이 저장할 수 있습니다.</p>
@@ -339,7 +316,7 @@
           <a class="btn btn-secondary btn-block" href="#dlg-admin">유효 시간 다시 채우기</a>
 
           <p class="t-caption win-note">
-            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
             <span>유효 여부는 서버가 판정합니다. 이 표시는 안내입니다.</span>
           </p>
         </div>
@@ -350,14 +327,14 @@
           <h2 class="t-title-sm" id="auth-title">확인은 무엇을 여는가</h2>
           <ul class="auth-list">
             <li class="auth-item is-open">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
               <div class="auth-body">
                 <p class="t-body-sm auth-name">조회</p>
                 <p class="t-caption auth-sub">관리자 역할만으로 됩니다. 이 확인 없이도 값이 보입니다.</p>
               </div>
             </li>
             <li class="auth-item is-gated">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
               <div class="auth-body">
                 <p class="t-body-sm auth-name">저장</p>
                 <p class="t-caption auth-sub">관리자 역할 <strong>더하기</strong> 관리자 유효창. 유효창은 역할을 올리지 않고 저장에만 가산됩니다.</p>
@@ -384,16 +361,16 @@
           <span class="t-label ref-caption">① 주소 형식 거부</span>
           <div class="field ep-field">
             <div class="field-head">
-              <label class="t-label field-label" for="ref-bad">AI 추론 서버 주소</label>
+              <label class="t-label field-label" for="ref-bad">관제 통지 수신처 주소</label>
               <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>저장 안 됨</span>
             </div>
-            <input class="input input-mono is-invalid" id="ref-bad" type="text" value="ai-server.klid.internal:9300" aria-invalid="true" />
+            <input class="input input-mono is-invalid" id="ref-bad" type="text" value="notify.klid.internal/api" aria-invalid="true" />
           </div>
           <div class="alert alert-error">
-            <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
             <div class="alert-body">
               <span class="t-body-sm alert-title">주소 형식이 올바르지 않습니다</span>
-              <span class="t-caption">AI 추론 서버 주소를 확인해 주세요. 다른 주소는 그대로 두었습니다.</span>
+              <span class="t-caption">관제 통지 수신처 주소를 확인해 주세요. 다른 주소는 그대로 두었습니다.</span>
             </div>
           </div>
           <p class="t-caption text-muted">어느 입력란이 문제인지까지만 알리고, 입력한 값·호스트·해석 결과는 문구에 담지 않습니다.</p>
@@ -420,7 +397,7 @@
             <h3 class="t-title-sm">관리자 확인</h3>
           </div>
           <div class="alert alert-warn">
-            <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
             <div class="alert-body">
               <span class="t-body-sm alert-title">유효 시간이 끝났습니다</span>
               <span class="t-caption">다시 확인하면 누르던 저장을 이어서 수행합니다. 입력한 주소는 그대로 남아 있습니다.</span>
@@ -441,14 +418,14 @@
         <div class="card-content ref-body">
           <span class="t-label ref-caption">④ 확인 실패</span>
           <div class="alert alert-error">
-            <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
             <div class="alert-body">
               <span class="t-body-sm alert-title">확인하지 못했습니다</span>
               <span class="t-caption">입력한 값을 확인한 뒤 다시 시도해 주세요.</span>
             </div>
           </div>
           <div class="alert alert-warn">
-            <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
             <div class="alert-body">
               <span class="t-body-sm alert-title">잠시 뒤 다시 시도해 주세요</span>
               <span class="t-caption">짧은 시간에 시도가 몰렸습니다.</span>
@@ -462,7 +439,7 @@
         <div class="card-content ref-body">
           <span class="t-label ref-caption">⑤ 저장 완료</span>
           <div class="toast toast-success">
-            <svg class="icon toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+            <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
             <div class="toast-body">
               <span class="t-body-sm toast-title">주소 2건을 저장했습니다</span>
               <span class="t-caption text-muted">재기동 없이 다음 호출부터 쓰입니다. 다른 노드는 설정 캐시 수명만큼 늦게 반영됩니다.</span>
@@ -483,7 +460,7 @@
             <input class="input input-mono is-invalid" id="ref-cred" type="text" value="https://••••••:••••••@deid.klid.internal" aria-invalid="true" />
           </div>
           <div class="alert alert-error">
-            <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
             <div class="alert-body">
               <span class="t-body-sm alert-title">주소 형식이 올바르지 않습니다</span>
               <span class="t-caption">아이디·비밀번호를 담은 주소는 받지 않습니다.</span>
@@ -502,7 +479,7 @@
       <div class="modal-head">
         <h3 class="t-title-sm" id="dlg-admin-title">관리자 확인</h3>
         <a href="#cfg-endpoint-title" class="modal-close" aria-label="닫기">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
         </a>
       </div>
       <p class="t-body-sm modal-desc">주소를 저장하려면 관리자 패스워드가 필요합니다. 확인하면 정해진 시간 동안 재입력 없이 저장할 수 있습니다. 조회에는 필요하지 않습니다.</p>
@@ -512,7 +489,7 @@
         <p class="t-caption field-help" id="admin-pw-help">입력한 값은 화면에 다시 표시되지 않으며 기록에도 남지 않습니다.</p>
       </div>
       <p class="t-caption win-note">
-        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+        <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
         <span>확인하면 10분 동안 열립니다. 이 확인은 확인한 본인에게만 묶이며 역할을 올리지 않습니다.</span>
       </p>
       <div class="modal-footer">

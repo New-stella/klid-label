@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-003
 type: screen_spec
-version: 14
-last_updated_at: 2026-08-28T21:56:59.553Z
+version: 15
+last_updated_at: 2026-09-08T04:10:21.631Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:22:15.495Z
-sync_session: 36
+synced_at: 2026-09-08T06:20:00.292Z
+sync_session: 38
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -34,7 +34,7 @@ draft
 
 ## purpose
 
-접근 권한이 없는 사용자에게 표시되는 안내 화면. 접근: 공개.
+접근 권한이 없는 사용자에게 표시되는 안내 화면. 이 화면은 역할이 확인됐고 그 역할로는 접근할 수 없는 경우의 도착지다. 역할이 아직 확인되지 않았거나 역할 확인 조회가 실패한 상태에서는 이 화면으로 보내지 않는다 — 서버가 알려 준 역할은 화면 수명 동안만 유효해 화면을 다시 불러올 때마다 다시 확보하며, 그 확보가 끝난 뒤에만 도착지를 판정한다. 확인하지 못한 상태를 여기로 보내면 사용자는 자기에게 권한이 없다고 잘못 안내받는다. 접근: 공개.
 
 ## sections
 
@@ -88,7 +88,7 @@ _(empty)_
 
 - **custom_name**: Description
 
-- **description**: 잠금(Lock) 아이콘이 담긴 붉은 원형 배지 + 제목 '이 화면에 접근할 수 없습니다' + 설명 '현재 역할로는 이 페이지에 접근 권한이 없습니다.'. 역할 기반 접근 제어 또는 채널(관제서버/포털) 기반 접근 제어를 통과하지 못한 경우 이 화면으로 이동해 표시되는 공개 화면이다 — 포털 전용 라우트는 두 제어가 함께 적용된다. <main role="alert">. API 호출 없음.
+- **description**: 잠금(Lock) 아이콘이 담긴 붉은 원형 배지 + 제목 '이 화면에 접근할 수 없습니다' + 설명 '현재 역할로는 이 페이지에 접근 권한이 없습니다.'. 역할 기반 접근 제어 또는 채널(관제서버/포털) 기반 접근 제어를 통과하지 못한 경우 이 화면으로 이동해 표시되는 공개 화면이다 — 포털 전용 라우트는 두 제어가 함께 적용된다. 두 제어 모두 역할이 확인된 뒤에 판정하며, 역할이 아직 확인되지 않았거나 확인 조회가 실패한 상태는 이 화면의 도착 사유가 아니다 — 확인하지 못한 것과 확인했는데 권한이 모자란 것은 다른 상태다. <main role="alert">. API 호출 없음.
 
 **references_apis**:
 
@@ -168,6 +168,10 @@ web
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -225,6 +229,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 

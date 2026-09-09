@@ -2,7 +2,7 @@
 
 > 대상: 포털 개발팀 / 저작도구 개발팀
 > 설계 정본: `API-244` (창구 계약) · `INT-014` (연동 축·인증) · `DFEAT-055` (보존 규칙)
-> 스키마 정본: `backend/src/main/resources/db/migration/V36__add_ls_datst_arngmt_trgr.sql`
+> 스키마 정본: `backend/src/main/resources/db/migration/V37__add_ls_datst_arngmt_trgr.sql`
 > 상태: **저작도구 구현 완료 · 포털 수락 회신 대기 · 실동작 조건 미충족**(아래 §6)
 >
 > ## ⚠ 이 문서에서 「확정」의 뜻

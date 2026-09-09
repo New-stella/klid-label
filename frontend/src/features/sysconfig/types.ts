@@ -17,12 +17,13 @@ export const ConfigKey = {
   KPST_DEID_MASKING_TYPE: 'kpst.deid.masking-type',
   KPST_DEID_MASKING_RANGE: 'kpst.deid.masking-range',
   KPST_DEID_DB_SAVE: 'kpst.deid.db-save',
-  // R11: 연동 서버 주소 4종 (STRING).
+  // R11: 연동 서버 주소 (STRING).
   //   ⚠ 키 이름이 BE 애플리케이션 속성명과 **같다**. 별도 키명을 만들면 매핑표가 두 번째
   //     진실원이 되어, 한쪽만 갱신되는 순간 화면에서 바꾼 주소가 엉뚱한 연동에 반영된다.
   //   ⚠ 값이 문자열이라 `useConfigs`(숫자 변환)로는 읽히지 않는다 → `useConfigStrings` 를 쓴다.
   //   ⚠ 비식별 키가 `kpst.deid.base-url` 인 것은 **의도**다. 구 키
   //     `authoring.integration.deidentify.base-url` 은 주입 대상 0건인 빈을 구동해 실효가 없었다.
+  //   ★ 여기 키가 곧 화면 칸은 아니다 — 아래 두 축은 키를 남기되 칸을 두지 않는다.
   // ADR-050: 시계열 위탁 전체 건너뛰기 (BOOLEAN 'true'/'false' + STRING 사유).
   //   ⚠ 위 비식별 키와 같은 이유로 dotted 다 — 폼 필드 이름으로 그대로 쓰지 말고 점 없는
   //     별칭을 쓴 뒤 전송 시점에만 이 키로 매핑한다.
@@ -30,9 +31,18 @@ export const ConfigKey = {
   BATCH_VLM_SKIP_BY_DEFAULT: 'batch.vlm.skip-by-default',
   BATCH_VLM_SKIP_BY_DEFAULT_REASON: 'batch.vlm.skip-by-default-reason',
   KPST_DEID_BASE_URL: 'kpst.deid.base-url',
+  //   ★ 외부 증강 벤더 — 이 축은 보낼 곳이 한 곳뿐이라 고를 일이 없어 설정 칸이 진실원이다.
+  //     가르는 축은 「AI 위탁인가」가 아니라 「고를 대상이 여럿인가」다(SCREEN-042 · API-069).
+  AUGMENT_EXTERNAL_BASE_URL: 'authoring.augment.external.base-url',
+  CONTROL_NOTIFY_URL: 'authoring.control-notify.url',
+  // ★ 아래 둘은 **화면에서 편집하지 않는다** — 그 두 축의 주소 진실원이 장비 원장으로 옮겨갔고,
+  //   위탁도 원장 주소로 나간다. 칸을 되살리면 저장은 되는데 위탁 주소는 그대로라
+  //   **오류도 경고도 없이 아무 일이 안 일어나는** 조용한 실패가 된다. 주소를 바꾸는 자리는
+  //   장비 목록 하나다(SCREEN-042 「추론·외부 시계열 분석 장비 목록」).
+  // ⚠ 그래도 **키는 지우지 않는다** — 배포 설정값이 그 유형의 장비가 원장에 하나도 없을 때
+  //   최초 1회 씨앗으로 계속 쓰인다. 「화면 칸을 없앤다」와 「설정값을 없앤다」는 다른 축이다.
   INTEGRATION_AI_SERVER_BASE_URL: 'authoring.integration.ai-server.base-url',
   VLM_CLIENT_URL: 'vlm.client.url',
-  CONTROL_NOTIFY_URL: 'authoring.control-notify.url',
 } as const;
 export type ConfigKey = (typeof ConfigKey)[keyof typeof ConfigKey];
 

@@ -1087,7 +1087,20 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > 집계였다). 지우기 전에 그 내용이 정본 경로에 있는지 대조했고, 이름이 정본에 없던 `SD-*` 26건도
 > 실체는 `screens/*/design/`(`_sd-meta.md`·`design-main.html/css`·`design-notes.md`)에 있고 버전은
 > `version-master.md` 가 추적한다. 문서의 경로 참조도 **0건**이었다. `bin/`(와이어프레임 생성기)은 보존.
-> ⇒ 이제 키트 최상위는 `screens/`·`_shared/`(+통합만 `bin/`·`_retired/`) 뿐이다.
+> ⇒ 그때는 키트 최상위가 `screens/`·`_shared/`(+통합만 `bin/`·`_retired/`) 뿐이 됐다.
+>
+> ⚠⚠ **그러나 그 상태는 유지되지 않았다 (2026-09-08 실측) — 「지웠다」로 읽지 말 것.**
+> **다음 SYNC(`050a09aa8`)가 그대로 되살렸다.** 지금 통합 키트 최상위에 평평 디렉터리가
+> **`acceptance`·`api_endpoint`·`app_shell`·`screen_design`·`screen_spec`·`ui_component`·`use_case`**
+> 로 다시 있고 **추적 파일이 198개**다.
+> ⇒ **지우는 것으로는 닫히지 않는다.** 원인은 다운로더 인자(`--out` 을 키트 루트로 주는 것)이므로
+> **그것을 틀리지 않는 것이 유일한 방어**다(스킬 §함정 1 · 화면 키트는 `--out` 이 `<키트>/.staging`).
+>
+> ★**위험은 「낡는다」가 아니라 「정본으로 읽힌다」이다.** 그 사본들은 **arranger 가 관리하지 않아
+> SYNC 를 돌려도 갱신되지 않는데 파일 이름이 정본과 같다.** 실측: `screen_spec/_raw/SCREEN-042.json`
+> 이 **v11** 인데 서버는 **v20** 이었다(정본 경로 `screens/` 는 SYNC 로 따라왔다).
+> 누가 `screen_spec/SCREEN-042.md` 를 열면 **아홉 판 전 사양을 현재 사양으로 읽는다.**
+> ⇒ **키트에서 사양을 볼 때는 `screens/`·`_shared/` 만 본다.** 평평 디렉터리는 쳐다보지 말 것.
 > ②**`SCREEN-044`(포털 증강)·`SCREEN-045`(포털 업로드 영상 마킹)를 폐포와 함께 편입**했다 — 소비 API 6건
 > (`API-232`·`233`·`238`~`241`)과 UC 경유 AC 2건(`AC-1070`·`1071`). 통합 키트는 전 화면 정본이라
 > 서버 활성 38건과 이제 같다.

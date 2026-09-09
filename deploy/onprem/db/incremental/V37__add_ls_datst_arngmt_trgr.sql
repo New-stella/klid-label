@@ -1,5 +1,5 @@
 -- ============================================================================
--- V36 — 포털 데이터셋 정리 트리거 접수 원장 신설
+-- V37 — 포털 데이터셋 정리 트리거 접수 원장 신설
 --       @design ERD-035 · API-244 · INT-014 · AC-1102 · AC-1103 · ADR-012
 --
 --   ls_datst_arngmt_trgr (4칸) — 포털이 학습데이터셋의 새 버전을 받아 보낸
@@ -100,7 +100,7 @@
 --     복구하지 않는다). 비가역이다.
 --
 --     DROP TABLE IF EXISTS ls_datst_arngmt_trgr;
---     DELETE FROM FLYWAY_SCHEMA_HISTORY WHERE VERSION = '36';
+--     DELETE FROM FLYWAY_SCHEMA_HISTORY WHERE VERSION = '37';
 --
 -- ----------------------------------------------------------------------------
 -- * 이번에 손대지 않는 것 (빠뜨린 것이 아니다)

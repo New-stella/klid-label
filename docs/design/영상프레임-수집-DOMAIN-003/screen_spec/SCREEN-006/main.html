@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
 <body>
   <main class="wf-content">
@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-006</span><span class="sep">/</span><span>마킹 화면</span></div>
       <h1 style="white-space:nowrap">마킹 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">영상 스트리밍(서명 URL 선행 조회 후 HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(1=수동/2=자동 모드 전환은 항상 발화, Space=마킹/Del·Backspace=삭제/Enter=완료는 수동 모드에서만 발화)로 이벤트 시점을 마킹. 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱해 화면에 표시한다. VLM 위탁 요청의 event_type 은 이와 다른 컬럼인 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 별도로 조달하며, 두 컬럼은 서로 다른 값이라 대체·통합하거나 한쪽에서 유도하지… · route /marking/:rawSn</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">영상 스트리밍(서명 URL 선행 조회 후 HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(1=수동/2=자동 모드 전환은 항상 발화, Space=마킹/Del·Backspace=삭제/Enter=완료는 수동 모드에서만 발화)로 이벤트 시점을 마킹. 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱해 화면에 표시한다. 외부 시계열 위탁 요청에 싣는 검증 이벤트 유형은 이와 다른 컬럼인 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 별도로 조달하며, 두 컬럼은 서로 다른 값이라 대체·통합하거나 한쪽에서 … · route /marking/:rawSn</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 영상 플레이어 (스트리밍·배속)</h2>
@@ -63,15 +63,18 @@
         </div>
         <div class="wf-card">
           <div class="wf-cluster">
-            <h2 class="wf-card-title">⑤ 검증 질문 선택</h2>
+            <h2 class="wf-card-title">⑤ 검증 이벤트 유형·질문 선택</h2>
             <span class="wf-badge">role: main</span>
             <span class="wf-badge">layout: form</span>
             <span class="wf-badge wf-badge-primary">API-047</span>
+            <span class="wf-badge wf-badge-primary">API-043</span>
             <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <div class="wf-field"><label class="wf-label">검증 질문</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째 질문을 기본으로 선택해 둔다. 고른 질문의 일련번호가 마킹 완료 요청에 함께 실린다. 고를 질문이 하나도 없으면 이 영역을 노출하지 않는다.</span>
+            <div class="wf-field"><label class="wf-label">검증 이벤트 유형</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">관제가 보낸 검증 이벤트 유형이 없는 영상에서만 노출한다 — 관제 값이 있으면 이 선택 자체를 띄우지 않는다. 고를 수 있는 유형 목록은 화면 진입 시 함께 받아 싣는다. 그 목록은 항목마다 해당 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 있어, 유형을 고르면 서버에 다시 묻지…</span>
+            <div class="wf-field"><label class="wf-label">검증 질문</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째 질문을 기본으로 선택해 둔다. 그 목록은 유형 목록 항목 안에 함께 실려 온 것이라 유형을 고른 뒤 서버에 다시 묻지 않는다. 유형 선택을 노출한 영상에서는 작업자가 유형을 고른 뒤에 목록이 열린다. …</span>
             <span class="wf-muted">선택한 질문 전문</span><span class="wf-help">드롭다운에서 잘릴 수 있는 긴 문구를 확인할 수 있도록 고른 질문의 전문을 그대로 표시한다.</span>
+            <span class="wf-muted">고른 질문 문구는 외부 시계열 위탁 요청에 그대로 실려 나갑니다.</span><span class="wf-help">작업자의 질문 선택이 기록에 머무르지 않고 외부로 나가는 값임을 알리는 안내 문구. 질문 드롭다운 아래에 함께 노출한다.</span>
           </div>
         </div>
         <div class="wf-card">
@@ -128,8 +131,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 마킹 툴바 (모드·완료·비식별 신고)</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>MarkingToolbar — 자동/수동 모드 토글(탭에 단축키 1=수동/2=자동 표시, 전역에서 항상 발화). 이벤트명은 화면에서 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱되어 화면·마킹 응답에 표시된다. VLM 위탁 요청의 event_type 은 이와 별개로 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 조달한다. 자동 모드: 간격(프레임) number 입력(1 이상 정수, 상한 없음, 기본값 300). 수동 모드: 단축키 안내(Space=마킹/Del·Backspace=삭제/Enter=완료). Space/Del·Backspace/Enter 세 단축키는 수동 모드에서만 발화한다(1/2 모드 전환은 예외적으로 모드 무관 항상 발화). 현재 마킹 건수 표시, 초기화 버튼, 마킹 완료 버튼(항상 클릭 가능 — 마크 0건이면 MANUAL 모드에서 토스트 경고로 제출을 막는다. AUTO 모드는 이 검사 대상이 아니다). '비식별 누락 신고' 버튼은 rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report(API-091) 호출 — 신고 접수 시 영상이 즉시 잠기고 라벨 조회·스트리밍이 차단되므로 마킹 작업을 계속할 수 없다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(자동 / 수동 모드)<p class="wf-help" style="margin:2px 0 0">탭 라벨에 단축키 1(수동)/2(자동) 시각 표시(Kbd) — 전역 keydown 에서 항상 발화(입력 필드 포커스 시 제외), 수동 모드로 스코프 제한되지 않는다.</p></li><li>Input(간격(프레임)) · binds intervalFrames<p class="wf-help" style="margin:2px 0 0">AUTO 모드만. 1 이상 정수, 상한 없음(하한만 검증). 기본값 300</p></li><li>Button(초기화)</li><li>Button(마킹 완료) · → API-047<p class="wf-help" style="margin:2px 0 0">항상 클릭 가능(비활성 상태 없음). MANUAL 모드에서 마크 0건 상태로 클릭하면 토스트 경고('재생하며 마킹을 1건 이상 쌓아 주세요.')를 띄우고 제출만 막는다. AUTO 모드는 간격 값(1 이상)만 있으면 되며 이 검사 대상이 아니다 — 마크 건수로 제출을 막으면 AUTO 모드 제출 자체가 불가능해진다.</p></li><li>Button(비식별 누락 신고) · → API-091<p class="wf-help" style="margin:2px 0 0">rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 파생영상일 때 사전 비활성화한다(BE 거부 412). 배치 단계가 마킹 대기가 아닐 때는 버튼이 비활성화되는 것이 아니라 화면 진입 자체가 막혀 이 버튼이 렌더되지 않는다 — 그 축은 마킹 진입 차단 안내가 규정한다. 신고 성공 시 작업 목록(/task)으로 이동한다.</p></li><li>Custom(신고 불가 사유 툴팁)<p class="wf-help" style="margin:2px 0 0">videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>MarkingToolbar — 자동/수동 모드 토글(탭에 단축키 1=수동/2=자동 표시, 전역에서 항상 발화). 이벤트명은 화면에서 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱되어 화면·마킹 응답에 표시된다. 외부 시계열 위탁 요청에 싣는 검증 이벤트 유형은 이와 별개로 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 조달하며, 관제가 그 값을 보내지 않은 영상에서는 작업자가 검증 이벤트 유형·질문 선택 영역에서 직접 고른다. 자동 모드: 간격(프레임) number 입력(1 이상 정수, 상한 없음, 기본값 300). 수동 모드: 단축키 안내(Space=마킹/Del·Backspace=삭제/Enter=완료). Space/Del·Backspace/Enter 세 단축키는 수동 모드에서만 발화한다(1/2 모드 전환은 예외적으로 모드 무관 항상 발화). 현재 마킹 건수 표시, 초기화 버튼, 마킹 완료 버튼(항상 클릭 가능 — 마크 0건이면 MANUAL 모드에서 토스트 경고로 제출을 막는다. AUTO 모드는 이 검사 대상이 아니다. 검증 이벤트 유형 선택을 노출한 영상에서 유형을 고르지 않았으면 두 모드 모두 같은 방식으로 토스트 경고를 띄우고 제출만 막는다). '비식별 누락 신고' 버튼은 rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report(API-091) 호출 — 신고 접수 시 영상이 즉시 잠기고 라벨 조회·스트리밍이 차단되므로 마킹 작업을 계속할 수 없다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(자동 / 수동 모드)<p class="wf-help" style="margin:2px 0 0">탭 라벨에 단축키 1(수동)/2(자동) 시각 표시(Kbd) — 전역 keydown 에서 항상 발화(입력 필드 포커스 시 제외), 수동 모드로 스코프 제한되지 않는다.</p></li><li>Input(간격(프레임)) · binds intervalFrames<p class="wf-help" style="margin:2px 0 0">AUTO 모드만. 1 이상 정수, 상한 없음(하한만 검증). 기본값 300</p></li><li>Button(초기화)</li><li>Button(마킹 완료) · → API-047<p class="wf-help" style="margin:2px 0 0">항상 클릭 가능(비활성 상태 없음). MANUAL 모드에서 마크 0건 상태로 클릭하면 토스트 경고('재생하며 마킹을 1건 이상 쌓아 주세요.')를 띄우고 제출만 막는다. AUTO 모드는 간격 값(1 이상)만 있으면 되며 이 검사 대상이 아니다 — 마크 건수로 제출을 막으면 AUTO 모드 제출 자체가 불가능해진다. 검증 이벤트 유형 선택을 노출한 영상에서 유형을 고르지 않은 채 클릭하면 같은 방식으로 토스트 경고를 띄우고 제출만 막으며, 이 검사는 두 모드에 모두 적용된다.</p></li><li>Button(비식별 누락 신고) · → API-091<p class="wf-help" style="margin:2px 0 0">rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 파생영상일 때 사전 비활성화한다(BE 거부 412). 배치 단계가 마킹 대기가 아닐 때는 버튼이 비활성화되는 것이 아니라 화면 진입 자체가 막혀 이 버튼이 렌더되지 않는다 — 그 축은 마킹 진입 차단 안내가 규정한다. 신고 성공 시 작업 목록(/task)으로 이동한다.</p></li><li>Custom(신고 불가 사유 툴팁)<p class="wf-help" style="margin:2px 0 0">videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-047</li><li>API-091</li></ul></div>
     </div>
   </div>
@@ -146,10 +149,16 @@
     <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
-      <h3 class="wf-sec-detail-modal-title">⑤ 검증 질문 선택</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹과 함께 저장할 검증 질문을 고르는 영역. 그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 받아 드롭다운에 싣고, 화면 진입 시 정렬순서 첫 번째 질문을 기본으로 선택해 둔다. 고른 질문의 일련번호(vrfcEvntQstnSn)는 마킹 완료 시 마킹과 함께 저장된다. 그 영상에 검증 이벤트 유형이 없거나 그 유형에 등록된 질문이 하나도 없으면 고를 것이 없으므로 이 영역 자체를 노출하지 않는다. 질문이 없다고 마킹이나 외부 시계열 위탁이 막히지는 않으며 어노테이션의 질문 칸이 비어 있을 뿐이다. 선택값이 비었거나 그 유형에 속하지 않는 질문이면 서버가 그 유형의 첫 번째 질문으로 되돌리므로, 화면의 선택은 최종 판정이 아니라 서버 교정을 전제로 한 입력이다. 질문 문구가 길어 드롭다운에서 잘릴 수 있으므로 고른 질문의 전문을 아래에 그대로 보여 준다. 이 화면이 이미 다루는 검증 이벤트 유형은 외부 시계열 위탁 요청에 싣는 값이며, 질문 선택은 그 위탁 입력 조달과 별개 축이다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Select(검증 질문) · binds vrfcEvntQstnSn<p class="wf-help" style="margin:2px 0 0">그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째 질문을 기본으로 선택해 둔다. 고른 질문의 일련번호가 마킹 완료 요청에 함께 실린다. 고를 질문이 하나도 없으면 이 영역을 노출하지 않는다.</p></li><li>Text(선택한 질문 전문)<p class="wf-help" style="margin:2px 0 0">드롭다운에서 잘릴 수 있는 긴 문구를 확인할 수 있도록 고른 질문의 전문을 그대로 표시한다.</p></li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-047</li></ul></div>
+      <h3 class="wf-sec-detail-modal-title">⑤ 검증 이벤트 유형·질문 선택</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹과 함께 저장할 검증 이벤트 유형과 검증 질문을 나란히 고르는 영역.
+
+[검증 이벤트 유형 선택] 관제가 보낸 검증 이벤트 유형이 없는 영상에서만 유형 선택을 노출한다. 관제 값이 있으면 아예 띄우지 않아 두 조달처가 맞붙지 않는다. 유형이 없으면 질문을 고를 수 없고 외부 위탁의 묘사 축도 거부되는데, 유형을 고르면 그 둘이 함께 풀린다. 고를 수 있는 유형 목록은 화면 진입 시 함께 받는다. 항목마다 그 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 있어, 유형을 고르면 서버에 다시 묻지 않고 질문 드롭다운이 채워지며 첫 번째가 기본 선택된다. 이 선택을 노출한 영상에서는 유형이 필수라 고르지 않으면 마킹을 완료할 수 없다 — 외부 위탁에 싣는 질문 문구는 수동이든 자동이든(자동은 그 유형의 첫 질문이 자동 선택) 반드시 값이 있어야 하는데, 질문을 고르려면 유형이 먼저 정해져야 한다. 다만 완료 버튼은 비활성화하지 않는다 — 유형이 빈 채로 누르면 토스트로 사유를 알리고 제출만 막는다(마크 0건 검사와 같은 방식). 버튼을 죽이면 사유가 드러나지 않는다. 고른 유형은 마킹 완료 시 마킹과 함께 저장된다.
+
+[검증 질문 선택] 그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째를 기본으로 선택해 둔다. 고른 질문의 일련번호(vrfcEvntQstnSn)도 마킹과 함께 저장된다. 고를 질문이 하나도 없으면 이 드롭다운은 노출하지 않으며, 질문이 없다고 마킹이나 외부 위탁이 막히지는 않고 어노테이션의 질문 칸이 비어 있을 뿐이다. 선택값이 비었거나 그 유형에 속하지 않는 질문이면 서버가 그 유형의 첫 번째 질문으로 되돌리므로, 화면의 선택은 최종 판정이 아니라 서버 교정을 전제로 한 입력이다. 고른 질문의 전문은 드롭다운에서 잘릴 수 있어 아래에 그대로 보여 준다.
+
+[작업자의 선택은 외부로 나간다] 고른 질문 문구는 외부 시계열 위탁 요청 본문에 그대로 실려 나가므로, 화면이 그 사실을 작업자에게 안내한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Select(검증 이벤트 유형) · binds vrfcEvntTypeCd<p class="wf-help" style="margin:2px 0 0">관제가 보낸 검증 이벤트 유형이 없는 영상에서만 노출한다 — 관제 값이 있으면 이 선택 자체를 띄우지 않는다. 고를 수 있는 유형 목록은 화면 진입 시 함께 받아 싣는다. 그 목록은 항목마다 해당 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 있어, 유형을 고르면 서버에 다시 묻지 않고 그 항목 안의 질문 목록이 질문 선택기에 채워지고 첫 번째가 기본 선택된다. 이 선택을 노출한 영상에서는 유형이 필수라 고르지 않으면 마킹을 완료할 수 없다 — 질문은 어느 마킹 방식에서도 반드시 값이 있어야 하고, 질문을 고르려면 유형이 먼저 정해져야 하기 때문이다. 완료 버튼을 비활성화하지는 않으며 유형이 빈 채로 누르면 토스트로 사유를 알리고 제출만 막는다. 고른 값은 마킹 완료 요청에 함께 실린다.</p></li><li>Select(검증 질문) · binds vrfcEvntQstnSn<p class="wf-help" style="margin:2px 0 0">그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째 질문을 기본으로 선택해 둔다. 그 목록은 유형 목록 항목 안에 함께 실려 온 것이라 유형을 고른 뒤 서버에 다시 묻지 않는다. 유형 선택을 노출한 영상에서는 작업자가 유형을 고른 뒤에 목록이 열린다. 고른 질문의 일련번호가 마킹 완료 요청에 함께 실린다. 고를 질문이 하나도 없으면 이 드롭다운을 노출하지 않는다.</p></li><li>Text(선택한 질문 전문)<p class="wf-help" style="margin:2px 0 0">드롭다운에서 잘릴 수 있는 긴 문구를 확인할 수 있도록 고른 질문의 전문을 그대로 표시한다.</p></li><li>Text(고른 질문 문구는 외부 시계열 위탁 요청에 그대로 실려 나갑니다.)<p class="wf-help" style="margin:2px 0 0">작업자의 질문 선택이 기록에 머무르지 않고 외부로 나가는 값임을 알리는 안내 문구. 질문 드롭다운 아래에 함께 노출한다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-047</li><li>API-043</li></ul></div>
     </div>
   </div>
   <div id="wf-sec-6" class="wf-sec-detail-modal">
@@ -157,7 +166,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑥ 마킹 진입 차단 안내</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 편집기를 렌더할지 판정하는 영역. 영상 상세 정보로 두 축을 순서대로 확인해 하나라도 걸리면 편집기(영상 플레이어·마킹 타임라인·마킹 툴바·마킹 칩 목록·검증 질문 선택)를 렌더하지 않고 사유 안내만 보여 준다. 첫째 비식별 축 — 비식별이 확정적으로 미완료면 차단한다. 둘째 배치 단계 축 — 영상이 마킹 대기 상태가 아니면 차단한다. 서버도 마킹 대기 상태가 아닌 영상의 마킹 접수를 거부하므로, 화면이 선차단하지 않으면 작업자가 마크를 다 쌓은 뒤 제출 시점에야 거부된다. 두 축은 차단이라는 결과가 같아도 사유와 안내 문구가 달라 하나로 합치지 않는다. 판정 순서는 서버의 평가 순서와 같게 비식별 축이 먼저다 — 순서가 갈리면 같은 영상에 화면 안내와 서버 거부 사유가 달라진다. 영상 상세 정보를 아직 받는 중이면 어느 축도 차단하지 않는다. 확정되지 않은 값으로 차단하면 로딩 구간의 깜빡임이 정상 마킹을 막기 때문이다. 차단 화면에서는 비식별 누락 신고 버튼도 함께 노출하지 않는다 — 그 상태에서는 어차피 사유와 함께 비활성이던 버튼이고, 그 경로의 신고는 라벨링 화면이 담당한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 편집기를 렌더할지 판정하는 영역. 영상 상세 정보로 두 축을 순서대로 확인해 하나라도 걸리면 편집기(영상 플레이어·마킹 타임라인·마킹 툴바·마킹 칩 목록·검증 이벤트 유형·질문 선택)를 렌더하지 않고 사유 안내만 보여 준다. 첫째 비식별 축 — 비식별이 확정적으로 미완료면 차단한다. 둘째 배치 단계 축 — 영상이 마킹 대기 상태가 아니면 차단한다. 서버도 마킹 대기 상태가 아닌 영상의 마킹 접수를 거부하므로, 화면이 선차단하지 않으면 작업자가 마크를 다 쌓은 뒤 제출 시점에야 거부된다. 두 축은 차단이라는 결과가 같아도 사유와 안내 문구가 달라 하나로 합치지 않는다. 판정 순서는 서버의 평가 순서와 같게 비식별 축이 먼저다 — 순서가 갈리면 같은 영상에 화면 안내와 서버 거부 사유가 달라진다. 영상 상세 정보를 아직 받는 중이면 어느 축도 차단하지 않는다. 확정되지 않은 값으로 차단하면 로딩 구간의 깜빡임이 정상 마킹을 막기 때문이다. 차단 화면에서는 비식별 누락 신고 버튼도 함께 노출하지 않는다 — 그 상태에서는 어차피 사유와 함께 비활성이던 버튼이고, 그 경로의 신고는 라벨링 화면이 담당한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(비식별 완료 후 마킹이 가능합니다.)<p class="wf-help" style="margin:2px 0 0">비식별이 확정적으로 미완료일 때 마킹 편집기 대신 이 안내만 노출한다. 영상 상세 정보를 아직 받는 중이면 노출하지 않는다.</p></li><li>Alert(이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다.)<p class="wf-help" style="margin:2px 0 0">영상이 마킹 대기 상태가 아닐 때 마킹 편집기 대신 이 안내만 노출한다. 비식별 축 판정이 먼저라 두 축이 함께 걸리면 비식별 축 안내를 보여 준다. 영상 상세 정보를 아직 받는 중이면 노출하지 않는다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-043</li></ul></div>
     </div>

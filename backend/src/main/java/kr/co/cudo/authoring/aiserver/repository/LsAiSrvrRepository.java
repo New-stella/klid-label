@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.aiserver.repository;
 
+import kr.co.cudo.authoring.aiserver.entity.AiSrvrStatus;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,6 +21,17 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
 
     /**
      * 가용 노드를 <b>강등</b>한다 — 단, 그것이 마지막 가용 노드면 아무것도 하지 않는다.
+     *
+     * <h3>⚠ 운영 경로에서 이 메서드를 부르는 곳은 <b>없다</b> — 다시 배선하지 말 것</h3>
+     * <p>관리 창구는 유형별 형제({@link #demoteIfNotLastAvailableOfType})를 쓰고, <b>상태점검 배치는
+     * {@link #demoteByHealthCheck} 를 쓴다</b>. 배치가 한때 이것을 불렀는데, 그 보호가 관측까지 막아
+     * <b>죽은 장비가 「가용」으로 남아</b> 운영자가 화면에서 「한 대는 살아 있다」로 읽는 동안 AI 기능이
+     * 이미 멈춰 있는 상태가 됐다(2026-09-07 실측 — gpu01·gpu02 가 같은 시각에 둘 다 응답하지 않는데
+     * gpu01 만 가용). 그 보호는 <b>사람의 조작</b>에만 거는 것이다. [@design AC-1091] [@design AC-1093]
+     *
+     * <p>남겨 두는 이유는 잠금 CTE + 조건부 UPDATE 라는 <b>동시성 골격</b>과 그 근거(아래 두 절)를
+     * 보존하기 위해서다 — 유형별 형제가 같은 골격을 쓴다. 지우려면 그 지식이 형제 쪽에 온전히
+     * 남아 있는지 먼저 확인할 것.
      *
      * <h3>왜 조회 후 UPDATE 가 아닌가</h3>
      * <p>가용 노드가 0이 되면 AI 기능 전체가 멈춘다. "세어 보고 1보다 크면 내린다"로 만들면 두
@@ -52,6 +64,132 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
                AND (SELECT count(*) FROM available) > 1
             """, nativeQuery = true)
     int demoteIfNotLastAvailable(@Param("srvrId") String srvrId, @Param("next") String next);
+
+    /**
+     * <b>상태점검 배치 전용</b> — 가용 노드를 강등한다. <b>마지막 하나라도 내린다</b>.
+     * [@design ADR-057] [@design AC-1093] [@design AC-1091]
+     *
+     * <h3>왜 마지막 노드 보호를 걸지 않는가</h3>
+     * <p>그 보호는 <b>사람이 관리 화면에서 내리는 조작</b>에 거는 것이다. 상태점검이 내리는 이용불가는
+     * 조작이 아니라 <b>관측</b>이며, 실제 장애를 소프트웨어로 부정할 수 없다. 막으면 죽은 장비가
+     * 「가용」으로 남아 그리로 계속 보내게 되고, 화면은 「한 대는 살아 있다」고 거짓을 말한다.
+     *
+     * <p>가용이 0이 되는 것 자체를 이 쿼리가 막지 않는다. 그 뒤에 무슨 일이 일어나는지의 판정은
+     * {@code AiSrvrHealthTxService.warnIfTypeExhausted} javadoc 이 소유한다(여기 복제하지 않는다).
+     * 「내려도 갈 곳이 없다」는 옛 근거는 어느 축에서도 강등을 막을 이유가 되지 못한다 — <b>두 축 모두</b>
+     * 후보가 0이면 요청이 <b>폴백 없이 거부</b>되므로, 죽은 장비를 가용으로 남겨 두면 거부될 요청이
+     * 죽은 주소로 나갈 뿐이다. [@design AC-1093]
+     *
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — 여기 <i>「추론은 아직 원장으로 장비를 고르지 않아 강등
+     * 여부가 목적지를 바꾸지 않는다 … 「후보가 0이면 폴백 없이 거부된다」를 두 축에 함께 쓰지 말 것 —
+     * 추론 축에서는 거짓이다」</i>라고 적혀 있었다. <b>추론 축도 이제 원장에서 고른다</b>
+     * ({@code AiServerClient} → {@code AiSrvrTargetResolver}). 그때는 참이었던 서술이라 지우지 않고
+     * 남긴다 — 왜 한때 문구를 갈랐는지가 사라지면 다음 사람이 그 비대칭을 다시 만들어 낸다.
+     *
+     * <h3>★★ 출발 상태는 <b>가용과 정비중 둘</b>이다 (2026-09-08) [@design API-229] [@design AC-1100]</h3>
+     * <p>정비중은 <b>하던 일을 끝까지 흘려보낸다</b>는 뜻이지 <b>죽어도 살아 있는 것으로 친다</b>는
+     * 뜻이 아니다. 정비 중에 실제로 멈춘 장비를 내리지 못하면 그 장비에 고정된 영상이 <b>죽은 주소에
+     * 영구히 묶여</b> 프레임마다 시간 초과를 겪고, 재배정 조항도 그 장비가 이용불가로 <b>관측되지
+     * 않아</b> 발동하지 않는다.
+     *
+     * <p>⚠ <b>전이표만 열면 여기서 막힌다</b> — 두 자리가 같은 규칙을 <b>따로</b> 들고 있어서,
+     * {@code AiSrvrStatus} 만 열고 이 문장을 그대로 두면 판정은 통과하는데 갱신이 0 행이라
+     * <b>아무 일도 일어나지 않는다</b>. 두 자리를 함께 본다.
+     *
+     * <h3>그래도 조건부 UPDATE 인 이유</h3>
+     * <p>출발 상태를 <b>열거</b>로 못 박아 <b>금지 전이</b>(비활성→이용불가)를 SQL 한 줄이 함께 막고,
+     * 두 WAS 가 같은 틱에 겹쳐도 한쪽만 실제로 갱신한다. 잠금 CTE 는 필요 없다 —
+     * 세는 대상이 없으므로 다른 행의 상태가 이 판정에 끼어들지 않는다.
+     *
+     * @return 영향 행수. 0 이면 그 사이 상태가 바뀐 것이다(정상 — 조용히 넘어간다)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR
+               SET SRVR_STTS_CD = :next
+             WHERE SRVR_ID = :srvrId
+               AND SRVR_STTS_CD IN ('AVAILABLE', 'DRAINING')
+            """, nativeQuery = true)
+    int demoteByHealthCheck(@Param("srvrId") String srvrId, @Param("next") String next);
+
+    /**
+     * 상태점검 <b>성공</b> 한 건을 <b>원자적으로</b> 반영한다 — 연속 실패를 끊고 연속 성공을 쌓는다.
+     * [@design ADR-057]
+     *
+     * <h3>★ 왜 엔티티를 고쳐 쓰지 않는가 (읽고 계산해 쓰면 갱신이 사라진다)</h3>
+     * <p>구 동작은 행을 읽어 카운터를 계산한 뒤 되쓰는 방식이었다. 백엔드가 <b>네 노드</b>로 뜨는
+     * 형상에서 같은 장비의 관측이 겹치면 <b>한쪽 갱신이 덮여 사라지고</b>, 그러면 연속 실패 계수가
+     * 임계에 <b>영영 닿지 못하거나 늦게 닿아</b> 죽은 장비가 가용으로 남는다 — 이 축이 없애려던
+     * 증상 그 자체다.
+     *
+     * <p>⚠ 점검 발화가 한 노드에서만 일어난다는 사실은 <b>면제 사유가 아니다</b>. 클러스터링이 막는
+     * 것은 <b>트리거 중복 발화</b>이고 이것이 막는 것은 <b>같은 값을 동시에 고칠 때의 갱신 유실</b>
+     * 이다 — 두 축은 서로를 대체하지 않는다(수동 트리거·프로그래밍 호출·되돌림 배포로 남은 옛 잡
+     * 정의가 그 겹침을 실제로 만든다).
+     *
+     * <p>증감을 <b>저장소가</b> 수행하므로 행 잠금이 두 갱신을 줄 세운다. 갱신된 값은 같은
+     * 트랜잭션에서 {@link #findSuccessStreak(String)} 로 되읽는다 — 우리가 잡은 행 잠금이 커밋까지
+     * 유지되므로 그 사이 다른 노드가 끼어들지 못한다.
+     *
+     * @return 영향 행수. 0 이면 그 사이 노드가 원장에서 사라진 것이다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR
+               SET CHCK_DT = :checkedAt,
+                   CHCK_FAIL_NOCS = 0,
+                   CHCK_SCS_NOCS = COALESCE(CHCK_SCS_NOCS, 0) + 1
+             WHERE SRVR_ID = :srvrId
+            """, nativeQuery = true)
+    int recordCheckSuccess(@Param("srvrId") String srvrId,
+                           @Param("checkedAt") LocalDateTime checkedAt);
+
+    /**
+     * 상태점검 <b>실패</b> 한 건을 <b>원자적으로</b> 반영한다 — 연속 성공을 끊고 연속 실패를 쌓는다.
+     * [@design ADR-057]
+     *
+     * <p>연속 성공을 <b>0으로 되돌리는</b> 것이 핵심이다. 이어서 세면 「연속」이 아니게 되어, 흔들리는
+     * 노드가 성공을 띄엄띄엄 모아 복귀했다가 다시 내려가는 왕복을 반복한다.
+     *
+     * <p>원자성의 근거는 {@link #recordCheckSuccess} 와 같다(그쪽 javadoc 참조).
+     *
+     * @return 영향 행수. 0 이면 그 사이 노드가 원장에서 사라진 것이다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR
+               SET CHCK_DT = :checkedAt,
+                   CHCK_SCS_NOCS = 0,
+                   CHCK_FAIL_NOCS = COALESCE(CHCK_FAIL_NOCS, 0) + 1
+             WHERE SRVR_ID = :srvrId
+            """, nativeQuery = true)
+    int recordCheckFailure(@Param("srvrId") String srvrId,
+                           @Param("checkedAt") LocalDateTime checkedAt);
+
+    /**
+     * 방금 원자적으로 올린 <b>연속 성공</b> 값 — 같은 트랜잭션에서 되읽는다.
+     *
+     * <p>엔티티 조회가 아니라 스칼라 조회인 이유는, 증감 문장이 영속성 문맥을 비우므로
+     * ({@code clearAutomatically}) 엔티티를 다시 붙이면 <b>그 뒤의 변경이 다시 되쓰기</b>가 될
+     * 여지가 생기기 때문이다. 여기서 필요한 것은 숫자 하나뿐이다.
+     */
+    @Query(value = "SELECT CHCK_SCS_NOCS FROM LS_AI_SRVR WHERE SRVR_ID = :srvrId",
+            nativeQuery = true)
+    Integer findSuccessStreak(@Param("srvrId") String srvrId);
+
+    /** 방금 원자적으로 올린 <b>연속 실패</b> 값 — 위 {@link #findSuccessStreak} 와 같은 이유. */
+    @Query(value = "SELECT CHCK_FAIL_NOCS FROM LS_AI_SRVR WHERE SRVR_ID = :srvrId",
+            nativeQuery = true)
+    Integer findFailureStreak(@Param("srvrId") String srvrId);
+
+    /**
+     * 그 유형의 <b>가용 장비 수</b> — 상태점검이 마지막 하나를 내린 뒤 「이 유형이 통째로 멈췄다」를
+     * 알리기 위한 축이다. [@design ADR-057] [@design AC-1093]
+     *
+     * <p>운영자에게 알려야 할 사실은 「한 대가 내려갔다」가 아니라 <b>「이 유형으로 나갈 길이 없어졌다」</b>
+     * 다 — 그 순간부터 그 유형의 위탁은 폴백 없이 거부되기 때문이다.
+     */
+    long countBySrvrTypeCdAndSrvrSttsCd(LsAiSrvr.SrvrType srvrTypeCd, AiSrvrStatus srvrSttsCd);
 
     /**
      * 이용불가 노드를 <b>가용으로 되돌린다</b> — 연속 성공이 복귀 임계에 닿았을 때만 호출한다.
@@ -162,8 +300,25 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
      * 둘 다 통과한다.
      *
      * <p>⚠ 부하 관측 행({@code LS_AI_SRVR_USG})은 외래키 {@code ON DELETE CASCADE} 로 함께 사라진다.
-     * 반면 영상 배정 행({@code LS_AI_SRVR_ALTMNT})은 {@code ON DELETE RESTRICT} 라 <b>남아 있으면
-     * 이 문장이 무결성 위반으로 실패</b>한다 — 호출측이 먼저 걸러 409 로 답한다.
+     *
+     * <h3>★ 영상 배정 행에는 <b>외래키가 없다</b> — 삭제를 막지 않는다</h3>
+     * <p>{@code LS_AI_SRVR_ALTMNT} 의 장비 외래키는 <b>V26 이 의도적으로 드롭</b>했다. 근거는
+     * <i>「한 번이라도 영상을 처리한 장비는 영구히 삭제 불가가 되어 장비 교체가 구조적으로 막힌다」</i>
+     * 이며, 배정 표는 <b>처리가 도는 동안</b> 프레임을 한 장비에 묶어 두는 자리라 처리가 끝나면
+     * 그 묶음이 순수 이력이기 때문이다. 그래서 이 문장은 배정 행이 남아 있어도 <b>성공</b>하고,
+     * 그 행의 장비 식별자는 「이제 없는 장비를 가리키는 값」으로 남는다(그것이 의도다).
+     *
+     * <p><b>처리 중 보호는 다른 둘이 담당한다</b> — 정비중(DRAINING) 상태가 「신규 배정만 막고 진행
+     * 중인 배정은 끝까지 간다」를 맡고, 그 위에 이 문장 자신의 <b>유형별 마지막 가용 장비 보호</b>가
+     * 삭제·활성 이탈 양쪽을 따로 막는다. [@design AC-1091]
+     *
+     * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — 여기 <i>「영상 배정 행은 {@code ON DELETE RESTRICT} 라
+     * 남아 있으면 이 문장이 무결성 위반으로 실패한다 — <b>호출측이 먼저 걸러 409 로 답한다</b>」</i>고
+     * 적혀 있었다. <b>둘 다 사실이 아니다</b>: 그 외래키는 V26 이 없앴고, 호출측
+     * ({@code AiSrvrAdminService#delete})은 {@code existsBySrvrId} 를 부르지 않는다(실측 0건).
+     * <b>존재하지 않는 방어를 있다고 말하는 주석</b>이었다. 지우지 않고 남기는 이유는 그 문장이
+     * 다음 라운드의 설계 근거로 역추정되어 폐기된 제약이 되살아나는 것을 막기 위해서다 —
+     * 되살리려면 고아 행 정리가 선행돼야 한다(V26 주석의 되돌리기 절).
      *
      * @return 영향 행수. 0 이면 마지막 가용 노드라 거부됐거나 이미 없는 노드다
      */
