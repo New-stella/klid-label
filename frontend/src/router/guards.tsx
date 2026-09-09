@@ -91,6 +91,7 @@ function usePortalSessionRecovery(shouldRecover: boolean): void {
     if (!shouldRecover) return;
     syncPortalSessionFromHandoff();
   }, [shouldRecover]);
+}
 
 // [@design ADR-063] [@design AC-1017] [@design SCREEN-001] [@design SCREEN-002]
 // [@design SCREEN-003] [@design API-006]
