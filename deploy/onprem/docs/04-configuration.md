@@ -146,15 +146,16 @@ DB 비밀번호조차 비어 있기 때문이다 — 주소 하나만 골라 기
 | 고친 파일 | 반영에 필요한 것 | 서비스 중단 |
 |---|---|---|
 | `/etc/klid/frontend.env` (프론트 런타임 설정) | `sudo /opt/klid/bin/klid-frontend-config` **한 줄** | **없음** — 웹 서버 재기동도 불필요 |
-| `/etc/klid/application.properties` (WAR 형상 백엔드) | **WAS 재기동** — `sudo systemctl restart "${WAS_UNIT}"` | 있음(백엔드) |
+| `/etc/klid/application.properties` (WAR 형상 백엔드) | **WAS 재기동** — `source /etc/klid/was.env; was_restart` | 있음(백엔드) |
 | `/etc/klid/backend.env` (베어메탈 형상 백엔드) | `sudo systemctl restart klid-backend` | 있음(백엔드) |
 | `/etc/klid/ai-server.env` (`AI_BIND_HOST` 포함) | `sudo systemctl restart klid-ai-server` | 있음(추론만) |
 | `config/systemd/*.service` 를 다시 설치한 경우 | `sudo systemctl daemon-reload` **후** 해당 서비스 재기동 | 있음 |
 | `/etc/httpd/conf.d/klid-frontend.conf` (웹 서버) | `sudo systemctl reload httpd` | 없음(무중단 재적재) |
 | `/etc/klid/was.env` | **없음** — 앱이 읽지 않는다. 다음 런북 명령부터 적용된다 | 없음 |
 
-> `WAS_UNIT` 은 `/etc/klid/was.env` 에 적어 둔 현장값이다. 명령을 그대로 복붙하려면
-> `source /etc/klid/was.env` 를 먼저 실행한다(`09-operations-runbook.md` 와 같은 관례).
+> `was_restart` 는 `/etc/klid/was.env` 가 정의하는 함수다 — WAS 가 systemd 로 뜨는지
+> 스크립트로 뜨는지의 차이를 그 안에서 흡수한다(`09-operations-runbook.md` §0-1).
+> ⚠ 현장은 systemd 가 아니므로 `systemctl restart` 를 직접 쓰지 말 것.
 
 > ⚠ **일부 값은 재기동만으로 반영되지 않는다** — 애플리케이션 <설정 화면>에서 연동 주소를 덮어쓴
 > 이력이 있으면 그 override 가 배포 기본값보다 우선한다. 파일을 고쳤는데 동작이 그대로면
@@ -322,8 +323,8 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 > (베어메탈은 `klid` 계정이지만 WAS 계정은 다를 수 있다 — 이쪽이 이 형상의 실제 실패 지점이다).
 > ```
 > sudo -u <WAS 실행 계정> test -w /새경로 && echo OK || echo '쓰기 불가 — 소유권/권한을 조정할 것'
-> source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
-> sudo systemctl restart "$WAS_UNIT"
+> source /etc/klid/was.env
+> was_restart
 > ```
 > 또한 NAS 를 해당 경로로 **미리 마운트**해야 한다(설치는 부재해도 warn 후 계속되나, 서비스가 영상을 못 쓴다). DB 에 저장된 절대경로가 이 베이스로 시작해야 서빙된다(startsWith 가드).
 >

@@ -110,8 +110,8 @@ sudo rsync -a --info=progress2 /nas-storage/ /backup/klid-storage/
 #   ★ backend 정지 = WAS 정지다 — 백엔드는 systemd 유닛이 아니라 외부 WAS 가 api.war 를 기동한다
 #     (배포 형상 @design DEPLOY-001 · 09-operations-runbook.md §0).
 #     <WAS 유닛명> 등 현장값은 설치 시 /etc/klid/was.env 에 적어 둔다(같은 §0-1).
-source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
-sudo systemctl stop "$WAS_UNIT"
+source /etc/klid/was.env      # 없으면 09-operations-runbook.md §0-1 을 먼저 작성한다
+was_stop
 #   (베어메탈 토글 형상이면: sudo systemctl stop klid-backend)
 #   ⚠ WAS 를 통째로 내릴 수 없으면 api.war 컨텍스트만 정지시킨다 — 필요한 것은 "앱이 DB 에 붙어
 #     있지 않다" 이지 "WAS 프로세스가 없다" 가 아니다.
@@ -126,7 +126,7 @@ sudo -u postgres dropdb --if-exists portal
 sudo -u postgres createdb -O klid_user -E UTF8 portal
 sudo -u postgres pg_restore -d portal --no-owner /backup/klid/<날짜>/portal.dump
 
-sudo systemctl start "$WAS_UNIT"
+was_start
 #   (베어메탈 토글 형상이면: sudo systemctl start klid-backend)
 # 검증: 핵심 테이블 확인 (저작도구 객체는 klid_at 스키마 — 스키마 한정 필수)
 sudo -u postgres psql -d klid_system \
