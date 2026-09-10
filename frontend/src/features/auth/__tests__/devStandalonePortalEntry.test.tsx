@@ -90,6 +90,15 @@ describe('포털 채널 단독 구동 — 진입 흐름', () => {
     it('★대역이_들고_있는_토큰으로_포털_홈까지_들어간다', async () => {
       installDevHostTokenHandoff();
       seedDevHostToken(PORTAL_JWT);
+      // [@design ADR-012] 포털 향은 토큰의 역할을 인가 축에 쓰지 않으므로 진입 화면이 도착지를
+      // 정하기 전에 `GET /v1/me` 로 역할을 확보한다. 그 대역이 없으면 이 시험은 <대역이 준 토큰이
+      // 화면까지 이어지는가>가 아니라 <역할 확인 실패 안내>를 잡게 된다.
+      mock.onGet('/me').reply(200, {
+        success: true,
+        data: { sub: '3001', role: 'PORTAL_USER', channel: 'PORTAL', name: '홍길동' },
+        message: null,
+        errorCode: null,
+      });
 
       renderIngress();
 

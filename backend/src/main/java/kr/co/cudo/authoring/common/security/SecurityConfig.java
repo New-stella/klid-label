@@ -62,6 +62,11 @@ public class SecurityConfig {
      * 그 창구는 사람이 아니라 포털 서버가 부르므로 토큰이 아니라 키로 가른다.
      */
     private final PortalSystemApiKeyFilter portalSystemApiKeyFilter;
+    /**
+     * 채널 판정기 — <b>배포 향</b>이 인계 토큰의 채널을 확정한다 (@design ADR-012).
+     * 운영 배선이 이 빈을 반드시 필터에 넘겨야 한다 — 넘기지 않으면 필터가 관제 향으로 굳는다.
+     */
+    private final kr.co.cudo.authoring.common.config.DeployFlavorResolver deployFlavorResolver;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -70,7 +75,8 @@ public class SecurityConfig {
             throws Exception {
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver,
-                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
+                        lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner,
+                        deployFlavorResolver);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -219,8 +225,12 @@ public class SecurityConfig {
                                               kr.co.cudo.authoring.portal.config.PortalStreamSignatureFilter
                                                       .AUTHORITY_PORTAL_STREAM_SIGNED)))
                             // R5-1: 그 외 모든 내부 /v1/** API 는 INTERNAL 채널 토큰만.
-                            // channel 클레임 없는 토큰은 JwtAuthenticationFilter 에서 INTERNAL 로 기본값 처리되므로
-                            // 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용, 외부 노출 없음).
+                            // channel 클레임 없는 토큰은 <관제 향 배포본에서> JwtAuthenticationFilter 가 INTERNAL 로
+                            // 기본값 처리하므로 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용,
+                            // 외부 노출 없음).
+                            // ⚠ 그 근거는 <조건부>다 (@design ADR-012) — 채널 판정 축이 <배포 향>이며, 포털 향
+                            //   배포본은 클레임을 읽지 않고 PORTAL 로 확정하므로 이 매처에 애초에 닿지 않는다.
+                            //   판정 본체는 common/config/DeployFlavorResolver 한 곳이다.
                             //
                             // A-ISSUE-02 — 채널 authority 만 요구하던 것을 **역할 결합**으로 상향한다.
                             // 과거에는 LS_USER_ROLE 미배정(role=null) INTERNAL 사용자가 @PreAuthorize 가 없는

@@ -21,7 +21,22 @@
   >
   > ⚠ **코드 미반영 (2026-08-27 실측)** — `features/auth/tokenIngress.ts` 가 `localStorage` 를 직접 읽고 기본 전략도 `localStorage` 이며, 요청 헤더는 전 경로 `Authorization: Bearer` 다. `x-access-token` 은 레포에 있으나 **방향이 반대**(저작도구 → 관제 outbound 통지 헤더 + 로그 마스킹)이고 inbound 수용은 **0건**이다. Module Federation 설정(`vite.config.ts` 의 `federation`·`exposes`·`remoteEntry`) 자체가 **0건**이다.
 - 두 채널 모두 **동일 JWT 발급 서버** → 단일 검증 로직(`JwtAuthenticationFilter`).
-- 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
+- **★채널 판정 축은 «배포 향»이다 — 토큰의 `channel` 클레임이 아니다 (2026-09-09 확정, 구속 · `ADR-012`)**
+  - 저작도구는 채널마다 **별도로 배포**되므로 배포본이 자기 채널을 이미 안다. 판정은 설치 시점 선언
+    **`KLID_DEPLOY_FLAVOR`**(값역 `control`|`portal`)가 하며, 판정 본체는 `common/config/DeployFlavorResolver` 한 곳이다.
+  - **포털 향** → 인계 토큰의 `channel` 값을 **읽지 않고** PORTAL 로 **확정**한다(기본값 전환이 아니라 **강제**).
+    **관제 향** → 종전대로. 값이 있으면 그 값, 없으면 INTERNAL. **미선언·값역 밖 → 관제 향**(fail-closed).
+  - **상대에게 채널 클레임을 요구하지 않는다**(`INT-013` 「계약 경계」) — 우리 배포 형상을 상대의 계약으로
+    만들지 않기 위해서다. 포털 인계 토큰에 `channel` 이 **없는 것은 누락이 아니라 계약대로**다.
+  - 프론트도 같은 축이다 — 빌드 채널(`VITE_BUILD_CHANNEL`)이 `portal` 이면 PORTAL 로 확정하고 토큰 `role` 을
+    인가에 쓰지 않는다(`stores/useAuthStore.decodeJwtPayload`). **두 키는 이름을 합치지 않고 값만 맞춘다.**
+  - ⚠ **구 서술 폐기** — *"토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기"*. 그 서술대로 두면 **포털
+    향 배포본이 관제 채널로 동작**한다. 2026-09-10 개발망에서 실제로 그 일이 났다 — 포털 사용자가 관제
+    사용자로 해석되어 화면은 「접근 권한이 없습니다」로 막히고, **포털 회원이 저작도구 내부 작업자로 자동
+    등록**됐다. ⚠ 관제 향의 「부재→INTERNAL」(`ADR-063`)은 **지금도 참이다** — 틀렸던 것이 아니라 **조건부**였다.
+  - ⚠ 배포 향을 잘못 선언하면 그 배포본이 **통째로** 반대 채널로 동작한다(토큰 단위로 바로잡을 여지 없음).
+    기동 로그 `[DeployFlavor] 배포 향 = …` 한 줄이 유일한 사전 관측 수단이라 배포 점검 항목이다.
+- **저작도구 인가 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
 - **관제 발급 JWT 인계 수용 규격 (2026-09-04 · `ADR-063`)** — 관제서버가 발급한 실토큰을 우리 시크릿으로 검증해 그대로 인계받는다(관제는 발급 형식을 바꾸지 않는다). 관제 토큰은 `iss`·`channel`·`name` 이 없고 이름을 `userNm`, 로그인 ID 를 `userId` 에 싣는다. 세 지점을 저작도구가 흡수한다:
   - **발급처(iss) 게이트**: `iss` 클레임이 **없으면(null) 통과**시킨다(관제 토큰 수용). `iss` 가 **있는데 허용목록 밖이면 여전히 거부**하고, **빈 문자열(blank)도 거부**한다(부재와 구분). ⚠ 시크릿 서명검증·`exp`(만료) 필수는 그대로다 — 게이트만 여는 것이지 서명·만료 방어를 푸는 게 아니다. 서명검증이 issuer 게이트보다 **먼저** 실행돼 위조 토큰은 iss 완화와 무관하게 차단된다.

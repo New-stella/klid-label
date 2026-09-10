@@ -181,7 +181,11 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
       // then
       expect(await getAccessToken()).toBe(LIVE_PORTAL_JWT);
       expect(useAuthStore.getState().claims?.channel).toBe('PORTAL');
-      expect(useAuthStore.getState().claims?.role).toBe('PORTAL_USER');
+      // 세션이 실제로 다시 섰다는 증거는 <신원>으로 잡는다. 역할은 여기서 볼 축이 아니다 —
+      // 포털 향은 토큰의 역할을 인가 축에 쓰지 않아 디코드 직후 항상 null 이고(@design ADR-012),
+      // 실제 역할은 `GET /v1/me` → `setServerRole` 이 채운다.
+      expect(useAuthStore.getState().claims?.sub).toBe('3001');
+      expect(useAuthStore.getState().claims?.role).toBeNull();
     });
 
     /**

@@ -221,11 +221,22 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   //   않는다는 취지는 그대로이고, 인가의 최종 판정은 어차피 서버가 소유한다. 토큰에도 역할이
   //   없을 때만 <오류로 드러낸다> — 그 갈래를 /role-claim 으로 보내면 서버 장애가
   //   *"아직 관리자가 없습니다"* 로 위장된다.
+  //
+  //   ⚠ <관제 향에 한정된 서술이다> (@design ADR-012 · @design INT-013). 포털 향에서는 토큰의
+  //     역할을 인가 축에 쓰지 않으므로(상대 시스템의 역할 어휘다) `claims.role` 이 <항상 null>
+  //     이고, 그래서 이 폴백 갈래에 구조적으로 닿지 않는다 — 포털 사용자는 서버 조회가 실패한
+  //     동안 이 안내(재시도 제공)를 본다. <인지·수용한 대가다>: 폴백을 살리면 포털 토큰의
+  //     role 값("ADMIN")이 우리 Role.ADMIN 과 글자가 같아 <포털 회원이 저작도구 관리자로
+  //     읽힐 길>이 열린다. 되살리지 말 것.
   if (serverRoleStatus === 'failed' && !claims.role) {
     return <ServerRoleUnknownNotice />;
   }
   // 인증은 되었으나 role 이 부여되지 않은 사용자는 /role-claim 으로 안내.
-  // INTERNAL 채널에만 적용 (PORTAL_USER 은 토큰 발급 시점에 항상 role 이 부여됨).
+  // INTERNAL 채널에만 적용.
+  //   ⚠ 구 근거 폐기 — *"PORTAL_USER 은 토큰 발급 시점에 항상 role 이 부여됨"* (@design ADR-012).
+  //     포털 향은 <토큰의 역할을 아예 읽지 않으므로> 그 서술이 성립하지 않는다. 지금의 근거는
+  //     「포털 향에서는 채널이 PORTAL 이라 이 INTERNAL 조건에 닿지 않는다」이다. 결론(포털은 이
+  //     갈래에 오지 않는다)은 그대로이나 <이유가 바뀌었다>.
   //
   // ★도착지 판정 축은 「역할 없음」 <하나가 아니라> 「역할 없음 + 창구 열림」 <둘>이다
   //   (@design SCREEN-002 v32 · @design AC-1098). 그 둘째 축은 <그 화면이 소유한다> — 화면이

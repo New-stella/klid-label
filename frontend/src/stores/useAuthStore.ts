@@ -174,13 +174,37 @@ function decodeJwtPayload(token: string): TokenClaims | null {
     //   서버가 소유하므로, 화면이 모르는 값에 권한을 주는 일은 이 경로 어디에도 없다.
     const rawRole = raw.role;
     const hasRole = rawRole !== undefined && rawRole !== null && rawRole !== '';
-    const role: Role | null = hasRole && isKnownRole(rawRole) ? rawRole : null;
+    const tokenRole: Role | null = hasRole && isKnownRole(rawRole) ? rawRole : null;
+
+    // [@design ADR-012] [@design INT-013] [@design AC-1103]
+    // ★채널 판정 축은 <배포 향>이다 — 프론트에서 그 향에 해당하는 것이 빌드 채널이다.
+    //   포털 Host 가 넘기는 인계 토큰에는 channel 클레임이 없고, 그것은 누락이 아니라 계약이다
+    //   (INT-013 「계약 경계」 — 저작도구는 상대 시스템에 채널 클레임 추가를 요구하지 않는다).
+    //   ⚠ 기본값 전환이 아니라 <강제>다: 토큰에 channel 이 실려 있어도 그 값을 따르지 않는다.
+    //     포털 산출물이 관제 채널로 동작할 길을 남기지 않기 위해서다.
+    //   ⚠ 이 표식을 지우지 말 것 — 같은 결정의 전파 표식이 이미 네 차례 지워졌다(AC-1103).
+    //   ⚠ 판정을 모듈 상수로 굳히지 않는다 — `isPortalEmbedChannel()` 은 매 호출 환경값을 다시
+    //     읽는 함수이고, 그래야 시험이 두 향을 모두 검증할 수 있다(`lib/buildChannel`).
+    const portalBuild = isPortalEmbedChannel();
+
+    // ★포털 향에서는 상대 시스템의 역할을 우리 인가 축에 쓰지 않는다(INT-013 인계 토큰 구성표).
+    //   BE `JwtAuthenticationFilter` 의 PORTAL 가지도 토큰 role 을 버리고 PORTAL_USER 로 고정하므로
+    //   두 층이 대칭이다.
+    //   ⚠ 여기서 `PORTAL_USER` 로 <채워 넣지> 않는다. 정상 경로의 역할은 `GET /v1/me` 응답을
+    //     `setServerRole` 이 주입해 채운다. 화면이 역할을 지어내면 그 조회가 실패했을 때 있지도
+    //     않은 권한을 화면이 인정하는 fail-open 이 된다. null 로 두면 RoleGuard 가 「확인하지
+    //     못했다」 안내(재시도 제공)로 떨어진다 — 그것이 옳은 동작이다.
+    const role: Role | null = portalBuild ? null : tokenRole;
+
     // 관제 인계 토큰은 channel 클레임을 싣지 않는다 — BE 는 부재 시 INTERNAL 로 기본 처리한다
     //   (@design ADR-063). FE 도 동일하게 <부재는 INTERNAL>로 본다. 부재를 거부하면 관제 토큰이
     //   여기서 탈락해 claims=null → SessionIngress 가 「토큰 없음」으로 오판해 로그인 무한루프가
     //   된다(실측 2026-09-05). 값이 <있는데> 우리가 모르는 채널이면 종전대로 거부(BE valueOf 대칭).
-    const channel =
-      raw.channel === undefined || raw.channel === null
+    //   ⚠ 이 근거는 <관제 향에 한정>된다 — 틀렸던 것이 아니라 조건부였다. 포털 향에서는 위 강제가
+    //     앞서 토큰의 channel 값을 아예 읽지 않는다.
+    const channel = portalBuild
+      ? Channel.PORTAL
+      : raw.channel === undefined || raw.channel === null
         ? Channel.INTERNAL
         : isChannel(raw.channel)
           ? raw.channel

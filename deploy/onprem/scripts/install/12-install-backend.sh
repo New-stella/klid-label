@@ -93,6 +93,29 @@ ENV_DST="${KLID_ETC}/backend.env"
 install_config_once "${ONPREM}/config/backend/application.properties.template" "${PROPS_DST}" "설정(WAR 형상)"
 install_config_once "${ONPREM}/config/backend/env.template"                    "${ENV_DST}"   "env(베어메탈 형상)"
 
+# ---- 배포 향을 백엔드 설정에 반영 (@design ADR-012) --------------------------
+#   ★ 채널 판정 축이라 <틀리면 조용히> 반대 채널로 동작한다. 그래서 두 가지를 한다:
+#     ① 방금 <새로> 깐 backend.env 면 화면 쪽과 같은 향으로 채워 준다(손입력 누락 차단)
+#     ② 이미 있던 파일이면 덮지 않되, 값이 어긋나면 <경고>한다
+#   ⚠ 기존 파일을 덮지 않는 것은 이 설치기의 일관된 규약이다(install_config_once 와 같은 결).
+_flavor="$(klid_deploy_flavor)"
+if [[ -f "${ENV_DST}" ]]; then
+  _declared="$(klid_config_value "${ENV_DST}" KLID_DEPLOY_FLAVOR)"
+  if [[ -z "${_declared}" ]]; then
+    # 키 자체가 없는 옛 파일 — 추가해 준다(없으면 앱이 control 로 떨어진다).
+    printf '\nKLID_DEPLOY_FLAVOR=%s\n' "${_flavor}" >> "${ENV_DST}"
+    ok "[backend] 배포 향을 추가했습니다: KLID_DEPLOY_FLAVOR=${_flavor} (${ENV_DST})"
+  elif [[ "${_declared}" != "${_flavor}" ]]; then
+    warn "[backend] 배포 향이 화면 설정과 엇갈립니다 — 기존 파일을 덮지 않습니다."
+    warn "          ${ENV_DST} = '${_declared}'  /  화면 설정 = '${_flavor}'"
+    warn "          두 값이 다르면 화면과 서버가 서로 다른 채널로 동작합니다. 직접 맞추세요."
+  else
+    sed -i -E "s#^[[:space:]]*KLID_DEPLOY_FLAVOR=.*#KLID_DEPLOY_FLAVOR=${_flavor}#" "${ENV_DST}"
+    info "[backend] 배포 향: ${_flavor}"
+  fi
+fi
+unset _flavor _declared
+
 # ---- WAS 현장값 기록 파일(/etc/klid/was.env) ----
 #   ★ 앱 설정이 아니다. 운영 런북(docs/09-operations-runbook.md)의 백엔드 조작 명령이
 #       source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'

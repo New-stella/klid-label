@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
+import kr.co.cudo.authoring.common.config.DeployFlavorResolver;
 import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
 import kr.co.cudo.authoring.user.service.ControlUserProvisioner;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
@@ -52,13 +53,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 0건일 때만 돈다(@design ADR-063 · UC-041 · AC-1016).
      */
     private final ControlUserProvisioner controlUserProvisioner;
+    /**
+     * 채널 판정기 — <b>배포 향</b>이 채널을 확정한다(@design ADR-012).
+     *
+     * <p>이 필터는 판정하지 않고 <b>결과만 받는다</b>. 판정을 여기에도 두면 같은 사실을 두 곳에서
+     * 정하게 되고, 둘이 어긋나는 순간 어느 쪽이 참인지 가릴 수단이 없다.
+     */
+    private final DeployFlavorResolver deployFlavorResolver;
 
+    /**
+     * <b>시험 전용 생성자 — 관제 향(종전 동작)으로 고정된다.</b>
+     *
+     * <p>배포 향 인자가 없던 시절의 형태를 남겨 둔 것이라 채널 판정이 {@code CONTROL} 로 굳는다.
+     * ⚠ <b>운영 배선에 쓰지 말 것</b> — 이 생성자로 조립하면 포털 향 배포본에서도 인계 토큰이
+     * 관제 채널로 해석되어 이 클래스가 고치려는 결함이 그대로 되살아난다. 운영 배선은
+     * {@link SecurityConfig} 한 곳이며 아래 7-인자 생성자를 쓴다.
+     */
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
                                    UserRoleResolver userRoleResolver,
                                    LastLoginRecorder lastLoginRecorder,
                                    AutoWorkerRegistrar autoWorkerRegistrar,
                                    ControlUserProvisioner controlUserProvisioner) {
+        this(keyResolver, issuerValidator, userRoleResolver, lastLoginRecorder,
+                autoWorkerRegistrar, controlUserProvisioner, DeployFlavorResolver.ofDefault());
+    }
+
+    public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
+                                   JwtIssuerValidator issuerValidator,
+                                   UserRoleResolver userRoleResolver,
+                                   LastLoginRecorder lastLoginRecorder,
+                                   AutoWorkerRegistrar autoWorkerRegistrar,
+                                   ControlUserProvisioner controlUserProvisioner,
+                                   DeployFlavorResolver deployFlavorResolver) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -86,12 +113,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (controlUserProvisioner == null) {
             throw new IllegalArgumentException("controlUserProvisioner must not be null (wiring bug)");
         }
+        // 채널 판정기 부재는 <배선 버그>다 — 없으면 채널을 정할 수 없고, 기본값으로 때우면
+        // 포털 향 배포본이 조용히 관제 채널로 동작한다(이 클래스가 고치려는 바로 그 결함).
+        if (deployFlavorResolver == null) {
+            throw new IllegalArgumentException("deployFlavorResolver must not be null (wiring bug)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
         this.lastLoginRecorder = lastLoginRecorder;
         this.autoWorkerRegistrar = autoWorkerRegistrar;
         this.controlUserProvisioner = controlUserProvisioner;
+        this.deployFlavorResolver = deployFlavorResolver;
     }
 
     @Override
@@ -153,8 +186,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     name = body.get("userNm", String.class);
                 }
 
+                // ★ 채널 판정 — <배포 향>이 정한다 (@design ADR-012 · INT-013 · AC-1103).
+                //   포털 향 배포본은 이 클레임을 <읽지 않고> PORTAL 로 확정한다(기본값 전환이
+                //   아니라 강제). 관제 향은 종전 그대로 — 값이 있으면 그 값, 없으면 INTERNAL.
+                //   판정 본체는 DeployFlavorResolver 가 소유한다(여기서 다시 판정하지 않는다).
                 String channelStr = body.get("channel", String.class);
-                Channel channel = channelStr == null ? Channel.INTERNAL : Channel.valueOf(channelStr);
+                Channel channel = deployFlavorResolver.resolveChannel(channelStr);
 
                 // 역할 분리 Phase 3 — 인가 역할 출처를 JWT role 클레임 → 저작도구 소유 LS_USER_ROLE 로 전환.
                 //   * INTERNAL: sub(userNo)로 LS 조회(UserRoleResolver, 캐시+fail-closed). 비숫자/누락 sub 는
@@ -244,7 +281,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
 
                 // R5-1: ROLE_* + CHANNEL_* 권한 부여 → SecurityConfig 가 채널 격리를 인가 단계에서 강제.
-                // channel 클레임 없는 토큰은 위에서 INTERNAL 로 기본값 처리(fail-closed: 내부 사용자 호환).
+                // channel 클레임 없는 토큰은 <관제 향에서> INTERNAL 로 기본값 처리된다
+                //   (fail-closed: 내부 사용자 호환 — 관제 인계 토큰이 원래 channel 을 싣지 않는다).
+                //   ⚠ 그 근거는 <조건부>다 (@design ADR-012) — 포털 향에서는 같은 처리가 오히려
+                //     fail-open 이라(포털 사용자가 관제 사용자로 해석된다) 위에서 PORTAL 로 강제한다.
                 // 불변(LOW 2-1): JWT 발급 경로는 ROLE_*/CHANNEL_* authority 만 부여한다. 서명 스트림 전용
                 // STREAM_SIGNED(StreamSignatureFilter.AUTHORITY_STREAM_SIGNED) 권한은 여기서 절대 부여하지
                 // 않으므로, 사용자는 어떤 토큰(sub 위장 포함)으로도 /stream 인가를 획득할 수 없다(CWE-863).
@@ -318,8 +358,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * <p>인계 자리는 채널마다 갈린다 — 관제(내부)는 {@code Authorization: Bearer}, 포털은 전용 헤더
      * {@link #PORTAL_TOKEN_HEADER}. <b>검증은 갈리지 않는다</b> — 두 채널이 같은 발급 서버를 쓰므로
      * 어느 자리로 들어오든 아래 단일 경로에서 같은 서명·발급자·만료 검증을 탄다. 이 메서드가 하는
-     * 일은 "토큰 문자열을 고르는 것"뿐이고, <b>채널 판정은 여전히 JWT {@code channel} 클레임이
-     * 소유한다</b> — 헤더로 채널을 추정하지 않는다.
+     * 일은 <b>"토큰 문자열을 고르는 것"뿐</b>이며 <b>헤더로 채널을 추정하지 않는다.</b>
+     *
+     * <p>⚠ <b>구 서술 폐기</b> — <i>"채널 판정은 여전히 JWT {@code channel} 클레임이 소유한다"</i>
+     * 는 <b>더 이상 사실이 아니다.</b> {@code ADR-012} 「★ 채널 판정 축 — 배포 향이 정한다」
+     * (2026-09-09 사용자 확정, 구속)가 판정 축을 <b>설치 시점 배포 향</b>으로 옮겼고, 판정 본체는
+     * {@link kr.co.cudo.authoring.common.config.DeployFlavorResolver} 가 소유한다.
+     * <b>「헤더로 추정하지 않는다」는 결론은 그대로 유효하니 함께 지우지 말 것</b> — 바뀐 것은
+     * 판정의 <b>소유자</b>이지 「인계 자리로 채널을 정하지 않는다」는 규칙이 아니다.
      *
      * <p>정규화 규칙(갈릴 수 없게 한 지점에 둔다):
      * <ul>
