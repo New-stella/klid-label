@@ -108,6 +108,17 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
+### 전역 Hibernate 통계로 쿼리 수를 재는 가드가 이 도메인에 하나 남아 있다 (2026-09-10 · 잠복)
+
+`ReviewFramesControllerTest.listFrames_avoidsNPlusOne` 이 `SessionFactory.getStatistics()
+.getPrepareStatementCount()`(**프로세스 전역**)로 재고 상한 5 로 단언한다(기대 3). 같은 컨텍스트의 배경
+스레드(`@Async` 후처리)가 **8문장 단위 버스트**로 SQL 을 내므로 **한 번만 겹쳐도 상한을 넘긴다** —
+증강 도메인에서 실제로 그 형태의 플래키가 났고(전체 회귀에서만 실패·값이 매번 다름) 계측 축을 좁혀 닫았다.
+
+⇒ 이 시험을 손댈 일이 생기면 `backend/src/test/.../support/ThreadScopedQueryProbe.attach()` 로 갈아끼운다
+(공용 test-support). MockMvc 가 요청을 호출 스레드에서 처리하므로 스레드 필터만으로 요청 범위 계측이 되고,
+임계를 무르지 않고도 잡음이 빠진다. **고친 뒤 진짜 N+1 을 심어 RED 인지 확인할 것.**
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}
