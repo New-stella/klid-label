@@ -5,9 +5,14 @@
  * - JWT 형식(3 segments) + 길이 제한 + 문자셋(base64url) 검증
  * - alg=none 거부 (FE는 헤더 alg만 확인 — 서명 검증은 BE 책임)
  * - 토큰은 메모리 + sessionStorage (useAuthStore) 에 저장.
- *   localStorage 는 관제서버 인계 채널로 **읽기만** — 저작도구가 새로 쓰지 않는다.
- *   (관제서버가 같은 origin 의 localStorage[`klid-jwt-token`] 에 JWT 를 두면 저작도구가
- *    그것을 인계받아 sessionStorage 로 이전한다 — XSS 표면 확대 없음.)
+ *   ⚠ **폐기(2026-09-10)** — *"localStorage 는 관제서버 인계 채널로 **읽기만** — 저작도구가 새로
+ *     쓰지 않는다 … 인계받아 sessionStorage 로 이전한다"*. 관제 채널은 이제 **세션을 연장**한다:
+ *     매 요청 `klid-jwt-token` 의 **현재값**을 읽고(진입 시 복사본이 아니다), 갱신 중계
+ *     (`POST /v1/auth/control-tokens`)로 받은 새 토큰 쌍을 **관제와 같은 키·형식**
+ *     (`klid-jwt-token` · `tokenInfo` · `userNm`)으로 **쓴다**. 쓰기·갱신은
+ *     `features/auth/controlSession` 한 곳이 소유한다. 포털 채널은 무변경(저장소를 쓰지 않는다).
+ *     [@design ADR-012] [@design INT-013] [@design API-247] [@design API-246]
+ *   ⚠ refresh 토큰(7일)이 같은 출처 저장소에 놓이는 XSS 노출은 인지·수용한 위험이다([@design NFR-013]).
  */
 
 import { resolveConfig } from '@/lib/runtimeConfig';
@@ -53,7 +58,11 @@ function readLocalStorageItem(key: string): string | null {
 }
 
 /**
- * 관제 인계 표시 정보를 읽는다 (읽기 전용 — 저작도구는 이 키에 쓰지 않는다).
+ * 관제 인계 표시 정보를 읽는다.
+ *
+ * ⚠ **폐기(2026-09-10)** — 괄호 속 *"읽기 전용 — 저작도구는 이 키에 쓰지 않는다"*. 관제 채널의 세션
+ *   갱신이 관제 `saveTokens` 와 같은 형식으로 `userNm` 을 **쓴다**(`features/auth/controlSession`).
+ *   이 함수 자체는 여전히 읽기만 한다.
  *
  * - 공백 전용/빈 값은 <생략>한다. 빈 문자열을 보내면 BE 에서도 미전달로 정규화되지만,
  *   애초에 보내지 않는 편이 요청 의미가 분명하다.
@@ -163,7 +172,9 @@ function readCookie(name: string): string | null {
 }
 
 /**
- * 관제서버 인계 채널: localStorage[`klid-jwt-token`] 읽기 전용.
+ * 관제서버 인계 채널: localStorage[`klid-jwt-token`] 읽기.
+ * ⚠ **폐기(2026-09-10)** — 구 표기 *"읽기 전용"*. 이 함수는 읽기만 하지만 그 키 자체는 관제 채널
+ *   세션 갱신이 **쓴다**(`features/auth/controlSession.saveControlTokens`).
  * - SSR / 비브라우저 환경 가드
  * - private mode / quota / disabled storage 등 예외 안전
  * - 값 자체는 형식 검증 없이 반환 — 호출부에서 통합 검증 (isValidJwtFormat + isAlgAcceptable)
@@ -219,4 +230,26 @@ export function resolveToken(params: ResolveTokenParams): string | null {
     }
   }
   return null;
+}
+
+// [@design ADR-012] [@design INT-013]
+/**
+ * 이 배포가 관제 인계를 **같은 출처 저장소**로 받는가 — 전략 판정을 재사용하는 단일 지점.
+ *
+ * 관제 채널의 「매 요청 저장소 현재값 읽기」는 저장소가 인계 채널일 때만 성립한다. 인계를 URL·쿠키로만
+ * 받도록 설정한 배포는 종전처럼 스토어 값을 쓴다. 전략 판정을 호출부에서 다시 만들지 말 것 —
+ * 두 벌이 되면 한쪽만 갱신돼 조용히 갈린다.
+ */
+export function isLocalStorageIngressEnabled(): boolean {
+  const strategy = getStrategy();
+  return strategy === 'localStorage' || strategy === 'all';
+}
+
+/**
+ * 저장소의 인계 토큰을 **검증한 뒤** 돌려준다(형식·alg=none 거부). 아니면 `null`.
+ * 진입 화면의 검증과 같은 규칙이다 — 다른 탭이 쓴 값을 받아들이는 자리도 같은 문턱을 넘어야 한다.
+ */
+export function readValidatedLocalStorageToken(): string | null {
+  const token = readLocalStorageToken();
+  return token && isValidJwtFormat(token) && isAlgAcceptable(token) ? token : null;
 }

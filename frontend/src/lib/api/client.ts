@@ -3,14 +3,17 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 
 import { markPortalTokenRejected } from '@/features/auth/portalSession';
 import { detectChannel, redirectToUpstream } from '@/features/auth/redirectToUpstream';
+import { terminateSession } from '@/features/auth/sessionTermination';
 import {
   buildAuthHeader,
   getAccessToken,
+  getRequestAccessToken,
+  refreshAfterUnauthorized,
   resolveAuthHeaderName,
 } from '@/features/auth/tokenHandoff';
-import { resolveConfig } from '@/lib/runtimeConfig';
 import { useAuthStore } from '@/stores/useAuthStore';
 
+import { resolveApiBaseUrl } from './baseUrl';
 import { ApiError } from './errors';
 import type { ApiResponse } from './types';
 
@@ -42,7 +45,8 @@ declare module 'axios' {
 // 보안: API base 는 설정에서만 로드 (사용자 입력 금지).
 //   해석 순서는 런타임(`klid-config.js`) → 빌드 → 기본값이다. 런타임 파일은 번들보다 먼저
 //   로드되므로 이 모듈이 평가될 때 이미 값이 심겨 있다.
-const baseURL = resolveConfig('VITE_API_BASE_URL') ?? '/api/v1';
+//   해석은 `./baseUrl` 한 곳 — 관제 세션 중계 클라이언트도 같은 값을 쓴다.
+const baseURL = resolveApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL,
@@ -65,8 +69,13 @@ export const apiClient = axios.create({
 //   (갱신이 도는 중이면 갱신된 토큰을 기다린다). axios 는 인터셉터가 돌려준 Promise 를
 //   기다려 주므로 요청 순서·헤더 적재는 그대로다. 동기로 되돌리면 토큰 자리에 Promise 객체가
 //   실려 나간다 — 근거는 `features/auth/tokenHandoff` 의 `normalizeToken` 주석.
+//
+// [@design ADR-012] [@design API-247] [@design AC-1104] [@design AC-1106]
+// ★ 내부(관제) 채널은 여기서 **선제 갱신**을 거친다 — 남은 시간 ≤10분이면 갱신 중계를 부르고
+//   새 토큰을 싣는다(동시 요청은 같은 갱신을 기다린다). 판정은 창구 파일의 `getRequestAccessToken`
+//   이 소유하며 포털 채널은 그 안에서 자연히 제외된다. `skipAuthRedirect` 요청은 갱신 대상이 아니다.
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await getAccessToken();
+  const token = await getRequestAccessToken({ allowRefresh: !config.skipAuthRedirect });
   if (token) {
     const { name, value } = buildAuthHeader(token);
     config.headers.set(name, value);
@@ -86,6 +95,9 @@ apiClient.interceptors.response.use(
     return res;
   },
   async (err: AxiosError<ApiResponse<unknown>>) => {
+    // 요청 인터셉터가 이미 판정을 끝낸 오류(관제 갱신 거절로 세션 종결)는 그대로 흘린다 —
+    // 응답이 없으니 아래 분기로 보내면 상태 0 의 일반 오류로 뭉개진다.
+    if ((err as unknown) instanceof ApiError) return Promise.reject(err);
     const status = err.response?.status ?? 0;
 
     if (status === 401 && !err.config?.skipAuthRedirect) {
@@ -97,6 +109,7 @@ apiClient.interceptors.response.use(
       //   그 재시도는 반대 채널 헤더를 덧붙여 **두 헤더 충돌 401** 을 만든다.
       const config = err.config as (InternalAxiosRequestConfig & {
         _retriedWithToken?: boolean;
+        _retriedAfterRefresh?: boolean;
       }) | undefined;
       const currentToken = await getAccessToken();
       const authHeaderName = resolveAuthHeaderName();
@@ -113,6 +126,26 @@ apiClient.interceptors.response.use(
         const { name, value } = buildAuthHeader(currentToken);
         config.headers?.set?.(name, value);
         return apiClient.request(config);
+      }
+      // [@design ADR-012] [@design API-247] [@design AC-1104] [@design AC-1106]
+      // ★ 내부(관제) 채널 — 토큰을 싣고도 401 이면 **갱신 후 1회만** 재시도한다. 재시도도 401 이거나
+      //   갱신이 실패하면(거절·일시 장애·refresh 토큰 없음) 아래 종전 결말로 간다. 거절 직후 저장소를
+      //   다시 읽어 다른 탭이 이미 갱신했으면 그 토큰으로 재시도한다(`controlSession`).
+      //   포털 채널은 `refreshAfterUnauthorized` 가 언제나 `null` 이라 종전 그대로다.
+      //   ⚠ 표식을 갱신 **전에** 세운다 — 재시도 요청의 401 이 다시 여기로 와도 되풀이하지 않게.
+      //   ★ 갱신이 **거절**된 것이면 강제 로그아웃에서 같은 출처 저장소의 토큰 키까지 지운다
+      //     (관제 웹과 같은 결말). 일시 장애로 실패했거나 재시도도 401 인 경우에는 지우지 않는다 —
+      //     관제 탭의 세션은 멀쩡할 수 있고, 재시도 401 은 방금 저장한 새 토큰 쌍이 유효한 채다.
+      let rejectedByControl = false;
+      if (config && !config._retriedAfterRefresh) {
+        config._retriedAfterRefresh = true;
+        const { token: renewed, rejected } = await refreshAfterUnauthorized();
+        rejectedByControl = rejected;
+        if (renewed) {
+          const { name, value } = buildAuthHeader(renewed);
+          config.headers?.set?.(name, value);
+          return apiClient.request(config);
+        }
       }
       // 정상 401 — 토큰 제거 + 상위 시스템 로그인 페이지로 이동
       //
@@ -138,8 +171,9 @@ apiClient.interceptors.response.use(
       //     응답을 기다리는 사이 Host 가 갱신했을 수 있고, 그 새 토큰까지 거부된 것으로 표시하면
       //     되살아나야 할 세션이 막힌다.
       markPortalTokenRejected(typeof sentAuth === 'string' ? sentAuth : null);
-      useAuthStore.getState().clear();
-      redirectToUpstreamLogin();
+      // 세션 비우기 + 이동은 강제 로그아웃 단일 지점이 한다 — 관제 채널에서는 이동 직전에 이탈
+      // 경고(미저장 확인)를 끈다(끝난 세션에서 확인창에 갇히지 않게). 포털 채널은 종전 그대로다.
+      terminateSession({ clearStoredControlTokens: rejectedByControl });
     }
 
     const body = err.response?.data;

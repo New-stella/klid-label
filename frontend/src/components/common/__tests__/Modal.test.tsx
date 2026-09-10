@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -119,6 +120,36 @@ describe('Modal', () => {
     expect(body?.className).toContain('overflow-y-auto');
     // min-h-0 이 없으면 flex 아이템의 자동 최소 크기 때문에 overflow 가 발동하지 않는다.
     expect(body?.className).toContain('min-h-0');
+  });
+
+  // ── 초기 포커스 축 ([@design SHELL-001]) ───────────────────────────────
+  // 기본값은 **종전 동작**(첫 초점 가능 요소)이고, 사용자가 부르지 않은 대화상자만 옵트인으로
+  // 다른 요소를 지정한다. 새 prop 의 기본값이 기존 호출부의 현재 동작이어야 한다.
+  it('Modal_초기_포커스_기본값은_첫_초점_가능_요소다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        <input data-testid="first" />
+      </Modal>,
+    );
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '닫기' }));
+  });
+
+  it('Modal_initialFocusRef를_주면_그_요소에_초점이_간다', () => {
+    function Harness() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return (
+        <Modal open onClose={() => {}} title="제목" initialFocusRef={ref}>
+          <button type="button">먼저</button>
+          <button type="button" ref={ref}>
+            나중
+          </button>
+        </Modal>
+      );
+    }
+    render(<Harness />);
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '나중' }));
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: '먼저' }));
   });
 
   it('Modal_포커스_트랩_Tab_순환', async () => {

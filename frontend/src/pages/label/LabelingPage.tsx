@@ -127,6 +127,7 @@ import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
 import { roleSatisfies } from '@/lib/authz';
 import { LABEL_KEYS } from '@/lib/queryKeys';
+import { useBeforeUnloadWarning, useUnsavedWorkFlag } from '@/lib/unsavedWork';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
   useIsEditBlocked,
@@ -1445,16 +1446,14 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   };
 
   // 브라우저 탭/창 닫기 시 dirty 경고 (브라우저 native 다이얼로그)
-  useEffect(() => {
-    if (dirtyCount === 0 && !discardPending) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      // 일부 브라우저는 returnValue 설정 필요 — 메시지는 브라우저가 결정
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [dirtyCount, discardPending]);
+  // [@design ADR-012] [@design AC-1105] [@design AC-1106]
+  // ★ 공용 훅으로 건다 — 세션을 끝내고 떠나는 경로(관제 세션 강제 로그아웃·확인을 거친 사용자
+  //   로그아웃)가 이동 직전에 이 경고를 끈다. 여기서 `window.addEventListener` 로 직접 걸면 그 표식을
+  //   모르는 경고가 되어, 끝난 세션에서 브라우저 확인창에 갇힌다. 조건은 종전 그대로다.
+  useBeforeUnloadWarning(dirtyCount > 0 || discardPending);
+  // 미저장 여부를 전역에 알린다 — 세션 연장 팝업이 「저장하지 않은 작업이 있습니다」를 보이고,
+  // 사용자가 누른 「로그아웃」에 확인 절차를 붙인다. 판정은 X(닫기) 가드와 같은 세 축이다.
+  useUnsavedWorkFlag('labeling', dirtyCount > 0 || discardPending || loadedDraft !== null);
 
   // 폴리곤 편집(F/Q 단축키) 명령 핸들 — CanvasShell 이 OverlayLayer 의 imperative handle 을 중계.
   // 편집 state 는 OverlayLayer 내부 캡슐화를 유지하고, 상위는 이 ref 로 마우스와 동일 로직을 호출한다.

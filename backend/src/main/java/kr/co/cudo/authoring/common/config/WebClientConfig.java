@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.common.config;
 
+import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.client.ControlNotifyTokenProvider;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
@@ -10,10 +11,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -279,6 +282,61 @@ public class WebClientConfig {
                     + "요구하면 전 통지가 401 로 거부됩니다.", CONTROL_NOTIFY_TOKEN_HEADER);
         }
         return builder.build();
+    }
+
+    /** 관제 계정 창구 연결 수립 상한 — 호출 전체 상한은 {@code ControlAccountClient} 가 설정값으로 건다. */
+    private static final int CONTROL_ACCOUNT_CONNECT_TIMEOUT_MILLIS = 3_000;
+
+    /**
+     * 관제 계정 세션 창구(갱신·로그아웃) 중계용 WebClient.
+     *
+     * <h3>★ 통지 빈({@code controlNotifyWebClient})을 재사용하지 않는다</h3>
+     * <p>그 빈은 ①통지용 <b>서비스 토큰</b>을 {@code x-access-token} 에 싣는다(정적 값은 기본 헤더,
+     * 동적 발급은 <b>전송 직전 필터가 덮어쓴다</b>) ②그 클라이언트는 통지 활성화 토글
+     * ({@code authoring.control-notify.enabled}, 기본 false)에 묶여 있다. 재사용하면 사용자 토큰
+     * 자리에 통지 토큰이 실려 갱신이 통째로 실패하거나, 통지를 꺼 둔 배포에서 세션 연장이 막힌다.
+     * 이 빈에는 <b>자격증명 필터도 토글도 없다</b> — 담을 값은 요청마다 호출자(사용자)의 토큰이다.
+     *
+     * <h3>주소는 통지 수신처 설정을 재사용한다 (사용자 확정 2026-09-10)</h3>
+     * <p>같은 관제 서버이므로 별도 키를 두지 않는다. 관리자가 연동 주소 설정에서 바꾼 값이 <b>다음
+     * 호출부터</b> 반영되도록 통지와 같은 재작성 필터·전송 가드를 태운다.
+     *
+     * <p>⚠ <b>자격증명 가드({@code stripCredentialOnHostChange})는 걸지 않는다</b> — 그 가드는 빈 생성
+     * 시점에 고정된 <b>우리 발급</b> 자격증명이 새 호스트로 따라가는 것을 막는다. 여기 실리는 것은
+     * 사용자의 관제 토큰이고 그 정당한 수신처가 바로 「설정된 관제 주소」라, 호스트가 바뀌면 떼는 순간
+     * 연장 기능이 조용히 죽는다. 그 대가(관리자 권한 보유자가 주소를 바꾸면 사용자 관제 토큰이 그
+     * 주소로 간다)는 연동 주소 설정 전반의 수용된 잔여 위험과 같은 성질이다.
+     *
+     * <h3>★ 재시도를 전송 계층에서도 끈다</h3>
+     * <p>reactor-netty 는 연결이 응답 전에 끊기면 요청을 <b>한 번 자동 재전송</b>할 수 있다. 갱신은
+     * refresh 토큰을 교체하는 비멱등 호출이라 재전송이 이중 교체를 부르므로 {@code disableRetry(true)}
+     * 로 막는다(Resilience4j Retry 도 걸지 않는다).
+     *
+     * @design INT-015
+     * @design API-247
+     * @design API-246
+     */
+    @Bean(name = "controlAccountWebClient")
+    public WebClient controlAccountWebClient(
+            @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl,
+            IntegrationEndpointResolver endpointResolver) {
+        // 주소가 어떤 상태여도 기동한다 — 미설정·파싱 불가면 빈 base 로 낮추고 전송 시점에 막는다.
+        ExternalEndpointAddress address = ExternalEndpointAddress
+                .formatOnly(IntegrationEndpoint.CONTROL_NOTIFY.configKey(), baseUrl);
+        String base = address.baseUrl();
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONTROL_ACCOUNT_CONNECT_TIMEOUT_MILLIS)
+                .disableRetry(true);
+        return WebClient.builder()
+                .baseUrl(base)
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.CONTROL_NOTIFY, base, endpointResolver))
+                .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
+                        IntegrationEndpoint.CONTROL_NOTIFY, address.rejectionLabel()))
+                .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
+                        IntegrationEndpoint.CONTROL_NOTIFY, base))
+                .build();
     }
 
     /**

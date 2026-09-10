@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.augment;
 
 import com.jayway.jsonpath.JsonPath;
-import jakarta.persistence.EntityManagerFactory;
 import kr.co.cudo.authoring.augment.config.AugmentDiscardProperties;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugDscd;
@@ -12,10 +11,9 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.support.ThreadScopedQueryProbe;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -86,9 +84,6 @@ class AugmentResultDiscardStateTest {
     @Autowired private LsDataAugDscdRepository discardRepository;
     @Autowired private LsDataAugRvwRepository reviewRepository;
     @Autowired private AugmentDiscardProperties discardProperties;
-
-    @Qualifier("controlEntityManagerFactory")
-    @Autowired private EntityManagerFactory entityManagerFactory;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -548,32 +543,38 @@ class AugmentResultDiscardStateTest {
         }
         Long jobId = parent.getRawSn();
 
-        SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
-        Statistics stats = sessionFactory.getStatistics();
-        stats.setStatisticsEnabled(true);
+        try (ThreadScopedQueryProbe probe = ThreadScopedQueryProbe.attach()) {
+            // 워밍업 — 토큰 검증 캐시 등 요청 부수 조회를 두 측정에서 동일 조건으로 맞춘다.
+            queryCount(probe, jobId, 1);
+            queryCount(probe, jobId, 5);
 
-        // 워밍업 — 토큰 검증 캐시 등 요청 부수 조회를 두 측정에서 동일 조건으로 맞춘다.
-        queryCount(stats, jobId, 1);
-        queryCount(stats, jobId, 5);
+            // when
+            long oneItem = queryCount(probe, jobId, 1);
+            String oneForeign = probe.foreignSummary();
+            long fiveItems = queryCount(probe, jobId, 5);
+            String fiveForeign = probe.foreignSummary();
 
-        // when
-        long oneItem = queryCount(stats, jobId, 1);
-        long fiveItems = queryCount(stats, jobId, 5);
-
-        // then
-        assertThat(fiveItems)
-                .as("항목 1건 → %d 쿼리, 5건 → %d 쿼리 (폐기 조회가 배치면 동일해야 한다)",
-                        oneItem, fiveItems)
-                .isEqualTo(oneItem);
+            // then
+            assertThat(fiveItems)
+                    .as("항목 1건 → %d 쿼리, 5건 → %d 쿼리 (폐기 조회가 배치면 동일해야 한다). "
+                            + "배경 스레드 개입: 1건 [%s] / 5건 [%s]",
+                            oneItem, fiveItems, oneForeign, fiveForeign)
+                    .isEqualTo(oneItem);
+        }
     }
 
-    private long queryCount(Statistics stats, Long jobId, int itemSize) throws Exception {
-        stats.clear();
+    /**
+     * 계측 축은 <b>요청 스레드</b>다 — 전역 {@code Statistics.getPrepareStatementCount()} 가 아니다.
+     * 이유·실측 근거는 {@link ThreadScopedQueryProbe} 클래스 주석에 있다(전역 카운터는 같은 캐시
+     * 컨텍스트의 배경 스레드 쿼리를 측정 창에 섞어, 단독 실행에서는 통과하고 전체 회귀에서만 흔들린다).
+     */
+    private long queryCount(ThreadScopedQueryProbe probe, Long jobId, int itemSize) throws Exception {
+        probe.reset();
         mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
                         .param("itemSize", String.valueOf(itemSize))
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk());
-        return stats.getPrepareStatementCount();
+        return probe.countOnThisThread();
     }
 
     @Test

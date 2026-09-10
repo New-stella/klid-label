@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -21,6 +21,23 @@ export interface ModalProps {
    * 숨겨도 ESC·포커스 트랩은 유지되므로 키보드 접근성이 깨지지 않는다.
    */
   showCloseButton?: boolean;
+  /**
+   * 대화상자 표면 클래스 덧칠 — 기본 클래스 뒤에 병합된다(tailwind-merge 로 충돌 해소).
+   * 외부 시스템과 **같은 모양**을 재현해야 하는 소수 자리(관제 세션 연장 팝업)만 쓴다.
+   * ⚠ 일반 화면은 쓰지 말 것 — 모달 표면의 단일 진실원이 이 컴포넌트다.
+   */
+  className?: string;
+  /** 배경막 클래스 덧칠 — `className` 과 같은 제한. */
+  backdropClassName?: string;
+  /**
+   * 열릴 때 포커스를 받을 요소 — **미지정이 기본값이고 그때는 종전대로 첫 초점 가능 요소**다.
+   *
+   * ★ 쓰는 자리는 **사용자가 부르지 않았는데 뜨는 대화상자**뿐이다(관제 세션 연장 팝업). 그런 자리는
+   *   첫 요소가 파괴적 동작(로그아웃)이면 입력 중이던 사람의 Space·Enter 가 그대로 그 동작이 된다
+   *   ([@design SHELL-001]). 버튼 **배치·순서는 그대로 두고 포커스만** 옮긴다.
+   * ⚠ 일반 대화상자에는 쓰지 말 것 — 기본 동작(첫 요소)이 예측 가능한 관례다.
+   */
+  initialFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const sizeClass = {
@@ -56,6 +73,9 @@ export function Modal({
   size = 'md',
   ariaLabel,
   showCloseButton = true,
+  className,
+  backdropClassName,
+  initialFocusRef,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastActiveRef = useRef<HTMLElement | null>(null);
@@ -79,7 +99,8 @@ export function Modal({
     lastActiveRef.current = document.activeElement as HTMLElement | null;
     const root = dialogRef.current;
     if (root) {
-      const first = root.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      // 지정된 요소 → 없으면 첫 초점 가능 요소 → 없으면 대화상자 자신(종전 순서에 앞자리만 더한다).
+      const first = initialFocusRef?.current ?? root.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
       (first ?? root).focus();
     }
     const trap = (e: KeyboardEvent) => {
@@ -107,7 +128,8 @@ export function Modal({
       document.removeEventListener('keydown', trap);
       lastActiveRef.current?.focus?.();
     };
-  }, [open]);
+    // `initialFocusRef` 는 ref 객체라 신원이 고정된다 — 목록에 넣어도 효과가 다시 돌지 않는다.
+  }, [open, initialFocusRef]);
 
   if (!open) return null;
 
@@ -116,7 +138,10 @@ export function Modal({
     // 클릭만 부가적인 종료 수단으로 제공한다.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4',
+        backdropClassName,
+      )}
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}
@@ -146,6 +171,7 @@ export function Modal({
           // 음영과 같은 성질의 조용한 이탈이라 함께 토큰 안으로 되돌렸다.
           'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
+          className,
         )}
       >
         {showCloseButton && (

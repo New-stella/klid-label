@@ -67,6 +67,20 @@ public class Resilience4jConfig {
     }
 
     /**
+     * 관제 계정 세션 창구(갱신·로그아웃) 중계용 CircuitBreaker — 통지와 <b>별도 인스턴스</b>다.
+     *
+     * <p>통지 서킷을 공유하면 통지 실패(관제 데이터셋 창구 장애)가 세션 연장까지 막고, 그 반대도
+     * 성립한다. 두 창구는 같은 관제 서버에 있어도 다른 서비스다. 인스턴스명 {@code controlAccount} 는
+     * application.yml resilience4j 설정 키와 일치.
+     *
+     * @design INT-015
+     */
+    @Bean(name = "controlAccountCircuitBreaker")
+    public CircuitBreaker controlAccountCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker("controlAccount");
+    }
+
+    /**
      * Phase 1 — KPST 비식별 솔루션 폴링 클라이언트용 CircuitBreaker.
      * <p>인스턴스명 {@code kpstDeid} 는 application.yml resilience4j 설정 키와 일치.
      */

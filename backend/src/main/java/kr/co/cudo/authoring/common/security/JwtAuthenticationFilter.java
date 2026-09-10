@@ -176,6 +176,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // [design: ADR-063 ⑦] [design: AC-1017] [design: AC-1016]
+                // ★ 토큰 종류가 refresh 면 인증에 쓰지 않는다 — 채널·인계 자리(Bearer/포털 헤더) 무관.
+                //   관제 refresh 토큰(7일)은 access 와 <같은 비밀키>로 서명되고 같은 출처 저장소(tokenInfo)에
+                //   놓인다. 이 판정이 없으면 서명·만료·발급처만 보는 이 필터를 그대로 통과해 7일짜리 API
+                //   자격증명이 된다. refresh 토큰의 정당한 쓰임은 갱신 중계 창구의 <요청 본문>뿐이다.
+                //   * 거부 방식은 다른 검증 실패와 같다 — 컨텍스트를 비우고 체인을 이어 보호 창구는 401.
+                //   * 신원 해석·자동 등록·접속 기록보다 <앞>에 둔다 — 거부될 토큰이 부수 쓰기를 남기면 안 된다.
+                //   ⚠ 「access 만 허용」으로 좁히지 말 것(ADR-063 기각안) — 종류 클레임이 없는 토큰
+                //     (개발 로그인·포털 인계)이 전부 막힌다. 문자열이 아닌 종류 값도 종전대로 수용한다.
+                if (isRefreshTokenType(body)) {
+                    log.warn("[Auth] rejected refresh-type token — not an access credential");
+                    SecurityContextHolder.clearContext();
+                    chain.doFilter(request, response);
+                    return;
+                }
+
                 // 이름 클레임은 인가 이전에 읽는다 — 자동 등록이 사용자 마스터의 표시 이름을
                 //   채우는 데 쓰기 때문이다(그 창구가 부트스트랩 전용으로 닫히면서 이름을 채우는
                 //   유일한 경로가 여기로 옮겨왔다). 요청 속성 노출은 종전 위치·의미 그대로다.
@@ -313,6 +329,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         chain.doFilter(request, response);
     }
+
+    /**
+     * 토큰 종류 클레임이 {@code refresh}(대소문자·앞뒤 공백 무시)인가.
+     *
+     * <p>★ 클레임을 {@code body.get(name, String.class)} 로 읽지 않는다 — 값이 문자열이 아니면 그 호출이
+     * 예외를 던져 <b>종전에 수용되던 토큰까지 거부</b>된다(과잉 차단, AC-1016). 원시 값으로 읽어 문자열이고
+     * refresh 일 때만 참이다.
+     */
+    static boolean isRefreshTokenType(Claims body) {
+        Object type = body.get(TOKEN_TYPE_CLAIM);
+        return type instanceof String s && REFRESH_TOKEN_TYPE.equalsIgnoreCase(s.trim());
+    }
+
+    /** 토큰 종류 클레임명 — 관제는 access/refresh 를 이 클레임으로 가른다(@design ADR-063 ⑦). */
+    static final String TOKEN_TYPE_CLAIM = "type";
+
+    /** 인증에 쓰지 않는 토큰 종류 값. */
+    static final String REFRESH_TOKEN_TYPE = "refresh";
 
     /**
      * 검증 실패 진단용으로 토큰 헤더의 {@code alg} 만 들여다본다.

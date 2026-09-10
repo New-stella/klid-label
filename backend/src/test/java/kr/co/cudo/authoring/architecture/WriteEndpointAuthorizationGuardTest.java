@@ -104,7 +104,19 @@ class WriteEndpointAuthorizationGuardTest {
             //   한 곳뿐이다(정확 경로 + 키 상수시간 일치). 그러므로 이 가드가 걱정하는
             //   「role=null INTERNAL 사용자」도, 포털 사용자 토큰도 그 권한을 갖지 못해 걸리며
             //   사용자가 스스로 획득할 수 없다.
-            "PortalDatasetCleanupTriggerController#receiveDatasetCleanupTrigger"
+            "PortalDatasetCleanupTriggerController#receiveDatasetCleanupTrigger",
+            // 관제 세션 중계 창구 — 갱신·로그아웃 (@design API-247 · API-246 · INT-015).
+            //
+            // ★ 로그인 검사를 두지 않는 것이 <사양>이다. 갱신은 저작도구 access 토큰이 이미 만료돼
+            //   401 이 돌아온 뒤의 재시도 경로에서도 돼야 하고, 로그아웃은 만료 직전·직후 토큰으로도
+            //   진행돼야 한다 — 역할을 요구하면 정확히 그 순간 막힌다.
+            //
+            // 별도 보호 계층 — ①자격증명은 요청의 관제 토큰(갱신=본문 refresh, 로그아웃=Bearer access)
+            //   이고 유효성 판정은 관제가 한다. 저작도구 쪽 상태를 바꾸지 않는다(DB 쓰기 0 · 토큰 미저장)
+            //   ②호출 대상 주소는 배포 설정값 고정이라 요청이 대상을 바꿀 수 없다 ③포털 향 배포본에서는
+            //   두 창구 모두 404 ④refresh 토큰은 인증 필터가 API 자격증명으로 받지 않는다(ADR-063 ⑦).
+            "ControlSessionController#refresh",
+            "ControlSessionController#logout"
     );
 
     @Autowired
