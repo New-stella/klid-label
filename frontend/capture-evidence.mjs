@@ -504,12 +504,33 @@ CASES['016-01'] = async (page) => {
   const before = await objectCount(page);
   let applied = false;
   for (const [x, y] of targets) {
+    // ★ **한 점만 찍는다** — 여러 점은 오히려 점수를 떨어뜨린다(같은 서버 실측 2026-09-10:
+    //   한 점 0.53 → 세 점 0.32). SAM2 는 점이 늘면 그 점들을 **모두 포함하는** 영역을 찾으려
+    //   하므로, 조금이라도 어긋난 점이 섞이면 대상이 흐려진다.
     await page.mouse.click(x, y);
     await page.waitForTimeout(9000); // SAM2 추론 대기
+
+    // ★★ **클릭만으로는 라벨이 되지 않는다 — Enter 로 확정해야 한다** (2026-09-10).
+    //
+    //   「즉시 그리기」가 켜져 있으면 클릭 즉시 분할 요청이 나가지만 그 결과는 **프리뷰**로만
+    //   그려지고 객체 목록에는 들어가지 않는다(`applySegmentResult` 의 `asPreview: true`).
+    //   확정은 Enter(또는 더블클릭)다. 이걸 몰라서 「객체 수가 늘었는가」로 성공을 판정했고,
+    //   그래서 **분할이 실제로 잘 되고 있는데 전건 실패로 읽었다** — 같은 후보 좌표를 모델에
+    //   직접 물었을 때 0.62·0.72·0.96 이 나왔다(임계는 0.3). 제품 결함이 아니라 판정 결함이었다.
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(2500);
+
     const low = await page.getByText(/낮은 신뢰도/).count();
     const now = await objectCount(page);
     if (low === 0 && now > before) { applied = true; break; }
     console.log(`  (${Math.round(x)},${Math.round(y)}) 신뢰도 미달 — 다음 후보`);
+    // ⚠ **화면을 다시 열어 프롬프트를 완전히 비운다.** 클릭 점은 누적돼 다음 요청에 함께
+    //   실리므로(`immediateSegment` 가 `nextPts` 전체를 보낸다), 그대로 옮기면 서로 다른
+    //   객체의 점이 한 요청에 섞여 점수가 계속 떨어진다. 도구 재선택으로는 비워지지 않았다.
+    await openLabel(page, FRAME_AI);
+    await pickTool(page, 'AI 분할', '사람');
+    const cb2 = page.getByRole('checkbox', { name: /즉시 그리기/ });
+    if ((await cb2.count()) > 0 && !(await cb2.first().isChecked())) await cb2.first().check();
   }
   // 빈 캔버스나 「낮은 신뢰도」 안내만 남은 화면은 **외곽 분할의 증적이 아니다.** 조용히 찍지 않는다.
   if (!applied) throw new Error('SAM2 분할 결과가 적용되지 않았다 — 외곽선이 붙은 화면이 아니다');
@@ -540,20 +561,67 @@ async function sam2ClickTargets(page) {
         continue; // 교차 출처 이미지가 올라간 레이어 — 읽을 수 없다(그 레이어는 대상이 아니다)
       }
       const hits = [];
+      let scanned = 0;
       for (let y = 0; y < c.height; y += 4) {
         for (let x = 0; x < c.width; x += 4) {
+          scanned += 1;
           if (data[(y * c.width + x) * 4 + 3] > 40) hits.push([x, y]);
         }
       }
-      if (hits.length < 20) continue; // 거의 빈 레이어 — 라벨 레이어가 아니다
-      // 고르게 퍼진 12점만 남긴다(같은 상자만 반복해 찍지 않도록).
-      const step = Math.max(1, Math.floor(hits.length / 12));
-      for (let i = 0; i < hits.length; i += step) {
-        const [x, y] = hits[i];
-        pts.push([r.left + (x * r.width) / c.width, r.top + (y * r.height) / c.height]);
+      // ★ **어느 canvas 가 라벨 레이어인지 «채움 비율»로 가른다** (2026-09-10).
+      //
+      //   프레임 이미지 레이어는 거의 전부 불투명이라 채움이 ~100% 다. 라벨 레이어는 상자·
+      //   폴리곤이 그려진 자리만 불투명해 훨씬 낮다. 이 구분이 없으면 **이미지 레이어를 집어
+      //   그림 아무 데나 찍는다** — 실측 2026-09-10: 후보 12곳이 전부 `x=440` 한 줄(캔버스 왼쪽
+      //   건물·나무)로 나왔고 SAM2 가 전건 신뢰도 미달을 돌려줬다.
+      //   ⚠ 교차 출처 이미지는 위 getImageData 에서 걸러지지만, 같은 출처면 **읽히므로**
+      //     그 예외에 기댈 수 없다. 비율로 가르는 것이 유일하게 확실하다.
+      const fill = hits.length / Math.max(1, scanned);
+      if (hits.length < 20 || fill > 0.5) continue;
+      // ★ **라벨 상자 하나하나를 분리해 «큰 것부터» 돌려준다** (2026-09-10).
+      //
+      //   격자로 흩어 뽑으면 화면 중앙의 **아주 작은 차**가 먼저 나온다. 이 각도의 CCTV 는
+      //   위로 갈수록 대상이 작아서, 그런 점을 찍으면 SAM2 가 임계(0.3) 밑을 돌려준다 —
+      //   실측 2026-09-10: 후보 (888,494) 는 원본 좌표로 (1824,972) 즉 도로 저 멀리의 차였고
+      //   7곳 전부 미달이었다. 같은 서버에 원본 좌표로 직접 물었을 때는 큰 차 한 점이 0.53,
+      //   박스가 0.91 이었다 — **모델이 아니라 고르는 자리가 문제였다.**
+      //
+      //   그래서 이웃한 픽셀을 하나의 덩어리(= 라벨 상자 하나)로 묶고 그 넓이로 정렬한다.
+      const seen = new Set();
+      const key = (x, y) => `${x},${y}`;
+      const hitSet = new Set(hits.map(([x, y]) => key(x, y)));
+      const boxes = [];
+      for (const [hx, hy] of hits) {
+        if (seen.has(key(hx, hy))) continue;
+        // 너비 우선 탐색 — 재귀는 상자가 크면 스택을 넘긴다.
+        const q = [[hx, hy]];
+        seen.add(key(hx, hy));
+        let x0 = hx, x1 = hx, y0 = hy, y1 = hy, n = 0;
+        while (q.length) {
+          const [x, y] = q.pop();
+          n += 1;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+          for (const [ax, ay] of [[x + 4, y], [x - 4, y], [x, y + 4], [x, y - 4]]) {
+            const k = key(ax, ay);
+            if (hitSet.has(k) && !seen.has(k)) { seen.add(k); q.push([ax, ay]); }
+          }
+        }
+        if (n >= 4) boxes.push({ cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0, area: (x1 - x0) * (y1 - y0) });
+      }
+      // ★ **아주 납작한 덩어리는 뒤로 미룬다** (2026-09-10) — 이 영상은 비식별 마스킹이
+      //   가로로 긴 검은 띠로 들어가는데, 그 위에 붙은 라벨이 화면에서 가장 넓은 덩어리가 된다.
+      //   면적만 보고 고르면 **차가 아니라 마스킹 띠의 외곽선**이 잡힌다(실측 2026-09-10 —
+      //   분할 자체는 성공했지만 증적으로는 「대상 외곽을 딴 라벨」로 보이지 않았다).
+      //   차량·사람은 대체로 3:1 안쪽이므로 그 밖은 순위를 미룬다(버리지는 않는다 — 이 영상에만
+      //   맞춘 규칙이 되지 않게, 쓸 것이 그것뿐이면 여전히 쓴다).
+      const slim = (b) => b.w > 0 && b.h > 0 && Math.max(b.w / b.h, b.h / b.w) >= 3;
+      boxes.sort((a, b) => (slim(a) - slim(b)) || b.area - a.area);
+      for (const b of boxes.slice(0, 6)) {
+        pts.push([r.left + (b.cx * r.width) / c.width, r.top + (b.cy * r.height) / c.height]);
       }
     }
-    return pts.slice(0, 12);
+    return pts.slice(0, 6);
   });
 }
 
@@ -1330,6 +1398,15 @@ CASES['015-01'] = async (page) => {
   }
   await page.waitForTimeout(1500);
   await shot(page, '015-01', 2);
+
+  // ★ **찍은 뒤에 저장한다** (2026-09-10) — 순서가 중요하다. 저장하면 「AI 탐지 N건 적용됨」
+  //   토스트와 「저장 (N)」 표시가 사라져 위 컷이 밋밋해지므로 촬영이 먼저다.
+  //   ⚠ 저장하지 않으면 서버에는 라벨이 **0건인 채**로 남는다(앞에서 지우고 저장했으므로).
+  //   그러면 뒤따르는 016-01(외곽 분할)이 라벨 없는 프레임을 열어 분할할 대상을 찾지 못한다
+  //   — 실측 2026-09-10: 후보 12곳이 전부 빈 노면이라 신뢰도 미달로 끝났다.
+  await page.getByRole('button', { name: /^저장/ }).first().click({ timeout: 20000 });
+  await expectVisible(page, page.getByText('저장됨'), 'AI 탐지 결과 저장');
+  await page.waitForTimeout(1200);
 };
 
 /** 탐지 대상 분류 지정과 게이팅 */
