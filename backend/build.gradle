@@ -325,6 +325,38 @@ if (!(klidWebContext ==~ '/[A-Za-z0-9._~/-]*[A-Za-z0-9._~-]')) {
         "  · 아는 향은 둘입니다 — /label-studio/api (passthrough) · /label-studio (strip)")
 }
 
+// ★ 배포 향 — 이 WAR 가 «어느 채널용인가» (@design ADR-012)
+//
+//   왜 WAR 에 굽나 — 채널 판정은 <실행 중>에 필요한데, 이 배포 형상은 젠킨스가 WAR 를
+//   deployments/ 에 «떨구기만» 하고 WAS 를 기동하지 않는다. 그래서 젠킨스 environment 에만
+//   넣으면 그 값이 WAS 프로세스까지 «가지 않는다». 위 웹 컨텍스트와 <같은 방식>으로 구워
+//   넣으면 서버를 손대지 않고도 향이 따라간다.
+//   ⚠ 이것은 ADR-012 의 「설치 시점에 정하는 배포 향」과 어긋나지 않는다 — 그 결정이 요구한
+//     것은 <명시적 선언>이지 환경변수라는 <수단>이 아니다. 향마다 WAR 가 갈리는 것은
+//     jboss-web.xml 컨텍스트가 이미 그렇다.
+//
+//   고르는 법:  ./gradlew bootWar -PklidDeployFlavor=portal
+//               KLID_DEPLOY_FLAVOR=portal ./gradlew bootWar
+//   ★ 주지 않으면 <굽지 않는다> — application.yml 의 placeholder 가 그대로 남아 실행 시점
+//     환경변수를 읽고, 그것도 없으면 control 로 떨어진다(fail-closed). 즉 기존 빌드는 무변경이다.
+def klidDeployFlavor = (
+    project.findProperty('klidDeployFlavor')
+        ?: System.getenv('KLID_DEPLOY_FLAVOR')
+        ?: ''
+).toString().trim().toLowerCase()
+
+// fail-closed — 오타가 조용히 control 로 떨어진 WAR 가 나가는 것을 막는다.
+//   ⚠ 실행 시점 해석기(DeployFlavorResolver)는 «기동을 막지 않고» control 로 떨어뜨린다(ADR-012).
+//     여기서 막는 것은 그것과 층이 다르다 — 빌드는 사람이 값을 «방금 적은» 자리라 오타를 즉시
+//     돌려주는 편이 낫고, 실행 시점은 이미 배포된 뒤라 멈추면 장애가 된다.
+if (klidDeployFlavor && !(klidDeployFlavor in ['control', 'portal'])) {
+    throw new GradleException(
+        "klidDeployFlavor 값이 부적합합니다: '${klidDeployFlavor}'\n" +
+        "  · 값역은 control(관제 채널) | portal(포털 채널) 둘뿐입니다.\n" +
+        "  · 'internal' 은 폐기값입니다 — 그 낱말은 인증 채널 축(Channel.INTERNAL)을 가리킵니다.\n" +
+        "  · 값을 주지 않으면 굽지 않고 실행 시점 환경변수에 맡깁니다(그것도 없으면 control).")
+}
+
 // ★ WAR 산출물 이름 (@design DEPLOY-001)
 //   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가 정한다.
 //   ★ 대상 WAS(JBoss EAP)에서는 WEB-INF/jboss-web.xml 의 context-root 가 정하므로
@@ -340,6 +372,7 @@ tasks.named('bootWar') {
 
     // 값이 바뀌면 다시 만들게 한다 — 안 걸면 캐시가 옛 컨텍스트를 담은 WAR 를 그대로 내준다.
     inputs.property('klidWebContext', klidWebContext)
+    inputs.property('klidDeployFlavor', klidDeployFlavor)
 
     filesMatching('WEB-INF/jboss-web.xml') {
         filter { String line ->
@@ -353,6 +386,33 @@ tasks.named('bootWar') {
                    : klidWebContext == '/label-studio'     ? 'strip — httpd 가 /api 를 걷어냄'
                    : '알 수 없는 향 (아는 둘 중 어느 쪽도 아님 — 의도한 값인지 확인하세요)'
         logger.lifecycle("[klid] WAR 웹 컨텍스트 = ${klidWebContext}  (${flavor})")
+
+        // ★ 향은 «굽든 안 굽든» 한 줄을 남긴다 — 안 구운 것도 사람이 알아야 하는 사실이다.
+        //   (안 구웠는데 그 사실을 모르면 「왜 아직 관제 채널이지」를 WAS 로그에서야 알게 된다.)
+        logger.lifecycle(klidDeployFlavor
+                ? "[klid] 배포 향 = ${klidDeployFlavor}  (WAR 에 구워 넣음 — 실행 시점 환경변수를 찾지 않는다)"
+                : "[klid] 배포 향 = (굽지 않음)  — 실행 시점 KLID_DEPLOY_FLAVOR 를 읽고, 없으면 control")
+    }
+}
+
+// ★ 배포 향을 설정 파일에 굽는다 (@design ADR-012).
+//   placeholder 를 «통째로» 값으로 갈아끼운다 — 그러면 실행 시점에 환경변수를 찾지 않고
+//   구워진 값이 곧바로 쓰인다. 값을 안 주면 이 블록이 아예 돌지 않아 종전과 같다.
+//
+//   ⚠ <bootWar 가 아니라 processResources 다> — bootWar 의 filesMatching 은 WEB-INF/classes
+//     아래를 «잡지 못한다»(클래스 경로가 별도 사양으로 들어가 루트 사양의 패턴에 걸리지 않는다).
+//     실제로 그렇게 짰다가 «오류 없이 안 구워진» WAR 가 나왔다 — 굽기 전에 반드시 산출물에서
+//     읽어 확인할 것(추측하지 않는다).
+//   ⚠ 정규식이 아니라 «문자열 그대로» 치환한다 — placeholder 에 '$'·'{}' 가 들어 있어
+//     정규식으로 쓰면 조용히 안 맞는다.
+if (klidDeployFlavor) {
+    tasks.named('processResources') {
+        inputs.property('klidDeployFlavor', klidDeployFlavor)
+        filesMatching('application.yml') {
+            filter { String line ->
+                line.replace('${KLID_DEPLOY_FLAVOR:}', klidDeployFlavor)
+            }
+        }
     }
 }
 
