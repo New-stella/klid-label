@@ -3,7 +3,7 @@
 # run-capture.sh — 단위시험 증적 촬영을 한 명령으로 돌린다 (사람이 직접 실행)
 #
 #   ./run-capture.sh                 전 케이스 촬영 + 증적 원장 생성
-#   ./run-capture.sh 006-01 021-01   지정한 케이스만
+#   ./run-capture.sh 003-01 014-01   지정한 케이스만
 #   ./run-capture.sh --list          촬영 가능한 케이스 목록
 #   ./run-capture.sh --manifest-only 이미 찍힌 파일로 원장만 다시 만든다
 #
@@ -57,7 +57,7 @@ portal_in_scope=0
 if [[ $# -eq 0 ]]; then
   portal_in_scope=1
 else
-  for a in "$@"; do [[ "$a" == 024-* || "$a" == 027-* || "$a" == --all ]] && portal_in_scope=1; done
+  for a in "$@"; do [[ "$a" == 029-* || "$a" == 030-* || "$a" == --all ]] && portal_in_scope=1; done
 fi
 if [[ $portal_in_scope -eq 1 ]]; then
   if [[ -z "${CAPTURE_PORTAL_APP:-}" ]]; then

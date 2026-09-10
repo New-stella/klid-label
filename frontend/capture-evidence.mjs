@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { CAPTIONS } from './capture-captions.mjs';
 
 const APP = process.env.CAPTURE_APP ?? 'http://localhost:13000';
 /**
@@ -91,7 +92,7 @@ const FRAME_TRACK_NEXT = Number(process.env.CAPTURE_FRAME_TRACK_NEXT ?? FRAME_NE
  * ★서로 같은 프레임으로 합쳐지지 않을 만큼 떨어지되, **같은 대상이 이어질 만큼은 가까워야**
  *   추적·보간 증적이 성립한다.
  */
-/** 적재 전/후를 보는 케이스(018-01)가 기다리는 클립 이름. 촬영 중 실제로 인입시킬 대상이다. */
+/** 적재 전/후를 보는 케이스(007-01)가 기다리는 클립 이름. 촬영 중 실제로 인입시킬 대상이다. */
 const INGEST_CLIP = process.env.CAPTURE_INGEST_CLIP ?? 'CCTV-019';
 
 const MARK_SECONDS = (process.env.CAPTURE_MARK_SECONDS ?? '5,20,45')
@@ -250,7 +251,7 @@ const CASES = {
    * 시스템 설정 — 라벨링 정밀도(경계 세밀함) 저장·반영.
    * 3컷이 각각 다른 것을 말한다: 기본값 → 저장 직후(성공 토스트) → 재진입 후 유지.
    */
-  '006-01': async (page) => {
+  '003-01': async (page) => {
     await login(page, 'REVIEWER');
 
     // 사전 정리 — 케이스 시작점인 기본값 1.0 으로 되돌린다(직전 회차가 2.5 로 남겨 두었다).
@@ -264,21 +265,21 @@ const CASES = {
     }
     await openSettings(page);
     await expectVisible(page, page.getByText('1.0px'), '기본값 1.0px');
-    await shot(page, '006-01', 1);
+    await shot(page, '003-01', 1);
 
     // ② 2.5 로 바꿔 저장 — 성공 토스트가 뜬 상태를 찍는다
     await setRange(page, '#precision-tolerance', 2.5);
     await expectVisible(page, page.getByText('2.5px'), '변경값 2.5px');
     await cardSaveButton(page, '#precision-tolerance').click();
     await expectVisible(page, page.getByText('정밀도 설정 저장됨'), '저장 성공 토스트');
-    await shot(page, '006-01', 2);
+    await shot(page, '003-01', 2);
 
     // ③ 화면을 벗어났다가 재진입 — 저장값이 유지되는지(토스트 없는 상태로 구분된다)
     await page.goto(`${APP}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     await openSettings(page);
     await expectVisible(page, page.getByText('2.5px'), '재진입 후 2.5px 유지');
-    await shot(page, '006-01', 3);
+    await shot(page, '003-01', 3);
   },
 };
 
@@ -346,7 +347,7 @@ async function openLabel(page, srcSn) {
   await expectVisible(page, page.getByText('그리기 도구'), `라벨링 화면 ${srcSn}`);
   // ★시간이 아니라 **상태**로 기다린다 — 캔버스가 실제 크기를 가질 때까지.
   //   고정 대기(2.5초)는 프레임·서버 상태에 따라 모자라고, 그러면 도구 클릭과 드래그가
-  //   **조용히 무시된다**(오류 없이 「편집 중」이 안 뜬다 — 실측 2026-09-09 021-01).
+  //   **조용히 무시된다**(오류 없이 「편집 중」이 안 뜬다 — 실측 2026-09-09 014-01).
   await page
     .waitForFunction(
       () => {
@@ -405,7 +406,7 @@ async function pickTool(page, toolName, labelName) {
   const dialog = page.getByRole('dialog');
   // ⚠ 창은 **비동기로** 뜬다 — 클릭 직후 count() 를 세면 0 이라 라벨 선택을 통째로 건너뛰고,
   //   그 뒤 창이 떠서 backdrop 이 드래그를 막는다. 그러면 아무 오류 없이 「편집 중」이 안 뜬다
-  //   (실측 2026-09-09 021-01 — 개수를 세기 전에 <떠오르기를> 기다려야 한다).
+  //   (실측 2026-09-09 014-01 — 개수를 세기 전에 <떠오르기를> 기다려야 한다).
   await dialog.first().waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
   if ((await dialog.count()) > 0) {
     await expectVisible(page, page.getByText('라벨 선택'), '라벨 선택 다이얼로그');
@@ -430,7 +431,7 @@ async function dragOnCanvas(page, x1, y1, x2, y2) {
 }
 
 /** 메타 탭 — 시계열 메타·이벤트 어노테이션 표시 */
-CASES['022-01'] = async (page) => {
+CASES['012-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_META);
   await page.getByRole('tab', { name: '메타' }).click().catch(async () => {
@@ -440,26 +441,26 @@ CASES['022-01'] = async (page) => {
   await page.getByText('시계열 메타').first().scrollIntoViewIfNeeded();
   await expectVisible(page, page.getByText('시계열 메타'), '시계열 메타 패널');
   await page.waitForTimeout(1200);
-  await shot(page, '022-01', 1);
+  await shot(page, '012-01', 1);
 };
 
 /** 라벨 편집·저장 (2컷: 편집 중 → 저장됨) */
-CASES['021-01'] = async (page) => {
+CASES['014-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_MAIN);
   await pickTool(page, '바운딩 박스', '사람');
   await dragOnCanvas(page, 700, 300, 900, 480);
   await expectVisible(page, page.getByText('편집 중'), '편집 중 표시');
-  await shot(page, '021-01', 1);
+  await shot(page, '014-01', 1);
 
   await page.getByRole('button', { name: /^저장/ }).first().click();
   await expectVisible(page, page.getByText('저장됨'), '저장됨 표시');
   await page.waitForTimeout(1500);
-  await shot(page, '021-01', 2);
+  await shot(page, '014-01', 2);
 };
 
 /** AI 탐지(YOLO) 자동 라벨링 결과 */
-CASES['004-02'] = async (page) => {
+CASES['017-02'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_AI);
   await page.getByRole('button', { name: /AI 탐지/ }).click();
@@ -470,28 +471,91 @@ CASES['004-02'] = async (page) => {
   // 실행 방식은 「일반」(현재 프레임)과 「트랙」(뒤따르는 프레임 전파) 둘 — 케이스는 일반 탐지다.
   await dlg.getByRole('button', { name: '일반' }).click();
   await page.waitForTimeout(9000); // 추론 대기
-  await shot(page, '004-02', 1);
+  await shot(page, '017-02', 1);
 };
 
 /** SAM2 인터랙티브 분할 (2컷: 객체 목록 → 분할 결과) */
-CASES['005-01'] = async (page) => {
+CASES['016-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_AI);
-  // ★진입 직후를 찍으면 039-01(AI 탐지)의 cut1 과 **바이트까지 같은 그림**이 된다 — 같은 프레임을
+  // ★진입 직후를 찍으면 015-01(AI 탐지)의 cut1 과 **바이트까지 같은 그림**이 된다 — 같은 프레임을
   //   같은 상태로 열기 때문이다(실측 2026-09-09). 이 케이스의 대상은 **AI 분할** 이므로 도구를
   //   고른 뒤, 그 도구가 보이게 찍는다.
   await pickTool(page, 'AI 분할', '사람');
-  await shotAt(page, page.getByRole('button', { name: /AI 분할/ }), '005-01', 1);
+  await shotAt(page, page.getByRole('button', { name: /AI 분할/ }), '016-01', 1);
   // 「즉시 그리기」를 켜야 클릭 프롬프트가 곧바로 폴리곤으로 그려진다(켜지 않으면 점만 찍힌다).
   const draw = page.getByText('즉시 그리기');
   await draw.scrollIntoViewIfNeeded();
   const cb = page.getByRole('checkbox', { name: /즉시 그리기/ });
   if ((await cb.count()) > 0 && !(await cb.first().isChecked())) await cb.first().check();
-  // 프레임 좌측의 보행자 위 — 빈 노면을 찍으면 분할할 대상이 없다.
-  await page.mouse.click(555, 520);
-  await page.waitForTimeout(9000); // SAM2 추론 대기
-  await shot(page, '005-01', 2);
+
+  // ★ **찍을 자리를 좌표로 박지 않는다** (2026-09-10).
+  //
+  // 구 동작은 `mouse.click(555, 520)` 이었다. 그 좌표는 어느 한 프레임에서 보행자가 있던
+  // 자리이고, 대상 프레임이 바뀌면 **빈 노면을 찍는다.** 그러면 SAM2 가 「낮은 신뢰도(23%)」를
+  // 돌려주고 자동 적용이 차단되어(임계 0.3) 증적에 **폴리곤이 붙은 화면이 남지 않는다** —
+  // 실측 2026-09-09. 246 의 SAM2 는 목이 아니므로 그 낮은 점수는 실제 모델의 정직한 출력이었다.
+  //
+  // 그래서 **라벨이 그려져 있는 자리**를 후보로 쓴다. 오토라벨이 상자를 그린 곳에는 대상이
+  // 실재하므로(YOLO 가 거기서 검출했다) 그 픽셀 위를 찍으면 분할할 것이 있다.
+  const targets = await sam2ClickTargets(page);
+  if (targets.length === 0) throw new Error('분할할 대상을 찾지 못했다 — 이 프레임에 라벨이 하나도 없다');
+
+  const before = await objectCount(page);
+  let applied = false;
+  for (const [x, y] of targets) {
+    await page.mouse.click(x, y);
+    await page.waitForTimeout(9000); // SAM2 추론 대기
+    const low = await page.getByText(/낮은 신뢰도/).count();
+    const now = await objectCount(page);
+    if (low === 0 && now > before) { applied = true; break; }
+    console.log(`  (${Math.round(x)},${Math.round(y)}) 신뢰도 미달 — 다음 후보`);
+  }
+  // 빈 캔버스나 「낮은 신뢰도」 안내만 남은 화면은 **외곽 분할의 증적이 아니다.** 조용히 찍지 않는다.
+  if (!applied) throw new Error('SAM2 분할 결과가 적용되지 않았다 — 외곽선이 붙은 화면이 아니다');
+  await page.waitForTimeout(1200);
+  await shot(page, '016-01', 2);
 };
+
+/**
+ * SAM2 클릭 프롬프트로 쓸 화면 좌표 후보 — **라벨이 그려진 픽셀**에서 뽑는다.
+ *
+ * 라벨 오버레이는 별도 canvas 에 그려지고 그 위에는 이미지가 없어 `getImageData` 가 막히지
+ * 않는다(이미지 레이어는 교차 출처면 tainted 되므로 건너뛴다). 비어 있지 않은 픽셀 = 상자·
+ * 폴리곤이 그려진 자리 = 대상이 실재하는 자리다.
+ *
+ * 여러 후보를 돌려주는 이유: 상자 **테두리**를 집으면 객체 경계라 점수가 낮게 나올 수 있다.
+ * 부르는 쪽이 성공할 때까지 차례로 시도한다.
+ */
+async function sam2ClickTargets(page) {
+  return page.evaluate(() => {
+    const pts = [];
+    for (const c of document.querySelectorAll('canvas')) {
+      const r = c.getBoundingClientRect();
+      if (r.width < 100 || r.height < 100) continue;
+      let data;
+      try {
+        data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      } catch {
+        continue; // 교차 출처 이미지가 올라간 레이어 — 읽을 수 없다(그 레이어는 대상이 아니다)
+      }
+      const hits = [];
+      for (let y = 0; y < c.height; y += 4) {
+        for (let x = 0; x < c.width; x += 4) {
+          if (data[(y * c.width + x) * 4 + 3] > 40) hits.push([x, y]);
+        }
+      }
+      if (hits.length < 20) continue; // 거의 빈 레이어 — 라벨 레이어가 아니다
+      // 고르게 퍼진 12점만 남긴다(같은 상자만 반복해 찍지 않도록).
+      const step = Math.max(1, Math.floor(hits.length / 12));
+      for (let i = 0; i < hits.length; i += step) {
+        const [x, y] = hits[i];
+        pts.push([r.left + (x * r.width) / c.width, r.top + (y * r.height) / c.height]);
+      }
+    }
+    return pts.slice(0, 12);
+  });
+}
 
 /** 마킹 화면 + 처리 현황 (cut1 마킹 / cut4 처리 단계) */
 /**
@@ -499,7 +563,7 @@ CASES['005-01'] = async (page) => {
  *
  * ⚠ **마킹 단계 영상은 작업 목록에 없다**(그 화면은 처리 완료만 표시). 그래서 「배정」 버튼으로는
  *   갈 수 없고, 영상 처리 현황의 **「마킹 설정」 → 「수동」** 을 고르면 작업자 배정 흐름으로
- *   전환된다. 이 경로를 모르면 019-01 이 403(본인에게 배정되지 않은 영상)으로 막힌다
+ *   전환된다. 이 경로를 모르면 011-01 이 403(본인에게 배정되지 않은 영상)으로 막힌다
  *   — 실측 2026-09-09. 마킹은 작업권한이 WORKER 라 검수자로 대신 찍어서는 안 된다.
  */
 CASES['prep-marking-assign'] = async (page) => {
@@ -534,7 +598,7 @@ CASES['prep-marking-assign'] = async (page) => {
   console.log(`  영상 ${RAW_SN} → ${who} 배정`);
 };
 
-CASES['019-01'] = async (page) => {
+CASES['011-01'] = async (page) => {
   await login(page, 'WORKER');
   await page.goto(`${APP}/marking/${RAW_SN}`, { waitUntil: 'domcontentloaded' });
 
@@ -566,7 +630,7 @@ CASES['019-01'] = async (page) => {
     `마킹 칩 ${MARK_SECONDS.length}건`,
   );
   await page.waitForTimeout(800);
-  await shot(page, '019-01', 1);
+  await shot(page, '011-01', 1);
 
   // ★촬영 뒤 [마킹 완료]까지 해야 한다 — 마크는 제출 전까지 브라우저 안에만 있고,
   //   제출해야 잔여 배치(프레임 추출·오토라벨)가 돌아 뒤 케이스들의 재료가 생긴다.
@@ -585,16 +649,16 @@ CASES['019-01'] = async (page) => {
   console.log('  마킹 완료 제출함');
 };
 
-CASES['019-01-cut4'] = async (page) => {
+CASES['011-01-cut4'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/video/status`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('영상 처리 현황'), '영상 처리 현황');
   await page.waitForTimeout(2000);
-  await shot(page, '019-01', 4);
+  await shot(page, '011-01', 4);
 };
 
 /** 비식별 완료 → 마킹 대기 표시 */
-CASES['011-01'] = async (page) => {
+CASES['009-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/video/status`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('영상 처리 현황'), '영상 처리 현황');
@@ -602,13 +666,13 @@ CASES['011-01'] = async (page) => {
   // ⚠ '마킹 대기' 는 상태 필터의 숨은 <option> 에도 있다 — 목록 행으로 범위를 좁힌다.
   await expectVisible(page, page.locator('tbody').getByText('마킹 대기'), '목록의 마킹 대기 표시');
   await page.waitForTimeout(2000);
-  // ★대상을 겨냥한다 — 목록 전체를 찍으면 019-01-cut4(같은 화면)와 **바이트까지 같은 그림**이
+  // ★대상을 겨냥한다 — 목록 전체를 찍으면 011-01-cut4(같은 화면)와 **바이트까지 같은 그림**이
   //   되어 두 케이스가 구분되지 않는다(실측 2026-09-09).
-  await shotAt(page, page.locator('tbody').getByText('마킹 대기').first(), '011-01', 1);
+  await shotAt(page, page.locator('tbody').getByText('마킹 대기').first(), '009-01', 1);
 };
 
 /** 비식별 누락 신고 (2컷: 신고 다이얼로그 → 접수 후 조회 차단) */
-CASES['016-01'] = async (page) => {
+CASES['010-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_REPORT);
   const reportBtn = page.getByRole('button', { name: /비식별 누락 신고/ });
@@ -624,7 +688,7 @@ CASES['016-01'] = async (page) => {
   await expectVisible(page, dlg.getByText('비식별 누락 신고'), '신고 다이얼로그');
   await dlg.getByRole('textbox').fill('오른쪽 보행자 얼굴 블러 처리 누락');
   await page.waitForTimeout(600);
-  await shot(page, '016-01', 1);
+  await shot(page, '010-01', 1);
 
   await dlg.getByRole('button', { name: '신고하기' }).click();
   await page.waitForTimeout(3000);
@@ -632,11 +696,11 @@ CASES['016-01'] = async (page) => {
   await page.goto(`${APP}/label/${FRAME_REPORT}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/비식별 재처리 대기/), '조회 차단 안내');
   await page.waitForTimeout(1200);
-  await shot(page, '016-01', 2);
+  await shot(page, '010-01', 2);
 };
 
 /** 검수 승인 (2컷: 검수중 → 승인 완료) */
-CASES['023-01'] = async (page) => {
+CASES['019-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_MAIN);
   await submitForReview(page);
@@ -645,7 +709,7 @@ CASES['023-01'] = async (page) => {
   await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('검수중'), '검수중 배지');
   await page.waitForTimeout(2000);
-  await shot(page, '023-01', 1);
+  await shot(page, '019-01', 1);
 
   await page.getByRole('button', { name: '승인' }).click();
   const ok = page.getByRole('dialog');
@@ -655,16 +719,16 @@ CASES['023-01'] = async (page) => {
   await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/이미 승인 처리된 검수/), '승인 완료 표시');
   await page.waitForTimeout(1500);
-  await shot(page, '023-01', 2);
+  await shot(page, '019-01', 2);
 };
 
 /** 승인 완료 화면만 재촬영(승인이 이미 끝난 뒤 이어 찍을 때) */
-CASES['023-01-cut2'] = async (page) => {
+CASES['019-01-cut2'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(/이미 승인 처리된 검수/), '승인 완료 표시');
   await page.waitForTimeout(1500);
-  await shot(page, '023-01', 2);
+  await shot(page, '019-01', 2);
 };
 
 /**
@@ -673,7 +737,7 @@ CASES['023-01-cut2'] = async (page) => {
  * ⚠ 승인 버전이 1건뿐인 프레임은 두 버전을 고를 수 없다 — 그 경우의 정답 경로는
  * 「커밋 1건 선택 = 현재 작업본과 비교」다. 그래서 먼저 작업본을 바꿔 변경점을 만든다.
  */
-CASES['008-01'] = async (page) => {
+CASES['021-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_MAIN);
   await pickTool(page, '바운딩 박스', '자동차');
@@ -697,7 +761,7 @@ CASES['008-01'] = async (page) => {
   await page.getByText('APPROVED', { exact: true }).first().click();
   await expectVisible(page, page.getByText(/현재 작업본/), 'diff 비교 대상 표시');
   await page.waitForTimeout(2500);
-  await shot(page, '008-01', 1);
+  await shot(page, '021-01', 1);
 };
 
 /** 증강 요청 화면에서 처리 종류와 대상 영상을 고른다. */
@@ -723,7 +787,7 @@ async function fillAugmentRequest(page, kind, rawSn) {
  * ⚠ 처리 종류는 「겨울/야간/우천」 3종이 아니라 **「증강 AI」 하나**로 합쳐졌다(ADR-059).
  *   겨울이라는 성격은 종류가 아니라 **생성 조건(계절=WINTER·날씨=SNOW)** 으로 지정한다.
  */
-CASES['001-01'] = async (page) => {
+CASES['023-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await fillAugmentRequest(page, '증강 AI', 1);
   // 생성 조건 5항목은 전부 필수다 — 하나라도 비면 요청이 열리지 않는다.
@@ -734,25 +798,25 @@ CASES['001-01'] = async (page) => {
   await page.waitForTimeout(800);
   // ★생성 조건을 채우면서 스크롤이 내려간다 — 그대로 찍으면 **이 케이스가 증명할 5항목이
   //   화면 위로 잘려 나간다**(실측 2026-09-09). 그 블록을 화면 안으로 끌어온 뒤 찍는다.
-  await shotAt(page, page.locator('#aug-mtdt-time'), '001-01', 1);
+  await shotAt(page, page.locator('#aug-mtdt-time'), '023-01', 1);
 
   await page.locator('[data-testid=augment-submit]').click();
   await page.waitForTimeout(6000);
-  await shot(page, '001-01', 2);
+  await shot(page, '023-01', 2);
 };
 
 /** 해상도 변경 파생영상 생성 (2컷: 프리셋 선택 → 생성 결과) */
-CASES['003-02'] = async (page) => {
+CASES['026-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await fillAugmentRequest(page, '해상도 변경', RESL_RAW_SN);
   await expectVisible(page, page.locator('[data-testid=target-resolution-block]'), '해상도 프리셋');
   await page.waitForTimeout(800);
-  await shot(page, '003-02', 1);
+  await shot(page, '026-02', 1);
 
   await page.locator('[data-testid=augment-submit]').click();
   await expectVisible(page, page.locator('[data-testid=resolution-derivative-result]'), '파생 생성 결과');
   await page.waitForTimeout(3000);
-  await shot(page, '003-02', 2);
+  await shot(page, '026-02', 2);
 };
 
 
@@ -764,21 +828,21 @@ async function openStatusList(page) {
 }
 
 /** 관제 학습용 영상 적재 — cut1 적재 전(그 CCTV 가 목록에 없다) */
-CASES['018-01-cut1'] = async (page) => {
+CASES['007-01-cut1'] = async (page) => {
   await login(page, 'REVIEWER');
   await openStatusList(page);
   if ((await page.getByText(INGEST_CLIP).count()) > 0) {
     throw new Error(`${INGEST_CLIP} 가 이미 목록에 있다 — 적재 전 상태가 아니다`);
   }
-  await shot(page, '018-01', 1);
+  await shot(page, '007-01', 1);
 };
 
 /** 관제 학습용 영상 적재 — cut2 적재 후(그 CCTV 가 나타난다) */
-CASES['018-01-cut2'] = async (page) => {
+CASES['007-01-cut2'] = async (page) => {
   await login(page, 'REVIEWER');
   await openStatusList(page);
   await expectVisible(page, page.getByText(INGEST_CLIP), '적재된 영상 행');
-  await shot(page, '018-01', 2);
+  await shot(page, '007-01', 2);
 };
 
 /** 촬영 전 상태 정리 — 신고를 해소해 라벨 접근을 연다(케이스가 아니라 준비 절차다). */
@@ -813,12 +877,12 @@ CASES['prep-resolve'] = async (page) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 시스템 설정 — 조회·수정과 값 반영 */
-CASES['031-01'] = async (page) => {
+CASES['002-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await openSettings(page);
   await expectVisible(page, page.getByText('배치 처리'), '배치 처리 절');
   await expectVisible(page, page.getByText('AI 탐지 추론 파라미터'), 'AI 추론 절');
-  await shot(page, '031-01', 1);
+  await shot(page, '002-01', 1);
 
   // 배치 처리 주기를 실제로 바꿔 저장한다.
   // ⚠ 지금 값과 <같은 값>을 넣으면 폼이 dirty 가 되지 않아 저장이 잠긴 채로 남는다 —
@@ -829,14 +893,14 @@ CASES['031-01'] = async (page) => {
   await expectVisible(page, page.getByText(`${target}s`), `변경값 ${target}s`);
   await cardSaveButton(page, '#batch-interval').click();
   await expectVisible(page, page.getByText(/저장|반영/), '저장 결과 안내');
-  await shot(page, '031-01', 2);
+  await shot(page, '002-01', 2);
 
   // 재진입 — 저장값이 남아 있는지
   await page.goto(`${APP}/dashboard`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   await openSettings(page);
   await expectVisible(page, page.getByText(`${target}s`), `재진입 후 ${target}s 유지`);
-  await shot(page, '031-01', 3);
+  await shot(page, '002-01', 3);
 
   // 되돌린다 — 촬영이 서버 설정을 바꾼 채로 끝나지 않게.
   await setRange(page, '#batch-interval', 60);
@@ -849,7 +913,7 @@ CASES['031-01'] = async (page) => {
 };
 
 /** 외부 연동 상태 확인 — 설정 화면의 연동 헬스 */
-CASES['031-02'] = async (page) => {
+CASES['002-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await openSettings(page);
   const card = page
@@ -862,17 +926,17 @@ CASES['031-02'] = async (page) => {
     await expectVisible(page, card.getByText(name), `연동 대상 ${name}`);
   }
   await page.waitForTimeout(1200);
-  await shotEl(page, card, '031-02', 1);
+  await shotEl(page, card, '002-02', 1);
 };
 
 /** 작업 목록 조회와 요약 · 필터 */
-CASES['029-01'] = async (page) => {
+CASES['013-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/task`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('작업 목록'), '작업 목록 화면');
   await expectVisible(page, page.getByText('전체 작업'), '요약 카드');
   await page.waitForTimeout(1500);
-  await shot(page, '029-01', 1);
+  await shot(page, '013-01', 1);
 
   // 이벤트 유형으로 걸러 조회 — 결과가 실제로 줄어드는지
   const evt = page.locator('select').first();
@@ -888,28 +952,28 @@ CASES['029-01'] = async (page) => {
     if (!txt.includes('교통사고')) throw new Error(`필터가 안 걸렸다 — 교통사고 아닌 행: ${txt.slice(0, 50)}`);
   }
   console.log(`  교통사고 필터 결과 ${cnt}건`);
-  await shot(page, '029-01', 2);
+  await shot(page, '013-01', 2);
 };
 
 /** 전체 구축 현황 — 검수완료 기준과 전체 기준 병기 */
-CASES['033-01'] = async (page) => {
+CASES['027-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/stat/overall`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('전체 구축 현황').first(), '전체 구축 현황 화면');
   await expectVisible(page, page.getByText(/검수완료 기준/).first(), '검수완료·전체 병기');
   await expectVisible(page, page.getByRole('heading', { name: '이벤트 유형 분포' }), '이벤트 분포');
   await page.waitForTimeout(2500); // 차트 렌더
-  await shot(page, '033-01', 1);
+  await shot(page, '027-01', 1);
 };
 
 /** 작업자별 현황 */
-CASES['033-02'] = async (page) => {
+CASES['027-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/stat/overall`, { waitUntil: 'domcontentloaded' });
   const head = page.getByRole('heading', { name: '작업자별 현황' });
   await expectVisible(page, head, '작업자별 현황 표');
   const table = page.locator('section,div').filter({ has: head }).last();
-  await shotEl(page, table, '033-02', 1);
+  await shotEl(page, table, '027-02', 1);
 
   await page.goto(`${APP}/stat/worker`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByRole('heading', { name: '작업자 통계' }), '작업자 통계 화면');
@@ -929,16 +993,16 @@ CASES['033-02'] = async (page) => {
     .catch(() => {
       throw new Error('작업자를 골랐는데 통계가 표시되지 않았다');
     });
-  await shot(page, '033-02', 2);
+  await shot(page, '027-02', 2);
 };
 
 /** 라벨 마스터 등록과 화면 반영 */
-CASES['028-01'] = async (page) => {
+CASES['005-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/manage/labels`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('라벨 관리'), '라벨 관리 화면');
   await page.waitForTimeout(1200);
-  await shot(page, '028-01', 1);
+  await shot(page, '005-01', 1);
 
   // 반복 실행해도 마스터에 쌓이지 않게 — 같은 이름이 남아 있으면 화면에서 먼저 지운다.
   const name = '증적확인용라벨';
@@ -954,13 +1018,13 @@ CASES['028-01'] = async (page) => {
   await expectVisible(page, dlg, '라벨 추가 다이얼로그');
   await dlg.getByPlaceholder('예: 사람, 차량').fill(name);
   await page.waitForTimeout(400);
-  await shot(page, '028-01', 2);
+  await shot(page, '005-01', 2);
 
   await dlg.getByRole('button', { name: /저장|등록|추가/ }).last().click();
   await dlg.first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(1500);
   await expectVisible(page, page.getByText(name), `등록한 라벨(${name})이 목록에 보임`);
-  await shot(page, '028-01', 3);
+  await shot(page, '005-01', 3);
 };
 
 
@@ -974,7 +1038,7 @@ async function openPresets(page) {
   await page.waitForTimeout(1500);
 }
 
-CASES['032-01'] = async (page) => {
+CASES['006-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await openPresets(page);
 
@@ -984,7 +1048,7 @@ CASES['032-01'] = async (page) => {
     await del.first().click();
     await confirmModal(page, '삭제');
   }
-  await shot(page, '032-01', 1);
+  await shot(page, '006-01', 1);
 
   await page.getByRole('button', { name: '프리셋 추가' }).click();
   const dlg = page.getByRole('dialog');
@@ -996,7 +1060,7 @@ CASES['032-01'] = async (page) => {
   await page.waitForTimeout(600);
   await dlg.locator('#preset-label-1').check();
   await dlg.locator('#preset-label-2').check();
-  await shot(page, '032-01', 2);
+  await shot(page, '006-01', 2);
 
   await dlg.getByRole('button', { name: '만들기' }).click();
   await dlg.first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {
@@ -1008,11 +1072,11 @@ CASES['032-01'] = async (page) => {
     page.getByRole('button', { name: new RegExp(`${PRESET_EVENT}.*수정`) }),
     `등록한 프리셋(${PRESET_EVENT})이 목록에 반영`,
   );
-  await shot(page, '032-01', 3);
+  await shot(page, '006-01', 3);
 };
 
 /** 라벨 세트 교체 — 프리셋의 라벨 구성을 바꾸면 목록에 그대로 반영된다 */
-CASES['032-02'] = async (page) => {
+CASES['006-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await openPresets(page);
   const edit = page.getByRole('button', { name: new RegExp(`${PRESET_EVENT}.*수정`) }).first();
@@ -1021,16 +1085,16 @@ CASES['032-02'] = async (page) => {
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg, '프리셋 수정 다이얼로그');
   await dlg.locator('#preset-label-3').check();
-  await shot(page, '032-02', 1);
+  await shot(page, '006-02', 1);
   await dlg.getByRole('button', { name: /저장|수정|만들기/ }).last().click();
   await dlg.first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
   await expectVisible(page, page.getByText('3개 라벨').first(), '교체된 라벨 세트가 반영');
-  await shot(page, '032-02', 2);
+  await shot(page, '006-02', 2);
 };
 
 /** 공지 작성 · 발행과 열람 범위 */
-CASES['040-01'] = async (page) => {
+CASES['028-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/notice/new`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByRole('heading', { name: '새 공지 작성' }), '공지 작성 화면');
@@ -1039,19 +1103,19 @@ CASES['040-01'] = async (page) => {
   await page.getByLabel(/제목/).fill(title);
   await page.getByLabel(/내용/).fill('단위시험 증적 촬영으로 작성한 공지입니다.');
   await page.waitForTimeout(500);
-  await shot(page, '040-01', 1);
+  await shot(page, '028-01', 1);
 
   await page.getByRole('button', { name: '작성' }).click();
   await page.waitForTimeout(2500);
   await expectVisible(page, page.getByText(title).first(), '작성한 공지');
-  await shot(page, '040-01', 2);
+  await shot(page, '028-01', 2);
 
   // 발행 — 발행해야 작업자에게 보인다
   const pub = page.getByRole('button', { name: /발행/ }).first();
   if ((await pub.count()) > 0) {
     await pub.click();
     await page.waitForTimeout(2500);
-    await shot(page, '040-01', 3);
+    await shot(page, '028-01', 3);
   }
 
   // 작업자 눈으로 목록 확인
@@ -1059,11 +1123,11 @@ CASES['040-01'] = async (page) => {
   await page.goto(`${APP}/notice`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText(title).first(), '작업자 목록에 발행 공지가 보임');
   await page.waitForTimeout(1200);
-  await shot(page, '040-01', 4);
+  await shot(page, '028-01', 4);
 };
 
 /** 작업 배정 · 재배정과 이력 */
-CASES['029-02'] = async (page) => {
+CASES['013-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/task`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByRole('heading', { name: '작업 목록' }), '작업 목록');
@@ -1075,7 +1139,7 @@ CASES['029-02'] = async (page) => {
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg, '배정 다이얼로그');
   await page.waitForTimeout(800);
-  await shot(page, '029-02', 1);
+  await shot(page, '013-02', 1);
 
   await dlg.locator('#assign-worker').click();
   const opts = page.getByRole('option');
@@ -1100,19 +1164,19 @@ CASES['029-02'] = async (page) => {
   await dlg.getByRole('button', { name: '저장' }).click();
   await dlg.first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  await shot(page, '029-02', 2);
+  await shot(page, '013-02', 2);
 };
 
 
 /** 비식별 마스킹 옵션 설정 저장·반영 */
-CASES['013-01'] = async (page) => {
+CASES['004-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await openSettings(page);
   const card = page
     .locator('#deident-masking-range')
     .locator('xpath=ancestor::*[.//button[normalize-space()="저장"]][1]');
   await expectVisible(page, card, '비식별 옵션 카드');
-  await shotEl(page, card, '013-01', 1);
+  await shotEl(page, card, '004-01', 1);
 
   // 지금 값과 다른 값을 고른다 — 같은 값이면 폼이 dirty 가 되지 않아 저장이 잠긴다.
   const before = Number(await page.locator('#deident-masking-range').inputValue());
@@ -1121,22 +1185,22 @@ CASES['013-01'] = async (page) => {
   await cardSaveButton(page, '#deident-masking-range').click();
   await expectVisible(page, page.getByText(/저장|반영/), '저장 결과 안내');
   await page.waitForTimeout(1200);
-  await shotEl(page, card, '013-01', 2);
+  await shotEl(page, card, '004-01', 2);
 
   await openSettings(page);
   await expectVisible(page, page.getByText(`${target.toFixed(1)}배`), `재진입 후 ${target}배 유지`);
-  await shotEl(page, card, '013-01', 3);
+  await shotEl(page, card, '004-01', 3);
 };
 
 /** 토큰 인계 진입과 채널 · 역할 인가 */
-CASES['041-01'] = async (page) => {
+CASES['001-01'] = async (page) => {
   // 검수자 — 관리 메뉴가 보인다
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/dashboard`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('검수자').first(), '검수자 역할 표시');
   await expectVisible(page, page.getByText('시스템 설정'), '검수자에게 관리 메뉴가 보임');
   await page.waitForTimeout(1200);
-  await shot(page, '041-01', 1);
+  await shot(page, '001-01', 1);
 
   // 작업자 — 같은 화면인데 관리 메뉴가 없다
   await login(page, 'WORKER');
@@ -1152,7 +1216,7 @@ CASES['041-01'] = async (page) => {
       }
     });
   await page.waitForTimeout(1200);
-  await shot(page, '041-01', 2);
+  await shot(page, '001-01', 2);
 
   // 작업자가 관리 화면에 직접 들어가려 하면 막힌다
   await page.goto(`${APP}/manage/settings`, { waitUntil: 'domcontentloaded' });
@@ -1161,11 +1225,11 @@ CASES['041-01'] = async (page) => {
     page.url().includes('/forbidden') ||
     (await page.getByText(/권한|접근|거부/).count()) > 0;
   if (!blocked) throw new Error('작업자가 관리 화면에 들어가졌다');
-  await shot(page, '041-01', 3);
+  await shot(page, '001-01', 3);
 };
 
 /** 공지 첨부 업로드 · 다운로드와 삭제 */
-CASES['040-02'] = async (page) => {
+CASES['028-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/notice`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByText('증적 확인용 공지').first(), '앞서 만든 공지');
@@ -1191,7 +1255,7 @@ CASES['040-02'] = async (page) => {
   });
   await page.waitForTimeout(3000);
   await expectVisible(page, page.getByText('증적첨부.png').first(), '첨부한 파일이 목록에 보임');
-  await shot(page, '040-02', 1);
+  await shot(page, '028-02', 1);
 };
 
 
@@ -1202,12 +1266,38 @@ async function objectCount(page) {
 }
 
 /** 현재 프레임 AI 탐지 실행과 반영 */
-CASES['039-01'] = async (page) => {
+CASES['015-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_AI);
+
+  // ★ **전후가 비교되는 화면을 만든다** (2026-09-10 사용자 지시).
+  //
+  // 이 프레임에는 프레임 추출 직후 배치가 이미 오토라벨을 붙여 둔다. 그대로 「AI 탐지」를 다시
+  // 돌리면 같은 상자가 중복으로 억제되어 **11개 → 14개** 식으로 조금 늘 뿐이고, 두 컷을 나란히
+  // 놓아도 무엇이 달라졌는지 사람 눈에 보이지 않는다 — 오토라벨의 증적으로 성립하지 않는다.
+  // 그래서 **이 프레임의 라벨을 먼저 전부 지우고 저장한 뒤** 빈 캔버스를 「전」으로 찍는다.
+  //
+  // ⚠ 실제 작업 데이터를 지운다. 대상은 증적 촬영 전용으로 만든 영상의 프레임이어야 한다
+  //   (`CAPTURE_FRAME_AI` — 시나리오 §5). 다른 사람이 작업 중인 프레임을 주면 그 작업이 사라진다.
+  // ⚠ **지우고 저장까지** 해야 한다. 저장하지 않으면 서버에는 라벨이 그대로라 탐지가 중복으로
+  //   억제되고, 「후」가 다시 예전 그림이 된다(지운 것이 화면에만 반영된 상태).
+  const wipe = async () => {
+    for (let i = 0; i < 200; i += 1) {
+      const del = page.getByRole('button', { name: '객체 삭제' });
+      if ((await del.count()) === 0) break;
+      await del.first().click({ force: true });   // hover 로만 드러나는 버튼이라 force 로 누른다
+      await page.waitForTimeout(120);
+    }
+  };
+  await wipe();
+  if ((await objectCount(page)) !== 0) throw new Error('라벨을 다 지우지 못했다 — 「전」이 빈 캔버스가 아니다');
+  await page.getByRole('button', { name: /^저장/ }).first().click({ timeout: 20000 });
+  await expectVisible(page, page.getByText('저장됨'), '라벨 삭제 저장');
+  await page.waitForTimeout(1200);
+
   const before = await objectCount(page);
-  console.log(`  실행 전 객체 ${before}개`);
-  await shot(page, '039-01', 1);
+  console.log(`  실행 전 객체 ${before}개 (라벨을 모두 지운 상태)`);
+  await shot(page, '015-01', 1);
 
   await page.getByRole('button', { name: 'AI 탐지' }).click();
   await page.waitForTimeout(1500);
@@ -1218,10 +1308,10 @@ CASES['039-01'] = async (page) => {
 
   // 탐지는 서버를 다녀온다 — 진행 표시가 풀릴 때까지 기다린다.
   //
-  // ⚠ **「객체 수가 늘어야 한다」로 보지 않는다.** 사양이 *"검출이 없으면 0건으로 정상 처리된다"*
-  //   라고 명시하고(D11 039-01 예상결과 2), 이 시스템은 프레임 추출 직후 배치가 이미 오토라벨을
-  //   붙이므로 같은 프레임에 다시 돌리면 같은 상자가 나와 **중복으로 억제되는 것이 정상**이다.
-  //   증가를 요구하면 정상 동작이 실패로 잡힌다(실측 2026-09-09: 12개 → 12개).
+  // ⚠ 사양은 *"검출이 없으면 0건으로 정상 처리된다"* 이므로(D11 015-01 예상결과 2) **증가 자체를 성공
+  //   조건으로 삼지 않는다.** 다만 이 케이스는 라벨을 지우고 시작하므로 중복 억제가 일어나지
+  //   않고, 대상이 있는 프레임이라면 실제로 붙는다 — 안 붙으면 아래에서 빈 캔버스로 걸린다.
+  //   (구 동작에서는 배치가 붙여 둔 라벨 때문에 12개 → 12개가 나왔고 그것도 정상이었다.)
   await page
     .getByRole('dialog')
     .waitFor({ state: 'detached', timeout: 90000 })
@@ -1235,11 +1325,11 @@ CASES['039-01'] = async (page) => {
     throw new Error('캔버스에 라벨이 하나도 없다 — 오토라벨 결과가 보이는 화면이 아니다');
   }
   await page.waitForTimeout(1500);
-  await shot(page, '039-01', 2);
+  await shot(page, '015-01', 2);
 };
 
 /** 탐지 대상 분류 지정과 게이팅 */
-CASES['039-02'] = async (page) => {
+CASES['015-02'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_AI);
   await page.getByRole('button', { name: 'AI 탐지' }).click();
@@ -1249,11 +1339,11 @@ CASES['039-02'] = async (page) => {
     throw new Error('AI 탐지에 분류를 고르는 창이 없다 — 게이팅을 보일 자리가 없다');
   }
   await expectVisible(page, dlg, '탐지 분류 선택 창');
-  await shotEl(page, dlg, '039-02', 1);
+  await shotEl(page, dlg, '015-02', 1);
 };
 
 /** 구간 자동 추적 실행과 결과 반영 */
-CASES['034-01'] = async (page) => {
+CASES['018-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_MAIN);
   const panel = page
@@ -1261,11 +1351,11 @@ CASES['034-01'] = async (page) => {
     .first()
     .locator('xpath=ancestor::*[.//button[contains(normalize-space(),"AI 자동 추적")]][1]');
   await expectVisible(page, panel, 'AI 자동 추적 패널');
-  await shotEl(page, panel, '034-01', 1);
+  await shotEl(page, panel, '018-01', 1);
 
   await page.getByRole('button', { name: 'AI 자동 추적' }).last().click();
   await page.waitForTimeout(3000);
-  await shot(page, '034-01', 2);
+  await shot(page, '018-01', 2);
 };
 
 
@@ -1280,7 +1370,7 @@ CASES['034-01'] = async (page) => {
  *   산출물을 만드는 경로가 저작도구에 없어 성공 경로를 만들 수 없다"*. 그 시간 조건이 바로
  *   이번에 걷어낸 것이다. 되살려 「창구와 전제조건 가드까지만」으로 되돌리지 말 것.
  */
-CASES['016-02'] = async (page) => {
+CASES['010-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/manage/deident-reports`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByRole('heading', { name: /비식별 신고/ }), '비식별 신고 관리');
@@ -1289,26 +1379,26 @@ CASES['016-02'] = async (page) => {
   let btn = page.getByRole('button', { name: /해소/ }).first();
   if ((await btn.count()) === 0) {
     console.log('  열린 신고가 없어 먼저 신고를 접수한다');
-    await CASES['016-01'](page);
+    await CASES['010-01'](page);
     await login(page, 'REVIEWER');
     await page.goto(`${APP}/manage/deident-reports`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     btn = page.getByRole('button', { name: /해소/ }).first();
   }
   await expectVisible(page, btn, '해소 버튼');
-  await shot(page, '016-02', 1);
+  await shot(page, '010-02', 1);
 
   await btn.click();
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg, '재비식별 산출물 선택 창');
   await page.waitForTimeout(1200);
-  await shotEl(page, dlg, '016-02', 2);
+  await shotEl(page, dlg, '010-02', 2);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
 };
 
 /** 검수 반려 처리(사유 · 이슈 생성) */
-CASES['023-02'] = async (page) => {
+CASES['019-02'] = async (page) => {
   // 반려하려면 검수중 건이 있어야 한다 — 작업자가 먼저 제출한다.
   await login(page, 'WORKER');
   await openLabel(page, FRAME_MAIN);
@@ -1319,33 +1409,33 @@ CASES['023-02'] = async (page) => {
   await page.waitForTimeout(2500);
   const reject = page.getByRole('button', { name: '반려' }).first();
   await expectVisible(page, reject, '반려 버튼');
-  await shot(page, '023-02', 1);
+  await shot(page, '019-02', 1);
 
   await reject.click();
   const dlg = page.getByRole('dialog');
   await expectVisible(page, dlg, '반려 사유 입력창');
   await dlg.getByRole('textbox').first().fill('경계 상자가 대상 밖으로 벗어나 있어 재작업이 필요합니다.');
   await page.waitForTimeout(600);
-  await shot(page, '023-02', 2);
+  await shot(page, '019-02', 2);
 
   await dlg.getByRole('button', { name: /반려|확인/ }).last().click();
   await page.waitForTimeout(3000);
   await page.goto(`${APP}/review/${REVIEW_ID}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2000);
-  await shot(page, '023-02', 3);
+  await shot(page, '019-02', 3);
 };
 
 /** 검출 분류 매핑과 열람 권한 */
-CASES['028-02'] = async (page) => {
+CASES['005-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await page.goto(`${APP}/manage/labels`, { waitUntil: 'domcontentloaded' });
   await expectVisible(page, page.getByRole('heading', { name: '라벨 관리' }), '라벨 관리 화면');
   await page.waitForTimeout(1500);
   // 라벨마다 AI 탐지 매핑이 붙어 있고, 안 붙은 것은 오토라벨 대상이 아니다.
   await expectVisible(page, page.getByText('AI 탐지 매핑').first(), '검출 분류 매핑 표시');
-  // ★검출 분류 매핑이 이 케이스의 대상이다 — 화면 전체를 찍으면 028-01(라벨 마스터 등록)과
+  // ★검출 분류 매핑이 이 케이스의 대상이다 — 화면 전체를 찍으면 005-01(라벨 마스터 등록)과
   //   같은 그림이 된다.
-  await shotEl(page, page.getByRole('table').first(), '028-02', 1);
+  await shotEl(page, page.getByRole('table').first(), '005-02', 1);
 
   // 작업자는 라벨 관리에 들어갈 수 없다.
   await login(page, 'WORKER');
@@ -1353,7 +1443,7 @@ CASES['028-02'] = async (page) => {
   await page.waitForTimeout(2500);
   const blocked = page.url().includes('/forbidden') || (await page.getByText(/권한|접근|거부/).count()) > 0;
   if (!blocked) throw new Error('작업자가 라벨 관리에 들어가졌다');
-  // ⚠ 거부 화면 자체는 어느 자원을 막았든 **같은 그림**이라 041-01(토큰 인계 인가)의 컷과
+  // ⚠ 거부 화면 자체는 어느 자원을 막았든 **같은 그림**이라 001-01(토큰 인계 인가)의 컷과
   //   바이트까지 같아진다(실측 2026-09-09). 열람 권한의 증거로 더 나은 것은 **작업자 메뉴에
   //   「라벨 관리」가 아예 없다**는 사실이다 — 그 자리를 찍는다.
   // ⚠ 거부 화면에는 좌측 메뉴가 없다 — 작업자 화면으로 돌아가 그 메뉴를 찍는다.
@@ -1364,7 +1454,7 @@ CASES['028-02'] = async (page) => {
   if ((await nav.getByText('라벨 관리').count()) > 0) {
     throw new Error('작업자 메뉴에 라벨 관리가 보인다');
   }
-  await shotEl(page, nav, '028-02', 2);
+  await shotEl(page, nav, '005-02', 2);
 };
 
 
@@ -1397,12 +1487,12 @@ async function openAugmentResultPendingDecision(page) {
 }
 
 /** 증강 결과 채택 처리 */
-CASES['010-01'] = async (page) => {
+CASES['025-01'] = async (page) => {
   await login(page, 'REVIEWER');
   await openAugmentResultPendingDecision(page);
   await expectVisible(page, page.getByRole('button', { name: '채택' }), '채택 버튼');
   // ★결정 버튼은 화면 아래에 있다 — 그냥 찍으면 **이 케이스가 증명할 대상이 빠진 그림**이 된다.
-  await shotAt(page, page.getByRole('button', { name: '채택' }), '010-01', 1);
+  await shotAt(page, page.getByRole('button', { name: '채택' }), '025-01', 1);
 
   // ⚠ 한 요청에 결과가 여럿이면 결정 대기도 여럿이다. 「글자가 사라졌는가」로 보면 나머지 대기가
   //   남아 있어 **정상 처리인데 실패로 잡힌다**(실측 2026-09-09). 「하나 줄었는가」로 본다.
@@ -1422,11 +1512,11 @@ CASES['010-01'] = async (page) => {
     .catch(() => {
       throw new Error(`채택했는데 활용 결정 대기가 ${before}건 그대로다`);
     });
-  await shot(page, '010-01', 2);
+  await shot(page, '025-01', 2);
 };
 
 /** 증강 결과 거부 처리(사유 저장) */
-CASES['010-02'] = async (page) => {
+CASES['025-02'] = async (page) => {
   await login(page, 'REVIEWER');
   await openAugmentResultPendingDecision(page);
   await expectVisible(page, page.getByRole('button', { name: '반려' }), '반려 버튼');
@@ -1440,10 +1530,10 @@ CASES['010-02'] = async (page) => {
   if ((await box.count()) > 0) {
     await box.fill('증강 결과의 대상 객체가 원본과 어긋나 학습데이터로 쓰기 어렵습니다.');
     await page.waitForTimeout(500);
-    await shot(page, '010-02', 1);
+    await shot(page, '025-02', 1);
     await page.getByRole('dialog').getByRole('button', { name: /반려|확인/ }).last().click();
   } else {
-    await shot(page, '010-02', 1);
+    await shot(page, '025-02', 1);
     const back = page.locator('[data-testid=modal-backdrop]');
     if ((await back.count()) > 0) await confirmModal(page, /반려|확인/);
   }
@@ -1454,7 +1544,7 @@ CASES['010-02'] = async (page) => {
     .catch(() => {
       throw new Error('반려했는데 활용 결정 대기가 그대로다');
     });
-  await shot(page, '010-02', 2);
+  await shot(page, '025-02', 2);
 };
 
 
@@ -1468,12 +1558,12 @@ CASES['010-02'] = async (page) => {
  *      알린다. 반대로 대상이 드문 프레임에서는 검출 자체가 0이라 「반영할 검출이 없습니다」가 뜬다.
  *      둘 다 정상 동작이며, 증적은 <실제로 몇 건이 올라갔는가>로 잡는다.
  */
-CASES['004-01'] = async (page) => {
+CASES['017-01'] = async (page) => {
   await login(page, 'WORKER');
   await openLabel(page, FRAME_TRACK);
   const before = await objectCount(page);
   console.log(`  실행 전 ${before}개`);
-  await shot(page, '004-01', 1);
+  await shot(page, '017-01', 1);
 
   const auto = page.getByRole('radio', { name: '자동 반영' });
   await expectVisible(page, auto, '자동 반영 모드');
@@ -1501,12 +1591,12 @@ CASES['004-01'] = async (page) => {
   if (applied === 0) throw new Error(`올린 건수를 읽지 못했다 — ${msg.slice(0, 120)}`);
   console.log(`  올린 건수 ${applied} · 현재 프레임 객체 ${await objectCount(page)}개`);
   await page.waitForTimeout(1200);
-  await shot(page, '004-01', 2);
+  await shot(page, '017-01', 2);
 
   await page.getByRole('button', { name: /^저장/ }).first().click();
   await expectVisible(page, page.getByText('저장됨'), '추적 결과 저장');
   await page.waitForTimeout(2000);
-  await shot(page, '004-01', 3);
+  await shot(page, '017-01', 3);
 };
 
 /**
@@ -1517,7 +1607,7 @@ CASES['004-01'] = async (page) => {
  * ⚠ 승인 버전이 둘 이상이면 이 창은 라벨링 화면 진입 시 <자동으로> 뜬다. 그래서 여기서는
  *   openLabel 을 쓰지 않는다(그쪽은 이 창을 닫아 버린다).
  */
-CASES['008-02'] = async (page) => {
+CASES['021-02'] = async (page) => {
   await login(page, 'WORKER');
   await page.goto(`${APP}/label/${FRAME_MAIN}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4000);
@@ -1537,14 +1627,14 @@ CASES['008-02'] = async (page) => {
   if (n < 2) throw new Error(`승인 버전이 ${n}개뿐이라 이전 버전으로 되돌릴 수 없다`);
   await radios.nth(n - 1).check(); // 목록은 최신이 위 — 마지막이 가장 오래된 버전이다
   await page.waitForTimeout(800);
-  await shot(page, '008-02', 1);
+  await shot(page, '021-02', 1);
 
   await page.getByRole('button', { name: '이 버전으로 시작' }).click();
   await page.waitForTimeout(3000);
   // ⚠ 창은 <일부러> 남는다 — 불러오기는 화면에만 올린 것이라 「아직 저장되지 않았습니다」를 알린다.
   //   결함이 아니다. 그 안내가 곧 이 단계의 증거다.
   await expectVisible(page, page.getByText(/아직 저장되지 않았습니다/), '불러오기 안내');
-  await shot(page, '008-02', 2);
+  await shot(page, '021-02', 2);
 
   // 확정하려면 창을 닫고 저장한다 — 두 단계가 한 벌이다.
   await page.getByRole('button', { name: '닫기' }).first().click();
@@ -1553,7 +1643,7 @@ CASES['008-02'] = async (page) => {
   await page.getByRole('button', { name: /^저장/ }).first().click({ timeout: 20000 });
   await expectVisible(page, page.getByText('저장됨'), '복원 결과 확정');
   await page.waitForTimeout(1500);
-  await shot(page, '008-02', 3);
+  await shot(page, '021-02', 3);
 };
 
 
@@ -1632,11 +1722,11 @@ async function openPortal(page, route) {
 }
 
 /** 데이터마트 영상 라벨 · 메타 수정과 본인 저장 */
-CASES['024-01'] = async (page) => {
+CASES['029-01'] = async (page) => {
   await portalLogin(page);
   await openPortal(page, '/portal');
   await expectVisible(page, page.getByText('내 저장 작업'), '포털 내 작업 화면');
-  await shot(page, '024-01', 1);
+  await shot(page, '029-01', 1);
 
   const go = page.getByRole('button', { name: /이어서 작업/ }).first();
   const link = page.getByRole('link', { name: /이어서 작업/ }).first();
@@ -1645,30 +1735,30 @@ CASES['024-01'] = async (page) => {
   else throw new Error('이어서 작업할 대상이 없다');
   await page.waitForTimeout(4000);
   await expectVisible(page, page.getByText(/그리기 도구|라벨/), '포털 라벨링 화면');
-  await shot(page, '024-01', 2);
+  await shot(page, '029-01', 2);
 };
 
 /** 본인 작업 데이터 내려받기와 보존기간 */
-CASES['024-02'] = async (page) => {
+CASES['029-02'] = async (page) => {
   await portalLogin(page);
   await openPortal(page, '/portal');
   // 보존기간은 만료 예정일로 화면에 드러난다 — 그것이 이 케이스의 요점이다.
   await expectVisible(page, page.getByText(/만료/), '만료 예정일 표시');
   await expectVisible(page, page.getByRole('button', { name: '내려받기' }), '내려받기');
   // ★보존기간(만료 예정일)과 내려받기가 이 케이스의 대상이다 — 화면 전체를 찍으면
-  //   024-01(라벨·메타 수정)과 같은 그림이 된다.
+  //   029-01(라벨·메타 수정)과 같은 그림이 된다.
   // ⚠ 「만료」 문자열의 첫 일치는 표의 **스크린리더 전용 캡션**(sr-only)이라 보이지 않는다 —
   //   그걸 겨냥하면 스크롤이 30초 타임아웃으로 죽는다(실측 2026-09-09). 표 자체를 찍는다.
-  await shotEl(page, page.getByRole('table').first(), '024-02', 1);
+  await shotEl(page, page.getByRole('table').first(), '029-02', 1);
 };
 
 /** 영상 업로드와 마킹 · 프레임 추출 */
-CASES['027-01'] = async (page) => {
+CASES['030-01'] = async (page) => {
   await portalLogin(page);
   await openPortal(page, '/portal/uploads');
   await expectVisible(page, page.getByText('영상 업로드'), '포털 업로드 화면');
   await expectVisible(page, page.getByText(/mp4\/mov\/avi/), '허용 형식 안내');
-  await shot(page, '027-01', 1);
+  await shot(page, '030-01', 1);
 
   // 업로드된 자산이 프레임 추출까지 끝났음을 목록이 말한다.
   await expectVisible(page, page.getByText('준비 완료'), '준비 완료 자산');
@@ -1678,13 +1768,13 @@ CASES['027-01'] = async (page) => {
   await shotEl(
     page,
     page.getByText(/프레임 \d+건/).first().locator('xpath=ancestor::*[self::li or self::tr or self::article][1]'),
-    '027-01',
+    '030-01',
     2,
   );
 };
 
 /** 수동 라벨링과 본인 데이터 내려받기 */
-CASES['027-02'] = async (page) => {
+CASES['030-02'] = async (page) => {
   await portalLogin(page);
   await openPortal(page, '/portal/uploads');
   const label = page.getByRole('button', { name: '라벨링' }).first();
@@ -1696,7 +1786,7 @@ CASES['027-02'] = async (page) => {
   await expectVisible(page, page.getByText(/그리기 도구|라벨/), '포털 업로드 라벨링 화면');
 
   // ★이 케이스는 「사각형·다각형을 그려 저장」을 증명한다 — 화면만 열고 찍으면 **빈 캔버스**가
-  //   증적이 되고, 실제로 024-01(라벨·메타 수정)과 바이트까지 같은 그림이었다(실측 2026-09-09).
+  //   증적이 되고, 실제로 029-01(라벨·메타 수정)과 바이트까지 같은 그림이었다(실측 2026-09-09).
   //   포털 도구바도 내부와 같은 aria-label 을 쓴다(선택·이동·바운딩 박스·폴리곤).
   await page.getByRole('button', { name: '바운딩 박스' }).click();
   await page.waitForTimeout(400);
@@ -1723,18 +1813,18 @@ CASES['027-02'] = async (page) => {
   // 저장된 라벨이 실제로 캔버스에 남아 있어야 증적이다 — 다시 열어 확인한다.
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4000);
-  await shot(page, '027-02', 1);
+  await shot(page, '030-02', 1);
 
   await openPortal(page, '/portal/uploads');
   await expectVisible(page, page.getByRole('button', { name: /내보내기\(JSON\)/ }), '본인 데이터 내보내기');
   await expectVisible(page, page.getByRole('button', { name: /원본 다운로드/ }), '원본 다운로드');
-  // ★내려받기 수단이 이 컷의 대상이다 — 페이지 전체를 찍으면 027-01-cut1(업로드 화면)과
+  // ★내려받기 수단이 이 컷의 대상이다 — 페이지 전체를 찍으면 030-01-cut1(업로드 화면)과
   //   **바이트까지 같은 그림**이 된다(같은 페이지다 — 실측 2026-09-09).
-  //   ⚠ 행 전체를 자르면 027-01-cut2(같은 행의 프레임 수)와 또 같아진다 — **버튼 묶음만** 자른다.
+  //   ⚠ 행 전체를 자르면 030-01-cut2(같은 행의 프레임 수)와 또 같아진다 — **버튼 묶음만** 자른다.
   await shotEl(
     page,
     page.getByRole('button', { name: /내보내기\(JSON\)/ }).first().locator('xpath=..'),
-    '027-02',
+    '030-02',
     2,
   );
 };
@@ -1746,8 +1836,8 @@ CASES['027-02'] = async (page) => {
  * ⚠ 원장은 <컷 수>로 세지 <파일 수>로 세지 않는다 — 공유분 때문에 둘이 다르다.
  */
 const SHARED = {
-  '003-01': ['003-02-cut2'],
-  '007-01': ['023-01-cut2'],
+  '026-01': ['026-02-cut2'],
+  '020-01': ['019-01-cut2'],
 };
 
 /** 찍힌 파일을 훑어 증적 원장(capture-manifest.json)을 만든다. */
@@ -1782,11 +1872,35 @@ function writeManifest() {
     }
     man[id] = srcs;
   }
+
+  /**
+   * 컷마다 캡션을 얹는다 — 단위시험 결과서(I2)의 「비고」가 이 값을 그대로 싣는다.
+   *
+   * 캡션이 있는 케이스만 `{src, caption}` 객체가 되고 나머지는 문자열 그대로다(생성기가 둘 다
+   * 받는다). **캡션이 없다고 컷을 빼지 않는다** — 빼면 그림이 조용히 사라진다.
+   *
+   * ⚠ 컷과 캡션의 개수가 어긋나면 남는 컷은 캡션 없이 실린다. 그것을 아래에서 **이름으로**
+   *   열거한다 — 이 고지가 캡션 표와 실제 촬영이 갈라졌음을 알아채는 유일한 자리다.
+   */
+  const noCaption = [];
+  for (const [id, srcs] of Object.entries(man)) {
+    const caps = CAPTIONS[id.replace('KLID-AT-UT-', '')] || [];
+    man[id] = srcs.map((src, i) => {
+      if (!caps[i]) { noCaption.push(`${id} 컷 ${i + 1}/${srcs.length}`); return src; }
+      return { src, caption: caps[i] };
+    });
+  }
   const out = path.join(path.dirname(OUT), 'capture-manifest.json');
   writeFileSync(out, JSON.stringify(man, null, 2) + '\n', 'utf-8');
   const cuts = Object.values(man).reduce((a, v) => a + v.length, 0);
   console.log(`\n원장 기록 ${out}`);
-  console.log(`  케이스 ${Object.keys(man).length} · 컷 ${cuts} · 파일 ${files.length}`);
+  console.log(`  케이스 ${Object.keys(man).length} · 컷 ${cuts} · 파일 ${files.length} · 캡션 ${cuts - noCaption.length}/${cuts}`);
+  if (noCaption.length) {
+    // 「몇 건」이 아니라 **어느 컷인지**를 말한다 — 숫자만으로는 capture-captions.mjs 의 어느
+    // 줄을 고쳐야 할지 알 수 없고, 그러면 이 고지를 보고도 아무도 고치지 않는다.
+    console.log(`  !! 캡션 없는 컷 ${noCaption.length}건 — ${noCaption.join(' / ')}`);
+    console.log('     capture-captions.mjs 의 그 케이스에 컷 순서대로 캡션을 넣는다.');
+  }
   auditManifest(man, files);
   return man;
 }
@@ -1805,10 +1919,10 @@ function writeManifest() {
  */
 function auditManifest(man, files) {
   const SHARED_OK = [
-    ['KLID-AT-UT-003-01-cut1.png', 'KLID-AT-UT-003-02-cut2.png'],
-    ['KLID-AT-UT-007-01-cut1.png', 'KLID-AT-UT-023-01-cut2.png'],
+    ['KLID-AT-UT-026-01-cut1.png', 'KLID-AT-UT-026-02-cut2.png'],
+    ['KLID-AT-UT-020-01-cut1.png', 'KLID-AT-UT-019-01-cut2.png'],
   ].map((v) => v.slice().sort().join('|'));
-  const QUERY_CASES = new Set(['002-01', '007-03', '009-01', '038-01']);
+  const QUERY_CASES = new Set(['024-01', '020-03', '022-01', '008-01']);
 
   const empty = Object.entries(man)
     .filter(([, v]) => v.length === 0)

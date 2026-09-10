@@ -28,7 +28,7 @@ function runSql(sql) {
 }
 
 const CASES = {
-  '002-01': {
+  '024-01': {
     title: '증강 결과 수신 · 새 영상 등록',
     note: '외부 증강 결과를 받으면 새 영상 행이 생기고 부모 영상을 가리킨다. 화면에 나타나지 않아 원장으로 확인한다.',
     sql: `SELECT a.data_aug_sn AS "증강번호", a.src_sn AS "원본영상", a.aug_type_cd AS "증강종류",
@@ -38,7 +38,7 @@ const CASES = {
   JOIN klid_at.ls_data_raw r ON r.raw_sn = a.new_raw_sn
  ORDER BY a.data_aug_sn DESC LIMIT 5;`,
   },
-  '007-03': {
+  '020-03': {
     title: '승인 / 수정 이벤트별 통지 분기',
     note: '완료 통지와 수정 통지가 서로 다른 이벤트로 적재된다. 통지는 서버 사이 통신이라 화면에 나타나지 않는다.',
     sql: `SELECT evnt_type_cd AS "통지 이벤트", count(*) AS "건수",
@@ -46,14 +46,14 @@ const CASES = {
   FROM klid_at.ls_control_notify_fallback
  GROUP BY evnt_type_cd ORDER BY 1;`,
   },
-  '009-01': {
+  '022-01': {
     title: '검수 승인 · 재승인 시 관제 통지 발송',
     note: '검수 승인이 관제 통지로 이어졌는지는 발송 결과 원장으로만 확인된다.',
     sql: `SELECT queue_sn AS "번호", raw_sn AS "영상", evnt_type_cd AS "이벤트",
        stts_cd AS "상태", send_rslt_cd AS "발송결과", rtry_nmtm AS "재시도", reg_dt AS "등록시각"
   FROM klid_at.ls_control_notify_fallback ORDER BY queue_sn DESC LIMIT 5;`,
   },
-  '038-01': {
+  '008-01': {
     title: '적재부터 라벨링 준비까지 전체 흐름',
     note: '배치 파이프라인의 단계별 처리 결과다. 각 단계는 화면 뒤에서 돌아 원장에만 남는다.',
     sql: `SELECT data_raw_sn AS "영상", proc_step_cd AS "단계", proc_stts_cd AS "결과",
