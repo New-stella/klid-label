@@ -357,6 +357,46 @@ if (klidDeployFlavor && !(klidDeployFlavor in ['control', 'portal'])) {
         "  · 값을 주지 않으면 굽지 않고 실행 시점 환경변수에 맡깁니다(그것도 없으면 control).")
 }
 
+// ★ 브라우저 허용 출처(CORS) — 이것도 WAR 에 구워 넣는다.
+//
+//   왜 굽나 — 위 배포 향과 «같은 이유»다. 젠킨스가 WAR 를 떨구기만 하고 WAS 를 기동하지
+//   않으므로 환경변수가 앱까지 가지 않는다.
+//
+//   ⚠ 이 값이 비면 «브라우저의 쓰기 요청이 전부 403» 이 된다. 브라우저는 같은 출처라도
+//     GET 이 아니면 Origin 헤더를 싣고, Spring 은 Origin 이 있으면 CORS 요청으로 보아
+//     허용목록과 대조하기 때문이다. 화면은 떠서 «읽기는 되는데 쓰기만 막힌» 모습이 된다
+//     (2026-09-10 개발망 실측 — 포털 업로드가 403 Invalid CORS request).
+//
+//   고르는 법:  ./gradlew bootWar -PklidCorsAllowedOrigins=https://portal.example:38444
+//               CORS_ALLOWED_ORIGINS=https://portal.example:38444 ./gradlew bootWar
+//   ★ 주지 않으면 굽지 않는다 — 실행 시점 환경변수를 읽고, 그것도 없으면 빈 값이다.
+def klidCorsAllowedOrigins = (
+    project.findProperty('klidCorsAllowedOrigins')
+        ?: System.getenv('CORS_ALLOWED_ORIGINS')
+        ?: ''
+).toString().trim()
+
+// fail-closed — 잘못된 허용목록이 조용히 실린 WAR 가 나가는 것을 막는다.
+if (klidCorsAllowedOrigins) {
+    klidCorsAllowedOrigins.split(',').collect { it.trim() }.findAll { it }.each { origin ->
+        // ⚠ '*' 를 막는다 — 우리는 allowCredentials(true) 라 스프링이 «실행 중에» 거부한다.
+        //   빌드에서 막지 않으면 그 사실이 배포 뒤에야 드러난다.
+        if (origin == '*') {
+            throw new GradleException(
+                "CORS 허용 출처에 '*' 를 쓸 수 없습니다 — 자격증명 허용(allowCredentials)과 함께 쓸 수 없어\n" +
+                "  스프링이 실행 중에 거부합니다. 출처를 명시하세요(예: https://portal.example:38444).")
+        }
+        // 출처는 «스킴+호스트[+포트]» 까지다. 경로·마지막 슬래시가 붙으면 브라우저가 보내는
+        //   Origin 과 문자열이 달라 «조용히» 안 맞는다(로그에도 남지 않는다).
+        if (!(origin ==~ 'https?://[^/\\s]+')) {
+            throw new GradleException(
+                "CORS 허용 출처 형식이 부적합합니다: '${origin}'\n" +
+                "  · 스킴(http/https) + 호스트[+포트] 까지만 적습니다. 경로와 끝 슬래시를 넣지 마세요.\n" +
+                "  · 여러 개면 쉼표로 구분합니다.")
+        }
+    }
+}
+
 // ★ WAR 산출물 이름 (@design DEPLOY-001)
 //   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가 정한다.
 //   ★ 대상 WAS(JBoss EAP)에서는 WEB-INF/jboss-web.xml 의 context-root 가 정하므로
@@ -392,6 +432,11 @@ tasks.named('bootWar') {
         logger.lifecycle(klidDeployFlavor
                 ? "[klid] 배포 향 = ${klidDeployFlavor}  (WAR 에 구워 넣음 — 실행 시점 환경변수를 찾지 않는다)"
                 : "[klid] 배포 향 = (굽지 않음)  — 실행 시점 KLID_DEPLOY_FLAVOR 를 읽고, 없으면 control")
+
+        // ★ 허용 출처도 굽든 안 굽든 남긴다 — «안 구웠다»는 사실이 곧 「쓰기가 전부 403」의 예고다.
+        logger.lifecycle(klidCorsAllowedOrigins
+                ? "[klid] CORS 허용 출처 = ${klidCorsAllowedOrigins}  (WAR 에 구워 넣음)"
+                : "[klid] CORS 허용 출처 = (굽지 않음)  — 실행 시점 CORS_ALLOWED_ORIGINS 가 없으면 브라우저 쓰기가 전부 403 이다")
     }
 }
 
@@ -405,12 +450,21 @@ tasks.named('bootWar') {
 //     읽어 확인할 것(추측하지 않는다).
 //   ⚠ 정규식이 아니라 «문자열 그대로» 치환한다 — placeholder 에 '$'·'{}' 가 들어 있어
 //     정규식으로 쓰면 조용히 안 맞는다.
-if (klidDeployFlavor) {
+//   ★ 구울 값은 «표 한 곳»에 모은다 — 항목이 늘 때 배선을 복사하지 않게.
+//     키는 application.yml 의 placeholder 이름과 «같아야» 한다.
+def klidBakedSettings = [
+    'KLID_DEPLOY_FLAVOR'  : klidDeployFlavor,
+    'CORS_ALLOWED_ORIGINS': klidCorsAllowedOrigins,
+].findAll { entry -> entry.value }
+
+if (klidBakedSettings) {
     tasks.named('processResources') {
-        inputs.property('klidDeployFlavor', klidDeployFlavor)
+        inputs.property('klidBakedSettings', klidBakedSettings.toString())
         filesMatching('application.yml') {
             filter { String line ->
-                line.replace('${KLID_DEPLOY_FLAVOR:}', klidDeployFlavor)
+                klidBakedSettings.inject(line) { acc, entry ->
+                    acc.replace('${' + entry.key + ':}', entry.value)
+                }
             }
         }
     }
