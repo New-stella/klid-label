@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.augment;
 
 import com.jayway.jsonpath.JsonPath;
-import jakarta.persistence.EntityManagerFactory;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
@@ -9,15 +8,13 @@ import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.support.ThreadScopedQueryProbe;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,9 +54,6 @@ class AugmentResolutionResultTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugRvwRepository reviewRepository;
-
-    @Qualifier("controlEntityManagerFactory")
-    @Autowired private EntityManagerFactory entityManagerFactory;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -615,40 +609,64 @@ class AugmentResolutionResultTest {
     // H4 — N+1 (쿼리 수가 페이지 크기에 비례하지 않음)
     // ============================================================
 
+    /**
+     * <b>계측 축은 요청 스레드로 좁혀져 있다</b>(2026-09-10) — 전역 {@code Statistics} 를 쓰지 않는다.
+     *
+     * <p>구 구현은 {@code SessionFactory.getStatistics().getPrepareStatementCount()} 로 쟀다. 그 값은
+     * SessionFactory <b>전역</b> 누적이고 {@code clear()} 도 전역이라, {@code clear() → 요청 → 카운트}
+     * 창 안에서 <b>다른 스레드</b>(같은 캐시 컨텍스트를 공유하는 {@code @Async} 러너·전용 executor 스윕)가
+     * 쿼리를 날리면 그대로 측정값이 됐다. 그래서 이 시험은 <b>단독 실행에서는 항상 통과하고 전체
+     * 회귀에서만</b> 흔들렸다 — 실측 2회가 {@code 2→11 / 20→10}, {@code 2→10 / 20→15} 로 <b>서로 다른
+     * 방향</b>이었고, 진짜 N+1(페이지 10배 → 델타 +18)과 크기·방향이 모두 맞지 않았다.
+     *
+     * <p>이제 {@link ThreadScopedQueryProbe} 가 {@code org.hibernate.SQL} 로그의 <b>발행 스레드</b>로
+     * 걸러 요청 스레드 문장만 센다. MockMvc 는 요청을 호출 스레드에서 그대로 처리하므로 배경 작업이
+     * 구조적으로 배제되고, <b>정확 비교(=)를 그대로 유지</b>할 수 있다(임계로 완화하지 않았다 —
+     * 완화하면 잡으려던 N+1 신호가 함께 무뎌진다).
+     */
     @Test
     @DisplayName("H4_쿼리횟수가_페이지크기에_비례하지_않는다_배치조회")
     void queryCountDoesNotScaleWithPageSize() throws Exception {
         Fixture fx = seedFullResolutionDerivative("NPLUS1", 20);
         Long jobId = fx.parent().getRawSn();
 
-        SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
-        Statistics stats = sessionFactory.getStatistics();
-        stats.setStatisticsEnabled(true);
+        try (ThreadScopedQueryProbe probe = ThreadScopedQueryProbe.attach()) {
+            // 워밍업 — 토큰 검증 캐시 등 요청 부수 조회를 두 측정에서 동일 조건으로 맞춘다.
+            mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                            .param("size", "2")
+                            .header("Authorization", "Bearer " + reviewerToken))
+                    .andExpect(status().isOk());
 
-        // 워밍업 — 토큰 검증 캐시 등 요청 부수 조회를 두 측정에서 동일 조건으로 맞춘다.
-        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
-                        .param("size", "2")
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk());
+            probe.reset();
+            mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                            .param("size", "2")
+                            .header("Authorization", "Bearer " + reviewerToken))
+                    .andExpect(status().isOk());
+            long small = probe.countOnThisThread();
+            String smallForeign = probe.foreignSummary();
 
-        stats.clear();
-        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
-                        .param("size", "2")
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk());
-        long small = stats.getPrepareStatementCount();
+            probe.reset();
+            mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
+                            .param("size", "20")
+                            .header("Authorization", "Bearer " + reviewerToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(20));
+            long large = probe.countOnThisThread();
+            String largeForeign = probe.foreignSummary();
 
-        stats.clear();
-        mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
-                        .param("size", "20")
-                        .header("Authorization", "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(20));
-        long large = stats.getPrepareStatementCount();
+            // 배경 스레드가 측정 창에 끼어들었으면 남긴다 — 전역 카운터였다면 그만큼 오염됐을 실행이다.
+            if (!smallForeign.isEmpty() || !largeForeign.isEmpty()) {
+                org.slf4j.LoggerFactory.getLogger(AugmentResolutionResultTest.class).warn(
+                        "[H4-PROBE] 측정 창에 배경 스레드 쿼리가 섞였다(요청 스레드 계측으로 배제됨) — "
+                                + "size=2 창: [{}] / size=20 창: [{}]", smallForeign, largeForeign);
+            }
 
-        assertThat(large)
-                .as("페이지 크기 2 → %d 쿼리, 20 → %d 쿼리 (배치 조회면 동일해야 함)", small, large)
-                .isEqualTo(small);
+            assertThat(large)
+                    .as("페이지 크기 2 → %d 쿼리, 20 → %d 쿼리 (배치 조회면 동일해야 함). "
+                            + "배경 스레드 개입: size=2 [%s] / size=20 [%s]",
+                            small, large, smallForeign, largeForeign)
+                    .isEqualTo(small);
+        }
     }
 
     // ============================================================
