@@ -70,5 +70,20 @@ export default function AuthoringRemote({ authBridge }: AuthoringRemoteProps) {
   // `tokenHandoff` 한 곳이 소유하며 여기서 다시 검사하지 않는다.
   if (authBridge) registerHostTokenHandoff(authBridge);
 
-  return <AuthoringApp />;
+  // ★ 스타일 격리 앵커 — 이 클래스가 곧 「여기부터는 저작도구 영역」이다. [@design INT-013]
+  //   Host 가 루트 글꼴을 62.5% 로 줄여 쓰는데, 우리 간격 유틸리티가 rem 기반이라 그대로 두면
+  //   화면이 통째로 눌린다. `styles/global.css` 의 `.klid-portal-embed` 가 그 자리에서
+  //   간격 기준을 절대값으로 못 박는다(근거 전문은 그 주석).
+  //
+  //   ⚠ Host 가 만든 요소(`.klid-authoring-slot`)에 기대지 않는다 — 상대가 이름을 바꾸면
+  //     «조용히» 깨지고, 우리 시험으로는 잡히지 않는다. 우리가 소유한 요소여야 한다.
+  //   ⚠ `<div>` 를 하나 더 두는 것이 레이아웃을 바꾸지 않도록 `contents` 로 두지 «않는다» —
+  //     `display: contents` 는 이 요소를 상자에서 지워 커스텀 프로퍼티 상속은 남기지만,
+  //     Host 슬롯이 자식에 거는 레이아웃(flex/grid)이 손자로 내려가 어긋날 수 있다.
+  //     높이를 그대로 물려주는 편이 안전하다.
+  return (
+    <div className="klid-portal-embed h-full">
+      <AuthoringApp />
+    </div>
+  );
 }
