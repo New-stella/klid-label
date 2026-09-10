@@ -82,6 +82,7 @@ const ERROR_ROLE_UNKNOWN: IngressError = {
  *          role 있으면 /dashboard, role=null(무권한)이면 /role-claim(관리자 등록 화면)
  *        조회가 실패하면 갈래를 나눈다 — 401 은 상위 시스템 재로그인, 그 밖은 토큰 role 이
  *        있으면 종전 폴백(/dashboard), 없으면 오류 표시. <어느 쪽도 /role-claim 이 아니다>.
+ *        ⚠ 토큰 role 폴백은 <관제 향 한정>이다 (@design ADR-012) — 아래 ② 주석 참조.
  */
 export function SessionIngressPage() {
   const [params] = useSearchParams();
@@ -181,6 +182,10 @@ export function SessionIngressPage() {
       //   ① 401(인증 실패·만료)  → 상위 시스템 재로그인. 기존 만료 처리와 <같은 결말>이다.
       //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로. ★유효 세션을 막지 않는다는 폴백의 취지는
       //                            그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
+      //      ⚠ <관제 향에서만 성립한다> (@design ADR-012 · @design INT-013). 포털 향은 토큰의
+      //        역할을 인가 축에 쓰지 않아 `claims.role` 이 항상 null 이라 이 갈래에 <닿지 않고>
+      //        ③으로 간다. 인지·수용한 대가다 — 폴백을 살리면 포털 토큰의 role("ADMIN")이 우리
+      //        Role.ADMIN 과 글자가 같아 포털 회원이 저작도구 관리자로 읽힐 길이 열린다.
       //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가
       //                            /role-claim 으로 떨어져 서버 장애가 "관리자가 없습니다"로
       //                            표시됐다.
