@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build:control": "tsc -b && VITE_BUILD_CHANNEL=control vite build",
-    "build:portal": "tsc -b && VITE_BUILD_CHANNEL=portal vite build",
-    "preview": "vite preview",
+    "dev": "npm run clean:stale-config && vite",
+    "build": "npm run clean:stale-config && tsc -b && vite build",
+    "build:control": "npm run clean:stale-config && tsc -b && VITE_BUILD_CHANNEL=control vite build",
+    "build:portal": "npm run clean:stale-config && tsc -b && VITE_BUILD_CHANNEL=portal vite build",
+    "preview": "npm run clean:stale-config && vite preview",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "test": "vitest run",
@@ -16,7 +16,8 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install --with-deps chromium",
-    "gen-api": "bash scripts/gen-api-types.sh"
+    "gen-api": "bash scripts/gen-api-types.sh",
+    "clean:stale-config": "node scripts/clean-stale-tsc-output.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
