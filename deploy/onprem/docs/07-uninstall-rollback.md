@@ -43,8 +43,12 @@ sudo PURGE=1 ./scripts/uninstall.sh
 1. 현재 서비스 중지: `sudo systemctl stop httpd klid-ai-server` + **WAS 중지(backend)**
 2. 이전 버전 `deploy/onprem/` 패키지로 `sudo ./scripts/install.sh` 재실행
    (env 는 보존되므로 그대로 사용, 필요 시 수정).
-3. **이전 버전 `api.war` 를 WAS 배포 디렉터리로 다시 복사**(파일명 `api.war` 유지).
-   WAS 가 압축을 푼 이전 디렉터리(`webapps/api/`)가 남아 있으면 함께 정리해야 새 WAR 가 반영된다.
+3. **이전 버전 WAR 를 WAS 배포 디렉터리로 다시 복사**(파일명은 현재 배포된 것과 같게 — 현장은
+   `klid-at-api.war` 다. 컨텍스트는 WAR 안 `jboss-web.xml` 이 정하므로 이름은 무엇이든 된다).
+   복사 후 **`touch <WAR>.dodeploy`** 로 재배포를 트리거하고, `<WAR>.deployed`(성공) 또는
+   `<WAR>.failed`(실패, 사유 1줄)가 생기는지로 판정한다.
+   ⚠ EAP 는 톰캣처럼 `webapps/api/` 로 풀어 두지 않는다 — 푼 사본은 `standalone/tmp/` 아래
+   WAS 가 관리하는 캐시이며, 지워야 한다면 **WAS 정지 상태**에서 한다.
 4. 기동·검증: 05-run-verify.md.
 
 > ⚠ 구 절차 폐기(2026-08-30) — 3 단계 없이 `install.sh` 재실행만으로 backend 가 교체되던 것

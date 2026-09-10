@@ -10,6 +10,10 @@
  *
  * ⚠ 재생 창구(API-238)를 부르는 함수는 여기 없다 — 그 주소는 재생 요소가 직접 받아 간다.
  *   `getUploadStreamUrl` 이 돌려준 주소를 `<video src>` 에 물리는 것이 그 창구의 호출이다.
+ * ⚠ 그 주소는 <b>배포 접두를 뺀 API 기준 경로</b>다 — 화면이 `toDeployedApiUrl` 로 자기 배포
+ *   접두를 붙여야 요청이 이 창구에 도달한다. 여기서 붙이지 않는 이유는 이 모듈이 통신만
+ *   담당하고 발급 응답을 그대로 넘기기 때문이며, 결합 판정은 한 곳(`lib/api/deployBasePath`)이
+ *   소유한다. [@design API-114]
  */
 import { apiClient } from '@/lib/api/client';
 

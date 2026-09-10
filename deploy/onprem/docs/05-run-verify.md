@@ -36,9 +36,11 @@ systemctl is-active postgresql-16    # active 가 아니면: sudo systemctl enab
 sudo systemctl enable --now klid-ai-server
 sudo systemctl enable --now httpd
 
-# backend — WAS 배포 후 WAS 를 기동한다(유닛명은 WAS 설치 형상에 따름).
-#   예) sudo cp /opt/klid/app/api.war <WAS_HOME>/webapps/api.war   # 파일명 변경 금지
-#       sudo systemctl restart <WAS 유닛명>
+# backend — WAS 배포 후 WAS 를 기동한다(기동 방식은 장비마다 다르다).
+#   예) sudo cp /opt/klid/app/api.war <JBOSS_HOME>/standalone/deployments/
+#       source /etc/klid/was.env && was_restart
+#   ★ 기동 방식(WAS_CTL)을 먼저 판정한다 — 현장은 systemd 가 아니다.
+#     절차: 09-operations-runbook.md §0-1
 ```
 
 > ⚠ 아래 「번들 PG 순서 drop-in」 설명은 **베어메탈 형상(systemd 유닛으로 backend 를 띄우는 경우)**
@@ -225,9 +227,10 @@ curl -fsS http://127.0.0.1:8080/api/actuator/health
 ## 재시작 / 정지
 
 ```bash
-sudo systemctl restart <WAS 유닛명>              # backend 재기동 = WAS 재기동
+source /etc/klid/was.env                        # 09-operations-runbook.md §0-1
+was_restart                                     # backend 재기동 = WAS 재기동
 sudo systemctl stop httpd klid-ai-server
-sudo systemctl stop <WAS 유닛명>
+was_stop
 ```
 
 ## 환경설정 변경 반영
@@ -235,7 +238,7 @@ sudo systemctl stop <WAS 유닛명>
 `/etc/klid/*.env` 수정 후:
 
 ```bash
-sudo systemctl restart <WAS 유닛명>     # backend(.env 는 WAS 가 읽는다 — 아래 주의)
+source /etc/klid/was.env && was_restart   # backend(.env 는 WAS 가 읽는다 — 아래 주의)
 sudo systemctl restart klid-ai-server
 ```
 

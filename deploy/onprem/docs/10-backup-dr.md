@@ -30,7 +30,11 @@
 >
 > **저장소 원본 주의**: 원본(비-비식별) 영상은 관제 NAS 절대경로에 있고 저작도구는 경로만 기록한다.
 > 저작도구 저장소(`/nas-storage`)에는 **비식별 영상·프레임(작업 산출물)** 이 위치하므로 T2 백업 대상은 이 산출물이다.
-> KPST 공유 export 경로(`KPST_DEID_EXPORT_PATH_BASE`, 기본 `/share/...`)는 KPST 소유 마운트로 백업 책임 밖이다.
+> ⚠ **구 서술 폐기(2026-09-09)** — *"KPST 공유 export 경로(`KPST_DEID_EXPORT_PATH_BASE`, 기본 `/share/...`)는
+> KPST 소유 마운트로 백업 책임 밖이다"* 는 **사실이 아니다.** 그 설정 키는 읽는 코드가 0건이라 제거됐고,
+> KPST 가 결과를 쓰는 자리는 **우리가 넘기는 `export_path`** 이며 그것은 원본 경로에서 도출된다
+> (co-locate 기본 `dirname(원본영상)/{rawSn}/deid/`). 즉 비식별 산출물은 **저작도구 저장소 안**에 떨어지므로
+> 바로 위 문장대로 **T2 백업 대상에 이미 포함**된다. 별도 마운트로 빼서 생각하지 말 것.
 
 ## 1. 데이터베이스 백업 — *번들 PG 단독 구성 한정(참고)*
 
@@ -106,8 +110,8 @@ sudo rsync -a --info=progress2 /nas-storage/ /backup/klid-storage/
 #   ★ backend 정지 = WAS 정지다 — 백엔드는 systemd 유닛이 아니라 외부 WAS 가 api.war 를 기동한다
 #     (배포 형상 @design DEPLOY-001 · 09-operations-runbook.md §0).
 #     <WAS 유닛명> 등 현장값은 설치 시 /etc/klid/was.env 에 적어 둔다(같은 §0-1).
-source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
-sudo systemctl stop "$WAS_UNIT"
+source /etc/klid/was.env      # 없으면 09-operations-runbook.md §0-1 을 먼저 작성한다
+was_stop
 #   (베어메탈 토글 형상이면: sudo systemctl stop klid-backend)
 #   ⚠ WAS 를 통째로 내릴 수 없으면 api.war 컨텍스트만 정지시킨다 — 필요한 것은 "앱이 DB 에 붙어
 #     있지 않다" 이지 "WAS 프로세스가 없다" 가 아니다.
@@ -122,7 +126,7 @@ sudo -u postgres dropdb --if-exists portal
 sudo -u postgres createdb -O klid_user -E UTF8 portal
 sudo -u postgres pg_restore -d portal --no-owner /backup/klid/<날짜>/portal.dump
 
-sudo systemctl start "$WAS_UNIT"
+was_start
 #   (베어메탈 토글 형상이면: sudo systemctl start klid-backend)
 # 검증: 핵심 테이블 확인 (저작도구 객체는 klid_at 스키마 — 스키마 한정 필수)
 sudo -u postgres psql -d klid_system \

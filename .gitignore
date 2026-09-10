@@ -97,6 +97,17 @@ docs/design/hwpx/
 frontend/test-results/
 frontend/playwright-report/
 
+# 단위시험 증적 촬영 — 결과물은 git 에 두지 않는다 (사용자 확정 2026-09-09)
+#   PNG 는 용량이 크고 히스토리에 영구히 남는다. 촬영 하네스가 레포 안에 전부 있으므로
+#   대상 서버만 그 상태면 다시 뽑을 수 있다 — 절차는 frontend/CAPTURE-README.md.
+#   ⚠ CAPTURE_OUT 을 레포 안으로 잡았을 때 실수로 커밋되는 것을 막는 줄이다.
+captures/
+capture-manifest.json
+frontend/capture.env
+#   일회성 조사 스크립트 — 촬영 하네스가 아니다(그건 capture-*.mjs · run-capture.sh 다)
+frontend/probe-*.mjs
+frontend/recon*.mjs
+
 # pytest JUnit 리포트 (ai-server 회귀 실행 산출물)
 ai-server/test-results.xml
 

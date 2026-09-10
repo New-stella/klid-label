@@ -527,21 +527,31 @@ sudo ./scripts/install/install-ffmpeg.sh --force
    현장에서 특정 기능만 깨진다 — 그래서 **대용량 업로드를 실제로 1회 수행**해 통과를 확인한다.
 4. **★ WAR 배포** — `/opt/klid/app/api.war` 를 WAS 배포 디렉터리로 **사람이** 복사한다.
    `install.sh` 는 `/opt/klid/app` 에 **두기만** 하고 WAS 배포 디렉터리로 옮기지 않는다.
-   **파일명을 바꾸지 말 것** — WAR 배포에서 컨텍스트는 파일명이 정하고, 현재 API 주소가 전부
-   `/api` 하위다(`server.servlet.context-path` 는 적용되지 않는다).
-5. **★ `/etc/klid/was.env` 에 WAS 현장값을 적는다** — 유닛명(`WAS_UNIT`) · `WAS_HOME` ·
+   ⚠ **구 규칙 폐기(2026-09-04): "파일명이 곧 컨텍스트이므로 rename 금지".** EAP 에서는 WAR 안
+   `WEB-INF/jboss-web.xml` 이 컨텍스트를 `/api` 로 고정하므로 파일명은 무엇이든 된다(현장은
+   `klid-at-api.war`). `server.servlet.context-path` 는 여전히 적용되지 않는다.
+   ⚠ EAP 밖의 컨테이너에 올린다면 그때는 파일명이 컨텍스트를 정한다 — `api.war` 를 유지할 것.
+   상세: [10-was-settings.md](10-was-settings.md) §7.
+5. **★ `/etc/klid/was.env` 에 WAS 현장값을 적는다** — **기동 방식(`WAS_CTL`)** · `WAS_HOME` ·
    배포 디렉터리 · 로그 경로 · 실행 계정. 설치가 **빈 값 템플릿으로 만들어 둔다**(이미 있으면 보존).
 
    왜 필요한가: 백엔드는 **systemd 유닛이 아니다**(외부 WAS 가 기동 주체). 그래서 "백엔드를
    재기동하라"·"백엔드 로그를 보라"가 장비마다 다른 명령이 되고,
-   [운영 런북](09-operations-runbook.md)은 그 차이를 이 파일로 흡수한다:
+   [운영 런북](09-operations-runbook.md)은 그 차이를 이 파일의 함수로 흡수한다:
 
    ```bash
-   source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
-   sudo systemctl restart "${WAS_UNIT}"
+   source /etc/klid/was.env
+   was_restart          # 그 밖에 was_start · was_stop · was_status
    ```
 
-   **비워 두면 런북의 백엔드 조작 명령이 전부 자리표시자로 남는다.**
+   ⚠⚠ **`WAS_CTL` 부터 판정한다 — WAS 가 systemd 로 뜬다고 전제하지 말 것.** 현장
+   (`klid-ai-gen-was-01`~`04`)은 `kill` + `<JBOSS_HOME>/bin/start.sh` 로 띄우고 있어
+   `WAS_CTL=script` 다(2026-09-09 실측). 판정 절차는 런북 §0-1 ①.
+
+   ⚠ **이 파일을 `tee` 로 통째로 새로 쓰지 말 것** — 위 함수 정의가 함께 들어 있어 덮어쓰면
+   런북의 백엔드 명령이 전부 죽는다. **편집기로 값만 채운다.**
+
+   **비워 두면 런북의 백엔드 조작 명령이 무엇이 비었는지 알리고 멈춘다.**
 
    ⚠ **앱 설정 파일이 아니다.** 앱도 WAS 도 이 파일을 읽지 않는다 — 셸이 읽는다.
    DB 비밀번호·`JWT_SECRET` 같은 **비밀값을 여기 넣지 말 것**(운영자가 읽고 고쳐야 하는

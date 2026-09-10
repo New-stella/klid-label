@@ -56,6 +56,14 @@ export interface PortalMarkingStageProps {
   onSelectMark: (index: number) => void;
   /** 재생 주소가 만료돼 로드가 실패했을 때 — 호출부가 주소를 다시 받아 `src` 를 갈아 준다. */
   onSrcError?: () => void;
+  /**
+   * 이 소스를 재생할 수 있게 됐다 = **재생이 회복됐다.**
+   *
+   * 화면은 이 신호로 재발급 재시도 예산을 되돌린다. 없으면 예산이 누적으로만 줄어
+   * 서명이 여러 번 만료되는 정상 동선에서 **회복 경로가 영구히 닫힌다**
+   * (마킹은 오래 머무는 화면이라 만료가 여러 번 일어난다).
+   */
+  onSrcRecovered?: () => void;
   /** 메타데이터에서 읽은 실제 길이(초). 원장 길이가 없을 때의 눈금 분모로 쓰인다. */
   onDurationChange?: (sec: number) => void;
 }
@@ -73,7 +81,10 @@ function formatClock(sec: number): string {
 
 export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMarkingStageProps>(
   function PortalMarkingStage(
-    { src, marks, durationSec, fps, selectedIndex, onSelectMark, onSrcError, onDurationChange },
+    {
+      src, marks, durationSec, fps, selectedIndex, onSelectMark,
+      onSrcError, onSrcRecovered, onDurationChange,
+    },
     ref,
   ) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -147,7 +158,12 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
             onError={() => onSrcError?.()}
             onWaiting={() => setBuffering(true)}
             onSeeking={() => setBuffering(true)}
-            onCanPlay={() => setBuffering(false)}
+            onCanPlay={() => {
+              setBuffering(false);
+              // 재생 가능해진 것이 곧 회복 신호다 — `onPlaying` 이 아니라 여기다.
+              // 이용자가 재생을 누르지 않아도 소스가 되살아난 것은 사실이기 때문이다.
+              onSrcRecovered?.();
+            }}
             onPlaying={() => setBuffering(false)}
             onSeeked={() => setBuffering(false)}
           />

@@ -6,7 +6,7 @@
 --   psql -d <데이터베이스> -f KLID_AT_schema.sql
 --
 -- 담긴 것 — 스키마 1 · 표 80 · 뷰 4 · 시퀀스 54
---           인덱스 224 · 제약 171 · 주석 표 33·컬럼 303
+--           인덱스 224 · 제약 171 · 주석 표 33·컬럼 305
 --
 -- ★ 초기 데이터는 이 파일에 없다 — KLID_AT_initdata.sql 을 <이 파일 다음에> 실행한다.
 --   코드값과 설정 기본값이 없으면 스키마는 서도 앱이 돌지 않는다.
@@ -16,20 +16,20 @@
 -- ★ 순서는 의존 관계를 만족하는 순서다. 보기 좋게 절을 나누려고 옮기면 로드가 깨진다.
 --   표를 찾으려면 이름으로 검색하고, 그 뜻은 바로 뒤따르는 COMMENT 를 본다.
 --
--- 만든 방식 — 손으로 쓰지 않았다. 형상 관리의 스키마 변경 파일 33개를 클린
+-- 만든 방식 — 손으로 쓰지 않았다. 형상 관리의 스키마 변경 파일 36개를 클린
 --   데이터베이스에 전량 적용한 뒤 덤프한 것이라 실제 스키마와 어긋날 수 없다.
 --   재생성: deploy/onprem/scripts/gen-cbd-init-sql.sh
 -- ⚠ 수기 편집 금지(생성물). 고칠 것이 있으면 스키마 변경 파일을 고치고 다시 생성한다.
 -- ⚠ 설치용 스키마 파일과 다른 파일이다 — 그쪽은 주석을 담지 않는다. 둘을 합치지 말 것.
 --
--- 생성 시각: 2026-09-07 09:47:12+0900
+-- 생성 시각: 2026-09-09 17:44:27+0900
 -- ============================================================================
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict EjUVWRc76uhaKfXLqlXVqznoPZsE8ddW3qojYrW3aB0Z8OET0dg5KP8JBNRJQUp
+\restrict shNvhYfPJZSvv7G3dq1sTTp65l0cW4ZgevLaGCssUXmO9GpHtIiwFeVlPFsClFp
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -171,7 +171,7 @@ CREATE TABLE klid_at.ls_ai_srvr (
     mdfcn_dt timestamp without time zone,
     chck_scs_nocs numeric(10,0) DEFAULT 0 NOT NULL,
     CONSTRAINT ck_ls_ai_srvr_nocs_nonneg CHECK (((chck_fail_nocs >= (0)::numeric) AND (chck_scs_nocs >= (0)::numeric))),
-    CONSTRAINT ck_ls_ai_srvr_srvr_id_format CHECK (((srvr_id)::text ~ '^[a-z0-9]{1,20}$'::text)),
+    CONSTRAINT ck_ls_ai_srvr_srvr_id_format CHECK (((srvr_id)::text ~ '^[a-z0-9_-]{1,20}$'::text)),
     CONSTRAINT ck_ls_ai_srvr_stts_cd CHECK (((srvr_stts_cd)::text = ANY ((ARRAY['AVAILABLE'::character varying, 'UNAVAILABLE'::character varying, 'DRAINING'::character varying, 'DISABLED'::character varying])::text[]))),
     CONSTRAINT ck_ls_ai_srvr_type_cd CHECK (((srvr_type_cd)::text = ANY ((ARRAY['INFERENCE'::character varying, 'TIMESERIES'::character varying])::text[])))
 );
@@ -188,7 +188,7 @@ COMMENT ON TABLE klid_at.ls_ai_srvr IS 'AI서버 — 추론 요청을 나눠 보
 -- Name: COLUMN ls_ai_srvr.srvr_id; Type: COMMENT; Schema: klid_at; Owner: -
 --
 
-COMMENT ON COLUMN klid_at.ls_ai_srvr.srvr_id IS 'AI서버아이디 — ★소문자와 숫자만, 20자 이내(체크 제약). 이 값이 서킷브레이커 이름과 메트릭 라벨로 조립되는데, 하이픈이 섞이면 조립 결과에서 어디서 갈리는지 파싱으로 복원되지 않아 라벨이 조용히 어긋난다. 실제 장비 호스트명은 srvr_nm 에 따로 둔다.';
+COMMENT ON COLUMN klid_at.ls_ai_srvr.srvr_id IS '서버식별자 — 소문자·숫자·하이픈·밑줄 20자 이하. 하이픈과 밑줄은 맨 앞·맨 뒤에 와도 된다. 값이 외부 벤더 요청과 기록에 그대로 실리므로 공백·개행·제어문자는 받지 않는다.';
 
 
 --
@@ -3027,7 +3027,8 @@ CREATE TABLE klid_at.ls_marking (
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     fps double precision,
-    vrfc_evnt_qstn_sn bigint
+    vrfc_evnt_qstn_sn bigint,
+    vrfc_evnt_type_cd character varying(20)
 );
 
 
@@ -3043,6 +3044,13 @@ COMMENT ON COLUMN klid_at.ls_marking.reg_user_no IS '등록사용자번호 — �
 --
 
 COMMENT ON COLUMN klid_at.ls_marking.vrfc_evnt_qstn_sn IS '검증이벤트질문일련번호 — 작업자가 그 영상의 검증 이벤트 유형에 등록된 질문 가운데 고른 값. 기본 선택은 그 유형의 첫 번째 질문이다. 값이 없거나 그 유형에 속하지 않는 질문이면 조달 시점에 첫 번째로 되돌린다(화면 입력을 신뢰하지 않는다). 마킹을 거치지 않는 경로는 언제나 첫 번째를 쓴다. 검증 이벤트 유형이 미수신이면 비어 있고, 그래도 위탁은 그대로 나간다. ★물리 FK 를 걸지 않는다 — 질문 목록이 전체 교체로 저장되므로 참조 무결성을 조달 판정기가 갖는다.';
+
+
+--
+-- Name: COLUMN ls_marking.vrfc_evnt_type_cd; Type: COMMENT; Schema: klid_at; Owner: -
+--
+
+COMMENT ON COLUMN klid_at.ls_marking.vrfc_evnt_type_cd IS '검증이벤트유형코드 — 관제가 유형을 보내지 않은 영상에서 작업자가 마킹 화면에서 직접 고른 값. 관제 값이 있으면 화면이 선택을 노출하지 않으므로 이 칸은 쓰이지 않는다(조달 순서: 관제 인입 값 -> 이 칸 -> null). 선택 사항이라 비어 있을 수 있다.';
 
 
 --
@@ -4327,7 +4335,8 @@ CREATE TABLE klid_at.ls_webhook_idempotency (
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     raw_sn bigint,
-    srvr_id character varying(20)
+    srvr_id character varying(20),
+    qstn_cn character varying(4000)
 );
 
 
@@ -4336,6 +4345,13 @@ CREATE TABLE klid_at.ls_webhook_idempotency (
 --
 
 COMMENT ON COLUMN klid_at.ls_webhook_idempotency.srvr_id IS 'AI서버아이디 — 이 위탁을 보낸 AI 서버(장비) 식별자. 외부 시계열 분석 서버가 장비 두 대로 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. ★부하로 세는 것은 수락된(ACCEPTED) 행뿐이다 — 발급(ISSUED)은 벤더가 아직 받지 않아 그 장비의 부하가 0이고, 세면 제출이 몰린 장비를 과대평가해 다음 요청이 반대편으로 쏠린다. ★nullable 이라 이 컬럼 도입 전 행과 장비를 고르지 못한 위탁은 장비 미상이다 — 그래서 미결 회수 스윕의 조회·클레임 조건에 장비 축을 걸지 않는다. 걸면 미상 행과 죽은 장비의 몫이 영영 회수되지 않는데, 그 스윕이 무증상 영구 결손을 막는 유일한 경로다. 외래키를 걸지 않는 것도 의도다 — 이 원장은 감사 기록이라 장비 원장보다 오래 살아야 하고, 장비 행이 지워져도 어느 장비였는지는 남아야 한다.';
+
+
+--
+-- Name: COLUMN ls_webhook_idempotency.qstn_cn; Type: COMMENT; Schema: klid_at; Owner: -
+--
+
+COMMENT ON COLUMN klid_at.ls_webhook_idempotency.qstn_cn IS '질문내용 — 위탁 시점에 외부 분석 서버로 보낸 질문 문구 전문. 결과 수신 시 재조달하지 않고 이 값을 읽어 이벤트 어노테이션의 질문 칸을 채운다(질문 목록이 전체 교체로 저장되어 재조달하면 보낸 질문과 기록된 질문이 갈리기 때문). 묘사 축 위탁 행에는 값이 없다.';
 
 
 --
@@ -6912,5 +6928,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict EjUVWRc76uhaKfXLqlXVqznoPZsE8ddW3qojYrW3aB0Z8OET0dg5KP8JBNRJQUp
+\unrestrict shNvhYfPJZSvv7G3dq1sTTp65l0cW4ZgevLaGCssUXmO9GpHtIiwFeVlPFsClFp
 

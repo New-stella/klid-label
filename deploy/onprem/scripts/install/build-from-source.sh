@@ -207,7 +207,8 @@ else
   install -m 0644 "${jars[0]}" "${BE_OUT}/klid-backend.jar"
   ok "[build-src] backend jar(개발/베어메탈용): ${BE_OUT}/klid-backend.jar  ($(du -h "${BE_OUT}/klid-backend.jar" | cut -f1))"
 
-  # WAR(반입 정본) — 이름이 곧 웹 컨텍스트라 rename 금지.
+  # WAR(반입 정본). ⚠ 구 주석 폐기(2026-09-04): "이름이 곧 웹 컨텍스트라 rename 금지" —
+  #   EAP 에서는 WAR 안 jboss-web.xml 이 컨텍스트(/api)를 정하므로 파일명은 무엇이든 된다.
   war_src="${BE_SRC}/build/libs/api.war"
   [[ -f "${war_src}" ]] || die "[build-src] WAR 산출물 없음: ${war_src} — src/backend 의 build.gradle 에 bootWar 설정이 있는지 확인"
   rm -f "${BE_OUT}"/*.war

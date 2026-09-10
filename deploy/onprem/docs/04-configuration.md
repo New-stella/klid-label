@@ -146,15 +146,16 @@ DB 비밀번호조차 비어 있기 때문이다 — 주소 하나만 골라 기
 | 고친 파일 | 반영에 필요한 것 | 서비스 중단 |
 |---|---|---|
 | `/etc/klid/frontend.env` (프론트 런타임 설정) | `sudo /opt/klid/bin/klid-frontend-config` **한 줄** | **없음** — 웹 서버 재기동도 불필요 |
-| `/etc/klid/application.properties` (WAR 형상 백엔드) | **WAS 재기동** — `sudo systemctl restart "${WAS_UNIT}"` | 있음(백엔드) |
+| `/etc/klid/application.properties` (WAR 형상 백엔드) | **WAS 재기동** — `source /etc/klid/was.env; was_restart` | 있음(백엔드) |
 | `/etc/klid/backend.env` (베어메탈 형상 백엔드) | `sudo systemctl restart klid-backend` | 있음(백엔드) |
 | `/etc/klid/ai-server.env` (`AI_BIND_HOST` 포함) | `sudo systemctl restart klid-ai-server` | 있음(추론만) |
 | `config/systemd/*.service` 를 다시 설치한 경우 | `sudo systemctl daemon-reload` **후** 해당 서비스 재기동 | 있음 |
 | `/etc/httpd/conf.d/klid-frontend.conf` (웹 서버) | `sudo systemctl reload httpd` | 없음(무중단 재적재) |
 | `/etc/klid/was.env` | **없음** — 앱이 읽지 않는다. 다음 런북 명령부터 적용된다 | 없음 |
 
-> `WAS_UNIT` 은 `/etc/klid/was.env` 에 적어 둔 현장값이다. 명령을 그대로 복붙하려면
-> `source /etc/klid/was.env` 를 먼저 실행한다(`09-operations-runbook.md` 와 같은 관례).
+> `was_restart` 는 `/etc/klid/was.env` 가 정의하는 함수다 — WAS 가 systemd 로 뜨는지
+> 스크립트로 뜨는지의 차이를 그 안에서 흡수한다(`09-operations-runbook.md` §0-1).
+> ⚠ 현장은 systemd 가 아니므로 `systemctl restart` 를 직접 쓰지 말 것.
 
 > ⚠ **일부 값은 재기동만으로 반영되지 않는다** — 애플리케이션 <설정 화면>에서 연동 주소를 덮어쓴
 > 이력이 있으면 그 override 가 배포 기본값보다 우선한다. 파일을 고쳤는데 동작이 그대로면
@@ -302,7 +303,7 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 | `AI_SERVER_POLL_INTERVAL_SECONDS` | · | **상태점검 주기(추론 축)** — 기본 5초. ★시계열 축과 **자리가 갈려 있어** 여기를 바꿔도 시계열 주기는 움직이지 않는다. ⚠ 줄일 때는 **한 번의 점검 상한 × 장비 수**가 주기를 넘지 않는지 먼저 따진다(넘으면 틱이 밀린다) |
 | `VLM_HEALTH_POLL_INTERVAL_SECONDS` | · | **상태점검 주기(시계열 축)** — 기본 **10초**로 추론보다 **길다**. 우리 서버는 우리가 부담을 감당하지만 **외부 벤더에게는 우리가 보내는 만큼이 그대로 비용**이기 때문이다. ⚠ **대가** — 주기가 길수록 **죽은 벤더가 목록에 남는 시간**이 길어진다(연속 실패 임계와 곱해진다). 그 구간의 위탁은 죽은 주소로 나갔다 실패한다. ⚠ 이 기본값은 **벤더 규격의 호출 빈도 제한을 확인하지 못한 상태**에서 정한 값이다 — 제한이 확인되면 그 값에 맞춘다 |
 | `QUARTZ_THREAD_COUNT` | · | **배치 스케줄러 동시 처리 여력** — 기본 3. 주기 작업들이 나눠 쓰는 **공유 자원**이다. 지금 반복 작업은 **여덟**(상태점검 둘 · 비식별 폴링 · 배치 파이프라인 · 관제 인입 스캔 · 배치 재시도 · 산출 미결 스윕 · 산출 실패 회수)이고 **60초의 배수마다 다섯이 동시에 발화**한다. ⚠ 모자라면 밀린 틱은 **몰아서 발화하지 않고 건너뛴다** — **죽은 장비 배제가 그만큼 늦어지고 오류로 드러나지 않는다.** 「배치가 밀린다」를 진단할 때 먼저 볼 값이다. ★ 기본값 3 은 **반복 작업이 하나뿐이던 시절**에 정해져 갱신되지 않은 값이다 — 올릴 때는 **DB 커넥션 여력과 함께** 판단한다(작업 하나가 도는 동안 커넥션을 하나 잡는다) |
-| `CORS_ALLOWED_ORIGINS` | · | 동일 출처면 비움. 다른 도메인 호출 시 allowlist |
+| `CORS_ALLOWED_ORIGINS` | · | 동일 출처면 비움. 다른 도메인 호출 시 allowlist. ★**빈 값이 지금은 정답이지만 언제 틀려지는지 알아 둘 것** — 저작도구는 화면과 서버를 **같은 출처**로 배포해 교차 출처 검사에 걸릴 요청이 애초에 없다(그래서 비운다). 그런데 **포털이 저작도구 화면을 자기 화면 안에서 실행하는 임베딩(`INT-013`)이 들어오면** 스크립트가 **포털 쪽 출처**에서 돌아 우리 서버가 다른 출처가 된다 — 그때 이 값에 **포털 주소를 넣지 않으면 포털 안의 저작도구 화면이 통째로 403** 이다. ⚠ 임베딩을 넣는 사람은 이 값을 의심할 이유가 없다(그때까지 한 번도 문제가 되지 않았으므로). **임베딩 착수 시 이 줄을 먼저 볼 것** |
 | `FFMPEG_BIN`/`FFPROBE_BIN`/`FFMPEG_THREADS` | · | 기본 `ffmpeg`/`ffprobe`/2 |
 | `BATCH_ENABLED`/`BATCH_INTERVAL_SEC` | · | 기본 true/60 |
 | `TRAINING_SCAN_ENABLED` | ★ | **인입 폴링**(`LS_DATA_INGEST` 픽업 → `LS_DATA_RAW` 적재). 기본 true — **반드시 켜 둘 것**. 적재 주체 반전 이후 관제 인입분과 관리 화면 자체 업로드분이 **모두** 이 잡을 통해서만 적재된다(구 안내 "공유 DB 없으면 false 권장"은 폐기). false 면 업로드는 200 을 받고도 인입 행이 영원히 `PENDING` 에 머물러 영상이 목록에 나타나지 않는다(기동 시 ERROR 로그 + 업로드 완료 응답 `X-Ingest-Status: PENDING_SCAN_DISABLED`) |
@@ -323,8 +324,8 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 > (베어메탈은 `klid` 계정이지만 WAS 계정은 다를 수 있다 — 이쪽이 이 형상의 실제 실패 지점이다).
 > ```
 > sudo -u <WAS 실행 계정> test -w /새경로 && echo OK || echo '쓰기 불가 — 소유권/권한을 조정할 것'
-> source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
-> sudo systemctl restart "$WAS_UNIT"
+> source /etc/klid/was.env
+> was_restart
 > ```
 > 또한 NAS 를 해당 경로로 **미리 마운트**해야 한다(설치는 부재해도 warn 후 계속되나, 서비스가 영상을 못 쓴다). DB 에 저장된 절대경로가 이 베이스로 시작해야 서빙된다(startsWith 가드).
 >
@@ -379,10 +380,10 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   |------|-------------|
   | `KPST_DEID_ENABLED` | **항상 `true`**(기본). 폴링 위탁 단일 경로 |
   | `KPST_DEID_BASE_URL` | 동거 KPST 주소. `https://IP:PORT`(CA 필수) **또는** `http://IP:PORT`(격리망 평문, CA 불요). 본 패키지 템플릿 기본값 `https://127.0.0.1:9201`(Spring 코드 기본은 `localhost`이나 `env.template`을 진실원으로 봄) → 실주소로 교체 |
-  | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **부팅 fail-closed**(CWE-295). http 면 비워둔다 |
+  | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **위탁·산출이 거부**된다(CWE-295 — 검증할 수 없으면 보내지 않는다). ⚠ **구 서술 폐기(2026-09-03)**: *"부팅 fail-closed"* 는 사실이 아니다 — 설정 한 줄로 앱 전체가 멈추지 않도록 **막는 자리를 기동 → 전송 시점으로 옮겼다**(막는 규칙·강도는 그대로, 우회 없음). 기동 시 ERROR 로그가 남는다. http 면 비워둔다 |
   | `KPST_DEID_CREATOR_ID` | 기본 `authoring`. `/project` 호출 기본값 |
   | `KPST_DEID_REQ_USER_ID` | 기본 `authoring`. `/retrieve_progress` 호출 기본값 |
-  | `KPST_DEID_EXPORT_PATH_BASE` | 기본 `/share/Deid-data/export/`. 비식별 결과 export 경로 베이스 |
+  | ~~`KPST_DEID_EXPORT_PATH_BASE`~~ | **제거됨(2026-09-09)** — 읽는 코드가 0건이라 무엇을 넣든 동작이 같았다. 비식별 결과가 쓰이는 자리(KPST 에 넘기는 `export_path`)는 설정이 아니라 **원본 경로에서 도출**한다 — co-locate 기본 `dirname(원본영상)/{rawSn}/deid/`, 롤백 전략 `{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`. 그 자리를 가두는 것은 `STORAGE_RAW_MOUNT_ROOTS` 다. **파일명은 KPST 가 정한다**(실측 `{원본stem}-mask{확장자}`) — 조합하지 말고 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 을 읽을 것 |
   | `KPST_DEID_POLL_INTERVAL_SEC` | 기본 30. 폴링 주기(초) |
   | `KPST_DEID_POLL_MAX_ATTEMPTS` | 기본 240. 시도 횟수 타임아웃 |
   | `KPST_DEID_POLL_TIMEOUT_MINUTES` | 기본 180. 경과 시간 타임아웃(분) |

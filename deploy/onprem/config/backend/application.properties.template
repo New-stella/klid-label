@@ -291,7 +291,8 @@ KPST_DEID_BASE_URL=http://10.177.33.162:9989
 KPST_DEID_CA_CERT_PATH=
 KPST_DEID_CREATOR_ID=authoring
 KPST_DEID_REQ_USER_ID=authoring
-KPST_DEID_EXPORT_PATH_BASE=/share/Deid-data/export/
+# ⚠ 구 키 KPST_DEID_EXPORT_PATH_BASE 는 <제거>됐다(2026-09-09) — 읽는 코드가 0건이었다.
+#   비식별 결과가 쓰이는 자리는 설정이 아니라 원본 경로에서 도출한다(env.template 의 같은 자리 참조).
 KPST_DEID_POLL_INTERVAL_SEC=30
 KPST_DEID_POLL_MAX_ATTEMPTS=240
 KPST_DEID_POLL_TIMEOUT_MINUTES=180

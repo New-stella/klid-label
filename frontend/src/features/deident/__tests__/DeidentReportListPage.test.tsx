@@ -135,7 +135,16 @@ describe('DeidentReportListPage', () => {
     eligible: true,
     current: false,
   };
-  const CURRENT_CANDIDATE = {
+  /**
+   * 손상 후보 — `eligible=false`.
+   *
+   * ⚠ 2026-09-09 이후 `eligible=false` 가 뜻하는 것은 **무결성 불통과 하나**다(정상적으로 열리는
+   * 영상 파일이 아니다). 구 계약에서는 「신고 이후에 만들어지지 않았다」도 이 값을 false 로 만들었고
+   * 이 픽스처가 그 조합(현재 사용 중 + 신고 이전 = 선택 불가)을 대표했는데, 그 조건은 서버 판정에서
+   * 빠졌다 — 지금 이 조합이 뜻하는 것은 **지금 쓰고 있는 파일이 손상됐다**이다.
+   * `@design ADR-027`
+   */
+  const BROKEN_CANDIDATE = {
     fileName: '001.mp4',
     sizeBytes: 1546,
     modifiedAt: '2026-06-05T09:00:00',
@@ -143,11 +152,23 @@ describe('DeidentReportListPage', () => {
     current: true,
   };
 
+  /**
+   * 신고 이전부터 있던 **정상** 산출물(= 지금 쓰고 있는 비식별 영상).
+   * 구 계약에서는 `eligible=false` 라 고를 수 없었고, 그래서 이 신고에는 해소할 문이 없었다.
+   */
+  const CURRENT_PRE_REPORT_CANDIDATE = {
+    fileName: '001.mp4',
+    sizeBytes: 1546,
+    modifiedAt: '2026-06-05T09:00:00',
+    eligible: true,
+    current: true,
+  };
+
   it('해소_처리_클릭시_바로_요청하지_않고_후보_선택_모달을_연다', async () => {
     mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
     mock
       .onGet('/deident-reports/7/deident-candidates')
-      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
+      .reply(200, candidatesBody([FRESH_CANDIDATE, BROKEN_CANDIDATE]));
     let resolveCalled = false;
     mock.onPost('/deident-reports/7/resolve').reply(() => {
       resolveCalled = true;
@@ -181,7 +202,7 @@ describe('DeidentReportListPage', () => {
     });
     mock
       .onGet('/deident-reports/7/deident-candidates')
-      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
+      .reply(200, candidatesBody([FRESH_CANDIDATE, BROKEN_CANDIDATE]));
     mock.onPost('/deident-reports/7/resolve').reply((config) => {
       sentBody = config.data as string;
       return [200, { success: true, data: null, message: null, errorCode: null }];
@@ -206,11 +227,74 @@ describe('DeidentReportListPage', () => {
     await waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2));
   });
 
+  /**
+   * ★ 배선 가드 — **신고 시각이 다이얼로그까지 닿는가.**
+   *
+   * 「신고 이후에 만들어졌는가」는 서버 자격 판정에서 빠졌고(`@design ADR-027`) 전용 응답 필드도
+   * 없다. 화면이 후보의 `modifiedAt` 과 **신고 목록이 이미 갖고 있는 신고 시각**을 대조해 구분해
+   * 보여주는 것이 유일한 수단이라(`@design API-202`), 그 값을 넘기는 배선이 끊기면 표시가 통째로
+   * 사라진다. 다이얼로그 자체 시험은 `reportDt` 를 직접 넘기므로 이 끊김을 **원리적으로 못 잡는다**.
+   */
+  it('신고시각이_다이얼로그로_전달되어_신고_이전_파일이_구분_표시된다', async () => {
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([CURRENT_PRE_REPORT_CANDIDATE, FRESH_CANDIDATE]));
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    await screen.findByTestId('deident-candidate-001.mp4');
+
+    // OPEN_ROW.reportDt(10:00) 기준 — 09:00 산출물은 신고 이전, 10:05 산출물은 이후.
+    expect(screen.getByTestId('deident-candidate-prereport-001.mp4')).toBeInTheDocument();
+    // 부재 단언은 그 후보 행이 실제로 선다는 존재 단언과 짝지어야 공허하지 않다.
+    expect(screen.getByTestId('deident-candidate-001-mask.mp4')).toBeInTheDocument();
+    expect(screen.queryByTestId('deident-candidate-prereport-001-mask.mp4')).toBeNull();
+  });
+
+  /**
+   * ★ 이 CO 가 연 문 — 신고 이전부터 있던 산출물로도 해소가 성립한다.
+   *
+   * 구 계약에서는 이 후보가 `eligible=false` 였고, 외부 솔루션이 새 산출물을 내놓아야만 그 조건이
+   * 충족되는데 그 산출물을 만드는 경로가 저작도구 안에 없어 신고가 작업락에 묶인 채 남았다.
+   */
+  it('신고_이전_산출물을_골라도_해소_요청이_그_파일명으로_나간다', async () => {
+    let sentBody: string | undefined;
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([CURRENT_PRE_REPORT_CANDIDATE]));
+    mock.onPost('/deident-reports/7/resolve').reply((config) => {
+      sentBody = config.data as string;
+      return [200, { success: true, data: null, message: null, errorCode: null }];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    const row = await screen.findByTestId('deident-candidate-001.mp4');
+
+    // 「현재 사용 중」·「신고 이전 파일」은 구분 표시일 뿐 선택을 막지 않는다.
+    expect(row.querySelector('input')).not.toBeDisabled();
+    await user.click(row);
+    await user.click(screen.getByTestId('deident-resolve-confirm'));
+
+    await waitFor(() => expect(sentBody).toBeDefined());
+    expect(JSON.parse(sentBody as string)).toEqual({ fileName: '001.mp4' });
+  });
+
   it('선택_불가_후보는_고를_수_없어_확인이_계속_비활성이다', async () => {
     mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
     mock
       .onGet('/deident-reports/7/deident-candidates')
-      .reply(200, candidatesBody([CURRENT_CANDIDATE]));
+      .reply(200, candidatesBody([BROKEN_CANDIDATE]));
 
     const user = userEvent.setup();
     renderWithProviders(<DeidentReportListPage />);
@@ -249,7 +333,7 @@ describe('DeidentReportListPage', () => {
     mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
     mock
       .onGet('/deident-reports/7/deident-candidates')
-      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
+      .reply(200, candidatesBody([FRESH_CANDIDATE, BROKEN_CANDIDATE]));
 
     const user = userEvent.setup();
     renderWithProviders(<DeidentReportListPage />);
