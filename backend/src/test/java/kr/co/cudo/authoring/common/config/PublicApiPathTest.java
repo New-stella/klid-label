@@ -3,6 +3,10 @@ package kr.co.cudo.authoring.common.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import jakarta.servlet.ServletContext;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 회귀 가드 — <b>브라우저가 부를 API 접두어</b>가 설정으로 갈리고, 잘못된 값은 기동을 막는다.
@@ -96,6 +101,98 @@ class PublicApiPathTest {
         void suffix_형식을_강제한다() {
             assertThatThrownBy(() -> PublicApiPathDefaults.join("/api/v1", "videos/1"))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("★자동 도출 — 설정을 안 넣어도 배포마다 맞는다")
+    class Derivation {
+
+        /**
+         * ★ 이 축이 이 라운드의 핵심이다. 웹 컨텍스트와 공개 접두어는 <b>같은 사실의 두 표현</b>
+         * 이라, 둘을 따로 적게 하면 <b>한 곳만 바꿨을 때 아무 신호 없이</b> 영상·이미지가
+         * 남의 서버로 날아간다. 도출로 그 자리를 없앤다.
+         */
+        @Test
+        @DisplayName("포털향 웹 컨텍스트에서 도출한다")
+        void 포털향_컨텍스트에서_도출한다() {
+            assertThat(PublicApiPathDefaults.deriveFromContextPath("/authoring-api"))
+                    .isEqualTo("/authoring-api/v1");
+        }
+
+        @Test
+        @DisplayName("관제향 두 세그먼트 컨텍스트에서도 도출한다")
+        void 관제향_컨텍스트에서_도출한다() {
+            assertThat(PublicApiPathDefaults.deriveFromContextPath("/label-studio/api"))
+                    .isEqualTo("/label-studio/api/v1");
+        }
+
+        @Test
+        @DisplayName("로컬 내장 서버 컨텍스트(/api)는 종전과 같은 값이 된다")
+        void 로컬_컨텍스트는_종전과_같다() {
+            assertThat(PublicApiPathDefaults.deriveFromContextPath("/api")).isEqualTo("/api/v1");
+        }
+
+        /**
+         * ⚠ 컨텍스트가 비는 경우(루트 배포·MockMvc)에 {@code /v1} 로 도출하면 <b>기존 동작이
+         * 바뀐다</b> — 시험과 로컬이 {@code /api/v1} 을 기대한다. 그래서 종전 기본값으로 떨어진다.
+         */
+        @Test
+        @DisplayName("컨텍스트가 비면 종전 기본값으로 떨어진다 — 기존 동작을 바꾸지 않는다")
+        void 컨텍스트가_비면_기본값이다() {
+            assertThat(PublicApiPathDefaults.deriveFromContextPath("")).isEqualTo("/api/v1");
+            assertThat(PublicApiPathDefaults.deriveFromContextPath("/")).isEqualTo("/api/v1");
+            assertThat(PublicApiPathDefaults.deriveFromContextPath(null)).isEqualTo("/api/v1");
+        }
+
+        @Test
+        @DisplayName("★설정이 있으면 설정이 이긴다 — strip 향을 위한 탈출구")
+        void 설정이_도출을_이긴다() {
+            PublicApiPath resolved = new PublicApiPath("/override/v9", provider("/authoring-api"));
+
+            assertThat(resolved.prefix()).isEqualTo("/override/v9");
+            assertThat(resolved.of("/videos/1/stream")).isEqualTo("/override/v9/videos/1/stream");
+        }
+
+        @Test
+        @DisplayName("설정이 비면 웹 컨텍스트에서 도출한다")
+        void 설정이_비면_컨텍스트에서_도출한다() {
+            assertThat(new PublicApiPath("", provider("/authoring-api")).prefix())
+                    .isEqualTo("/authoring-api/v1");
+            assertThat(new PublicApiPath("   ", provider("/label-studio/api")).prefix())
+                    .isEqualTo("/label-studio/api/v1");
+        }
+
+        /**
+         * ⚠ 웹이 아닌 컨텍스트(일부 시험)에는 {@code ServletContext} 빈이 없다.
+         * 생성자에 직접 받으면 그런 컨텍스트가 <b>통째로 기동에 실패</b>하므로 {@code ObjectProvider}
+         * 로 받고, 없으면 기본값으로 떨어진다.
+         */
+        @Test
+        @DisplayName("ServletContext 가 없어도 기동한다 — 웹이 아닌 컨텍스트 보호")
+        void 서블릿컨텍스트가_없어도_기동한다() {
+            assertThat(new PublicApiPath("", provider(null)).prefix()).isEqualTo("/api/v1");
+        }
+
+        @Test
+        @DisplayName("단위 시험용 기본값은 종전 리터럴이다 — 생성자 직접 생성 경로 보호")
+        void 단위시험_기본값은_종전_리터럴이다() {
+            assertThat(PublicApiPath.ofDefault().prefix()).isEqualTo("/api/v1");
+            assertThat(PublicApiPath.ofDefault().of("/videos/1/stream")).isEqualTo("/api/v1/videos/1/stream");
+        }
+
+        /** {@code ObjectProvider} 대역 — 주어진 컨텍스트 경로를 가진 ServletContext 를 내준다. */
+        @SuppressWarnings("unchecked")
+        private ObjectProvider<ServletContext> provider(String contextPath) {
+            ObjectProvider<ServletContext> provider = mock(ObjectProvider.class);
+            if (contextPath == null) {
+                when(provider.getIfAvailable()).thenReturn(null);
+            } else {
+                ServletContext ctx = mock(ServletContext.class);
+                when(ctx.getContextPath()).thenReturn(contextPath);
+                when(provider.getIfAvailable()).thenReturn(ctx);
+            }
+            return provider;
         }
     }
 

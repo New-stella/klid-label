@@ -44,7 +44,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
+import kr.co.cudo.authoring.common.config.PublicApiPath;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,11 +88,13 @@ import java.util.Map;
 public class ReviewService {
 
     /**
-     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어(프레임 이미지 주소용).
-     * 미설정이면 종전 리터럴({@code /api/v1}). 단위 시험의 직접 생성 시에는 {@code null} 이다.
+     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어 — 해석은 {@link PublicApiPath} 한 곳이 소유한다.
+     *
+     * <p>기본은 <b>WAR 웹 컨텍스트에서 자동 도출</b>이라 배포마다 설정을 넣지 않아도 맞는다.
+     * ⚠ 초기값을 지우지 말 것 — 단위 시험은 이 서비스를 생성자로 직접 만들어 주입이 없다.
      */
-    @Value(PublicApiPathDefaults.VALUE_EXPRESSION)
-    private String publicApiBasePath;
+    @Autowired(required = false)
+    private PublicApiPath publicApiPath = PublicApiPath.ofDefault();
 
     private final ReviewRepository reviewRepository;
     /** 검수목록 검색/정렬/집계 — 목록·count·KPI 가 단일 조건 조립기를 공유한다. */
@@ -383,8 +386,8 @@ public class ReviewService {
             // 우리에게 넘겨주는 경로»라 배포 향마다 다르므로 설정에서 받는다(미설정이면 /api/v1).
             // ⚠ 구 주석의 "server.servlet.context-path=/api 적용 시" 는 사실이 아니다 —
             //   WAR 배포에서는 그 설정이 적용되지 않는다(ServletInitializer javadoc).
-            String imageUrl = PublicApiPathDefaults.join(
-                    publicApiBasePath, "/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image");
+            String imageUrl = publicApiPath.of(
+                    "/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image");
             details.add(new FrameDetailResponse(
                     src.getSrcSn(),
                     Math.toIntExact(src.getFrameNo()),

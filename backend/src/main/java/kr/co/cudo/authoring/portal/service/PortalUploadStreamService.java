@@ -17,7 +17,9 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import kr.co.cudo.authoring.common.config.PublicApiPath;
 import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,14 +69,13 @@ public class PortalUploadStreamService {
     private static final String STREAM_PATH_SUFFIX = "/portal/uploads/%d/stream";
 
     /**
-     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어. 미설정이면 종전 리터럴({@code /api/v1}).
+     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어 — 해석은 {@link PublicApiPath} 한 곳이 소유한다.
      *
-     * <p>⚠ 생성자 주입이 아니라 필드 주입인 것은 <b>단위 시험이 이 서비스를 생성자로 직접
-     * 만들기 때문</b>이다(그 시험들이 접두어를 알 필요가 없다). 그때 값은 {@code null} 이고
-     * 기본값으로 떨어진다.
+     * <p>기본은 <b>WAR 웹 컨텍스트에서 자동 도출</b>이라 배포마다 설정을 넣지 않아도 맞는다.
+     * ⚠ 초기값을 지우지 말 것 — 단위 시험은 이 서비스를 생성자로 직접 만들어 주입이 없다.
      */
-    @Value(PublicApiPathDefaults.VALUE_EXPRESSION)
-    private String publicApiBasePath;
+    @Autowired(required = false)
+    private PublicApiPath publicApiPath = PublicApiPath.ofDefault();
 
     private final PortalUploadAssetRepository assetRepository;
     private final PortalStoragePathGuard pathGuard;
@@ -98,7 +99,7 @@ public class PortalUploadStreamService {
         }
         requireFileReady(asset, uldSn);
         PortalStreamUrlSigner.SignedParams params = signer.sign(uldSn, portalUserNo);
-        String url = PublicApiPathDefaults.join(publicApiBasePath, String.format(STREAM_PATH_SUFFIX, uldSn))
+        String url = publicApiPath.of(String.format(STREAM_PATH_SUFFIX, uldSn))
                 + "?exp=" + params.exp()
                 + "&u=" + java.net.URLEncoder.encode(portalUserNo, java.nio.charset.StandardCharsets.UTF_8)
                 + "&sig=" + params.sig();

@@ -289,13 +289,19 @@ authoring:
   #   응답 본문에 절대 경로를 담아 내려주는 세 자리(영상 재생 서명 주소·포털 업로드 재생 서명
   #   주소·검수 프레임 이미지 주소)가 이 값을 쓴다. 그 주소는 <video src>·<img src> 로 그대로
   #   들어가므로 <컨트롤러 매핑>이 아니라 <앞단 웹서버가 우리에게 넘겨주는 접두어>여야 한다.
-  #   - 포털 향 : /authoring-api/v1  (포털 자신의 /api/v1 은 «포털 WAS» 로 간다 — 그대로 두면
-  #               재생 요청이 남의 서버로 가서 영상이 전부 깨진다)
-  #   - 관제 향 : /label-studio/api/v1
-  #   ⚠ 미설정이면 종전 하드코딩과 같은 /api/v1 로 동작한다 — 지정하지 않으면 동작이 안 바뀐다.
-  #   ⚠ WAR 웹 컨텍스트(WEB-INF/jboss-web.xml)와는 «별개 축»이다. 앞단이 접두어를 떼느냐에
-  #     따라 둘이 같을 수도 다를 수도 있다. 형식 검증은 기동 시 PublicApiPathGuard 가 한다.
-  public-api-base-path: ${PUBLIC_API_BASE_PATH:/api/v1}
+  #
+  # ★★ 대개는 <비워 둔다>. 비우면 WAR 웹 컨텍스트에서 자동으로 도출한다 —
+  #    「컨트롤러는 컨텍스트 바로 아래 /v1 에서 시작한다」는 불변식 덕분에
+  #    <브라우저 주소 = 웹 컨텍스트 + /v1> 이 성립하기 때문이다.
+  #      포털향 : 컨텍스트 /authoring-api    → /authoring-api/v1
+  #      관제향 : 컨텍스트 /label-studio/api → /label-studio/api/v1
+  #      로컬   : 컨텍스트 /api              → /api/v1  (종전과 동일)
+  #    ⇒ 웹 컨텍스트(KLID_WEB_CONTEXT) 한 곳만 바꾸면 두 축이 함께 움직인다.
+  #      값을 두 곳에 적게 하면 <한 곳만 바꿨을 때 아무 신호 없이> 영상·이미지가 남의 서버로 간다.
+  #
+  #   ⚠ 명시가 «필요한» 경우: 앞단이 접두어를 <떼고> 넘기는 향(strip). 현재 그런 향은 없다.
+  #   ⚠ 형식이 어긋나면 기동을 막는다(PublicApiPathGuard) — 스킴·호스트·'..'·질의·공백 금지.
+  public-api-base-path: ${PUBLIC_API_BASE_PATH:}
 
   # Phase 1 (role-claim) — 관리자 공유 패스워드 BCrypt 해시 (cost ≥ 12).
   #   - 평문은 코드/yml 어디에도 보관 금지 (CWE-256). 해시만 보관.

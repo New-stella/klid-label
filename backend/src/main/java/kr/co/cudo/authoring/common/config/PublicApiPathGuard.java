@@ -40,9 +40,10 @@ public class PublicApiPathGuard {
     @PostConstruct
     void validate() {
         String raw = configured == null ? "" : configured.trim();
-        // 미설정은 정상이다 — 기본값(종전 리터럴)으로 떨어진다.
+        // ★ 미설정이 «정상이자 권장»이다 — 그때는 WAR 웹 컨텍스트에서 도출한다.
+        //   확정된 값은 PublicApiPath 빈이 기동 로그에 한 줄로 남긴다.
         if (raw.isEmpty()) {
-            log.info("[PublicApiPath] 미설정 — 기본값 사용: {}", PublicApiPathDefaults.DEFAULT_BASE_PATH);
+            log.info("[PublicApiPath] 미설정 — 웹 컨텍스트에서 도출한다(권장). 확정값은 PublicApiPath 로그 참조.");
             return;
         }
         reject(!raw.startsWith("/"), raw, "'/' 로 시작해야 합니다");
@@ -69,6 +70,7 @@ public class PublicApiPathGuard {
                 PublicApiPathDefaults.PROPERTY_KEY + " 값이 부적합합니다: '" + raw + "' — " + reason
                         + "\n  · 이 값은 브라우저가 우리 API 를 부를 때 쓰는 «같은 출처 경로 접두어» 입니다."
                         + "\n  · 예) 포털 향 /authoring-api/v1 · 관제 향 /label-studio/api/v1"
-                        + "\n  · 미설정이면 " + PublicApiPathDefaults.DEFAULT_BASE_PATH + " 로 동작합니다.");
+                        + "\n  · ★ 대개는 «지정하지 않는 것»이 맞습니다 — WAR 웹 컨텍스트에서 자동 도출합니다."
+                        + "\n    앞단이 접두어를 «떼고» 넘기는 향에서만 명시하세요.");
     }
 }

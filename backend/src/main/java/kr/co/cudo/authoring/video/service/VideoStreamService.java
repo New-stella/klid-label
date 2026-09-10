@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import kr.co.cudo.authoring.common.config.PublicApiPath;
 import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -96,13 +97,13 @@ public class VideoStreamService {
     private VideoStreamService self;
 
     /**
-     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어 — <b>서명 주소를 만들 때만</b> 쓴다.
+     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어 — 해석은 {@link PublicApiPath} 한 곳이 소유한다.
      *
-     * <p>단위 시험이 생성자로 직접 만들면 이 값이 {@code null} 이며, 그때는 기본값으로 떨어진다
-     * (그래서 기존 시험의 {@code /api/v1/...} 단언이 그대로 통과한다).
+     * <p>기본은 <b>WAR 웹 컨텍스트에서 자동 도출</b>이라 배포마다 설정을 넣지 않아도 맞는다.
+     * ⚠ 초기값을 지우지 말 것 — 단위 시험은 이 서비스를 생성자로 직접 만들어 주입이 없다.
      */
-    @Value(PublicApiPathDefaults.VALUE_EXPRESSION)
-    private String publicApiBasePath;
+    @Autowired(required = false)
+    private PublicApiPath publicApiPath = PublicApiPath.ofDefault();
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -217,7 +218,7 @@ public class VideoStreamService {
         String u = userNo == null ? "" : userNo;
         // 접두어는 «앞단 웹서버가 우리에게 넘겨주는 경로»라 배포 향마다 다르다 — 설정에서 받는다.
         // 미설정이면 종전 리터럴(/api/v1)과 같다. 근거는 PublicApiPathDefaults javadoc.
-        String url = PublicApiPathDefaults.join(publicApiBasePath, "/videos/" + rawSn + "/stream")
+        String url = publicApiPath.of("/videos/" + rawSn + "/stream")
                 + "?exp=" + params.exp() + "&u=" + u + "&sig=" + params.sig();
         return new StreamUrlResponse(url, params.exp(), params.ttlSeconds());
     }
