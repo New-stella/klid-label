@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 
-import { PortalMarkingStage } from '../PortalMarkingStage';
+import { PortalMarkingStage, type PortalMarkingStageProps } from '../PortalMarkingStage';
 
 /**
  * 포털 마킹 무대가 **재생 회복 신호를 실제로 낸다**는 것을 지킨다.
@@ -12,10 +12,32 @@ import { PortalMarkingStage } from '../PortalMarkingStage';
  * 이 신호가 없으면 재발급 재시도 예산이 **누적으로만 줄어**, 서명이 여러 번 만료되는
  * 정상 동선에서 회복 경로가 영구히 닫힌다. 마킹은 오래 머무는 화면이라 반드시 겪는다.
  */
+
+/**
+ * 눈금 축(길이·fps·선택)은 부품이 요구하는 필수 속성이지만 이 파일의 판정에는 관여하지
+ * 않는다. 시험마다 네 개를 늘어놓으면 각 시험이 **무엇을 보는지**가 가려지므로 한 곳에 둔다.
+ *
+ * `durationSec=0` 은 부품 규약상 「눈금을 그리지 않는다」는 뜻이라(속성 주석), 판정과 무관한
+ * 축을 꺼 두는 값이다.
+ */
+function renderStage(props: Partial<PortalMarkingStageProps> = {}) {
+  return render(
+    <PortalMarkingStage
+      src="/test.mp4"
+      marks={[]}
+      durationSec={0}
+      fps={30}
+      selectedIndex={null}
+      onSelectMark={() => {}}
+      {...props}
+    />,
+  );
+}
+
 describe('포털 마킹 무대 — 재생 회복 신호', () => {
   it('★재생_가능해지면_onSrcRecovered가_불린다_재시도_예산_회복_신호', () => {
     const onSrcRecovered = vi.fn();
-    render(<PortalMarkingStage src="/test.mp4" marks={[]} onSrcRecovered={onSrcRecovered} />);
+    renderStage({ onSrcRecovered });
     const video = document.querySelector('video') as HTMLVideoElement;
 
     fireEvent.canPlay(video);
@@ -25,7 +47,7 @@ describe('포털 마킹 무대 — 재생 회복 신호', () => {
 
   it('회복_신호는_loadedmetadata만으로는_오지_않는다_길이만_읽힌_상태는_회복이_아니다', () => {
     const onSrcRecovered = vi.fn();
-    render(<PortalMarkingStage src="/test.mp4" marks={[]} onSrcRecovered={onSrcRecovered} />);
+    renderStage({ onSrcRecovered });
     const video = document.querySelector('video') as HTMLVideoElement;
     Object.defineProperty(video, 'duration', { configurable: true, value: 12 });
 
@@ -37,14 +59,7 @@ describe('포털 마킹 무대 — 재생 회복 신호', () => {
   it('★로드_실패는_회복이_아니다_error에서는_onSrcRecovered가_불리지_않는다', () => {
     const onSrcError = vi.fn();
     const onSrcRecovered = vi.fn();
-    render(
-      <PortalMarkingStage
-        src="/test.mp4"
-        marks={[]}
-        onSrcError={onSrcError}
-        onSrcRecovered={onSrcRecovered}
-      />,
-    );
+    renderStage({ onSrcError, onSrcRecovered });
     const video = document.querySelector('video') as HTMLVideoElement;
 
     fireEvent.error(video);
