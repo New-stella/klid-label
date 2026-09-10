@@ -57,6 +57,23 @@ public enum ErrorCode {
     AI_REQUEST_CANCELLED(HttpStatus.UNPROCESSABLE_ENTITY, "요청이 취소되었습니다."),
     EXTERNAL_API_ERROR(HttpStatus.BAD_GATEWAY, "외부 API 호출에 실패했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "서비스를 일시적으로 사용할 수 없습니다."),
+    /**
+     * 관제가 세션 갱신을 <b>거절</b>했다 — 관제 HTTP 401 이거나 응답의 {@code error} 가 0 이 아니다
+     * (@design API-247 · INT-015).
+     *
+     * <p>일반 {@link #UNAUTHORIZED} 와 코드를 가르는 이유 — 브라우저가 이 코드를 받으면 <b>즉시
+     * 로그아웃</b>하고(단 저장소를 다시 읽어 다른 탭이 이미 갱신했으면 그 토큰으로 계속한다), 저작도구
+     * 토큰 만료로 인한 401 과는 결말이 다르다. 관제가 돌려준 오류 문구는 싣지 않는다.
+     */
+    CONTROL_SESSION_REJECTED(HttpStatus.UNAUTHORIZED, "관제 세션이 만료되었습니다. 다시 로그인해 주세요."),
+    /**
+     * 관제 계정 창구에 닿지 못했거나 응답을 해석할 수 없다 — 연결 실패·타임아웃·관제 5xx·형식 불일치·
+     * 서킷 오픈 (@design API-247 · INT-015).
+     *
+     * <p>「거절」이 아니라 <b>일시 장애</b>다 — 브라우저는 현재 토큰을 유지하고 다음 갱신 시점에 다시
+     * 시도할 수 있다. 두 갈래를 섞으면 일시 장애에 사용자를 내보내거나 거절된 세션을 붙잡는다.
+     */
+    CONTROL_SESSION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "관제 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
 
     private final HttpStatus status;
