@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 
+import {
+  isLocalStorageIngressEnabled,
+  readValidatedLocalStorageToken,
+} from '@/features/auth/tokenIngress';
 import { isKnownRole } from '@/lib/authz';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
+import { decodeJwtPayloadRaw } from '@/lib/jwtPayload';
 import { Channel, type Role, type TokenClaims } from '@/lib/api/types';
 
 const SESSION_KEY = 'klid_jwt';
@@ -92,6 +97,23 @@ interface AuthState {
    */
   setTokenAndClaims: (token: string) => void;
   /**
+   * [@design ADR-012] [@design INT-013] [@design AC-1104]
+   * <b>같은 사용자의 토큰만</b> 갈아끼운다 — 관제 채널 세션 갱신(이 탭이든 다른 탭이든)이 부른다.
+   *
+   * ★ `setToken` 을 쓰지 않는 이유: 그것은 세션을 <b>새로 세우는</b> 행위라 확보 상태를
+   *   `'unacquired'` 로 되돌리고, 그러면 역할 판정 자리가 스피너로 떨어진다. 관제 access 토큰은
+   *   30분마다 갈리므로 갱신마다 화면이 깜빡이게 된다. 역할의 진실원은 서버(`/v1/me`)이고
+   *   <b>사용자가 같으면 역할도 같다</b> — 주입해 둔 서버 역할·이름을 그대로 둔다.
+   * ⚠ 사용자(`sub`)가 바뀌었거나 세션이 없으면 `setToken` 과 똑같이 새 세션으로 세운다
+   *   (다른 사람의 역할을 물려주지 않는다).
+   * ⚠ 역할 확보가 <b>진행 중</b>이면 그 조회는 옛 토큰으로 나간 것이라 결과가 새 토큰 세션에
+   *   앉지 않는다(`sessionBootstrap.applyToSession` 이 토큰으로 대조한다). 그대로 두면 확보 상태가
+   *   `'pending'` 에 고착되므로, 그때만 `'unacquired'` 로 되돌려 한 번 더 묻게 한다.
+   *
+   * @returns 새 토큰을 적재했으면 `true`, 해독 실패로 무시했으면 `false`.
+   */
+  replaceToken: (token: string) => boolean;
+  /**
    * 서버가 아는 <b>역할과 이름</b>을 claims 에 주입한다(토큰 원본은 유지).
    *
    * [@design SCREEN-002] [@design ADR-021] [@design ADR-063] [@design SHELL-001] [@design AC-1098]
@@ -140,26 +162,12 @@ interface AuthState {
 }
 
 // JWT payload base64url decode (보안: 무결성 검증은 BE에서 — FE는 표시용 클레임만 추출)
+// 원형 해독(UTF-8 복원 포함)은 `lib/jwtPayload` 한 곳이 소유한다 — 관제 저장 형식을 채우는
+// `features/auth/controlSession` 도 같은 해독을 쓰므로 두 벌로 두지 않는다.
 function decodeJwtPayload(token: string): TokenClaims | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
   try {
-    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padding = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
-    const binary = atob(padded + padding);
-    // UTF-8 safe decode — Array.from(binary) 는 surrogate pair 만 처리하고
-    // 한글(EUC-KR/UTF-8 mix) 멀티바이트는 깨질 수 있으므로 TextDecoder 로 정확히 디코드.
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const json =
-      typeof TextDecoder !== 'undefined'
-        ? new TextDecoder('utf-8').decode(bytes)
-        : decodeURIComponent(
-            Array.from(binary)
-              .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-              .join(''),
-          );
-    const raw = JSON.parse(json) as Record<string, unknown>;
+    const raw = decodeJwtPayloadRaw(token);
+    if (!raw) return null;
 
     const sub = typeof raw.sub === 'string' ? raw.sub : '';
     // Phase 2 — role 클레임이 비어 있는 인증 토큰(권한 자가 부여 대기 상태)을 허용한다.
@@ -223,7 +231,7 @@ function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (Object.values(Channel) as string[]).includes(value);
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   claims: null,
   isHydrated: false,
@@ -242,6 +250,24 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!claims) return;
     persistToken(token);
     set({ token, claims, serverRoleStatus: 'unacquired' });
+  },
+  replaceToken: (token: string) => {
+    const claims = decodeJwtPayload(token);
+    if (!claims) return false;
+    const prev = get();
+    persistToken(token);
+    if (!prev.claims || prev.claims.sub !== claims.sub) {
+      set({ token, claims, serverRoleStatus: 'unacquired' });
+      return true;
+    }
+    set({
+      token,
+      // 서버가 주입한 역할·이름을 보존한다 — 새 토큰의 클레임은 만료·채널 축만 갱신한다.
+      claims: { ...claims, role: prev.claims.role, name: prev.claims.name ?? claims.name },
+      serverRoleStatus:
+        prev.serverRoleStatus === 'pending' ? 'unacquired' : prev.serverRoleStatus,
+    });
+    return true;
   },
   setServerRole: (role: Role | null, name?: string | null) => {
     set((state) => {
@@ -264,7 +290,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrate: () => {
     // 포털 채널은 저장소에 보관하지 않으므로 복원할 것이 없다 — 곧바로 hydration 완료로 넘어간다.
     // (Host 가 창구로 토큰을 내주므로 새로고침 복원은 Host 의 몫이다.)
-    const stored = readPersistedToken();
+    let stored = readPersistedToken();
+    // [@design ADR-012] [@design INT-013]
+    // ★ 관제 채널에서는 <b>같은 출처 저장소의 현재값이 우선</b>이다. 이 탭의 복사본(sessionStorage)은
+    //   다른 탭(관제 탭 포함)이 갱신한 뒤에는 옛 토큰이라, 그대로 복원하면 새로고침만으로 만료된
+    //   토큰에 붙들린다. 단 <b>이 탭에 세션이 있었을 때만</b> 바꿔 끼운다 — 복사본이 없는 탭에서
+    //   저장소 토큰으로 세션을 새로 세우면 진입 화면(`/ingress`)을 건너뛰게 된다.
+    if (stored && !isPortalEmbedChannel() && isLocalStorageIngressEnabled()) {
+      const current = readValidatedLocalStorageToken();
+      if (current && current !== stored) {
+        stored = current;
+        persistToken(current);
+      }
+    }
     if (stored) {
       const claims = decodeJwtPayload(stored);
       // 만료된 토큰은 무시

@@ -46,12 +46,25 @@
  *   근거로 이 전환을 되돌리지 말 것.
  * - `refresh` · `onUnauthorized` · `notifyActivity` 는 **창구만 열어 둔다.** 호출 지점 배선은
  *   후속이다. 특히 401 경로는 이번에 건드리지 않는다 — 근거는 아래 `onUnauthorized` 주석.
+ *   ⚠ **부분 폐기(2026-09-10)** — **내부(관제) 채널의 `refresh` 는 배선됐다.** 요청 인터셉터의
+ *     선제 갱신(남은 시간 ≤10분)과 401 뒤 1회 재시도, 앱 전역의 세션 연장 팝업이 관제 세션을
+ *     갱신한다(아래 {@link getRequestAccessToken} · {@link refreshAfterUnauthorized} ·
+ *     `features/auth/controlSession`). **포털 채널의 세 창구는 여전히 창구만 열려 있다** —
+ *     `onUnauthorized` 를 배선하지 않은 근거(Host 재로그인과의 경쟁)는 그대로 유효하다.
+ *     [@design ADR-012] [@design INT-013] [@design API-247] [@design API-246]
  *
  * 회귀 가드: `features/auth/__tests__/tokenHandoff.test.ts` ·
  *            `lib/api/__tests__/clientTokenHandoff.test.ts`
  */
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
-import { useAuthStore } from '@/stores/useAuthStore';
+
+import {
+  prepareControlRequestToken,
+  refreshAfterUnauthorized as refreshControlAfterUnauthorized,
+  refreshControlSession,
+  syncControlAccessToken,
+  type UnauthorizedRefreshResult,
+} from './controlSession';
 
 /**
  * Host 가 주입하는 인계 창구의 모양.
@@ -64,7 +77,8 @@ export interface TokenHandoffGateway {
    *
    * ★ **반환 형태가 동기·비동기 «둘 다»인 것은 의도다.** 이 창구는 우리가 구현하는 것
    *   (내부 채널·개발 대역)과 **Host 가 구현해 주입하는 것**이 섞이는 자리다.
-   *   - 내부(관제) 채널은 스토어를 읽으므로 **동기**가 정직하다.
+   *   - 내부(관제) 채널은 같은 출처 저장소의 현재값을 동기로 읽으므로 **동기**가 정직하다
+   *     (2026-09-10 — 스토어 복사본이 아니라 저장소 현재값. 아래 `internalTokenHandoff`).
    *   - 포털 Host 는 **`Promise`** 를 준다. 갱신이 오가는 «동안» 옛 토큰을 넘기지 않으려면
    *     갱신 큐에 붙어 기다려야 하고, 동기 반환은 정확히 그 죽은 토큰을 넘기기 때문이다
    *     (포털 인계문서 2026-09-08 §3-1).
@@ -97,25 +111,35 @@ export const HOST_HANDOFF_METHOD_NAMES = [
   'notifyActivity',
 ] as const;
 
+// [@design ADR-012] [@design INT-013] [@design API-247] [@design AC-1104]
 /**
- * 내부(관제) 채널 창구 — **지금 동작 그대로**다.
+ * 내부(관제) 채널 창구.
  *
- * 관제는 같은 출처의 브라우저 저장소로 토큰을 인계하고, 저작도구는 그것을 인계받아
- * `useAuthStore`(메모리 + sessionStorage)에 둔다. 저장소가 곧 현재 값이라 위에서 말한
- * 「죽은 토큰」 문제가 성립하지 않는다 — 그러므로 여기서는 스토어를 읽는 것이 옳다.
+ * ⚠ **폐기(2026-09-10)** — *"지금 동작 그대로다 … 저장소가 곧 현재 값이라 위에서 말한 「죽은 토큰」
+ *   문제가 성립하지 않는다 — 그러므로 여기서는 스토어를 읽는 것이 옳다."* 는 **틀렸다.** 저작도구는
+ *   진입 시 저장소 값을 스토어(sessionStorage 복사본)로 옮긴 뒤 **그 복사본만** 읽었고, 관제 탭이
+ *   30분마다 토큰을 갱신해도 옛 토큰을 쥐고 있다가 401 로 튕겼다. 포털 채널에서 경고한 바로 그
+ *   「스냅샷을 붙잡는」 결함이 관제 채널에서도 성립한다(관제는 저작도구를 **새 탭**으로 연다).
+ *
+ * 현재 판단: **매 호출 같은 출처 저장소(`klid-jwt-token`)의 현재값**을 읽고 스토어를 맞춘다
+ * (`controlSession.syncControlAccessToken`). 인계를 저장소로 받지 않는 배포는 종전처럼 스토어다.
  */
 export const internalTokenHandoff: TokenHandoffGateway = {
   getAccessToken() {
-    return useAuthStore.getState().token;
+    return syncControlAccessToken();
   },
 
   /**
-   * 내부 채널에는 **갱신 창구가 없다.** 관제가 저장소에 새 토큰을 넣는 것이 곧 갱신이고
-   * 저작도구가 재발급을 요청할 상대가 없다. 현재 값을 그대로 돌려준다 —
-   * 없는 능력을 있는 척하지 않되, 호출부가 채널을 분기하지 않아도 되게 한다.
+   * ⚠ **폐기(2026-09-10)** — *"내부 채널에는 **갱신 창구가 없다.** 관제가 저장소에 새 토큰을 넣는
+   *   것이 곧 갱신이고 저작도구가 재발급을 요청할 상대가 없다."* 관제 채널도 세션을 연장한다.
+   *
+   * 현재 판단: 저작도구 갱신 중계(`POST /v1/auth/control-tokens`, `API-247`)를 부르고 새 토큰 쌍을
+   * 관제와 같은 키·형식으로 저장한다. refresh 토큰이 없으면(개발 로그인) 갱신하지 않고 현재 토큰을
+   * 돌려준다(오류 아님). 관제가 거절하면 `null` — 세션 종결은 결과를 받은 쪽이 한다.
    */
   async refresh() {
-    return useAuthStore.getState().token;
+    const outcome = await refreshControlSession();
+    return outcome.kind === 'rejected' ? null : outcome.token;
   },
 
   /**
@@ -128,8 +152,12 @@ export const internalTokenHandoff: TokenHandoffGateway = {
   },
 
   /**
-   * 내부 채널에는 활동을 알릴 Host 가 없다. 세션 수명은 상위 시스템이 발급한 토큰의
-   * 만료 시각이 정하며 저작도구가 연장하지 못한다.
+   * 내부 채널에는 활동을 알릴 Host 가 없다.
+   *
+   * ⚠ **폐기(2026-09-10)** — *"세션 수명은 상위 시스템이 발급한 토큰의 만료 시각이 정하며
+   *   저작도구가 연장하지 못한다."* 저작도구가 관제와 같은 시나리오로 **연장한다**(선제 갱신 ·
+   *   401 뒤 재시도 · 연장 팝업 — `controlSession`). 활동 통지로 연장하는 것이 아니라 요청·팝업이
+   *   갱신 중계를 부르는 방식이라 이 창구는 여전히 할 일이 없다.
    */
   notifyActivity() {
     /* no-op — 알릴 상대가 없다 */
@@ -248,6 +276,37 @@ export async function getAccessToken(): Promise<string | null> {
     );
     return null;
   }
+}
+
+// [@design ADR-012] [@design INT-013] [@design API-247] [@design AC-1104] [@design AC-1106]
+/**
+ * 요청에 실을 토큰 — 내부(관제) 채널이면 **선제 갱신**을 거친다(남은 시간 ≤10분 · 동시 요청은 같은
+ * 갱신을 기다린다). 포털 채널은 {@link getAccessToken} 그대로다 — 창구 수준에서 갈리므로 요청
+ * 인터셉터가 채널을 판정하지 않는다.
+ *
+ * @param options.allowRefresh `false` 면 갱신하지 않는다 — 세션 만료가 아닌 401 을 돌려주는 요청
+ *        (`skipAuthRedirect`, 관리자 패스워드 확인 등)은 갱신·재시도 대상이 아니다.
+ * @throws 관제가 갱신을 거절해 세션을 끝냈을 때 `ApiError(401, CONTROL_SESSION_REJECTED)`.
+ */
+export async function getRequestAccessToken(options: {
+  allowRefresh: boolean;
+}): Promise<string | null> {
+  const token = await getAccessToken();
+  if (!token || !options.allowRefresh || resolveTokenHandoff() !== internalTokenHandoff) {
+    return token;
+  }
+  return prepareControlRequestToken(token);
+}
+
+/**
+ * 401 뒤 갱신 — 내부(관제) 채널에서만 동작한다. 새 토큰 또는 `null`(호출자가 종전대로 로그아웃).
+ * 포털 채널은 언제나 `token: null` · `rejected: false` 라 종전 401 결말 그대로다.
+ *
+ * `rejected` 는 강제 로그아웃의 **뒷정리**를 가른다 — 아래 {@link UnauthorizedRefreshResult}.
+ */
+export async function refreshAfterUnauthorized(): Promise<UnauthorizedRefreshResult> {
+  if (resolveTokenHandoff() !== internalTokenHandoff) return { token: null, rejected: false };
+  return refreshControlAfterUnauthorized();
 }
 
 /**

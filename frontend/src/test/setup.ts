@@ -3,7 +3,9 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 import { useAdminSessionStore } from '@/features/adminSession/store';
+import { resetControlSessionForTest } from '@/features/auth/controlSession';
 import { resetServerRoleResolution } from '@/features/auth/sessionBootstrap';
+import { resetUnsavedWorkForTest } from '@/lib/unsavedWork';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -106,6 +108,12 @@ beforeEach(() => {
   // 관리자 단기 유효창은 모듈 스코프 스토어라 테스트 사이에 남는다. 남으면 앞 테스트가 연 창이
   // 뒤 테스트의 「잠겨 있다」 단언을 통과시켜, 잠금이 풀려도 초록으로 남는다.
   useAdminSessionStore.getState().clear();
+  // 관제 세션 연장의 탭 추종·거절 기록·진행 중 갱신은 <모듈 스코프>다. 앞 시험이 남기면 뒤 시험의
+  // 「다른 탭이 갱신했다」 판정이나 「거절된 토큰은 다시 부르지 않는다」가 우연히 통과한다.
+  resetControlSessionForTest();
+  // 미저장 작업 표식과 이탈 경고 억제도 전역이다. 남으면 앞 시험의 강제 로그아웃이 뒤 시험의
+  // 이탈 경고를 꺼 둔 채로 시작한다.
+  resetUnsavedWorkForTest();
 });
 
 afterEach(() => {

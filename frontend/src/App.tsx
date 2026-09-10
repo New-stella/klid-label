@@ -2,7 +2,9 @@ import { Suspense, useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { ControlSessionMonitor } from '@/features/auth/ControlSessionMonitor';
 import { syncPortalSessionThen } from '@/features/auth/portalSession';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { Spinner } from '@/components/common/Spinner';
 import { restoreSession } from '@/features/auth/sessionBootstrap';
 import { router } from '@/router';
@@ -49,6 +51,11 @@ export function App() {
       >
         <RouterProvider router={router} />
       </Suspense>
+      {/* [@design ADR-012] [@design SHELL-001] [@design AC-1105]
+          관제 채널 세션 만료 감시 + 연장 팝업 — 셸이 아니라 <앱 최상단>에 둔다. 셸(`AppLayout`) 밖
+          전체 화면인 라벨링 캔버스에서도 떠야 하기 때문이다. 포털 채널은 Host 가 세션을 소유하므로
+          탑재하지 않는다(감시·팝업·저장소 쓰기 전부 무동작). */}
+      {!isPortalEmbedChannel() && <ControlSessionMonitor />}
     </ErrorBoundary>
   );
 }
