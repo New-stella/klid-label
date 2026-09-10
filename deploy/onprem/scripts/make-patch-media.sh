@@ -136,7 +136,14 @@ else
   info "[patch] frontend 의존성 설치(npm ci)..."
   ( cd "${FE_SRC}" && npm ci >/dev/null )
 fi
-for _ch in control portal; do
+# ★ 채널은 고를 수 있다 — 기본값은 종전대로 <둘 다>다.
+#   장비가 한 채널만 쓰는 회차에 반대 채널을 실어 보내면, 받는 쪽이 <어느 것을 올릴지>를
+#   또 골라야 한다. 고르는 자리가 늘면 틀릴 자리가 는다.
+#   ⚠ 매체를 만든 뒤 손으로 도려내지 말 것 — 이 파일 머리말이 적은 2026-09-06 구멍이 그것이다.
+#     BUILD-INFO·SHA256SUMS 가 함께 갱신되지 않아 <목록에 없는 파일>이 검증 없이 통과한다.
+FE_CHANNELS="${FE_CHANNELS:-control portal}"
+for _ch in ${FE_CHANNELS}; do
+  case "${_ch}" in control|portal) ;; *) die "[patch] 알 수 없는 채널: ${_ch} (control|portal)" ;; esac
   info "[patch] frontend 빌드 [${_ch}]..."
   rm -rf "${FE_SRC}/dist"
   ( cd "${FE_SRC}" && npm run "build:${_ch}" >/dev/null ) || die "[patch] ${_ch} 채널 빌드 실패"
@@ -159,17 +166,30 @@ _hits() { { grep -rl "$2" "$1" 2>/dev/null || true; } | wc -l | tr -d ' '; }
 # ★★ 음성(0건)을 근거로 쓰기 전에 <이 검사기가 무엇이든 잡는지> 먼저 단언한다.
 #    경로가 틀리거나 번들 이름이 바뀌면 교차 오염이 있어도 0 건이 나오는데, 그 0 은
 #    "깨끗하다"가 아니라 "아무것도 안 봤다"이다.
-_pos_c="$(_hits "${STAGE}/fe-control/assets" '/dashboard')"
-_pos_p="$(_hits "${STAGE}/fe-portal/assets"  'portal/uploads')"
-[[ "${_pos_c}" != "0" && "${_pos_p}" != "0" ]] \
-  || die "[patch] 교차 검사기의 양성 대조가 실패했습니다(control:/dashboard=${_pos_c} · portal:portal/uploads=${_pos_p}).
+#   ⚠ 검사는 <실제로 빌드한 채널에 대해서만> 돈다. 없는 채널을 검사하면 «0건»이 나오는데
+#     그 0 은 깨끗하다가 아니라 아무것도 안 봤다이며, 양성 대조가 바로 그 구분을 위해 있다.
+_checked=""
+for _ch in ${FE_CHANNELS}; do
+  case "${_ch}" in
+    # ★ 이물질 표지는 «화면»이어야 한다 — API 경로 문자열을 쓰면 안 된다.
+    #   2026-09-08 `9fe5a63f6` 이 포털·관제 라벨링 화면을 <하나로 합쳤다>. 그 뒤로 공유 화면이
+    #   포털 경로(`/portal/uploads/frames/...`)를 정상적으로 물고 있어, 그 문자열로 검사하면
+    #   «설계대로 합쳐진 것»을 유출로 잡는다(실측: control 안 2건 — useImageBlob · LabelingPage).
+    #   ⚠ 이건 가드를 끈 것이 아니다. 이 검사가 막으려는 것은 「반대 채널 <화면>이 통째로 섞이는
+    #     것」이고, 표지를 화면 부품 이름으로 되돌린 것이다. 아래 양성 대조가 그 힘을 증명한다.
+    control) _need='/dashboard'      ; _alien='PortalUploadMarking'; _alien_nm='포털 화면' ;;
+    portal)  _need='portal/uploads'  ; _alien='/admin/endpoints'; _alien_nm='관리' ;;
+  esac
+  _pos="$(_hits "${STAGE}/fe-${_ch}/assets" "${_need}")"
+  [[ "${_pos}" != "0" ]] \
+    || die "[patch] 교차 검사기의 양성 대조가 실패했습니다(${_ch}:${_need}=0).
      반드시 잡혀야 하는 것을 못 잡았습니다 — 아래 0건을 <깨끗하다>로 읽으면 안 됩니다."
-
-_x1="$(_hits "${STAGE}/fe-control/assets" 'portal/uploads')"
-_x2="$(_hits "${STAGE}/fe-portal/assets"  '/admin/endpoints')"
-[[ "${_x1}" == "0" && "${_x2}" == "0" ]] \
-  || die "[patch] 채널이 섞였습니다(control 안 포털 ${_x1} · portal 안 관리 ${_x2}) — 재빌드하세요."
-ok "[patch] 채널 교차 오염 없음 (양성 대조 통과: control ${_pos_c} · portal ${_pos_p})"
+  _x="$(_hits "${STAGE}/fe-${_ch}/assets" "${_alien}")"
+  [[ "${_x}" == "0" ]] \
+    || die "[patch] 채널이 섞였습니다(${_ch} 안 ${_alien_nm} ${_x}건) — 재빌드하세요."
+  _checked="${_checked} ${_ch}:${_pos}"
+done
+ok "[patch] 채널 교차 오염 없음 (양성 대조 통과:${_checked})"
 
 # ---- 4) 매체 조립 -----------------------------------------------------------
 rm -rf "${MEDIA}"
@@ -194,8 +214,9 @@ install -m 0644 "${STAGE}/api-strip.war" "${MEDIA}/onprem/artifacts/backend/api-
 # ★ 두 WAR 를 <모두> 목록에 넣는다. 빠진 파일은 검증 없이 통과한다(2026-09-06 회차의 구멍).
 sha256_write "${MEDIA}/onprem/artifacts/backend"
 
-cp -R "${STAGE}/fe-control" "${MEDIA}/onprem/artifacts/frontend/dist/control"
-cp -R "${STAGE}/fe-portal"  "${MEDIA}/onprem/artifacts/frontend/dist/portal"
+for _ch in ${FE_CHANNELS}; do
+  cp -R "${STAGE}/fe-${_ch}" "${MEDIA}/onprem/artifacts/frontend/dist/${_ch}"
+done
 {
   printf '# klid-label frontend 빌드 기록 — 패치 회차 %s\n' "${PATCH_ID}"
   printf '#   이 값들은 <런타임 설정이 없을 때의 폴백>이다. 정본은 /etc/klid/frontend.env 다.\n'
@@ -204,7 +225,7 @@ cp -R "${STAGE}/fe-portal"  "${MEDIA}/onprem/artifacts/frontend/dist/portal"
   printf 'git_commit=%s\n' "${HEAD_SHORT}"
   printf 'baseline_commit=%s\n' "${BASE_SHORT}"
   printf 'node=%s\n' "$(node -v)"
-  printf 'build_flavors=control portal\n'
+  printf 'build_flavors=%s\n' "${FE_CHANNELS}"
   printf 'VITE_BASE_PATH=%s\n' "${VITE_BASE_PATH}"
   printf 'VITE_API_BASE_URL=%s\n' "${VITE_API_BASE_URL}"
   printf 'VITE_TOKEN_INGRESS=%s\n' "${VITE_TOKEN_INGRESS}"
@@ -364,7 +385,7 @@ _n_runtime="$(git -C "${REPO}" diff --name-only "${BASELINE}" HEAD -- backend/sr
   # ★ 매체에는 기준선 이후 증분이 <누적 전량> 실린다 — 적용 수단이 이력으로 건너뛴다.
   echo "db_increments_shipped=$(printf '%s\n' "${SHIP_MIGS}" | sed '/^$/d' | sed 's/__.*//' | paste -sd, - || true)"
   echo "war_flavors=api.war(${CTX_PASS}) api-strip.war(${CTX_STRIP})"
-  echo "fe_channels=control,portal"
+  echo "fe_channels=${FE_CHANNELS// /,}"
   echo "source=onprem/src/{backend,frontend,ai-server}   # git 추적 파일만 · SOURCE-INFO.txt 참조"
   echo "gpu_delta_included=no   # 휠이 3.5GB 라 별도 매체"
 } > "${MEDIA}/VERSION.txt"

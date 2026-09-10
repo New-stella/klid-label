@@ -214,6 +214,10 @@ sudo cp -R onprem/artifacts/frontend/dist/control/. /path/to/docroot/label-studi
 
 포털 채널 장비에는 `dist/portal/` 을 올린다. **둘을 섞지 마라.**
 
+⚠ **회차마다 실린 채널이 다르다.** 한 채널만 쓰는 현장에는 그 채널만 싣는다 — 없는 채널을
+찾지 말고 `VERSION.txt` 의 `fe_channels` 와 `artifacts/frontend/BUILD-INFO.txt` 의
+`build_flavors` 를 먼저 본다. 둘은 **실제로 빌드한 것**을 적는다.
+
 ### ⚠ `klid-config.js` 는 교체로 사라질 수 있다
 
 화면이 읽는 런타임 설정이다. 정본은 `/etc/klid/frontend.env` 이고 생성기를 다시 돌리면
