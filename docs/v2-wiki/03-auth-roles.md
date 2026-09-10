@@ -10,7 +10,7 @@
 
 | 채널 | 인계 수단 |
 |---|---|
-| 관제(INTERNAL) | 관제서버와 **동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달 (기존 그대로) |
+| 관제(INTERNAL) | 관제서버와 **동일 도메인 운영** → 브라우저 스토리지(localStorage) 공유로 JWT 전달. ★**2026-09-10 부터 저작도구도 관제와 같은 시나리오로 세션을 연장**한다 — 토큰은 매 요청 `klid-jwt-token` **현재값**을 읽고(진입 시 복사본 아님), 만료 `sessionExpAlarm` 분 전 연장 팝업 · 요청 직전 ≤10분 선제 갱신 · 401 시 갱신 후 1회 재시도를 하며, 갱신 결과를 관제와 **같은 키·형식**(`klid-jwt-token`·`tokenInfo`·`userNm`)으로 **저장한다**. 관제 계정 호출은 **저작도구 WAS 경유**다 — 브라우저는 저작도구 `POST /v1/auth/control-tokens`(갱신)·`DELETE /v1/auth/control-session`(로그아웃)을 부르고, 저작도구 서버가 관제 `POST /api/account/auth/refresh`(헤더 `x-access-token` = refresh 토큰)·`/logout`(access 토큰)으로 중계한다. 관제 주소는 관제 통지 수신처 설정을 재사용한다. 같은 라운드에서 `type=refresh` 토큰은 저작도구 API 인증에서 거부하도록 막았다. ⚠ 구 서술 *"관제 채널은 저장소를 읽기만 하고 저작도구가 쓰지 않는다 · 내부 채널에는 갱신 창구가 없다"* 는 **폐기**(`ADR-012`·`INT-013` 개정, `CO-20260910-관제향-토큰갱신-세션연장`) |
 | 포털(PORTAL) | 포털 Host 가 주입한 **인계 창구**(토큰 획득·갱신·인증 실패 통지·활동 통지)로 토큰을 얻어 **`x-access-token` 헤더**로 전송(Bearer 미사용). access token 은 **Host 메모리에만** 두고 브라우저 저장소를 쓰지 않는다 |
 
   두 채널 모두 URL 쿼리(`?token=`)는 노출 위험으로 미사용.
@@ -46,6 +46,7 @@
   - **미등록 관제 진입자 userNo 자동발급 (`ADR-063` ⑤, 2026-09-05)**: 관제(비숫자 sub·INTERNAL) 진입자가 `userId` 로 `LS_ACNT_USER` 조회 0건이면 진입 순간 시퀀스 `ls_acnt_user_no_seq`(START 9,000,000,000 — 관제 숫자 userNo·시드와 disjoint)로 userNo 를 발급해 `(USER_NO, USER_ID, USER_NM)`로 **원자 upsert**(`ON CONFLICT (user_id) DO NOTHING` + 재조회, 부분유니크 `uk_ls_acnt_user_user_id`)한다. **역할은 부여하지 않는다(role=null)** — 관제가 인증·관리하고 우리는 신원만 받는 시나리오(회원가입 화면 없음, 투명 프로비저닝). 발급 userNo 로 principal 정규화가 이어져 role-claim 부트스트랩이 성립한다. ⚠ 숫자 sub(내부·포털)·PORTAL 채널은 미진입(회귀 0). ⚠ 다중 매칭은 발급 없이 fail-closed.
   - **role=null 진입자 화면 (`SCREEN-002`)**: 진입(SessionIngress)이 `GET /v1/me` 로 서버 role 을 확인해 role=null 이면 대시보드가 아니라 권한안내/부트스트랩 화면(`/role-claim`)으로 보낸다. 그 화면은 상태로 갈린다 — 관리자 0명(부트스트랩 창 열림)이면 **관리자 비밀번호 폼**(→ role-claim → 첫 ADMIN), 관리자가 있으면 **"관리자에게 권한을 요청하세요"** 안내. 서버 role 은 `useAuthStore.setServerRole` 로 claims 에 주입해 **RoleGuard 도 서버 진실원(LS_USER_ROLE)을 본다**(관제 토큰엔 우리 role 클레임이 없으므로). **관리자 부트스트랩 기본 비밀번호 = 전 환경 `admin`, 로그인 후 변경 가능**([[admin-bootstrap-password-default-admin]]).
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
+  - **관제 채널은 만료 전에 연장한다 (2026-09-10)** — 관제가 저작도구를 새 탭으로 열어 관제의 연장 팝업이 우리 탭에서 돌지 않으므로, 관제 셸과 같은 규칙을 저작도구 셸이 직접 수행한다: 1초 감시 · 만료 `sessionExpAlarm`(토큰 정보 → 토큰 클레임 → 기본 30)분 전 연장 팝업 1회 · 0 이면 로그아웃 이동. 팝업은 **관제 세션 팝업과 완전히 같다** — 「N분 N초 후 자동 로그아웃 됩니다」 + 버튼 「로그아웃」(관제 로그아웃 API → 토큰 키 삭제 → 관제 로그인, 관제 탭도 함께 로그아웃) · 「로그인 연장」(갱신), 닫기·X·ESC·배경 클릭 없음. 적용은 **앱 전역**(셸 밖 라벨링 캔버스 포함). 미저장 편집이 있으면 팝업에 경고 한 줄을 더하고, 강제 로그아웃은 미저장 확인 없이 이동한다. 관제가 갱신을 **거절**하면(다른 기기 등에서 서버 세션이 끊김) 즉시 로그아웃한다. refresh 토큰이 없는 진입(개발 로그인)은 갱신 없이 종전대로 만료까지 쓴다. 포털 채널은 Host 가 세션을 소유하므로 해당 없음.
 
 > ### ★관리자 등록 화면의 개폐는 **진입 시 조회**로 안다 (2026-09-07 · `ADR-055`·`SCREEN-002`·`API-245`)
 >
