@@ -1,4 +1,4 @@
-# source-ref: klid-label@137878a70
+# source-ref: klid-label@d022bfd0e
 ai-server/.dockerignore
 ai-server/.env.example
 ai-server/.gitignore
@@ -2433,8 +2433,15 @@ frontend/.env.example
 frontend/.eslintrc.cjs
 frontend/.gitignore
 frontend/.prettierrc
+frontend/CAPTURE-README.md
+frontend/CAPTURE-SCENARIO.md
 frontend/Dockerfile
+frontend/bin/split-manifest.py
+frontend/capture-captions.mjs
 frontend/capture-evidence.mjs
+frontend/capture-origin-proxy.mjs
+frontend/capture-query-evidence.mjs
+frontend/capture.env.example
 frontend/e2e/fixtures/a11y-audit.ts
 frontend/e2e/fixtures/a11y-baseline.ts
 frontend/e2e/fixtures/auth.fixture.ts
@@ -2472,6 +2479,7 @@ frontend/package.json
 frontend/playwright.config.ts
 frontend/postcss.config.js
 frontend/public/klid-config.js
+frontend/run-capture.sh
 frontend/scripts/gen-api-types.sh
 frontend/shot-design.mjs
 frontend/shot.mjs
@@ -2699,6 +2707,7 @@ frontend/src/features/dashboard/hooks/useDashboardSummary.ts
 frontend/src/features/dashboard/types.ts
 frontend/src/features/deident/__tests__/DeidentReportListPage.test.tsx
 frontend/src/features/deident/__tests__/DeidentReportListPagination.test.tsx
+frontend/src/features/deident/__tests__/DeidentResolveDialog.test.tsx
 frontend/src/features/deident/__tests__/FrameGrid12.test.tsx
 frontend/src/features/deident/__tests__/SideBySideCompare.test.tsx
 frontend/src/features/deident/components/DeidentResolveDialog.tsx
