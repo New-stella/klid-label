@@ -899,8 +899,10 @@ CASES['002-01'] = async (page) => {
   await page.goto(`${APP}/dashboard`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   await openSettings(page);
+  // ⚠ **검증은 남기고 사진만 뺐다** (2026-09-10) — 이 케이스의 예상결과에는 「다시 열어도
+  //   유지된다」가 없다(그것을 요구하는 것은 003-01·004-01 이다). 그래서 재진입 화면은 앞 두
+  //   컷과 거의 같은 그림이 한 장 더 늘 뿐이었다. 값이 남아 있는지는 아래에서 계속 확인한다.
   await expectVisible(page, page.getByText(`${target}s`), `재진입 후 ${target}s 유지`);
-  await shot(page, '002-01', 3);
 
   // 되돌린다 — 촬영이 서버 설정을 바꾼 채로 끝나지 않게.
   await setRange(page, '#batch-interval', 60);
@@ -1187,9 +1189,11 @@ CASES['004-01'] = async (page) => {
   await page.waitForTimeout(1200);
   await shotEl(page, card, '004-01', 2);
 
+  // ⚠ **재진입 컷을 뺐다** (2026-09-10) — 카드 영역만 찍으므로 저장 알림이 프레임 밖이고,
+  //   값이 유지되면 재진입 화면이 저장 직후와 **픽셀까지 같다**(실측 차이율 0.00%). 같은 그림을
+  //   한 장 더 실어도 「다시 열어도 유지된다」의 증거가 되지 못한다. 검증은 그대로 남긴다.
   await openSettings(page);
   await expectVisible(page, page.getByText(`${target.toFixed(1)}배`), `재진입 후 ${target}배 유지`);
-  await shotEl(page, card, '004-01', 3);
 };
 
 /** 토큰 인계 진입과 채널 · 역할 인가 */
