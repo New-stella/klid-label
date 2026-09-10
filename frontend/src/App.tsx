@@ -2,7 +2,7 @@ import { Suspense, useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { syncPortalSessionFromHandoff } from '@/features/auth/portalSession';
+import { syncPortalSessionThen } from '@/features/auth/portalSession';
 import { Spinner } from '@/components/common/Spinner';
 import { restoreSession } from '@/features/auth/sessionBootstrap';
 import { router } from '@/router';
@@ -23,8 +23,11 @@ export function App() {
     // 포털 채널은 저장소에서 복원할 것이 없다 — 세션의 진실원이 Host 메모리라, 창구에 물어야
     // 채워진다. 세션 복원 <b>앞에</b> 한 번 맞춰 두면 첫 라우트 가드가 이미 세션을 갖고 렌더돼
     // 인증 안내가 한 프레임 비치지 않는다. 관제 채널에서는 통째로 no-op 이다.
-    syncPortalSessionFromHandoff();
-    restoreSession();
+    // ⚠ **순서가 의미를 가진다.** 되맞춤이 비동기가 되었으므로 `restoreSession()` 을 그냥
+    //   이어 부르면 창구의 답이 오기 «전»에 복원이 돌아, 포털 채널에서 인증 안내가 한 프레임
+    //   비쳤다가 화면으로 바뀐다(이 자리가 원래 없애려던 그 깜빡임이다). 그래서 잇는다.
+    //   ★ 관제 채널에서는 이 헬퍼가 **동기로 즉시** 이어 주므로 부팅 순서가 그대로다.
+    syncPortalSessionThen(restoreSession);
   }, []); // mount-once: 세션 복원은 앱 초기화 시 1회만 실행
 
   if (!isHydrated) {

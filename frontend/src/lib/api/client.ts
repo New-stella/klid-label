@@ -61,8 +61,12 @@ export const apiClient = axios.create({
 // `x-access-token`(Bearer 접두 없음). 판정·조립은 창구 파일의 `buildAuthHeader` 한 곳이 소유하며
 // 여기서 채널을 다시 판정하지 않는다. 근거·함정(접두를 붙이면 401 · 두 헤더 동시 전송 시 401)은
 // 그 함수의 주석 참조.
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getAccessToken();
+// ⚠ **비동기 인터셉터다.** 포털 채널의 창구는 Host 에 물어야 하고 그 답이 Promise 로 온다
+//   (갱신이 도는 중이면 갱신된 토큰을 기다린다). axios 는 인터셉터가 돌려준 Promise 를
+//   기다려 주므로 요청 순서·헤더 적재는 그대로다. 동기로 되돌리면 토큰 자리에 Promise 객체가
+//   실려 나간다 — 근거는 `features/auth/tokenHandoff` 의 `normalizeToken` 주석.
+apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  const token = await getAccessToken();
   if (token) {
     const { name, value } = buildAuthHeader(token);
     config.headers.set(name, value);
@@ -94,7 +98,7 @@ apiClient.interceptors.response.use(
       const config = err.config as (InternalAxiosRequestConfig & {
         _retriedWithToken?: boolean;
       }) | undefined;
-      const currentToken = getAccessToken();
+      const currentToken = await getAccessToken();
       const authHeaderName = resolveAuthHeaderName();
       const sentAuth =
         config?.headers?.get?.(authHeaderName) ??

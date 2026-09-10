@@ -79,12 +79,46 @@ export function clearPortalTokenRejection(): void {
 /**
  * 스토어 세션을 Host 창구의 현재 토큰과 맞춘다.
  *
+ * <p>★ <b>비동기다.</b> 포털 채널의 진실원이 Host 메모리이고 그 값을 «물어서» 받기 때문이다.
+ * 호출부는 전부 효과(`useEffect`) 안이라 기다릴 수 있다 — 렌더 중에 부르지 않는다는 기존
+ * 규약이 그대로 이 전환을 가능하게 했다.
+ *
  * @returns 맞춘 결과 <b>쓸 수 있는 세션이 있는지</b>. 관제 채널이면 언제나 `false`(no-op).
  */
-export function syncPortalSessionFromHandoff(): boolean {
+/**
+ * 부팅 순서 — <b>포털 채널만</b> 창구를 먼저 맞추고, 그 밖 채널은 <b>즉시</b> 이어간다.
+ *
+ * <p>★ 이 함수가 따로 있는 이유는 <b>관제 채널의 동작을 한 틱도 늦추지 않기</b> 위해서다.
+ * 되맞춤이 비동기가 되면서 {@code sync().then(next)} 로 이으면 관제 채널에서도 {@code next}
+ * (= 세션 복원 · 저장소 hydrate)가 마이크로태스크 뒤로 밀린다. 그 사이 앱은 로딩만 그리므로
+ * 사람 눈에는 같지만, <b>「관제 채널은 한 글자도 바뀌지 않는다」는 이 축의 불변식</b>이 깨지고
+ * 부팅 순서를 동기로 전제한 회귀 가드가 함께 무너진다.
+ *
+ * <p>⚠ 채널 판정을 호출부(`App`)로 옮기지 말 것 — 판정이 두 벌이 되면 한쪽만 갱신된다.
+ * 그 판정은 이 모듈이 이미 갖고 있으므로 순서도 여기서 소유한다.
+ *
+ * <p>⚠ 포털 채널에서 {@code catch} 가 붙는 이유: 창구는 <b>Host 가 구현하는 남의 코드</b>라
+ * 던질 수 있고, 그것이 새어 나가면 {@code next} 가 영영 불리지 않아 화면이 <b>로딩에
+ * 고착</b>된다. 토큰을 못 얻는 것보다 나쁜 결말이므로 삼키고 진행한다.
+ *
+ * @param next 세션이 맞춰진 뒤(또는 관제 채널이면 즉시) 이어서 할 일.
+ */
+export function syncPortalSessionThen(next: () => void): void {
+  if (!isPortalEmbedChannel()) {
+    next();
+    return;
+  }
+  void syncPortalSessionFromHandoff()
+    .catch(() => false)
+    .then(next);
+}
+
+export async function syncPortalSessionFromHandoff(): Promise<boolean> {
   if (!isPortalEmbedChannel()) return false;
 
-  const token = getAccessToken();
+  // ⚠ **`await` 다.** 포털 창구는 Host 에 묻고 그 답이 Promise 로 온다. 기다리지 않으면
+  //   Promise 객체가 그대로 `setToken` 에 들어가 JWT 해독에서 터진다(실측).
+  const token = await getAccessToken();
   const { token: mirrored, claims } = useAuthStore.getState();
 
   if (!token) {

@@ -17,6 +17,8 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,8 +57,24 @@ public class PortalUploadStreamService {
     /** 한 번에 내려보내는 구간 상한(8MB) — 재요청 빈도와 메모리 사이의 절충. */
     private static final long CHUNK_BYTES = 8L * 1024 * 1024;
 
-    /** 재생 주소 경로 틀 — 발급과 실제 창구가 어긋나지 않도록 한 곳에 둔다. */
-    private static final String STREAM_PATH = "/api/v1/portal/uploads/%d/stream";
+    /**
+     * 재생 주소 경로 틀 — 발급과 실제 창구가 어긋나지 않도록 한 곳에 둔다.
+     *
+     * <p>★ 접두어는 여기 넣지 않는다. 그 값은 «앞단 웹서버가 우리에게 넘겨주는 경로»라 배포
+     * 향마다 다르고(포털 향 {@code /authoring-api/v1}), 여기 굳히면 포털에서 이 주소가
+     * <b>포털 자신의 WAS</b> 로 날아가 재생이 통째로 깨진다. 근거는 {@code PublicApiPathDefaults}.
+     */
+    private static final String STREAM_PATH_SUFFIX = "/portal/uploads/%d/stream";
+
+    /**
+     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어. 미설정이면 종전 리터럴({@code /api/v1}).
+     *
+     * <p>⚠ 생성자 주입이 아니라 필드 주입인 것은 <b>단위 시험이 이 서비스를 생성자로 직접
+     * 만들기 때문</b>이다(그 시험들이 접두어를 알 필요가 없다). 그때 값은 {@code null} 이고
+     * 기본값으로 떨어진다.
+     */
+    @Value(PublicApiPathDefaults.VALUE_EXPRESSION)
+    private String publicApiBasePath;
 
     private final PortalUploadAssetRepository assetRepository;
     private final PortalStoragePathGuard pathGuard;
@@ -80,7 +98,7 @@ public class PortalUploadStreamService {
         }
         requireFileReady(asset, uldSn);
         PortalStreamUrlSigner.SignedParams params = signer.sign(uldSn, portalUserNo);
-        String url = String.format(STREAM_PATH, uldSn)
+        String url = PublicApiPathDefaults.join(publicApiBasePath, String.format(STREAM_PATH_SUFFIX, uldSn))
                 + "?exp=" + params.exp()
                 + "&u=" + java.net.URLEncoder.encode(portalUserNo, java.nio.charset.StandardCharsets.UTF_8)
                 + "&sig=" + params.sig();

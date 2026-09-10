@@ -407,7 +407,7 @@ describe('DevLoginPage', () => {
       expect(localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY)).toBeNull();
       // 대역이 자기 자리에 들고 있고, 본체의 조달 지점이 그것을 받는다.
       expect(sessionStorage.getItem(DEV_HOST_TOKEN_STORAGE_KEY)).toBe(token);
-      expect(getAccessToken()).toBe(token);
+      expect(await getAccessToken()).toBe(token);
     });
   });
 });

@@ -121,14 +121,14 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
       }
     });
 
-    it('★등록_창구를_실제로_통과한다_우회로를_만들지_않는다', () => {
+    it('★등록_창구를_실제로_통과한다_우회로를_만들지_않는다', async () => {
       vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
 
       expect(installDevHostTokenHandoff()).toBe(true);
       seedDevHostToken(LIVE_PORTAL_JWT);
 
       // 본체의 조달 지점(`getAccessToken`)이 대역에서 값을 받는다.
-      expect(getAccessToken()).toBe(LIVE_PORTAL_JWT);
+      expect(await getAccessToken()).toBe(LIVE_PORTAL_JWT);
     });
 
     it('갱신_요청은_보관분을_그대로_돌려준다_재발급_능력이_없다', async () => {
@@ -164,7 +164,7 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
       expect(sessionEntries()).toEqual({});
     });
 
-    it('★새로고침을_모사하면_보관분을_본체에_다시_건넨다_다시_로그인하지_않는다', () => {
+    it('★새로고침을_모사하면_보관분을_본체에_다시_건넨다_다시_로그인하지_않는다', async () => {
       // given: 로그인 직후 상태
       installDevHostTokenHandoff();
       seedDevHostToken(LIVE_PORTAL_JWT);
@@ -179,7 +179,7 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
       installDevHostTokenHandoff();
 
       // then
-      expect(getAccessToken()).toBe(LIVE_PORTAL_JWT);
+      expect(await getAccessToken()).toBe(LIVE_PORTAL_JWT);
       expect(useAuthStore.getState().claims?.channel).toBe('PORTAL');
       expect(useAuthStore.getState().claims?.role).toBe('PORTAL_USER');
     });
@@ -188,24 +188,24 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
      * ★ 만료분을 건네면 라우트 가드가 「만료」로 판정해 상위 시스템 로그인으로 보내려 하는데,
      *   단독 구동 환경에는 갈 상위 시스템이 없어 화면이 멈춘다(빈 스피너).
      */
-    it('★만료된_보관분은_건네지_않고_버린다', () => {
+    it('★만료된_보관분은_건네지_않고_버린다', async () => {
       sessionStorage.setItem(DEV_HOST_TOKEN_STORAGE_KEY, EXPIRED_PORTAL_JWT);
 
       installDevHostTokenHandoff();
 
-      expect(getAccessToken()).toBeNull();
+      expect(await getAccessToken()).toBeNull();
       expect(useAuthStore.getState().claims).toBeNull();
       expect(sessionEntries()).toEqual({});
     });
 
-    it('보관분이_없으면_아무것도_건네지_않는다', () => {
+    it('보관분이_없으면_아무것도_건네지_않는다', async () => {
       installDevHostTokenHandoff();
 
-      expect(getAccessToken()).toBeNull();
+      expect(await getAccessToken()).toBeNull();
       expect(useAuthStore.getState().claims).toBeNull();
     });
 
-    it('인증_끊김_통지는_보관분과_본체_세션을_함께_비운다', () => {
+    it('인증_끊김_통지는_보관분과_본체_세션을_함께_비운다', async () => {
       const replace = vi.fn();
       vi.spyOn(window, 'location', 'get').mockReturnValue({
         ...window.location,
@@ -217,7 +217,7 @@ describe('devHostStub — Host 대역 (개발 단독 구동 전용)', () => {
 
       devHostGateway.onUnauthorized();
 
-      expect(getAccessToken()).toBeNull();
+      expect(await getAccessToken()).toBeNull();
       expect(useAuthStore.getState().claims).toBeNull();
       expect(sessionEntries()).toEqual({});
       expect(replace).toHaveBeenCalledWith(`${PORTAL_MOUNT_BASENAME}/dev/login`);

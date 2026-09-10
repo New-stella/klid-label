@@ -56,21 +56,21 @@ describe('포털 채널 세션 되맞춤', () => {
     useAuthStore.setState({ token: null, claims: null, isHydrated: false });
   });
 
-  it('거울이_비어있고_Host가_토큰을_들고_있으면_세션을_되살린다', () => {
+  it('거울이_비어있고_Host가_토큰을_들고_있으면_세션을_되살린다', async () => {
     hostToken = makeToken('42', ALIVE);
     registerHostTokenHandoff(gateway);
 
-    expect(syncPortalSessionFromHandoff()).toBe(true);
+    expect(await syncPortalSessionFromHandoff()).toBe(true);
     expect(useAuthStore.getState().claims?.sub).toBe('42');
     expect(useAuthStore.getState().claims?.channel).toBe('PORTAL');
   });
 
-  it('창구가_아직_없으면_아무것도_하지_않는다', () => {
-    expect(syncPortalSessionFromHandoff()).toBe(false);
+  it('창구가_아직_없으면_아무것도_하지_않는다', async () => {
+    expect(await syncPortalSessionFromHandoff()).toBe(false);
     expect(useAuthStore.getState().claims).toBeNull();
   });
 
-  it('★거부당한_그_토큰은_다시_집지_않는다_401_되풀이_방지', () => {
+  it('★거부당한_그_토큰은_다시_집지_않는다_401_되풀이_방지', async () => {
     const dead = makeToken('42', ALIVE);
     hostToken = dead;
     registerHostTokenHandoff(gateway);
@@ -79,22 +79,22 @@ describe('포털 채널 세션 되맞춤', () => {
     markPortalTokenRejected(dead);
     useAuthStore.getState().clear();
 
-    expect(syncPortalSessionFromHandoff()).toBe(false);
+    expect(await syncPortalSessionFromHandoff()).toBe(false);
     expect(useAuthStore.getState().claims).toBeNull();
   });
 
-  it('★Host가_토큰을_갈면_거부_기록이_막지_않는다', () => {
+  it('★Host가_토큰을_갈면_거부_기록이_막지_않는다', async () => {
     const dead = makeToken('42', ALIVE);
     registerHostTokenHandoff(gateway);
     markPortalTokenRejected(dead);
     useAuthStore.getState().clear();
 
     hostToken = makeToken('43', ALIVE);
-    expect(syncPortalSessionFromHandoff()).toBe(true);
+    expect(await syncPortalSessionFromHandoff()).toBe(true);
     expect(useAuthStore.getState().claims?.sub).toBe('43');
   });
 
-  it('Host가_토큰을_들고_있지_않으면_남은_거울을_비운다', () => {
+  it('Host가_토큰을_들고_있지_않으면_남은_거울을_비운다', async () => {
     registerHostTokenHandoff(gateway);
     useAuthStore.setState({
       token: 'stale',
@@ -102,17 +102,17 @@ describe('포털 채널 세션 되맞춤', () => {
       isHydrated: true,
     });
 
-    expect(syncPortalSessionFromHandoff()).toBe(false);
+    expect(await syncPortalSessionFromHandoff()).toBe(false);
     expect(useAuthStore.getState().claims).toBeNull();
     expect(useAuthStore.getState().token).toBeNull();
   });
 
-  it('관제_채널에서는_통째로_no_op_이다', () => {
+  it('관제_채널에서는_통째로_no_op_이다', async () => {
     vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
     hostToken = makeToken('42', ALIVE);
     registerHostTokenHandoff(gateway);
 
-    expect(syncPortalSessionFromHandoff()).toBe(false);
+    expect(await syncPortalSessionFromHandoff()).toBe(false);
     expect(useAuthStore.getState().claims).toBeNull();
   });
 });

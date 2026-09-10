@@ -59,8 +59,23 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * ⚠ 필드 이름을 바꾸지 말 것 — 이것은 우리 내부 타입이 아니라 **외부와 합의한 계약**이다.
  */
 export interface TokenHandoffGateway {
-  /** 현재 유효한 access token 을 돌려준다. 없으면 `null`. */
-  getAccessToken(): string | null;
+  /**
+   * 현재 유효한 access token 을 돌려준다. 없으면 `null`.
+   *
+   * ★ **반환 형태가 동기·비동기 «둘 다»인 것은 의도다.** 이 창구는 우리가 구현하는 것
+   *   (내부 채널·개발 대역)과 **Host 가 구현해 주입하는 것**이 섞이는 자리다.
+   *   - 내부(관제) 채널은 스토어를 읽으므로 **동기**가 정직하다.
+   *   - 포털 Host 는 **`Promise`** 를 준다. 갱신이 오가는 «동안» 옛 토큰을 넘기지 않으려면
+   *     갱신 큐에 붙어 기다려야 하고, 동기 반환은 정확히 그 죽은 토큰을 넘기기 때문이다
+   *     (포털 인계문서 2026-09-08 §3-1).
+   *
+   * ⚠ **한쪽으로 좁히지 말 것.** 동기로 좁히면 Host 가 준 `Promise` 객체가 그대로 토큰
+   *   자리에 들어가 `token.split('.')` 에서 터진다 — 실측으로 확인된 형태이며, 그때
+   *   Host 화면에는 「저작도구를 불러오지 못했습니다」라는 **원인과 무관한 문구**가 뜬다.
+   *   비동기로 좁히면 내부 채널이 없는 비동기를 흉내내야 한다.
+   *   읽는 쪽은 아래 {@link getAccessToken} 하나뿐이고 그쪽이 `await` 로 둘을 흡수한다.
+   */
+  getAccessToken(): string | null | Promise<string | null>;
   /** 만료 임박·만료 시 재발급을 요청한다. 갱신된 토큰 또는 `null`. */
   refresh(): Promise<string | null>;
   /** 인증이 끊겼음을 Host 에 알린다 — 안내·재로그인은 Host 가 소유한다. */
@@ -129,6 +144,15 @@ export const internalTokenHandoff: TokenHandoffGateway = {
  */
 let hostGateway: TokenHandoffGateway | null = null;
 
+/**
+ * 직전에 등록을 시도한 후보 — **같은 값으로 다시 부르는 것을 걸러내기 위한 것**이다.
+ *
+ * `null`·`undefined` 도 정당한 후보값이라 「아직 시도한 적 없음」과 구분되지 않는다.
+ * 그래서 그 둘과 절대 같지 않은 표식을 초깃값으로 둔다.
+ */
+const NOT_TRIED = Symbol('not-tried');
+let lastCandidate: unknown = NOT_TRIED;
+
 function isGateway(value: unknown): value is TokenHandoffGateway {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -145,6 +169,13 @@ function isGateway(value: unknown): value is TokenHandoffGateway {
  * @returns 등록 성공 여부. 실패면 창구는 비어 있는 상태로 남는다(fail-closed).
  */
 export function registerHostTokenHandoff(gateway: unknown): boolean {
+  // ★ 같은 후보면 즉시 끝낸다 — 이 함수는 Remote 진입점이 **렌더마다** 부른다.
+  //   등록을 효과로 미루면 첫 라우트 가드가 토큰 없이 판정해 인증 안내가 한 프레임 비치고,
+  //   효과에 두면 개발 빌드의 재마운트(mount→unmount→mount)에서 정리가 등록을 앞질러
+  //   창구가 빈 채로 남는다. 멱등으로 만들어 렌더에서 부르는 쪽이 둘 다 없다.
+  if (lastCandidate !== NOT_TRIED && gateway === lastCandidate) return hostGateway !== null;
+  lastCandidate = gateway;
+
   if (!isGateway(gateway)) {
     // 토큰 값 자체는 절대 싣지 않는다 — 어떤 키가 왔는지만 남긴다.
     console.error(
@@ -160,6 +191,7 @@ export function registerHostTokenHandoff(gateway: unknown): boolean {
 /** 등록된 Host 창구를 비운다 — 언마운트·테스트 정리용. */
 export function clearHostTokenHandoff(): void {
   hostGateway = null;
+  lastCandidate = NOT_TRIED;
 }
 
 /**
@@ -168,8 +200,11 @@ export function clearHostTokenHandoff(): void {
  * 값을 들고 있지 않는 것이 이 객체의 전부이자 존재 이유다. 파일 상단의 1~4 를 참조.
  */
 export const portalTokenHandoff: TokenHandoffGateway = {
-  getAccessToken() {
-    return hostGateway?.getAccessToken() ?? null;
+  async getAccessToken() {
+    if (!hostGateway) return null;
+    // `await` 는 Promise 가 아닌 값에도 안전하다 — Host 가 동기로 돌려주든 Promise 로
+    // 돌려주든 여기서 같은 모양이 된다. 그것이 위 인터페이스가 union 인 이유다.
+    return (await hostGateway.getAccessToken()) ?? null;
   },
   async refresh() {
     return (await hostGateway?.refresh()) ?? null;
@@ -200,8 +235,40 @@ export function resolveTokenHandoff(): TokenHandoffGateway {
  * 흩어지면 새 호출부가 생길 때마다 그 판단이 복제되고, 한 곳만 빠뜨려도 그 경로에서
  * 죽은 토큰이 나간다.
  */
-export function getAccessToken(): string | null {
-  return resolveTokenHandoff().getAccessToken();
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    return normalizeToken(await resolveTokenHandoff().getAccessToken());
+  } catch (e) {
+    // ★ 창구는 **외부(Host)가 구현하는 자리**다. 그쪽이 던지면 우리 부팅·요청이 통째로
+    //   멈추는데, 그건 「토큰이 없다」보다 나쁜 결말이다. 없는 것으로 보고 계속 간다.
+    //   ⚠ 토큰 값은 절대 싣지 않는다 — 예외의 이름만 남긴다.
+    console.error(
+      `[tokenHandoff] 인계 창구 호출이 예외로 끝났다(${e instanceof Error ? e.name : typeof e}). ` +
+        '토큰 없음으로 처리한다.',
+    );
+    return null;
+  }
+}
+
+/**
+ * 창구가 돌려준 값을 **토큰으로 쓸 수 있는 형태인지** 확인한다 — 아니면 `null`(fail-closed).
+ *
+ * ★ 이 검사가 있는 이유는 방어가 아니라 **진단**이다. 창구는 외부(Host)가 구현하는 자리라
+ *   우리가 모양을 강제할 수 없고, 어긋난 값이 그대로 흘러가면 훨씬 뒤에서 엉뚱한 모습으로
+ *   터진다. 실측: 문자열 대신 `Promise` 가 들어오자 JWT 해독의 `token.split('.')` 이
+ *   `e.split is not a function` 으로 죽었고, Host 화면에는 「저작도구를 불러오지
+ *   못했습니다」가 떴다 — **토큰 문제라는 사실이 어디에도 남지 않았다.**
+ *
+ * ⚠ 값 자체는 절대 로그에 싣지 않는다. 어떤 «형»이 왔는지만 남긴다.
+ */
+function normalizeToken(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value.trim() === '' ? null : value;
+  console.error(
+    `[tokenHandoff] 인계 창구가 문자열이 아닌 값을 돌려주었다(형: ${typeof value}). ` +
+      '토큰 없음으로 처리한다.',
+  );
+  return null;
 }
 
 /* ------------------------------------------------------------------------- *

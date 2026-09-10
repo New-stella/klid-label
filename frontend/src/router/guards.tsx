@@ -89,7 +89,9 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
 function usePortalSessionRecovery(shouldRecover: boolean): void {
   useEffect(() => {
     if (!shouldRecover) return;
-    syncPortalSessionFromHandoff();
+    // 되맞춤은 비동기다(Host 에 묻는다). 결과는 스토어에 반영되어 재렌더로 드러나므로
+    // 여기서 기다릴 것이 없다 — `void` 로 「의도적으로 기다리지 않음」을 표시한다.
+    void syncPortalSessionFromHandoff();
   }, [shouldRecover]);
 }
 

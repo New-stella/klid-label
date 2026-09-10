@@ -44,6 +44,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +85,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class ReviewService {
+
+    /**
+     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어(프레임 이미지 주소용).
+     * 미설정이면 종전 리터럴({@code /api/v1}). 단위 시험의 직접 생성 시에는 {@code null} 이다.
+     */
+    @Value(PublicApiPathDefaults.VALUE_EXPRESSION)
+    private String publicApiBasePath;
 
     private final ReviewRepository reviewRepository;
     /** 검수목록 검색/정렬/집계 — 목록·count·KPI 가 단일 조건 조립기를 공유한다. */
@@ -370,9 +379,12 @@ public class ReviewService {
         // 4) 프레임 DTO 매핑 (frameNo 순서 보장)
         List<FrameDetailResponse> details = new ArrayList<>(frames.size());
         for (LsDataSrc src : frames) {
-            // server.servlet.context-path=/api 적용 시 실제 호출 경로는 /api/v1/... 이다.
-            // FE 가 imageUrl 을 그대로 absolute path 로 사용할 수 있도록 /api prefix 포함.
-            String imageUrl = "/api/v1/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image";
+            // FE 가 imageUrl 을 그대로 absolute path 로 쓴다. 그 접두어는 «앞단 웹서버가
+            // 우리에게 넘겨주는 경로»라 배포 향마다 다르므로 설정에서 받는다(미설정이면 /api/v1).
+            // ⚠ 구 주석의 "server.servlet.context-path=/api 적용 시" 는 사실이 아니다 —
+            //   WAR 배포에서는 그 설정이 적용되지 않는다(ServletInitializer javadoc).
+            String imageUrl = PublicApiPathDefaults.join(
+                    publicApiBasePath, "/videos/" + videoId + "/frames/" + src.getFrameNo() + "/image");
             details.add(new FrameDetailResponse(
                     src.getSrcSn(),
                     Math.toIntExact(src.getFrameNo()),

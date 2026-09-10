@@ -97,122 +97,128 @@ export function SessionIngressPage() {
     if (ranRef.current) return;
     ranRef.current = true;
 
-    // 인증 실패 fallback: dev 로그인 노출 시 /dev/login, 운영은 upstream redirect → 실패 시 에러 메시지.
-    // (DEV 빌드 또는 VITE_DEV_LOGIN_ENABLED=true 폐쇄망 bring-up 빌드에서만 /dev/login 으로 보낸다.)
-    const handleAuthFailure = (
-      channel: ReturnType<typeof detectChannel>,
-      failure: IngressError,
-    ) => {
-      if (isDevLoginEnabled()) {
-        navigate('/dev/login', { replace: true });
+    // ★ 본문을 비동기로 감싼다 — 포털 채널의 토큰은 창구에 «물어야» 얻어지고 그 답이
+    //   Promise 로 온다. 기다리지 않으면 Promise 객체가 그대로 `setToken` 에 들어가
+    //   JWT 해독에서 터진다. 관제 채널은 종전대로 저장소에서 즉시 얻으므로 동작이 같다.
+    void (async () => {
+
+      // 인증 실패 fallback: dev 로그인 노출 시 /dev/login, 운영은 upstream redirect → 실패 시 에러 메시지.
+      // (DEV 빌드 또는 VITE_DEV_LOGIN_ENABLED=true 폐쇄망 bring-up 빌드에서만 /dev/login 으로 보낸다.)
+      const handleAuthFailure = (
+        channel: ReturnType<typeof detectChannel>,
+        failure: IngressError,
+      ) => {
+        if (isDevLoginEnabled()) {
+          navigate('/dev/login', { replace: true });
+          return;
+        }
+        const redirected = redirectToUpstream(channel);
+        if (redirected) return;
+        // 이동에 실패했다 — 무엇이 일어났는지(failure)는 그대로 알리고, 그 원인이 <설정 누락>이면
+        // 손댈 곳까지 덧붙인다. 예전에는 설정 누락이 상위 서버 장애와 같은 문구로 덮였다.
+        if (!isUpstreamLoginConfigured(channel)) setConfigMissingChannel(channel);
+        setError(failure);
+      };
+
+      // [@design INT-013]
+      // 인계 채널은 **채널마다 다르다.** 관제 채널은 같은 출처 브라우저 저장소가 곧 인계 채널이라
+      // 그대로 읽는다. 포털 채널은 access token 이 **Host 메모리에만** 있고 저장소를 쓰지 않기로
+      // 한 채널이라, 저장소를 읽으면 ①아무것도 없거나 ②앞 채널이 남긴 **죽은 토큰**을 줍는다.
+      // 그래서 그 채널에서는 획득 창구(`features/auth/tokenHandoff`)에 묻는다 — 저장소 직접
+      // 읽기를 창구 뒤로 추상화한다는 설계의 나머지 절반이 이 지점이다.
+      //
+      // ⚠ 관제 채널의 동작은 한 글자도 바뀌지 않는다(URL·쿠키·저장소 전략 그대로).
+      let token = isPortalEmbedChannel()
+        ? await getAccessToken()
+        : resolveToken({
+            urlToken: params.get('token'),
+            cookieName: COOKIE_NAME,
+          });
+
+      // [개발 전용] VITE_DEV_TOKEN 환경변수로 upstream 없이 개발 가능하게 지원
+      if (!token && import.meta.env.DEV) {
+        const devToken = import.meta.env.VITE_DEV_TOKEN as string | undefined;
+        if (devToken) {
+          token = devToken;
+        }
+      }
+
+      if (!token) {
+        handleAuthFailure(detectChannel(), ERROR_NO_TOKEN);
         return;
       }
-      const redirected = redirectToUpstream(channel);
-      if (redirected) return;
-      // 이동에 실패했다 — 무엇이 일어났는지(failure)는 그대로 알리고, 그 원인이 <설정 누락>이면
-      // 손댈 곳까지 덧붙인다. 예전에는 설정 누락이 상위 서버 장애와 같은 문구로 덮였다.
-      if (!isUpstreamLoginConfigured(channel)) setConfigMissingChannel(channel);
-      setError(failure);
-    };
 
-    // [@design INT-013]
-    // 인계 채널은 **채널마다 다르다.** 관제 채널은 같은 출처 브라우저 저장소가 곧 인계 채널이라
-    // 그대로 읽는다. 포털 채널은 access token 이 **Host 메모리에만** 있고 저장소를 쓰지 않기로
-    // 한 채널이라, 저장소를 읽으면 ①아무것도 없거나 ②앞 채널이 남긴 **죽은 토큰**을 줍는다.
-    // 그래서 그 채널에서는 획득 창구(`features/auth/tokenHandoff`)에 묻는다 — 저장소 직접
-    // 읽기를 창구 뒤로 추상화한다는 설계의 나머지 절반이 이 지점이다.
-    //
-    // ⚠ 관제 채널의 동작은 한 글자도 바뀌지 않는다(URL·쿠키·저장소 전략 그대로).
-    let token = isPortalEmbedChannel()
-      ? getAccessToken()
-      : resolveToken({
-          urlToken: params.get('token'),
-          cookieName: COOKIE_NAME,
-        });
+      // 토큰을 store에 적재 (decode + 타입 가드는 store 내부에서 수행)
+      useAuthStore.getState().setToken(token);
+      const claims = useAuthStore.getState().claims;
 
-    // [개발 전용] VITE_DEV_TOKEN 환경변수로 upstream 없이 개발 가능하게 지원
-    if (!token && import.meta.env.DEV) {
-      const devToken = import.meta.env.VITE_DEV_TOKEN as string | undefined;
-      if (devToken) {
-        token = devToken;
+      if (!claims) {
+        handleAuthFailure(detectChannel(), ERROR_NO_TOKEN);
+        return;
       }
-    }
 
-    if (!token) {
-      handleAuthFailure(detectChannel(), ERROR_NO_TOKEN);
-      return;
-    }
-
-    // 토큰을 store에 적재 (decode + 타입 가드는 store 내부에서 수행)
-    useAuthStore.getState().setToken(token);
-    const claims = useAuthStore.getState().claims;
-
-    if (!claims) {
-      handleAuthFailure(detectChannel(), ERROR_NO_TOKEN);
-      return;
-    }
-
-    // 만료 검증
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (claims.exp <= nowSec) {
-      useAuthStore.getState().clear();
-      handleAuthFailure(claims.channel, ERROR_EXPIRED);
-      return;
-    }
-
-    // [@design SCREEN-001] [@design SCREEN-002] [@design ADR-063] [@design UC-041]
-    // [@design SEQ-034] [@design AC-1016] [@design AC-1017] [@design AC-1098] [@design API-006]
-    // 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다. 관제 진입자는 진입 순간
-    // userNo 를 발급받고 role=null(무권한)로 진입할 수 있으며, 관제 토큰의 role 클레임은
-    // 관제 자신의 역할값이라 우리 역할 집합과 겹치지 않을 수 있다 — 그것만으로 판정하면
-    // 역할 보유자를 무권한으로 오인한다.
-    //
-    // ★<b>채널을 가리지 않고 묻는다</b> (2026-09-08). 예전에는 포털 채널이 여기서 곧바로
-    //   되돌아 나가 서버 역할을 <한 번도> 묻지 않았다. 포털 토큰에 역할이 늘 실려 튕기지
-    //   않았을 뿐, 서버가 역할을 바꾸거나 회수해도 화면은 옛 역할로 계속 움직였다.
-    //   ⚠ 조회 시점을 채널마다 다르게 만들지 말 것 — 두 벌이 되면 한쪽만 낡는다.
-    //
-    // ★조회가 <실패>했을 때 role=null 로 뭉개지 않는다 (2026-09-07). 실패는 세 갈래다:
-    //   ① 401(인증 실패·만료)  → 상위 시스템 재로그인. 기존 만료 처리와 <같은 결말>이다.
-    //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로. ★유효 세션을 막지 않는다는 폴백의 취지는
-    //                            그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
-    //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가
-    //                            /role-claim 으로 떨어져 서버 장애가 "관리자가 없습니다"로
-    //                            표시됐다.
-    //   ⚠ 구 동작 폐기 — *"조회 실패 시에는 토큰 클레임 role 로 폴백"* 을 <전 갈래>에 적용하던
-    //     것. ②만 남고 ①③은 갈라졌다. 되돌리면 오류가 다시 사양으로 위장된다.
-    //
-    // ⚠ 조회는 `ensureServerRole` 한 곳이 소유한다 — 여기서 `getMe` 를 직접 부르면 새로고침
-    //   복원 경로와 조회·주입 규약이 두 벌이 되고, 같은 부팅에서 `/me` 가 두 번 나간다.
-    const routeAfterHandoff = async (channel: Channel, fallbackRole: Role | null) => {
-      const outcome = await ensureServerRole();
-      let effectiveRole: Role | null;
-      if (outcome.kind === 'resolved') {
-        effectiveRole = outcome.role;
-      } else if (outcome.kind === 'unauthorized') {
-        // ① 인증이 유효하지 않다 — 역할 없음이 아니다. HTTP 계층이 이미 토큰을 비웠으나
-        //    여기서도 명시적으로 비워 이 갈래를 자족적으로 만든다(중복 호출은 무해).
+      // 만료 검증
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (claims.exp <= nowSec) {
         useAuthStore.getState().clear();
-        handleAuthFailure(channel, ERROR_EXPIRED);
+        handleAuthFailure(claims.channel, ERROR_EXPIRED);
         return;
-      } else if (fallbackRole == null) {
-        // ③ 역할을 <확인하지 못했다>. 관리자 등록 화면으로 보내지 않는다.
-        setError(ERROR_ROLE_UNKNOWN);
-        return;
-      } else {
-        // ② 유효 세션 폴백 — 종전 동작.
-        effectiveRole = fallbackRole;
       }
 
-      // 포털 채널의 도착지는 종전 그대로다 — <바뀐 것은 도착지가 아니라 「묻고 나서 간다」는
-      // 순서>다. PORTAL 은 서버도 역할을 고정 부여하므로 무권한 온보딩 갈래가 없다.
-      if (channel === 'PORTAL') {
-        navigate('/portal', { replace: true });
-        return;
-      }
-      navigate(effectiveRole != null ? '/dashboard' : '/role-claim', { replace: true });
-    };
-    void routeAfterHandoff(claims.channel, claims.role);
+      // [@design SCREEN-001] [@design SCREEN-002] [@design ADR-063] [@design UC-041]
+      // [@design SEQ-034] [@design AC-1016] [@design AC-1017] [@design AC-1098] [@design API-006]
+      // 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다. 관제 진입자는 진입 순간
+      // userNo 를 발급받고 role=null(무권한)로 진입할 수 있으며, 관제 토큰의 role 클레임은
+      // 관제 자신의 역할값이라 우리 역할 집합과 겹치지 않을 수 있다 — 그것만으로 판정하면
+      // 역할 보유자를 무권한으로 오인한다.
+      //
+      // ★<b>채널을 가리지 않고 묻는다</b> (2026-09-08). 예전에는 포털 채널이 여기서 곧바로
+      //   되돌아 나가 서버 역할을 <한 번도> 묻지 않았다. 포털 토큰에 역할이 늘 실려 튕기지
+      //   않았을 뿐, 서버가 역할을 바꾸거나 회수해도 화면은 옛 역할로 계속 움직였다.
+      //   ⚠ 조회 시점을 채널마다 다르게 만들지 말 것 — 두 벌이 되면 한쪽만 낡는다.
+      //
+      // ★조회가 <실패>했을 때 role=null 로 뭉개지 않는다 (2026-09-07). 실패는 세 갈래다:
+      //   ① 401(인증 실패·만료)  → 상위 시스템 재로그인. 기존 만료 처리와 <같은 결말>이다.
+      //   ② 그 밖 + 토큰 role 有 → 종전 폴백 그대로. ★유효 세션을 막지 않는다는 폴백의 취지는
+      //                            그대로 살린다 — 인가 최종 판정은 어차피 서버가 소유한다.
+      //   ③ 그 밖 + 토큰 role 無 → 오류 표시. <여기가 고친 자리다> — 예전에는 이 갈래가
+      //                            /role-claim 으로 떨어져 서버 장애가 "관리자가 없습니다"로
+      //                            표시됐다.
+      //   ⚠ 구 동작 폐기 — *"조회 실패 시에는 토큰 클레임 role 로 폴백"* 을 <전 갈래>에 적용하던
+      //     것. ②만 남고 ①③은 갈라졌다. 되돌리면 오류가 다시 사양으로 위장된다.
+      //
+      // ⚠ 조회는 `ensureServerRole` 한 곳이 소유한다 — 여기서 `getMe` 를 직접 부르면 새로고침
+      //   복원 경로와 조회·주입 규약이 두 벌이 되고, 같은 부팅에서 `/me` 가 두 번 나간다.
+      const routeAfterHandoff = async (channel: Channel, fallbackRole: Role | null) => {
+        const outcome = await ensureServerRole();
+        let effectiveRole: Role | null;
+        if (outcome.kind === 'resolved') {
+          effectiveRole = outcome.role;
+        } else if (outcome.kind === 'unauthorized') {
+          // ① 인증이 유효하지 않다 — 역할 없음이 아니다. HTTP 계층이 이미 토큰을 비웠으나
+          //    여기서도 명시적으로 비워 이 갈래를 자족적으로 만든다(중복 호출은 무해).
+          useAuthStore.getState().clear();
+          handleAuthFailure(channel, ERROR_EXPIRED);
+          return;
+        } else if (fallbackRole == null) {
+          // ③ 역할을 <확인하지 못했다>. 관리자 등록 화면으로 보내지 않는다.
+          setError(ERROR_ROLE_UNKNOWN);
+          return;
+        } else {
+          // ② 유효 세션 폴백 — 종전 동작.
+          effectiveRole = fallbackRole;
+        }
+
+        // 포털 채널의 도착지는 종전 그대로다 — <바뀐 것은 도착지가 아니라 「묻고 나서 간다」는
+        // 순서>다. PORTAL 은 서버도 역할을 고정 부여하므로 무권한 온보딩 갈래가 없다.
+        if (channel === 'PORTAL') {
+          navigate('/portal', { replace: true });
+          return;
+        }
+        navigate(effectiveRole != null ? '/dashboard' : '/role-claim', { replace: true });
+      };
+      void routeAfterHandoff(claims.channel, claims.role);
+    })();
   }, [params, navigate]);
 
   if (error !== null) {
