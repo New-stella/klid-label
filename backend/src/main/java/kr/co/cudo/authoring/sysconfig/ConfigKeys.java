@@ -135,7 +135,7 @@ public final class ConfigKeys {
 
     /**
      * R11 — 운영 화면에서 조정하는 <b>외부 연동 서버 주소</b>
-     * (비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처 · 외부 증강 벤더).
+     * (비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처 · 외부 증강 벤더 · 관제 계정 창구).
      *
      * <p>⚠ <b>구 서술 폐기(2026-09-08)</b> — <i>"외부 연동 서버 주소 4종"</i>. 개수 표기를 쓰지 않는다:
      * 축이 하나 늘거나 옮겨갈 때마다 그 숫자를 인용한 자리가 한꺼번에 틀린다(이 저장소에서 같은 형태의
@@ -143,7 +143,7 @@ public final class ConfigKeys {
      *
      * <p>★ <b>이 열거는 화면 칸 목록과 같은 집합이 아니다</b> — 이쪽은 «주소 형식 검증 + 관리자 유효창
      * 요구» 판정 대상({@link kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint})이고, 화면에서
-     * 사람이 고치는 칸은 그보다 좁다(비식별 · 외부 증강 벤더 · 관제 통지). AI 추론 · 외부 시계열 분석
+     * 사람이 고치는 칸은 그보다 좁다(비식별 · 외부 증강 벤더 · 관제 통지 · 관제 계정 창구). AI 추론 · 외부 시계열 분석
      * 벤더는 화면 칸에서 빠졌지만 <b>배포 설정값이 장비 원장의 씨앗으로 계속 저장될 수 있어</b>
      * 판정 대상에는 남는다. <b>두 집합을 같게 만들지 말 것.</b>
      *
@@ -166,6 +166,17 @@ public final class ConfigKeys {
     public static final String INTEGRATION_AI_SERVER_BASE_URL  = "authoring.integration.ai-server.base-url";
     public static final String VLM_CLIENT_URL                  = "vlm.client.url";
     public static final String CONTROL_NOTIFY_URL              = "authoring.control-notify.url";
+    /**
+     * 관제 계정 창구 — 관제 채널 세션 중계(토큰 갱신·로그아웃)가 부르는 관제 주소.
+     * [@design ADR-046] [@design API-069]
+     *
+     * <p>★ <b>관제 통지 수신처({@link #CONTROL_NOTIFY_URL})와 별개 값이다</b> — 관제가 계정 창구와
+     * 데이터셋 창구를 서로 다른 서버에 둘 수 있어, 주소 하나를 함께 쓰면 한쪽이 404 가 된다.
+     * <b>폴백하지 않는다</b>: 비어 있어도 통지 수신처 주소로 대신하지 않으며, 배포 기본값도 비어 있다.
+     * 저장 규칙(유효창 요구 · 주소 형식 검증 · 대역 미차단 · 시드 없음 · 즉시 반영)은 위 연동 주소
+     * 키들과 같다.
+     */
+    public static final String CONTROL_ACCOUNT_URL             = "authoring.control-account.url";
 
     /**
      * 외부 증강(생성형 AI) 위탁 벤더 주소. [@design ADR-046] [@design API-069]
@@ -249,7 +260,7 @@ public final class ConfigKeys {
             EVENT_EXCLUDED_CLASS_CODES,
             KPST_DEID_MASKING_TYPE, KPST_DEID_MASKING_RANGE, KPST_DEID_DB_SAVE,
             KPST_DEID_BASE_URL, INTEGRATION_AI_SERVER_BASE_URL,
-            VLM_CLIENT_URL, CONTROL_NOTIFY_URL, AUGMENT_EXTERNAL_BASE_URL,
+            VLM_CLIENT_URL, CONTROL_NOTIFY_URL, CONTROL_ACCOUNT_URL, AUGMENT_EXTERNAL_BASE_URL,
             AI_WAIT_BUDGET_CEILING_SEC,
             BATCH_VLM_SKIP_BY_DEFAULT, BATCH_VLM_SKIP_BY_DEFAULT_REASON
     );
@@ -273,6 +284,8 @@ public final class ConfigKeys {
             INTEGRATION_AI_SERVER_BASE_URL,  "STRING",
             VLM_CLIENT_URL,                  "STRING",
             CONTROL_NOTIFY_URL,              "STRING",
+            // 관제 계정 창구도 시드하지 않는다 — 배포 기본값이 비어 있고 통지 수신처로 폴백하지 않는다.
+            CONTROL_ACCOUNT_URL,             "STRING",
             // 외부 증강 벤더도 시드하지 않는다 — 행이 없는 것이 «아직 연동하지 않음»의 유일한 표현이다.
             AUGMENT_EXTERNAL_BASE_URL,       "STRING",
             // AI 대기 예산 상한도 시드하지 않는다 — 행이 없으면 도출 기본값(앞단 제한시간)을 쓴다.

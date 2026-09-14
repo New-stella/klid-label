@@ -35,6 +35,10 @@ export const ConfigKey = {
   //     가르는 축은 「AI 위탁인가」가 아니라 「고를 대상이 여럿인가」다(SCREEN-042 · API-069).
   AUGMENT_EXTERNAL_BASE_URL: 'authoring.augment.external.base-url',
   CONTROL_NOTIFY_URL: 'authoring.control-notify.url',
+  //   ★ 관제 계정 창구 — 관제 채널 세션 연장·로그아웃 중계가 부르는 관제 주소(SCREEN-042 · API-069).
+  //     관제 통지 수신처와 **별개 값**이다. 한 칸으로 합치면 통지 창구와 계정 창구가 다른 서버에
+  //     있을 때 한쪽이 반드시 틀린다. 배포 기본값이 비어 있어 비면 세션 연장이 동작하지 않는다.
+  CONTROL_ACCOUNT_URL: 'authoring.control-account.url',
   // ★ 아래 둘은 **화면에서 편집하지 않는다** — 그 두 축의 주소 진실원이 장비 원장으로 옮겨갔고,
   //   위탁도 원장 주소로 나간다. 칸을 되살리면 저장은 되는데 위탁 주소는 그대로라
   //   **오류도 경고도 없이 아무 일이 안 일어나는** 조용한 실패가 된다. 주소를 바꾸는 자리는
@@ -69,7 +73,7 @@ export interface ConfigUpdateRequest {
   /** R11 이전에는 숫자만 있었다. 연동 주소는 문자열이라 두 타입을 모두 받는다. */
   value: number | string;
   /**
-   * R11 — 관리자 단기 유효창 토큰. 연동 주소 4종을 저장할 때만 필요하다.
+   * R11 — 관리자 단기 유효창 토큰. 연동 서버 주소 칸을 저장할 때 필요하다.
    *
    * ⚠ 브라우저 저장소(localStorage/sessionStorage)에 두지 않는다. 화면 상태로만 들고 있다가
    *   요청 헤더로 실어 보낸다 — 저장소에 두면 XSS 한 번으로 유효창이 통째로 넘어간다.

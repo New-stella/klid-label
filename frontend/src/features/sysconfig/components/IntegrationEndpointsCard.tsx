@@ -48,8 +48,17 @@ const FIELDS = [
     name: 'controlNotify',
     key: ConfigKey.CONTROL_NOTIFY_URL,
     label: '관제 통지 수신처',
-    hint: '작업 완료·수정 통지를 받는 관제서버 주소입니다.',
+    hint: '작업 완료·수정 통지를 받는 관제 창구 주소입니다. 관제 웹서버 주소 또는 데이터셋 창구를 가진 WAS 주소를 넣습니다.',
     placeholder: '미설정 — 배포 기본값 사용 중',
+  },
+  {
+    name: 'controlAccount',
+    key: ConfigKey.CONTROL_ACCOUNT_URL,
+    label: '관제 계정 창구',
+    hint: '관제 채널 세션 연장·로그아웃을 중계할 관제 창구 주소입니다. 관제 웹서버 주소 또는 계정 창구를 가진 WAS 주소를 넣습니다. 비어 있으면 세션 연장이 동작하지 않습니다.',
+    // ⚠ 여기에 «배포 기본값 사용 중» 을 쓰지 않는다 — 이 칸은 배포 기본값이 **비어 있어**, 빈 칸은
+    //   «기본값으로 도는 중» 이 아니라 «세션 연장이 동작하지 않음» 이다. 그 문구는 사실과 달라진다.
+    placeholder: '미설정 — 세션 연장 불가',
   },
 ] as const satisfies ReadonlyArray<{
   name: keyof IntegrationEndpointsForm;
@@ -76,8 +85,12 @@ const INPUT_CLASS = `w-full rounded-md border border-gray-300 px-3 py-2 text-bod
  * R11 — 연동 서버 주소 카드. [@design SCREEN-042] [@design API-069]
  *
  * <h3>여기 있는 것은 «저장한 값이 곧 진실원» 인 축뿐이다</h3>
- * 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 셋이다. 셋 다 <b>보낼 곳이 한 곳뿐이라 고를
- * 일이 없어</b> 칸 하나가 곧 진실원이다.
+ * 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 · 관제 계정 창구다. 모두 <b>보낼 곳이 한 곳뿐이라
+ * 고를 일이 없어</b> 칸 하나가 곧 진실원이다.
+ *
+ * <p>★ 관제 계정 창구는 관제 통지 수신처와 <b>별개 값</b>이다(세션 연장·로그아웃 중계용). 배포
+ * 기본값이 비어 있어, 비면 관제 채널 세션 연장이 동작하지 않는다 — 그래서 그 칸의 빈 값 안내에는
+ * «배포 기본값» 문구를 쓰지 않는다.
  *
  * <p>⚠ <b>AI 추론 서버·외부 시계열 분석 벤더 칸을 여기에 되살리지 말 것.</b> 그 두 축은 장비를
  * 여러 대 두고 골라 보내므로 주소의 진실원이 <b>장비 원장</b>이고 위탁도 원장 주소로 나간다.
@@ -128,6 +141,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
     deidentify: configs[ConfigKey.KPST_DEID_BASE_URL] ?? '',
     augment: configs[ConfigKey.AUGMENT_EXTERNAL_BASE_URL] ?? '',
     controlNotify: configs[ConfigKey.CONTROL_NOTIFY_URL] ?? '',
+    controlAccount: configs[ConfigKey.CONTROL_ACCOUNT_URL] ?? '',
   };
 
   const {
@@ -145,7 +159,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
   useEffect(() => {
     reset(stored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stored.deidentify, stored.augment, stored.controlNotify, reset]);
+  }, [stored.deidentify, stored.augment, stored.controlNotify, stored.controlAccount, reset]);
 
   // 유효창이 닫히면 편집 중이던 내용을 되돌린다 — 저장되지 않을 값을 입력된 채로 두면
   // "저장된 줄 알았다"가 된다.

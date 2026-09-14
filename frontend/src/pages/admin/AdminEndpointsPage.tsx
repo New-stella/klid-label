@@ -21,7 +21,7 @@ import { useConfigStrings } from '@/features/sysconfig/hooks/useConfigStrings';
  * 없도록 화면에서 그 사실을 밝힌다.
  *
  * <h3>주소 한 칸인 것과 장비 목록인 것이 한 화면에 있다</h3>
- * 비식별 서버·외부 증강 벤더·관제 통지 수신처는 <b>한 칸 그대로</b>다 — 셋 다 보낼 곳이 한 곳뿐이라
+ * 비식별 서버·외부 증강 벤더·관제 통지 수신처·관제 계정 창구는 <b>한 칸 그대로</b>다 — 모두 보낼 곳이 한 곳뿐이라
  * 고를 일이 없다. 반면 추론과 외부 시계열 분석은 장비를 여러 대 두고 골라 보내는 축이라
  * <b>목록</b>으로 다룬다(ADR-046 · ADR-057).
  *
@@ -41,7 +41,7 @@ export function AdminEndpointsPage() {
     <section className="flex flex-col gap-6">
       <PageHeader
         title="연동 서버 주소"
-        description="주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 / 장비 목록 — 추론 · 외부 시계열 분석"
+        description="주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 · 관제 계정 창구 / 장비 목록 — 추론 · 외부 시계열 분석"
       />
 
       <p className="text-caption text-gray-600">

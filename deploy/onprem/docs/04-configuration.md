@@ -85,7 +85,8 @@ diff <(keys env.template) <(keys application.properties.template)
 | control DB | `CONTROL_DB_HOST` · `CONTROL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
 | 비식별(KPST) 서버 | `KPST_DEID_BASE_URL` | A · `application.properties` | `https://127.0.0.1:9201` | ★ 동거 KPST 주소로 교체(스킴에 따라 CA 필요) |
 | 비식별 헬스 핑 | `DEIDENTIFY_API_URL` | A · `application.properties` | `http://127.0.0.1:9200` | 헬스 인디케이터 전용 — 실 비식별 호출에는 쓰이지 않는다 |
-| 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | `CONTROL_NOTIFY_ENABLED=true` 일 때만 의미가 있다 |
+| 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | **통지 전용** — `CONTROL_NOTIFY_ENABLED=true` 일 때만 쓰인다. 관제 웹서버 주소, 또는 데이터셋 창구(`/api/data-set/`)를 가진 WAS 주소 |
+| **관제 계정 창구** | `CONTROL_ACCOUNT_URL` | A · `application.properties` | **(빈 값)** | ★ **관제 채널 배포본은 반드시 채운다** — 비우면 세션 연장·로그아웃 중계가 관제를 부르지 않고 실패한다(통지 수신처 주소로 대체하지 않는다). 관제 웹서버 주소, 또는 계정 창구(`/api/account/`)를 가진 WAS 주소. ⚠ 관제는 계정 창구와 데이터셋 창구를 **서로 다른 WAS** 에 두므로 WAS 를 직접 가리키면 두 칸에 서로 다른 WAS 를 넣는다(관제 웹서버 주소면 같은 값이어도 된다). 확인: `curl -s -X POST <주소>/api/account/auth/refresh` → **401 JSON 이면 맞는 주소, 404 HTML 이면 틀린 주소** |
 | 외부 시계열 분석 벤더 | `VLM_SERVICE_URL` | A · `application.properties` | **(빈 값)** | ⚠ **비워 두는 것이 정상** — 아래 ② |
 | 외부 생성형 AI 증강 벤더 | `AUGMENT_API_BASE_URL` | A · `application.properties` | (빈 값 = 미연동) | 주소가 곧 연동 여부다. 채우면 `WEBHOOK_GENAI_ALLOWED_IP_CIDRS` 도 **함께** 채운다 |
 | 증강 콜백이 되돌아올 우리 주소 | `WEBHOOK_CALLBACK_BASE_URL` | A · `application.properties` | `http://127.0.0.1:8080/api` | 외부가 <우리를> 부를 수 있는 주소여야 한다 |
@@ -362,6 +363,7 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 |-------------|-----------|------|
 | **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원 |
 | 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | 외부 있으면 `true` + `CONTROL_NOTIFY_URL`, 없으면 `false`(기본) |
+| 관제 계정 창구(세션 연장·로그아웃 중계) | (토글 없음 — 통지 토글과 무관) | 관제 채널 배포본은 `CONTROL_ACCOUNT_URL` **필수**. 비우면 세션 연장이 동작하지 않는다. 포털 채널 배포본은 이 창구가 닫혀 있어 비워 둔다 |
 | 외부 VLM 시계열 | `VLM_SERVICE_URL` | 외부 있으면 실제 주소 + `VLM_SERVICE_TOKEN`, 없으면 **빈 값**(기본). 활성/비활성 토글은 폐지됐다 — 비우면 기동은 정상이고 위탁만 실패하므로, 연동 전 구간에는 시계열 묶음을 화면에서 스킵한다 |
 | 외부 증강 | (콜백 수신, HMAC 시크릿만) | 콜백 안 받아도 HMAC 시크릿만 채워 부팅 통과 |
 

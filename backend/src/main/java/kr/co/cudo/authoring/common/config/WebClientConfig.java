@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 외부 연동 {@code WebClient} 구성.
  *
  * <h3>★ 주소는 빈 생성 시점에 고정되지 않는다 (R11)</h3>
- * <p>아래 빈 중 <b>AI 추론·시계열 분석·관제 통지</b> 3종은 {@code baseUrl} 로 <b>배포 기본값</b>을 갖되,
+ * <p>아래 빈 중 <b>AI 추론·시계열 분석·관제 통지·관제 계정 창구</b>는 {@code baseUrl} 로 <b>배포 기본값</b>을 갖되,
  * {@link IntegrationEndpointExchangeFilter} 를 달아 <b>매 호출 시점</b>에 설정 override 를 다시 읽는다.
  * 설정 화면에서 주소를 바꾸면 재기동 없이 다음 호출부터 새 주소로 나간다.
  *
@@ -297,9 +297,18 @@ public class WebClientConfig {
      * 자리에 통지 토큰이 실려 갱신이 통째로 실패하거나, 통지를 꺼 둔 배포에서 세션 연장이 막힌다.
      * 이 빈에는 <b>자격증명 필터도 토글도 없다</b> — 담을 값은 요청마다 호출자(사용자)의 토큰이다.
      *
-     * <h3>주소는 통지 수신처 설정을 재사용한다 (사용자 확정 2026-09-10)</h3>
-     * <p>같은 관제 서버이므로 별도 키를 두지 않는다. 관리자가 연동 주소 설정에서 바꾼 값이 <b>다음
-     * 호출부터</b> 반영되도록 통지와 같은 재작성 필터·전송 가드를 태운다.
+     * <h3>★ 주소는 관제 계정 창구 설정만 쓴다 — 통지 수신처로 폴백하지 않는다 (사용자 확정 2026-09-14)</h3>
+     * <p>키는 {@code authoring.control-account.url}(연동 대상 {@link IntegrationEndpoint#CONTROL_ACCOUNT})이고
+     * <b>배포 기본값은 비어 있다</b>. 관제는 계정 창구와 데이터셋 창구를 <b>서로 다른 WAS</b> 에 두므로,
+     * 통지 수신처 주소를 나눠 쓰면 WAS 에 직접 붙이는 순간 한쪽이 404 다(현장 실사고 — 세션 연장 전부 실패 후
+     * 서킷 오픈으로 로그아웃 중계까지 막혔다). 폴백을 두면 판정 원천이 둘이 되어 같은 사고가 조용히 재발한다.
+     *
+     * <p>관리자가 연동 주소 설정에서 바꾼 값이 <b>다음 호출부터</b> 반영되도록 재작성 필터·전송 가드를 태운다.
+     * 주소가 비었거나 형식이 틀리면 전송 가드가 {@code NonRetryableExternalException} 으로 전송을 막고,
+     * 그 예외는 서킷 인스턴스의 {@code ignore-exceptions} 에 등록돼 <b>서킷 실패로 세지 않는다</b>.
+     *
+     * <p>⚠ 구 서술 폐기 — <i>"주소는 통지 수신처 설정을 재사용한다(2026-09-10) · 같은 관제 서버이므로 별도
+     * 키를 두지 않는다"</i>. 되살리지 말 것.
      *
      * <p>⚠ <b>자격증명 가드({@code stripCredentialOnHostChange})는 걸지 않는다</b> — 그 가드는 빈 생성
      * 시점에 고정된 <b>우리 발급</b> 자격증명이 새 호스트로 따라가는 것을 막는다. 여기 실리는 것은
@@ -318,11 +327,12 @@ public class WebClientConfig {
      */
     @Bean(name = "controlAccountWebClient")
     public WebClient controlAccountWebClient(
-            @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl,
+            @Value("${authoring.control-account.url:}") String baseUrl,
             IntegrationEndpointResolver endpointResolver) {
         // 주소가 어떤 상태여도 기동한다 — 미설정·파싱 불가면 빈 base 로 낮추고 전송 시점에 막는다.
+        // ★ 통지 수신처(CONTROL_NOTIFY)를 읽지 않는다 — 폴백 없음(2026-09-14 확정).
         ExternalEndpointAddress address = ExternalEndpointAddress
-                .formatOnly(IntegrationEndpoint.CONTROL_NOTIFY.configKey(), baseUrl);
+                .formatOnly(IntegrationEndpoint.CONTROL_ACCOUNT.configKey(), baseUrl);
         String base = address.baseUrl();
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONTROL_ACCOUNT_CONNECT_TIMEOUT_MILLIS)
@@ -331,11 +341,11 @@ public class WebClientConfig {
                 .baseUrl(base)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .filter(IntegrationEndpointExchangeFilter.of(
-                        IntegrationEndpoint.CONTROL_NOTIFY, base, endpointResolver))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, base, endpointResolver))
                 .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
-                        IntegrationEndpoint.CONTROL_NOTIFY, address.rejectionLabel()))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
-                        IntegrationEndpoint.CONTROL_NOTIFY, base))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, base))
                 .build();
     }
 

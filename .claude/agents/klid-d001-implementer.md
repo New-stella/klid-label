@@ -289,6 +289,12 @@ JUnit5 는 시험마다 인스턴스를 새로 만들지만 `static` 필드는 �
 읽으면 틀린다. `controlAccountWebClient` 는 미지정이라 기본 256KB 이고, 300KB 응답은 조용한 성공이 아니라
 `DataBufferLimitException` 으로 터져 503 축으로 간다(실측). 응답 크기 경계를 판정할 때는 **빈 단위로 확인**할 것.
 
+**워크트리 실행 함정 (2026-09-14)**: `.claude/worktrees/*` 세션에서는 격리 검사가 **복합 셸·heredoc 을 거부**한다
+(「runs gradlew … inside a construct too complex to verify」). ⇒ `JAVA_HOME=/opt/homebrew/opt/openjdk@17
+backend/gradlew -p backend cleanTest test --tests '...'` 처럼 **단일 명령**으로, 긴 스크립트는 **파일로 쓴 뒤**
+실행한다. 이 셸은 **zsh** 라 `${PIPESTATUS[0]}` 가 비어 성공처럼 읽힌다 — 종료코드는 파이프 없이 판정.
+워크트리에는 `frontend/node_modules` 도 없다(FE 시험이 원인 가려진 오류를 낸다 — lockfile 대조 후 `cp -Rc`).
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

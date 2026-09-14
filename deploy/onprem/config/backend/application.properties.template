@@ -299,10 +299,22 @@ KPST_DEID_POLL_TIMEOUT_MINUTES=180
 
 # ---- 관제서버 outbound 완료/수정 통지 ------------------------------------
 # · 기본 false. 관제서버 inbound SPI 가 있으면 true + URL 주입.
+# · 이 URL 은 통지 전용이다 — 관제 채널 세션 연장·로그아웃 중계는 아래 CONTROL_ACCOUNT_URL 을 쓴다.
+#   넣을 값: 관제 웹서버 주소, 또는 데이터셋 창구(/api/data-set/)를 가진 WAS 주소.
 CONTROL_NOTIFY_ENABLED=false
 CONTROL_NOTIFY_URL=http://127.0.0.1:8090
 CONTROL_NOTIFY_TIMEOUT_MS=10000
 CONTROL_NOTIFY_DEBOUNCE_SEC=60
+
+# ---- 관제 계정 창구 (관제 채널 세션 연장·로그아웃 중계) ------------------
+# · ★ 관제 채널 배포본은 반드시 채운다. 비우면 세션 연장·로그아웃 중계가 관제를 부르지 않고 실패한다.
+# · 통지 수신처(CONTROL_NOTIFY_URL)와 별개이며, 비어 있어도 그 주소로 대체하지 않는다. 통지 토글과 무관하다.
+# · 넣을 값: 관제 웹서버 주소, 또는 계정 창구(/api/account/)를 가진 WAS 주소.
+#   관제는 계정 창구와 데이터셋 창구를 서로 다른 WAS 에 둔다 — WAS 를 직접 가리키면 두 URL 에 서로 다른
+#   WAS 를 넣는다(관제 웹서버 주소면 같은 값이어도 된다).
+# · 확인: curl -s -X POST <주소>/api/account/auth/refresh → 401 JSON 이면 맞는 주소, 404 HTML 이면 틀린 주소.
+# · 포털 채널 배포본은 이 창구가 닫혀 있어 비워 둔다.
+CONTROL_ACCOUNT_URL=
 
 # ---- 외부 VLM 시계열 위탁 -------------------------------------------------
 # · ★ 활성/비활성 토글은 폐지됐다 — 껐다 켜는 손잡이를 되살리지 말 것.

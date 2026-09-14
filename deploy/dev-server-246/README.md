@@ -22,8 +22,8 @@
 브라우저 → http://192.168.102.246:8088/label-studio/
                          │  (apache 컨테이너, :8088)
                          ├─ /label-studio/         → AliasMatch → 정적 FE (label-studio-web)
-                         └─ /label-studio/api/**   → ProxyPass  → klid-authoring-jboss:18080/label-studio/**
-                                                                    (JBoss EAP 8, context=/label-studio)
+                         └─ /label-studio/api/**   → ProxyPass  → klid-authoring-jboss:18080/label-studio/api/**
+                                                                    (JBoss EAP 8, context=/label-studio/api)
                                                                          │
                                                                          └─ DB: postgis-klid:5432/klid (user cudo, schema klid_at)
 ```
@@ -40,19 +40,21 @@
 
 ## 2. 경로 매핑 규칙 (빌드/설정에 직접 반영됨)
 
-- Apache 가 **`/label-studio/api/` 를 벗겨** JBoss `/label-studio/` 로 전달한다.
-  즉 `/label-studio/api/v1/me` → JBoss `/label-studio/v1/me`.
-- JBoss WAR context 는 **`/label-studio`** 다 → 빌드 시 `-PklidWebContext=/label-studio`.
+- Apache 는 **`/label-studio/api/` 를 벗기지 않고** JBoss `/label-studio/api/` 로 그대로 전달한다.
+  즉 `/label-studio/api/v1/me` → JBoss `/label-studio/api/v1/me`. (246 `klid.conf` 의 `RewriteRule … [P,L]`·`ProxyPass` 가 이 향이다.)
+- JBoss WAR context 는 **`/label-studio/api`** 다 — **현장(반입 산출물) WAR 와 같은 향**이고 빌드 기본값이다 → 빌드 시 `-PklidWebContext` 를 **주지 않는다**.
+- ⚠ **구 서술 폐기(2026-09-14 실측)** — *"Apache 가 `/label-studio/api/` 를 벗겨 JBoss `/label-studio/` 로 전달 · 빌드 시 `-PklidWebContext=/label-studio`"* 는 **옛 strip 향**이다. 246 `klid.conf` 는 이미 현장 향(`/label-studio/api`)으로 바뀌었고 백업 WAR 의 context-root 도 `/label-studio/api` 였다. 옛 지시대로 `/label-studio` 로 빌드해 올리면 JBoss 가 `Registered web context: '/label-studio'` 로 뜨고 **apache 경유 API 가 전부 401(없는 경로)** 이 된다 — 실제로 그렇게 됐다.
 - FE 번들에 API base 를 **`/label-studio/api/v1`** 로 굽는다(`VITE_API_BASE_URL`).
 - FE 자산 base 는 **`/label-studio/`** (`VITE_BASE_PATH`).
 
 ## 3. 백엔드(JBoss) 배포
 
 ```bash
-# 3-1. 로컬(또는 246 /data/klid)에서 WAR 빌드 — context=/label-studio
+# 3-1. 로컬(또는 246 /data/klid)에서 WAR 빌드 — context=/label-studio/api (기본값 — 플래그 없음)
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17   # (로컬 macOS 기준. 새 셸에서 필수)
-cd <repo>/backend && ./gradlew bootWar -PklidWebContext=/label-studio
+cd <repo>/backend && ./gradlew bootWar
 #   산출: backend/build/libs/*.war
+#   ⚠ -PklidWebContext=/label-studio 를 주지 말 것(위 §2 폐기 서술 참조)
 
 # 3-2. WAR 를 246 JBoss deployments 로 전송(핫디플로이)
 nt sftp cudo_246 put backend/build/libs/api.war \
@@ -61,7 +63,8 @@ nt sftp cudo_246 put backend/build/libs/api.war \
 # 3-3. JBoss 재기동(또는 핫디플로이 대기) 후 상태 확인
 nt ssh cudo_246 "docker restart klid-authoring-jboss; sleep 20; \
   docker exec klid-authoring-jboss curl -s -o /dev/null -w '%{http_code}\n' \
-  http://localhost:18080/label-studio/actuator/health"   # → 200
+  http://localhost:18080/label-studio/api/actuator/health"   # → 200
+#   기동 로그에서 context 확인: Registered web context: '/label-studio/api'
 ```
 
 > ⚠⚠ **`docker restart` 로는 `app.env` 변경이 반영되지 않는다** (2026-09-07 실측).
@@ -160,7 +163,7 @@ EOF"
 
 - **빌드 플래그 의미**:
   - `VITE_BASE_PATH=/label-studio/` — 자산·라우터 basename.
-  - `VITE_API_BASE_URL=/label-studio/api/v1` — axios base (apache 가 /api 벗겨 JBoss 로).
+  - `VITE_API_BASE_URL=/label-studio/api/v1` — axios base (apache 가 경로를 벗기지 않고 JBoss `/label-studio/api` context 로 그대로 넘긴다).
   - `VITE_DEV_LOGIN_ENABLED=true` — `/label-studio/dev/login` 노출(개발 진입 편의). 켜면
     토큰 없이 접근 시 관제 로그인 대신 dev-login 으로 간다(코드상 dev-login 우선).
   - `VITE_BUILD_CHANNEL=control` — **관제향 빌드**. 안내 문구가 "관제서버"로 단일화된다
@@ -177,9 +180,14 @@ vhost `*:80`(ServerName klid-server-dev-01, DocumentRoot /local-storage/web/plat
 AliasMatch "^/label-studio(?!/api/)(.*)$" "/local-storage/web/label-studio/$1"
 
 # API — /label-studio/api/ 를 JBoss 로 (전역 ProxyPass 블록에)
-ProxyPass        /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/
-ProxyPassReverse /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/
+ProxyPass        /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/api/
+ProxyPassReverse /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/api/
+# vhost 안 RewriteRule 도 같은 향이어야 한다
+RewriteRule ^/label-studio/api/(.*)$ http://klid-authoring-jboss:18080/label-studio/api/$1 [P,L]
 ```
+
+- ⚠ **구 설정 폐기(2026-09-14 실측)** — 뒤쪽을 `…:18080/label-studio/` 로 두던 strip 향은 옛 형상이다.
+  246 `klid.conf` 는 현장 WAR 컨텍스트에 맞춰 `/label-studio/api/` 를 그대로 넘긴다.
 
 - SPA 폴백 RewriteRule 은 `!^/label-studio` 로 이미 label-studio 를 제외한다(정적 Directory 에
   `FallbackResource /label-studio/index.html` 존재).

@@ -156,6 +156,21 @@ clamp한다. 1초 미만 영상도 `start == end`인 0 길이 구간 없이 최�
 > **구 placeholder 경로 제거:** 기존 `POST /v1/augment` · `GET /v1/augment/status`(501 스텁)는
 > 명세서 경로로 **대체·삭제**되었다(잔존시키지 않음).
 
+### 관제 계정 창구 — 관제 채널 세션 연장·로그아웃 중계 (`/api/account/auth/*`)
+
+저작도구 서버가 관제 채널 사용자의 세션 갱신·로그아웃을 중계할 때 부르는 관제 창구를 흉내 낸다(관제 실측 계약).
+BE 설정은 **`authoring.control-account.url`**(env `CONTROL_ACCOUNT_URL`) — 관제 통지 주소와 **별개**이며 비어 있어도 통지 주소로 대체되지 않는다.
+
+| 메서드 | 경로 | 설명 |
+|:------:|------|------|
+| POST | `/api/account/auth/refresh` | 헤더 `x-access-token` = **refresh** 토큰. 없거나 무효(서명·만료) → **401** `{"error":900205,"message":"리프레시 토큰이 없습니다."}`. 유효 → **200** `{"error":0,"message":"success","data":{"session_token","refresh_token"}}` |
+| POST | `/api/account/auth/logout` | 헤더 `x-access-token` = **access** 토큰 → **200** `{"error":0,"message":"success"}` |
+
+- 새 토큰은 들어온 refresh 토큰의 클레임을 복사하고 그 알고리즘으로 서명한다(access 30분 · refresh 7일 · `sessionExpAlarm` 5 · `sessionTime` 30 기본).
+- 서명 키는 **`MOCK_CONTROL_JWT_SECRET`** — backend 의 `JWT_SECRET` 과 같은 값이어야 BE 가 새 토큰을 받는다(**base `docker-compose.yml`** 이 `JWT_SECRET` 을 넘긴다 — local override 에 두지 않는다). **비어 있으면 갱신은 503**(목이 키를 지어내지 않는다) · 로그아웃은 동작한다.
+- ⚠ HS512 토큰은 키가 64바이트 미만이면 BE 검증에 실패한다(BE 의 기존 키 길이 경고와 같은 조건).
+- 목 전용 가정: 로그아웃에 헤더가 없어도 200 으로 답한다(관제 계약에 그 경우가 없다). 교체 전 refresh 토큰 재사용 거부는 흉내 내지 않는다(서명·만료만 본다).
+
 ### 공통
 
 | 메서드 | 경로 | 설명 |
