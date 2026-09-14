@@ -473,6 +473,31 @@ export interface SelectableVrfcEvntType {
   questions?: VrfcEvntQuestion[];
 }
 
+/**
+ * 등록된 **검증 이벤트 유형** 1건(코드·이름) — BE `VideoDetailResponse.allVrfcEvntTypes` 의 원소.
+ * [@design API-043]
+ *
+ * ★ {@link SelectableVrfcEvntType} 과 <b>서로 대신하지 않는다</b>. 원소 모양이 같아 합치고 싶어
+ * 지지만, 두 목록은 <b>뜻이 다르다</b>:
+ * <ul>
+ *   <li>selectable — 「작업자가 <b>고를</b> 유형」. 관제가 유형을 보낸 영상에서는 <b>빈 배열</b>이며
+ *       그 비었음이 곧 「유형 선택을 노출하지 않는다」는 계약이다.</li>
+ *   <li>all — 「등록된 유형 <b>전부</b>」. 관제 값 유무와 무관하게 늘 같은 목록이며, 이벤트 분류
+ *       코드를 <b>이름으로 옮기는 데만</b> 쓴다.</li>
+ * </ul>
+ * 그래서 all 을 selectable 자리에 채우면 유형 선택이 <b>모든 영상에서</b> 뜨고, 반대로 selectable 을
+ * 이름 조달에 쓰면 관제 값이 있는 영상에서 이름을 영영 찾지 못한다.
+ *
+ * 질문 목록은 담기지 않는다 — 이름을 찾는 데 필요하지 않고, 유형 수만큼 질문이 딸려 오면 응답이
+ * 커진다.
+ */
+export interface VrfcEvntType {
+  /** 검증이벤트유형코드(소문자 스네이크). */
+  vrfcEvntTypeCd: string;
+  /** 화면에 보여줄 유형 이름. */
+  vrfcEvntTypeNm: string;
+}
+
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
@@ -612,6 +637,19 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
    */
   selectableVrfcEvntTypes?: SelectableVrfcEvntType[];
+  /**
+   * **등록된 검증 이벤트 유형 전체**(정렬순서 오름차순, 동률은 코드 오름차순) — BE
+   * `VideoDetailResponse.allVrfcEvntTypes`. [@design API-043] [@design UI-107]
+   *
+   * ★ 쓰임은 하나다 — 이벤트 어노테이션의 <b>이벤트 분류 코드를 이름으로 옮기는 것</b>. 그 분류는
+   * 마킹에서 고른 값이거나 사람이 고친 값이라 `vrfcEvntTypeCd`(관제 인입 값)로는 이름을 정할 수
+   * 없고, 유형 이름을 주는 다른 조회 경로(`/v1/manage/…`)는 검수자 전용이라 작업자가 쓸 수 없다.
+   * 그래서 <b>라벨링·검수 두 화면 모두 이 목록</b>을 쓴다(역할로 조달처를 가르지 않는다).
+   *
+   * 등록된 유형이 없으면 빈 배열이며, 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
+   * 목록에 없는 코드는 <b>코드만</b> 보인다 — 코드를 이름인 것처럼 보이게 지어내지 않는다.
+   */
+  allVrfcEvntTypes?: VrfcEvntType[];
 }
 
 /**

@@ -54,12 +54,17 @@ import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates'
 import { DscdYn, LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
-import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
+import { AnnotationWindow } from '@/features/label/components/AnnotationWindow';
+import { TimeseriesAnnotationSummaryCard } from '@/features/label/components/TimeseriesAnnotationSummaryCard';
+import { reviewStatusLabel } from '@/features/label/components/annotationWording';
+import { eventTypeNameOf } from '@/features/label/annotationSummary';
+import { useAnnotationSummary } from '@/features/label/hooks/useAnnotationSummary';
+import { useAnnotationWindow } from '@/features/label/hooks/useAnnotationWindow';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
-import { EventAnnotationPanel } from '@/features/label/components/EventAnnotationPanel';
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
+import { VideoTechnicalMetaPanel } from '@/features/label/components/VideoTechnicalMetaPanel';
 import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
 import { PortalWorkMetaTab } from '@/features/portal/work/components/PortalWorkMetaTab';
 import {
@@ -698,6 +703,25 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //     포털이 그것을 그대로 쓰면 원장 수정·재검토 표시·관제 통지가 일어나 단방향 불변이 깨진다.
   const showMeta = true;
   const hasTabs = showMeta || showIssues;
+
+  /**
+   * 「영상 분석 설명 · 이벤트 어노테이션」 창 — 우측 메타 탭의 요약 카드가 연다.
+   * [@design SCREEN-005] [@design UI-156] [@design UI-157]
+   *
+   * ★상태를 창이 아니라 화면이 든다 — 요약 카드가 같은 상태를 보고 버튼 문구(「크게 보기 · 작성」/
+   *   「창 앞으로 가져오기」/「창 펼치기」)를 바꾸기 때문이다. 창 안에 두면 닫힌 동안 그 상태를
+   *   아는 주체가 사라진다.
+   * ★포털 채널은 이 창을 두지 않는다 — 내부 창구(메타·이벤트 어노테이션)를 부르므로 단방향 불변이
+   *   깨진다(포털 본문은 PortalWorkMetaTab 이 따로 그린다).
+   */
+  const annotationWindow = useAnnotationWindow();
+  // 요약 조회는 <b>그 카드가 보이거나 창이 떠 있을 때만</b> 켠다 — 페이지 진입마다 켜면 메타 탭을
+  // 한 번도 열지 않는 작업자에게도 요청이 두 건 늘어난다.
+  const annotationDataOn = !portalMode && (rightTab === 'meta' || annotationWindow.mounted);
+  const annotationSummary = useAnnotationSummary(
+    annotationDataOn ? data?.videoId : undefined,
+    annotationDataOn ? data?.srcSn : undefined,
+  );
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
@@ -2116,8 +2140,11 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                  *   그대로 쓰면 내부 창구가 불려 원장 컬럼 쓰기·재검토 표시·관제 통지·동결본
                  *   재동결이 일어나 「원본·데이터마트를 수정하지 않는다(단방향)」가 깨진다.
                  *   이 위반은 「중복 구현을 피하자」는 가장 자연스러운 판단에서 나온다.
-                 * 세로 순서(촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 →
-                 *   시계열 메타 → 이벤트 어노테이션)는 두 채널이 같다.
+                 * ⚠ [폐기] 구 서술 — *"세로 순서(… → 시계열 메타 → 이벤트 어노테이션)는 두 채널이
+                 *   같다"*. 2026-09-14 이후 <b>내부 채널만</b> 그 두 패널이 요약 카드 한 장으로
+                 *   바뀌었다(전문은 창에서 다룬다). 포털 채널은 두 패널을 그대로 두므로 지금은
+                 *   앞의 네 패널까지만 같고 그 뒤가 갈린다. 「같다」를 근거로 한쪽을 다른 쪽에
+                 *   맞추지 말 것 — 갈린 것이 확정 사양이다.
                  */
                 <PortalWorkMetaTab srcSn={data?.srcSn} rawSn={data?.videoId} />
               ) : (
@@ -2127,21 +2154,42 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
               <VideoPrivacyMetaPanel rawSn={data?.videoId} />
               {/* ★패널 순서는 사양 고정이다: 촬영환경 → 영상축 개인정보 → 프레임 설명 →
-                  프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션. 임의로 바꾸지 말 것. */}
+                  프레임축 개인정보 → <b>영상 분석 설명 · 이벤트 어노테이션 요약 카드</b> →
+                  이관 원문 정보 → 영상 기술 정보. 임의로 바꾸지 말 것.
+                  ⚠ [폐기] 구 서술 — *"… → 시계열 메타 → 이벤트 어노테이션"*. 그 두 패널은
+                    2026-09-14 에 요약 카드 한 장으로 옮겨갔다. 이 문장이 지시문으로 남아 있으면
+                    다음 라운드가 두 패널을 여기에 되살려 그 확정을 되돌린다. */}
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
               <FramePrivacyMetaPanel srcSn={data?.srcSn} />
-              {/* 시계열 메타 — 외부 시스템 책임인 것은 외부 분석 서버로 나가는 위탁 연동(호출·
-                  콜백)이지 그 결과물의 표시·편집이 아니다(ADR-013 v10). 포털 렌더가 없는 것은
-                  아직 만들지 않았기 때문이며 ADR 이 막은 것이 아니다. */}
-              <TimeseriesSidePanel srcSn={data?.srcSn} />
-              {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
-              <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
+              {/* 영상 분석 설명(저장 축은 시계열 메타) + 이벤트 어노테이션 — 이 자리에는 요약과
+                  버튼 하나만 두고 전문은 큰 창에서 다룬다. 폭 288px 패널에서 수백 자 서술과
+                  후보 목록을 읽고 쓰는 것이 불가능해서다(SCREEN-005 · 2026-09-14 확정).
+                  ★두 패널이 사라진 것이 아니라 창의 두 칸으로 옮겨갔다 — 되돌려 여기에 다시
+                    붙이지 말 것. */}
+              <TimeseriesAnnotationSummaryCard
+                mode="editable"
+                windowState={annotationWindow.state}
+                eventTypeCd={annotationSummary.eventTypeCd}
+                eventTypeName={eventTypeNameOf(
+                  videoDetail?.allVrfcEvntTypes,
+                  annotationSummary.eventTypeCd,
+                )}
+                descriptionFirstLine={annotationSummary.descriptionFirstLine}
+                unfilledItems={annotationSummary.unfilledItems}
+                reviewStatus={reviewStatusLabel(annotationSummary.reviewStatus)}
+                onOpenWindow={annotationWindow.openOrFocus}
+              />
               {/* 참고 정보 — 이관 원문(읽기 전용). ★위 여섯 패널 <b>뒤</b>가 사양 고정 자리이며
                   여섯의 나열 순서는 바꾸지 않는다. 이관으로 들어온 영상에서만 스스로 렌더한다
                   (그 밖의 영상에서는 목록이 비어 있는 것이 정상이라 패널째 감춘다). */}
               <ImportedMetaPanel srcSn={data?.srcSn} />
+              {/* 참고 정보 — 영상 기술 정보(읽기 전용). ★검수 화면과 <b>같은 부품</b>이다 —
+                  사양이 두 화면의 문구를 글자 단위로 같게 정해 두었고, 화면마다 따로 그리면
+                  한쪽만 다듬어져 같은 값이 서로 다른 이름·단위로 보인다. 네 항목이 하나도 없는
+                  영상에서는 스스로 렌더하지 않는다. */}
+              <VideoTechnicalMetaPanel srcSn={data?.srcSn} />
                 </>
               )}
             </div>
@@ -2286,6 +2334,29 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 + (unresolved > 0 ? ` 기록이 없어 그대로 둔 프레임 ${unresolved}개.` : ''),
             });
           }}
+        />
+      )}
+
+      {/* 「영상 분석 설명 · 이벤트 어노테이션」 창 — 비모달이라 창이 떠 있어도 캔버스·타임라인·
+          우측 탭을 그대로 조작한다(근거로 쓸 프레임·객체를 화면에서 골라야 하기 때문이다).
+          ★닫으면 언마운트된다 — 다시 열면 서버값으로 새로 시작한다(그래서 미저장 닫기는 확인을
+            거친다). 접힘·근거 지정 중에는 마운트를 유지해 입력값을 잃지 않는다. */}
+      {!portalMode && annotationWindow.mounted && (
+        <AnnotationWindow
+          mode="editable"
+          rawSn={data?.videoId}
+          srcSn={data?.srcSn}
+          state={annotationWindow.state}
+          focusRequestedAt={annotationWindow.focusRequestedAt}
+          onClose={annotationWindow.close}
+          onFold={annotationWindow.fold}
+          onExpand={annotationWindow.expand}
+          onPickingChange={annotationWindow.setPicking}
+          // 이벤트 분류 이름은 영상 상세의 전체 유형 목록에서 찾는다 — 관리 화면 조회 경로는
+          // 검수자 전용이라 작업자에게 403 이다(API-043).
+          eventTypes={videoDetail?.allVrfcEvntTypes}
+          frameIndex={frameIdx + 1}
+          frameTotal={frames.length}
         />
       )}
 

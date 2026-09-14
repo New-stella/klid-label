@@ -281,6 +281,37 @@ describe('SCREEN-019 검수 우측 패널 — 탭 구조', () => {
     expect(within(issuesPanel).getByTestId('issue-thread-panel')).toBeInTheDocument();
   });
 
+  it('★구역_이름과_건수_표기가_사양대로다_객체탭·이슈탭', async () => {
+    await renderReviewPage();
+
+    // ★객체 탭 — 「카테고리」 + 「객체 {n}건」. 구 이름 「객체 목록」·「속성」은 어느 사양에도 없다.
+    const objectsPanel = screen.getByTestId('review-panel-objects');
+    const list = within(objectsPanel).getByTestId('review-aside-object-list');
+    expect(within(list).getByRole('heading', { name: '카테고리' })).toBeInTheDocument();
+    expect(within(list).queryByRole('heading', { name: '객체 목록' })).toBeNull();
+    // 숫자만 두지 않고 무엇의 건수인지 함께 적는다(픽스처의 라벨은 1건이다).
+    // 프레임 목록이 도착해야 세어지므로 기다린다 — 0건으로 단정하면 무엇을 세는지 못 가른다.
+    await waitFor(() =>
+      expect(within(list).getByTestId('review-object-count-badge').textContent).toBe('객체 1건'),
+    );
+
+    const attrs = within(objectsPanel).getByTestId('review-aside-attributes');
+    expect(within(attrs).getByRole('heading', { name: '선택 객체 속성' })).toBeInTheDocument();
+    expect(within(attrs).queryByRole('heading', { name: '속성' })).toBeNull();
+
+    // ★이슈 탭 — 검수 화면의 제목은 「문의 스레드」이고 건수는 「미해결 {n}건」이다.
+    //   ⚠ 라벨링 화면은 「이슈 스레드」 + 숫자 배지로 <b>일부러 다르다</b>(SD-002·SCREEN-005).
+    await userEvent.click(screen.getByTestId('review-tab-issues'));
+    const issuesPanel = await screen.findByTestId('review-panel-issues');
+    expect(
+      within(issuesPanel).getByRole('heading', { name: '문의 스레드' }),
+    ).toBeInTheDocument();
+    expect(within(issuesPanel).queryByRole('heading', { name: '이슈 스레드' })).toBeNull();
+    expect(within(issuesPanel).getByTestId('unresolved-inquiry-count').textContent).toBe(
+      '미해결 0건',
+    );
+  });
+
   it('승인_반려_액션은_헤더_단독이며_탭_안에는_없다', async () => {
     await renderReviewPage();
 
@@ -294,7 +325,7 @@ describe('SCREEN-019 검수 우측 패널 — 탭 구조', () => {
     expect(screen.queryByTestId('review-action-bar')).toBeNull();
   });
 
-  it('미해소_문의가_있으면_이슈_탭에_건수_배지가_뜬다', async () => {
+  it('미해결_문의가_있으면_이슈_탭에_건수_배지가_뜬다', async () => {
     mock.onGet('/videos/1/issues').reply(200, {
       success: true,
       data: [
@@ -318,6 +349,6 @@ describe('SCREEN-019 검수 우측 패널 — 탭 구조', () => {
 
     const badge = await screen.findByTestId('review-tab-issues-badge');
     expect(badge).toHaveTextContent('1');
-    expect(badge).toHaveAttribute('aria-label', '미해소 문의 1건');
+    expect(badge).toHaveAttribute('aria-label', '미해결 문의 1건');
   });
 });

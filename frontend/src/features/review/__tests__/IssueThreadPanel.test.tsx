@@ -58,6 +58,17 @@ const inquiryResolved: IssueThread = {
   comments: [],
 };
 
+const inquiryAnswered: IssueThread = {
+  issueSn: 4,
+  issueTypeCd: 'INQUIRY',
+  issueSttsCd: 'ANSWERED',
+  srcSn: 50,
+  reason: '답변이 달린 문의',
+  reportedUserNo: 'wkr01',
+  regDt: '2026-05-07T08:00:00Z',
+  comments: [],
+};
+
 describe('IssueThreadPanel', () => {
   let mock: MockAdapter;
 
@@ -186,7 +197,10 @@ describe('IssueThreadPanel', () => {
       expect(screen.getByText('해소된 문의')).toBeInTheDocument();
     });
     expect(screen.getByTestId('comment-input-3')).toBeDisabled();
-    expect(screen.getByText('해소됨')).toBeInTheDocument();
+    // ★진행 상태 낱말은 「미해결 / 답변완료 / 해결」이다(2026-09-14 확정). 저장 코드값
+    //   (OPEN·ANSWERED·RESOLVED)과 전이 규칙은 그대로이고 화면 낱말만 바뀌었다.
+    expect(screen.getByText('해결')).toBeInTheDocument();
+    expect(screen.queryByText('해소됨')).toBeNull();
   });
 
   it('반려_스레드는_RESOLVED여도_댓글_입력_가능', async () => {
@@ -657,6 +671,63 @@ describe('IssueThreadPanel', () => {
 
     expect(await screen.findByTestId('thread-reporter-25')).toHaveTextContent('검수자1 (검수자)');
     expect(screen.getByText('작업자100 (작업자)')).toBeInTheDocument();
+  });
+
+  it('★진행_상태_낱말은_미해결_답변완료_해결_한_벌이다', async () => {
+    // ★저장 코드값(OPEN·ANSWERED·RESOLVED)과 전이 규칙은 그대로다 — 화면 낱말만 한 벌로 맞췄다.
+    //   구 낱말(「열림」·「답변됨」·「해소됨」)은 사양 어느 벌에도 없던 제3의 낱말이었다.
+    mock
+      .onGet('/videos/100/issues')
+      .reply(200, apiOk([rejectionThread, inquiryOpen, inquiryAnswered, inquiryResolved]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    // 스레드마다 제 배지를 짚는다 — 목록에 같은 낱말이 여럿이라 전역 조회로는 가릴 수 없다.
+    await waitFor(() =>
+      expect(screen.getByTestId('issue-status-badge-2').textContent).toBe('미해결'),
+    );
+    expect(screen.getByTestId('issue-status-badge-4').textContent).toBe('답변완료');
+    expect(screen.getByTestId('issue-status-badge-3').textContent).toBe('해결');
+
+    // ★종류 낱말도 한 벌이다 — 「반려 / 문의」. 구 낱말 「검수자 확인 요청」은 사양 어느
+    //   자리에도 없던 구현 고유 문구였고, 같은 것을 가리키는 낱말이 한 화면에서 둘로 갈려 있었다.
+    expect(screen.getByTestId('issue-type-badge-1').textContent).toBe('반려');
+    expect(screen.getByTestId('issue-type-badge-2').textContent).toBe('문의');
+    expect(screen.queryByText('검수자 확인 요청')).toBeNull();
+    expect(screen.queryByText('열림')).toBeNull();
+    expect(screen.queryByText('답변됨')).toBeNull();
+    expect(screen.queryByText('해소됨')).toBeNull();
+    expect(screen.queryByText('대기')).toBeNull();
+
+    // 동작 버튼은 상태 낱말과 구분한다 — 「해결」은 상태이고 「해결 처리」가 동작이다.
+    expect(screen.getByTestId('resolve-button-2')).toHaveTextContent('해결 처리');
+  });
+
+  it('★라벨링_화면의_제목과_건수_표기는_검수와_일부러_다르다', async () => {
+    // 검수는 「문의 스레드」 + 「미해결 {n}건」, 라벨링은 「이슈 스레드」 + 숫자 배지다
+    // (SCREEN-019 ↔ SCREEN-005·시안 SD-002). 한쪽으로 「통일」하면 확정 사양을 되돌리는 것이다.
+    mock.onGet('/videos/100/issues').reply(200, apiOk([inquiryOpen, inquiryResolved]));
+
+    const { unmount } = renderWithProviders(
+      <IssueThreadPanel rawSn={100} mode="worker" />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '이슈 스레드' })).toBeInTheDocument(),
+    );
+    const workerBadge = screen.getByTestId('unresolved-inquiry-count');
+    // 목록이 도착해야 세어진다 — 제목만 기다리고 세면 0을 읽는다.
+    await waitFor(() => expect(workerBadge.textContent).toBe('1'));
+    // 숫자만 두므로 <b>무엇의 건수인지</b>는 접근성 이름이 말한다.
+    expect(workerBadge).toHaveAttribute('aria-label', '미해결 문의 1건');
+    unmount();
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '문의 스레드' })).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('unresolved-inquiry-count').textContent).toBe('미해결 1건'),
+    );
   });
 
   it('작업자_화면은_문의_등록_폼과_해소_버튼_부재가_그대로다', async () => {

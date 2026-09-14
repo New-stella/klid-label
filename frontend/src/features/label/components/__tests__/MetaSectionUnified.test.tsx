@@ -1,5 +1,10 @@
-// R3 GUI 통일 — 프레임 설명 ↔ 시계열 메타 두 섹션이 동일한 공통 섹션 래퍼(MetaSection)를
-// 사용해 헤더·여백·토글 스타일이 통일되는지 검증.
+// R3 GUI 통일 — 메타 탭의 접이식 섹션들이 동일한 공통 섹션 래퍼(MetaSection)를 사용해
+// 헤더·여백·토글 스타일이 통일되는지 검증.
+//
+// ⚠ 2026-09-14 — 짝을 프레임 설명 ↔ <b>촬영환경</b>으로 바꿨다. 영상 분석 설명(구 시계열 메타)이
+//   접이식 섹션에서 <b>창의 칸</b>으로 옮겨가 이 래퍼를 더 이상 쓰지 않기 때문이다(회귀가 아니라
+//   전제 변경). 이 시험이 지키는 것은 「메타 탭의 섹션들이 같은 래퍼를 쓴다」이지 특정 두 패널의
+//   조합이 아니다.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,20 +14,22 @@ const { mockUseFrameDescription, mockUseUpdateFrameDescription } = vi.hoisted(()
   mockUseFrameDescription: vi.fn(),
   mockUseUpdateFrameDescription: vi.fn(),
 }));
-const { mockUseMeta, mockUseUpdateMeta } = vi.hoisted(() => ({
-  mockUseMeta: vi.fn(),
-  mockUseUpdateMeta: vi.fn(),
+const { mockUseEnvironmentMeta, mockUseUpdateEnvironmentMeta } = vi.hoisted(() => ({
+  mockUseEnvironmentMeta: vi.fn(),
+  mockUseUpdateEnvironmentMeta: vi.fn(),
 }));
 
 vi.mock('../../hooks/useFrameDescription', () => ({
   useFrameDescription: mockUseFrameDescription,
   useUpdateFrameDescription: mockUseUpdateFrameDescription,
 }));
-vi.mock('@/features/auto/hooks/useMeta', () => ({ useMeta: mockUseMeta }));
-vi.mock('@/features/auto/hooks/useUpdateMeta', () => ({ useUpdateMeta: mockUseUpdateMeta }));
+vi.mock('../../hooks/useEnvironmentMeta', () => ({
+  useEnvironmentMeta: mockUseEnvironmentMeta,
+  useUpdateEnvironmentMeta: mockUseUpdateEnvironmentMeta,
+}));
 
+import { EnvironmentMetaPanel } from '../EnvironmentMetaPanel';
 import { FrameDescriptionPanel } from '../FrameDescriptionPanel';
-import { TimeseriesSidePanel } from '../TimeseriesSidePanel';
 import { MetaSection } from '../MetaSection';
 
 describe('MetaSection 공통 래퍼', () => {
@@ -38,7 +45,7 @@ describe('MetaSection 공통 래퍼', () => {
   });
 });
 
-describe('프레임설명·시계열메타 GUI 통일', () => {
+describe('메타 탭 섹션 GUI 통일', () => {
   beforeEach(() => {
     mockUseFrameDescription.mockReturnValue({
       data: { srcSn: 1, description: '설명' },
@@ -50,23 +57,23 @@ describe('프레임설명·시계열메타 GUI 통일', () => {
       isPending: false,
       isError: false,
     });
-    mockUseMeta.mockReturnValue({
-      data: {
-        items: [{ metaSn: 1, metaKey: '0001', metaVal: '메타' }],
-        vlmText: '메타',
-        stateChanges: [],
-      },
+    mockUseEnvironmentMeta.mockReturnValue({
+      data: { rawSn: 1, weather: null, timeOfDay: null, season: null },
       isLoading: false,
-      error: null,
+      isError: false,
     });
-    mockUseUpdateMeta.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mockUseUpdateEnvironmentMeta.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+    });
   });
 
-  it('프레임설명_시계열메타_동일_섹션_스타일_통일', () => {
+  it('프레임설명_촬영환경_동일_섹션_스타일_통일', () => {
     renderWithProviders(
       <>
         <FrameDescriptionPanel srcSn={1} />
-        <TimeseriesSidePanel srcSn={1} />
+        <EnvironmentMetaPanel rawSn={1} />
       </>,
     );
 

@@ -34,6 +34,10 @@ import { Spinner } from '@/components/common/Spinner';
 // 동일한 구성(처음/이전/번호 입력/다음/마지막 + 슬라이더)을 요구하므로 복제하면 한쪽만 고쳐진다.
 // 검수 화면은 읽기 전용이라 미저장 가드가 없을 뿐, 컨트롤 계약은 동일하다.
 import { FrameNavigator } from '@/features/label/components/FrameNavigator';
+import { AnnotationWindow } from '@/features/label/components/AnnotationWindow';
+import { missingFrameNoticeText } from '@/features/label/components/annotationWording';
+import { useAnnotationWindow } from '@/features/label/hooks/useAnnotationWindow';
+import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { FrameTimeline } from '@/features/review/components/FrameTimeline';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { LabelCanvas } from '@/features/review/components/LabelCanvas';
@@ -256,6 +260,39 @@ export function ReviewPage() {
     [frameCount, setCurrentFrameIdx],
   );
 
+  /**
+   * 「영상 분석 설명 · 이벤트 어노테이션」 창 — 메타 탭의 요약 카드가 연다(읽기 전용).
+   * [@design SCREEN-019] [@design UI-156] [@design UI-157]
+   */
+  const annotationWindow = useAnnotationWindow();
+  // 이벤트 분류 <b>이름</b> 조달 — 유형 이름을 주는 관리 조회 경로와 달리 영상 상세는 이 화면의
+  // 권한으로 부를 수 있다(API-043). 이름을 못 찾으면 코드만 보인다.
+  const { data: videoDetail } = useVideoDetail(review?.videoId ?? null);
+  /** 이 영상이 실제로 가진 프레임 번호 — 근거에 적힌 「없는 번호」 판정에 쓴다. */
+  const frameSrcSns = useMemo(
+    () => new Set((frames ?? []).map((f) => f.srcSn)),
+    [frames],
+  );
+
+  /**
+   * 근거에 적힌 프레임 번호로 이동한다. 이동했으면 true(그때만 창이 접힌다).
+   *
+   * ★없는 번호는 <b>이동하지 않고</b> 알림만 한다 — 근거는 사람이 적은 값이라 이 영상에 없는
+   * 번호가 들어 있을 수 있다. 그때 아무 프레임으로나 옮기면 검수자가 엉뚱한 화면을 근거로 본다.
+   */
+  const handleJumpToEvidenceFrame = useCallback(
+    (frameId: number): boolean => {
+      const index = (frames ?? []).findIndex((f) => f.srcSn === frameId);
+      if (index < 0) {
+        pushToast({ variant: 'warning', message: missingFrameNoticeText(frameId) });
+        return false;
+      }
+      handleGoToFrame(index);
+      return true;
+    },
+    [frames, handleGoToFrame, pushToast],
+  );
+
   const handleClose = useCallback(() => {
     navigate('/review');
   }, [navigate]);
@@ -444,24 +481,36 @@ export function ReviewPage() {
             aria-labelledby={reviewTabId('objects')}
             data-testid="review-panel-objects"
           >
+            {/* ★구역 이름은 「카테고리」다 — 이 트리가 라벨을 <b>카테고리로 묶어</b> 보이기
+                때문이고, 건수는 옆의 배지가 말한다. 구 이름 「객체 목록」은 어느 사양에도 없다. */}
             <section
               className="border-b border-gray-200 p-3"
-              aria-label="객체 목록"
+              aria-label="카테고리"
               data-testid="review-aside-object-list"
             >
-              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-                객체 목록
-              </h2>
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-label font-semibold uppercase tracking-wide text-gray-500">
+                  카테고리
+                </h2>
+                {/* 숫자만 두지 않고 <b>무엇의 건수인지</b> 함께 적는다 — 「5」만 있으면 카테고리
+                    수인지 객체 수인지 알 수 없다(여기서는 현재 프레임의 객체 수다). */}
+                <span
+                  data-testid="review-object-count-badge"
+                  className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium text-gray-700"
+                >
+                  객체 {frameList?.frames?.[currentFrameIdx]?.labels?.length ?? 0}건
+                </span>
+              </div>
               <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
             </section>
 
             <section
               className="border-b border-gray-200 p-3"
-              aria-label="속성"
+              aria-label="선택 객체 속성"
               data-testid="review-aside-attributes"
             >
               <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-                속성
+                선택 객체 속성
               </h2>
               <ObjectAttributesPanel
                 labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
@@ -488,6 +537,9 @@ export function ReviewPage() {
             <ReviewMetaPanel
               rawSn={review.videoId}
               srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+              windowState={annotationWindow.state}
+              onOpenWindow={annotationWindow.openOrFocus}
+              allVrfcEvntTypes={videoDetail?.allVrfcEvntTypes}
             />
           </div>
         )}
@@ -502,12 +554,32 @@ export function ReviewPage() {
             aria-labelledby={reviewTabId('issues')}
             data-testid="review-panel-issues"
           >
-            <section aria-label="이슈 스레드" data-testid="review-issue-thread-section">
+            <section aria-label="문의 스레드" data-testid="review-issue-thread-section">
               <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
             </section>
           </div>
         )}
       </aside>
+
+      {/* 「영상 분석 설명 · 이벤트 어노테이션」 창(읽기 전용) — 비모달이라 창이 떠 있어도 캔버스·
+          프레임 이동·우측 탭을 그대로 조작한다. 근거의 프레임 번호를 누르면 뒤 화면이 그 프레임으로
+          이동하고 창은 접히며, 접힘 띠의 「펼치기」로 되돌린다. */}
+      {annotationWindow.mounted && (
+        <AnnotationWindow
+          mode="readOnly"
+          rawSn={review.videoId}
+          srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+          state={annotationWindow.state}
+          focusRequestedAt={annotationWindow.focusRequestedAt}
+          onClose={annotationWindow.close}
+          onFold={annotationWindow.fold}
+          onExpand={annotationWindow.expand}
+          onPickingChange={annotationWindow.setPicking}
+          eventTypes={videoDetail?.allVrfcEvntTypes}
+          availableFrameIds={frameSrcSns}
+          onJumpToFrame={handleJumpToEvidenceFrame}
+        />
+      )}
 
       <RejectModal
         reviewId={review.id}

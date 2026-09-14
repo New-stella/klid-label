@@ -30,6 +30,15 @@ import { MetaSection } from './MetaSection';
 export interface ImportedMetaPanelProps {
   /** 현재 프레임 SRC_SN — 메타 조회 키(영상 단위 K/V 를 프레임 경로로 조회한다). */
   srcSn: number | undefined;
+  /**
+   * 검수 화면(SCREEN-019)인가 — <b>구역 이름만</b> 가른다.
+   *
+   * ★이 패널은 두 화면 모두 읽기 전용이라 이 값이 동작을 바꾸지 않는다. 그래도 형제 네 패널
+   * (촬영환경·개인정보 두 축·프레임 설명)과 <b>같은 이름의 prop</b>을 쓰는 이유는, 검수 경로가
+   * 다섯 패널에 같은 말을 걸어야 하나만 빠뜨리는 일이 생기지 않기 때문이다(실제로 이 패널이
+   * 빠져 검수 화면에서 혼자 라벨링 이름으로 보였다).
+   */
+  readOnly?: boolean;
 }
 
 const LABEL_CLASS = 'block text-[11px] text-gray-500';
@@ -44,7 +53,7 @@ const VALUE_CLASS = 'whitespace-pre-wrap break-words text-body-md text-gray-700'
  * <p>라벨은 사람이 읽는 이름으로 표시하며, 이름을 정하지 못한 열쇠는 <b>버리지 않고 원문 열쇠
  * 그대로</b> 표시한다 — 이관이 열쇠를 늘려도 그 값이 화면에서 사라지지 않아야 한다.
  */
-export function ImportedMetaPanel({ srcSn }: ImportedMetaPanelProps) {
+export function ImportedMetaPanel({ srcSn, readOnly = false }: ImportedMetaPanelProps) {
   const { data } = useMeta(srcSn);
   const items = data?.importedMeta ?? [];
 
@@ -52,8 +61,10 @@ export function ImportedMetaPanel({ srcSn }: ImportedMetaPanelProps) {
     return null;
   }
 
+  // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+  //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
   return (
-    <MetaSection title="이관 원문 정보">
+    <MetaSection title={readOnly ? '이관 원문 정보 검토' : '이관 원문 정보'}>
       <div className="space-y-2" data-testid="imported-meta-panel">
         <p className="text-[11px] leading-snug text-gray-500">
           외부에서 이관해 온 원문 정보입니다. 참고용이며 수정할 수 없습니다.

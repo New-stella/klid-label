@@ -362,9 +362,9 @@ const DANGER_CASES: Case[] = [
     anchor: 'issueType === ISSUE_TYPE.REJECTION',
   },
   {
-    label: 'IssueThreadPanel 미해소 문의 카운트 뱃지',
+    label: 'IssueThreadPanel 미해결 문의 카운트 뱃지',
     file: 'src/features/review/components/IssueThreadPanel.tsx',
-    anchor: '미해소 문의',
+    anchor: 'unresolved-inquiry-count',
   },
   {
     label: 'IssueThreadPanel 반려 유형 뱃지',

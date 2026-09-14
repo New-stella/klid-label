@@ -41,7 +41,7 @@ export interface ReviewSidePanelTabsProps {
   value: ReviewSideTab;
   onChange: (tab: ReviewSideTab) => void;
   /**
-   * '이슈' 탭 배지에 표시할 미해소 문의 건수.
+   * '이슈' 탭 배지에 표시할 미해결 문의 건수.
    *
    * ★배지를 탭에 두는 이유: 패널이 세로로 모두 보이던 구조에서는 문의 건수가 항상 눈에
    *   들어왔는데, 탭으로 접으면 다른 탭을 보는 동안 그 신호가 사라진다. 건수 자체는 '이슈'
@@ -127,7 +127,7 @@ export function ReviewSidePanelTabs({
               <span
                 data-testid="review-tab-issues-badge"
                 className="inline-flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
-                aria-label={`미해소 문의 ${unresolvedInquiries}건`}
+                aria-label={`미해결 문의 ${unresolvedInquiries}건`}
               >
                 {unresolvedInquiries}
               </span>

@@ -130,8 +130,10 @@ export function EnvironmentMetaPanel({
 
   // 읽기 전용(검수 화면) — 값만 보여준다. 비활성 컨트롤을 두지 않고 렌더 자체를 하지 않는다.
   if (readOnly) {
+    // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+    //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="촬영환경">
+      <MetaSection title="촬영환경 검토">
         <div className="space-y-1.5" data-testid="environment-meta-readonly">
           <MetaReadonlyField label="날씨" value={displayOf(weather, WEATHER_OPTIONS)} />
           <MetaReadonlyField

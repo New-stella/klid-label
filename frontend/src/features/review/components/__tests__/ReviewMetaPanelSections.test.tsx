@@ -63,25 +63,36 @@ vi.mock('@/features/label/hooks/useFramePrivacyMeta', () => ({
 import { ReviewMetaPanel } from '../ReviewMetaPanel';
 
 /**
- * 사양이 고정한 섹션 제목·순서 — 라벨링 화면(SCREEN-005) 메타 탭과 <b>같다</b>.
+ * 사양이 고정한 <b>접이식 섹션</b>의 제목·순서 — 라벨링 화면(SCREEN-005) 메타 탭과 같다.
  * 뒤의 두 개는 참고 정보이며 값이 있을 때만 나타난다.
+ *
+ * ⚠ 2026-09-14 — 구 목록의 「시계열 메타」·「이벤트 어노테이션」 두 섹션은 <b>요약 카드 하나</b>로
+ *   바뀌었다(전제 변경, 회귀 아님). 카드는 접이식 섹션이 아니라 이 목록에 없고, 그 자리는 아래
+ *   별도 케이스가 DOM 순서로 고정한다.
  */
 const EXPECTED_SECTIONS = [
-  '촬영환경',
-  '개인정보(영상)',
-  '프레임 설명',
-  '개인정보(프레임)',
-  '시계열 메타',
-  '이벤트 어노테이션',
-  '이관 원문 정보',
-  '영상 정보',
+  // ★검수 화면의 구역 이름은 라벨링과 <b>일부러 다르다</b> — 검수는 「…검토」로 끝난다
+  //   (SCREEN-019 v48). 구 이름(「촬영환경」·「개인정보(영상)」 …)은 구현이 사양을 따르지
+  //   않았던 것이고, 두 화면을 같은 이름으로 「통일」하면 그 확정을 되돌리는 것이다.
+  '촬영환경 검토',
+  '개인정보 판정 검토 (영상 축)',
+  '프레임 설명 검토',
+  '개인정보 판정 검토 (프레임 축)',
+  '이관 원문 정보 검토',
+  '영상 기술 정보 (읽기 전용)',
 ];
 
 /**
- * 빈 상태 판정이 <b>실제로 세는</b> 섹션 — 이 넷은 하나의 메타 조회 응답에서 나온다.
+ * 빈 상태 판정이 <b>실제로 세는</b> 축 — 이 넷은 하나의 메타 조회 응답에서 나온다.
  * 안내 문구는 이 이름들을 그대로 담아 자기 범위를 밝혀야 한다.
+ * (앞의 둘은 요약 카드가 가리키는 축이라 접이식 섹션 목록에는 없다.)
  */
-const EMPTY_BANNER_SCOPE = EXPECTED_SECTIONS.slice(4);
+const EMPTY_BANNER_SCOPE = [
+  '영상 분석 설명',
+  '이벤트 어노테이션',
+  '이관 원문 정보',
+  '영상 기술 정보',
+];
 
 /**
  * 빈 상태 판정이 <b>세지 못하는</b> 섹션 — 각 패널이 자기 훅으로 따로 조회하고 판정과 무관하게
@@ -117,6 +128,12 @@ function sectionTitles(): string[] {
     .map((el) => el.querySelector('button')?.textContent?.trim() ?? '');
 }
 
+function renderPanel() {
+  return renderWithProviders(
+    <ReviewMetaPanel rawSn={10} srcSn={20} windowState="closed" onOpenWindow={vi.fn()} />,
+  );
+}
+
 describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
   beforeEach(() => {
     mockUseEventAnnotation.mockReturnValue({ data: undefined });
@@ -132,7 +149,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
   });
 
   it('섹션_제목과_순서가_작업자_메타탭과_같다', async () => {
-    // given — 여덟 섹션이 모두 뜨도록 전 축에 값을 채운다.
+    // given — 참고 섹션까지 모두 뜨도록 전 축에 값을 채운다.
     mockUseEventAnnotation.mockReturnValue({
       data: { reviewStatus: 'PENDING', payload: { event_class: '화재발생' } },
     });
@@ -143,11 +160,25 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then — 제목과 순서가 사양과 정확히 일치한다(부분 일치가 아니라 전량 대조).
-    await waitFor(() => expect(screen.getAllByTestId('meta-section').length).toBe(8));
+    await waitFor(() =>
+      expect(screen.getAllByTestId('meta-section').length).toBe(EXPECTED_SECTIONS.length),
+    );
     expect(sectionTitles()).toEqual(EXPECTED_SECTIONS);
+
+    // then — 요약 카드는 프레임축 개인정보와 이관 원문 <b>사이</b>다(라벨링 화면과 같은 자리).
+    const card = screen.getByTestId('annotation-summary-card');
+    const sections = screen.getAllByTestId('meta-section');
+    const framePrivacy = sections[3];
+    const imported = sections[4];
+    expect(
+      framePrivacy.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+    expect(card.compareDocumentPosition(imported) & Node.DOCUMENT_POSITION_FOLLOWING).toBeGreaterThan(
+      0,
+    );
   });
 
   it('입력_가능한_컨트롤이_하나도_없다_섹션_접기_토글만_있다', async () => {
@@ -177,7 +208,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
     const panel = await screen.findByTestId('review-meta-panel');
 
     // then — 입력·선택·체크박스·라디오 어느 것도 없다.
@@ -185,15 +216,20 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('radio')).toBeNull();
-    // then — 버튼은 전부 섹션 접기 토글이다(사양이 접기를 요구하므로 0개가 아니다).
+    // then — 버튼은 <b>섹션 접기 토글 + 요약 카드의 「크게 보기」 하나</b>뿐이다.
+    //   ⚠ 카드 버튼은 값을 고치지 않는다 — 읽기 전용 창을 여는 입구다. 그것까지 「0개」로 고정하면
+    //     사양이 요구하는 진입점을 가드가 막는다(구 「버튼 수 = 섹션 수」 단언은 그래서 넓혔다).
     const buttons = screen.getAllByRole('button');
-    // 섹션 수와 버튼 수가 같다 = 섹션 토글 외의 버튼이 하나도 없다.
-    expect(buttons.length).toBe(screen.getAllByTestId('meta-section').length);
-    expect(buttons.length).toBeGreaterThan(0);
+    const openButton = screen.getByTestId('annotation-summary-open');
+    expect(buttons.length).toBe(screen.getAllByTestId('meta-section').length + 1);
     for (const btn of buttons) {
+      if (btn === openButton) continue;
       expect(btn).toHaveAttribute('aria-expanded');
     }
-    expect(panel).not.toHaveTextContent('저장');
+    // ⚠ 「'저장' 글자가 없다」로 보지 않는다 — 요약 카드 설명에 「학습데이터에 함께 <b>저장</b>되는」이
+    //   들어 있어 정상 문구가 위반으로 잡힌다. 지키려는 것은 <b>저장 조작이 없다</b>이므로 버튼으로 센다.
+    expect(screen.queryByRole('button', { name: '저장' })).toBeNull();
+    expect(panel).toBeInTheDocument();
   });
 
   it('작업자가_입력한_촬영환경_개인정보_프레임설명이_그대로_보인다', async () => {
@@ -223,7 +259,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then — 촬영환경은 코드가 아니라 한글 표시로 뜬다.
     const env = await screen.findByTestId('environment-meta-readonly');
@@ -248,7 +284,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     setMeta({ importedMeta: IMPORTED_META });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then — 사람이 읽는 이름 + 값
     const imported = await screen.findByTestId('imported-meta-panel');
@@ -260,7 +296,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     expect(imported).toHaveTextContent('아직 이름 없는 값');
   });
 
-  it('이관_원문_열쇠는_시계열_메타_섹션에_한_건도_나오지_않는다', async () => {
+  it('이관_원문_열쇠는_영상_분석_설명_요약에_한_건도_나오지_않는다', async () => {
     // given — 서버가 두 목록을 갈라 내려준다(분류의 소유자는 서버다).
     setMeta({
       items: [{ metaSn: 1, metaKey: 'vlm.description', metaVal: '연기가 보인다' }],
@@ -268,13 +304,13 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then
-    const ts = await screen.findByTestId('review-meta-timeseries');
-    expect(ts).toHaveTextContent('연기가 보인다');
-    expect(ts).not.toHaveTextContent('import.');
-    expect(ts).not.toHaveTextContent('카메라 설치 높이');
+    const card = await screen.findByTestId('annotation-summary-card');
+    expect(card).toHaveTextContent('연기가 보인다');
+    expect(card).not.toHaveTextContent('import.');
+    expect(card).not.toHaveTextContent('카메라 설치 높이');
   });
 
   it('이관_원문만_있는_영상은_빈_상태_안내가_뜨지_않는다', async () => {
@@ -282,7 +318,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     setMeta({ importedMeta: IMPORTED_META });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then
     await waitFor(() =>
@@ -312,7 +348,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // then — 값이 실제로 그려진다(시나리오가 성립함을 먼저 고정한다).
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
     const videoPrivacy = await screen.findByTestId('video-privacy-meta-readonly');
     expect(videoPrivacy).toHaveTextContent('익명여부');
     expect(videoPrivacy).toHaveTextContent('예');
@@ -341,7 +377,7 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     setMeta();
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then
     await waitFor(() =>
@@ -370,11 +406,13 @@ describe('검수 메타 탭 — 작업자 화면과 같은 구성', () => {
     });
 
     // when
-    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+    renderPanel();
 
     // then
     await waitFor(() =>
-      expect(screen.getByTestId('review-meta-timeseries')).toBeInTheDocument(),
+      expect(screen.getByTestId('annotation-summary-description')).toHaveTextContent(
+        '연기가 보인다',
+      ),
     );
     expect(screen.queryByTestId('imported-meta-panel')).toBeNull();
   });

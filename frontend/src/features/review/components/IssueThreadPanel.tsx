@@ -16,7 +16,12 @@ import {
   useIssueThreads,
   useResolveIssue,
 } from '../hooks/useIssueThreads';
-import { ISSUE_STATUS_LABEL, ISSUE_TYPE_LABEL, issueAuthorLabel } from '../issueLabels';
+import {
+  ISSUE_RESOLVE_ACTION_LABEL,
+  ISSUE_STATUS_LABEL,
+  ISSUE_TYPE_LABEL,
+  issueAuthorLabel,
+} from '../issueLabels';
 import { ISSUE_STATUS, ISSUE_TYPE, type IssueThread } from '../types';
 
 export type IssueThreadMode = 'worker' | 'reviewer';
@@ -65,6 +70,17 @@ function isCommentLocked(thread: IssueThread): boolean {
  *   개행은 whitespace-pre-wrap.
  * - content 는 zod 1~1000자 검증 후 전송.
  */
+/**
+ * 패널 제목 — <b>화면마다 다르다.</b>
+ *
+ * 검수 화면은 「문의 스레드」(SCREEN-019), 라벨링 화면은 「이슈 스레드」(SCREEN-005·시안 SD-002)다.
+ * 같은 부품이 두 화면에서 다른 이름을 쓰는 것이 확정 사양이라 여기서 갈라 둔다 — 한쪽으로
+ * 맞추면 확정된 사양을 되돌리는 것이다.
+ */
+function headingOf(mode: IssueThreadMode): string {
+  return mode === 'reviewer' ? '문의 스레드' : '이슈 스레드';
+}
+
 export function IssueThreadPanel({ rawSn, mode }: IssueThreadPanelProps) {
   const { data, isLoading, error } = useIssueThreads(rawSn);
   const threads = useMemo(() => data ?? [], [data]);
@@ -81,16 +97,23 @@ export function IssueThreadPanel({ rawSn, mode }: IssueThreadPanelProps) {
     <section
       className="flex flex-col gap-3 p-3"
       data-testid="issue-thread-panel"
-      aria-label="이슈 스레드"
+      aria-label={headingOf(mode)}
     >
       <header className="flex items-center justify-between">
-        <h2 className={cn('text-section-title font-semibold', TEXT_BASE)}>이슈 스레드</h2>
+        <h2 className={cn('text-section-title font-semibold', TEXT_BASE)}>{headingOf(mode)}</h2>
+        {/* ★건수 표기가 화면마다 다르다 — <b>사양이 그렇게 갈라 놓았다.</b> 검수는 글자로
+            「미해결 {n}건」을, 라벨링은 숫자 배지를 쓴다(라벨링은 탭 이름 옆에도 같은 숫자가
+            서서 무엇의 건수인지 그 자리가 말한다). 한쪽으로 「통일」하지 말 것. */}
         <span
           data-testid="unresolved-inquiry-count"
-          className="inline-flex min-w-5 items-center justify-center rounded-full bg-danger/10 px-1.5 py-0.5 text-sub font-medium text-danger-700"
-          aria-label={`미해소 문의 ${unresolvedInquiryCount}건`}
+          className={cn(
+            'inline-flex min-w-5 items-center justify-center rounded-full bg-danger/10 px-1.5 py-0.5 text-sub font-medium text-danger-700',
+          )}
+          aria-label={mode === 'reviewer' ? undefined : `미해결 문의 ${unresolvedInquiryCount}건`}
         >
-          {unresolvedInquiryCount}
+          {mode === 'reviewer'
+            ? `미해결 ${unresolvedInquiryCount}건`
+            : unresolvedInquiryCount}
         </span>
       </header>
 
@@ -218,7 +241,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
   });
 
   const { mutate: resolve } = useResolveIssue(rawSn, {
-    onSuccess: () => pushToast({ variant: 'success', message: '문의를 해소했습니다' }),
+    onSuccess: () => pushToast({ variant: 'success', message: '문의를 해결 처리했습니다' }),
     onError: (err) => handleConflict(err),
   });
 
@@ -269,7 +292,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
             thread.issueSttsCd === ISSUE_STATUS.RESOLVED
               ? 'bg-success/10 text-success-700'
               : thread.issueSttsCd === ISSUE_STATUS.ANSWERED
-                ? // 같은 '답변됨' 상태 배지다 — 톤 근거는 IssueCard 주석 참조.
+                ? // 같은 '답변완료' 상태 배지다 — 톤 근거는 IssueCard 주석 참조.
                   // ⚠ 한쪽만 바꾸면 같은 상태가 화면마다 다른 색으로 읽힌다.
                   'bg-info/10 text-info-700'
                 : 'bg-gray-100 text-gray-600',
@@ -326,7 +349,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-1.5" noValidate>
         {locked && (
           <p className={cn('text-sub', SUB_TEXT)} data-testid={`thread-locked-${thread.issueSn}`}>
-            해소됨 — 더 이상 댓글을 남길 수 없습니다.
+            해결된 문의입니다 — 더 이상 댓글을 남길 수 없습니다.
           </p>
         )}
         <label htmlFor={`comment-input-${thread.issueSn}`} className="sr-only">
@@ -337,7 +360,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
           data-testid={`comment-input-${thread.issueSn}`}
           maxLength={1000}
           disabled={locked}
-          placeholder={locked ? '해소된 문의입니다' : '댓글을 입력하세요'}
+          placeholder={locked ? '해결된 문의입니다' : '댓글을 입력하세요'}
           className="min-h-[72px] resize-none px-2 py-1.5 disabled:opacity-50"
           {...register('content')}
         />
@@ -353,7 +376,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
         {!locked && (
           <div className="flex justify-end gap-2">
             {showResolve && (
-              // outline 기본은 primary 톤 — '해소'는 success 의미라 색 토큰만 바꾼다(배경은 기본 bg-white).
+              // outline 기본은 primary 톤 — '해결 처리'는 success 의미라 색 토큰만 바꾼다(배경은 기본 bg-white).
               <Button
                 variant="outline"
                 size="sm"
@@ -361,7 +384,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
                 onClick={() => resolve(thread.issueSn)}
                 className="border-success text-success-700 hover:border-success hover:bg-success/10 active:bg-success/20"
               >
-                해소
+                {ISSUE_RESOLVE_ACTION_LABEL}
               </Button>
             )}
             <Button

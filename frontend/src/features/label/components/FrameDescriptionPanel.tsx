@@ -59,8 +59,10 @@ export function FrameDescriptionPanel({
 
   // 읽기 전용(검수 화면) — 등록된 설명만 보여준다. 비활성 입력 칸을 두지 않는다.
   if (readOnly) {
+    // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+    //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="프레임 설명">
+      <MetaSection title="프레임 설명 검토">
         <div data-testid="frame-description-readonly">
           {/* BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다. */}
           <MetaReadonlyField label="설명" value={data?.description ?? null} />

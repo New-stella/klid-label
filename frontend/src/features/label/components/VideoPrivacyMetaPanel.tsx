@@ -134,8 +134,10 @@ export function VideoPrivacyMetaPanel({
 
   // 읽기 전용(검수 화면) — 판정값만 보여준다. 비활성 체크박스를 두지 않고 렌더 자체를 하지 않는다.
   if (readOnly) {
+    // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+    //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="개인정보(영상)">
+      <MetaSection title="개인정보 판정 검토 (영상 축)">
         <div className="space-y-1.5" data-testid="video-privacy-meta-readonly">
           {FIELDS.map((f) => (
             <MetaReadonlyField

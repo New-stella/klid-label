@@ -264,4 +264,82 @@ describe('video api', () => {
     expect(detail.deIdntfYn !== 'Y').toBe(true);
   });
 
+  // ───────── 검증 이벤트 유형 전체 목록 (2026-09-14) [@design API-043] ─────────
+
+  it('getVideo_allVrfcEvntTypes_는_서버_순서_그대로_실린다_다시_정렬하지_않는다', async () => {
+    // given — BE 가 정렬순서 오름차순으로 내려준다(동률은 코드 오름차순).
+    mock.onGet('/videos/43').reply(200, {
+      success: true,
+      data: {
+        id: 43,
+        cctvName: 'CCTV',
+        status: 'COMPLETED',
+        framePreviews: [],
+        allVrfcEvntTypes: [
+          { vrfcEvntTypeCd: 'car_accident', vrfcEvntTypeNm: '교통사고' },
+          { vrfcEvntTypeCd: 'fire', vrfcEvntTypeNm: '화재' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(43);
+
+    expect(detail.allVrfcEvntTypes).toEqual([
+      { vrfcEvntTypeCd: 'car_accident', vrfcEvntTypeNm: '교통사고' },
+      { vrfcEvntTypeCd: 'fire', vrfcEvntTypeNm: '화재' },
+    ]);
+  });
+
+  it('getVideo_allVrfcEvntTypes_코드나_이름이_빈_항목은_걸러진다', async () => {
+    // 코드가 없으면 이름을 찾을 키가 없고, 이름이 비면 코드만 보이는 것과 같아 항목이 무의미하다.
+    mock.onGet('/videos/44').reply(200, {
+      success: true,
+      data: {
+        id: 44,
+        cctvName: 'CCTV',
+        status: 'COMPLETED',
+        framePreviews: [],
+        allVrfcEvntTypes: [
+          { vrfcEvntTypeCd: 'fire', vrfcEvntTypeNm: '화재' },
+          { vrfcEvntTypeCd: '', vrfcEvntTypeNm: '이름만' },
+          { vrfcEvntTypeCd: 'only_code', vrfcEvntTypeNm: '   ' },
+          null,
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(44);
+
+    expect(detail.allVrfcEvntTypes).toEqual([{ vrfcEvntTypeCd: 'fire', vrfcEvntTypeNm: '화재' }]);
+  });
+
+  it('★getVideo_allVrfcEvntTypes_키가_없는_구_응답은_빈_배열이다_selectable_과_서로_대신하지_않는다', async () => {
+    // given — 구 서버(배포 스큐). 관제 값이 있는 영상이라 selectable 은 <b>빈 배열이 정상</b>이다.
+    mock.onGet('/videos/45').reply(200, {
+      success: true,
+      data: {
+        id: 45,
+        cctvName: 'CCTV',
+        status: 'COMPLETED',
+        framePreviews: [],
+        vrfcEvntTypeCd: 'car_accident',
+        selectableVrfcEvntTypes: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(45);
+
+    // then — 빈 배열로 정규화해 화면 분기를 하나로 유지한다(이름을 못 찾아 코드만 보일 뿐이다).
+    expect(detail.allVrfcEvntTypes).toEqual([]);
+    // then — ★두 목록은 서로를 채우지 않는다. selectable 이 「비었는가」로 유형 선택 노출을 가르는
+    //   계약이라, 전체 목록을 그 자리에 채우면 모든 영상에서 유형 선택이 뜬다.
+    expect(detail.selectableVrfcEvntTypes).toEqual([]);
+  });
+
 });

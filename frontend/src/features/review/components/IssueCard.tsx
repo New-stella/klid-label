@@ -49,7 +49,7 @@ export function IssueCard({ issue, issueType, issueStatus, commentCount }: Issue
                 issueStatus === ISSUE_STATUS.RESOLVED
                   ? 'bg-success/10 text-success-700'
                   : issueStatus === ISSUE_STATUS.ANSWERED
-                    ? // ANSWERED('답변됨')는 범주가 아니라 상태다 — DS-001 의 info 가 "안내"를
+                    ? // ANSWERED('답변완료')는 범주가 아니라 상태다 — DS-001 의 info 가 "안내"를
                       // 소유하고 이 배지는 액션이 아닌 표시라 info 를 쓴다. 구 purple 은
                       // semantic 에 자리가 없어 범주 구분색을 빌려 쓴 것이었다.
                       // ⚠ IssueThreadPanel 의 같은 배지와 **함께** 유지할 것(같은 상태다).

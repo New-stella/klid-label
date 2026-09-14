@@ -17,6 +17,7 @@ import type {
   VideoDetail,
   VideoListParams,
   VrfcEvntQuestion,
+  VrfcEvntType,
 } from './types';
 import { BULK_RETRY_MAX, BULK_STAGE_BUNDLE, isBulkStageBundle, isStageBundle } from './types';
 
@@ -101,15 +102,20 @@ function isVrfcEvntQuestion(q: unknown): q is VrfcEvntQuestion {
  * ⚠ <b>코드값을 이름으로 대신 채우지 않는다</b>. 그렇게 하면 작업자에게 사업자 내부 코드가
  * 이름인 것처럼 보이고, 그 화면을 보고 만든 다음 판단이 코드 체계를 이름으로 오해한다.
  */
-function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
+function isVrfcEvntType(t: unknown): t is VrfcEvntType {
   if (typeof t !== 'object' || t === null) return false;
-  const { vrfcEvntTypeCd, vrfcEvntTypeNm } = t as Partial<SelectableVrfcEvntType>;
+  const { vrfcEvntTypeCd, vrfcEvntTypeNm } = t as Partial<VrfcEvntType>;
   return (
     typeof vrfcEvntTypeCd === 'string' &&
     vrfcEvntTypeCd.trim() !== '' &&
     typeof vrfcEvntTypeNm === 'string' &&
     vrfcEvntTypeNm.trim() !== ''
   );
+}
+
+function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
+  // 코드·이름 판정은 한 곳이다 — 두 목록이 같은 이유로 걸러지는데 검사를 복제하면 한쪽만 바뀐다.
+  return isVrfcEvntType(t);
 }
 
 export function listVideos(params: VideoListParams) {
@@ -216,6 +222,12 @@ export function getVideo(id: number) {
             ...t,
             questions: t.questions ? t.questions.filter(isVrfcEvntQuestion) : undefined,
           })),
+        // [@design API-043] [@design UI-107] 등록된 검증 이벤트 유형 <b>전체</b> — 이벤트 어노테이션의
+        //   이벤트 분류 코드를 이름으로 옮기는 데만 쓴다. BE 가 정렬해 내려주므로 **다시 정렬하지
+        //   않는다**. ★`selectableVrfcEvntTypes` 와 서로 대신하지 않는다 — 그쪽은 「비었는가」가
+        //   유형 선택 노출을 가르는 계약이라, 이 목록을 그 자리에 채우면 그 계약이 깨진다.
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        allVrfcEvntTypes: (d.allVrfcEvntTypes ?? []).filter(isVrfcEvntType),
       } as VideoDetail;
     });
 }

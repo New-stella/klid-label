@@ -5,16 +5,40 @@ import { resolveDisplayName } from '@/lib/displayName';
 
 import { ISSUE_STATUS, ISSUE_TYPE, type IssueStatus, type IssueType } from './types';
 
+/**
+ * 이슈 <b>종류</b>의 화면 낱말 — 「반려 / 문의」.
+ *
+ * ★저장 코드값(REJECTION·INQUIRY)과 전이 규칙은 <b>바뀌지 않았다</b>. 바뀐 것은 사람이 읽는
+ * 낱말뿐이다.
+ *
+ * ★왜 고쳤나 — 사양은 이 축을 어디서나 「문의」로 부른다(유형 배지 「반려/문의」 · 「문의 스레드」 ·
+ * 「미해결 {n}건」 · 「문의 등록」). 구 낱말 「검수자 확인 요청」은 사양 어느 자리에도 없던 구현
+ * 고유 문구였고, 같은 것을 가리키는 낱말이 한 화면 안에서 둘로 갈려 있었다.
+ */
 export const ISSUE_TYPE_LABEL: Record<IssueType, string> = {
   [ISSUE_TYPE.REJECTION]: '반려',
-  [ISSUE_TYPE.INQUIRY]: '검수자 확인 요청',
+  [ISSUE_TYPE.INQUIRY]: '문의',
 };
 
+/**
+ * 진행 상태의 <b>화면 낱말</b> — 「미해결 / 답변완료 / 해결」.
+ *
+ * ★저장 코드값(OPEN·ANSWERED·RESOLVED)과 전이 규칙은 <b>바뀌지 않았다</b>. 바뀐 것은 사람이
+ * 읽는 낱말뿐이다.
+ *
+ * ★왜 고쳤나 — 같은 상태를 부르는 낱말이 <b>셋</b>으로 갈려 있었다: 화면 사양 두 벌
+ * (「대기/답변완료/해소」·「미해결/…/해결」)과 이 코드(「열림/답변됨/해소됨」). 사양이 한 벌로
+ * 통일되면서 이 표를 그쪽에 맞춘다. 건수 배지가 「미해결 {n}건」이므로 짝이 되는 낱말은
+ * 「미해결」이고, 그 짝의 반대는 「해결」이다(동작 버튼은 「해결 처리」).
+ */
 export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {
-  [ISSUE_STATUS.OPEN]: '열림',
-  [ISSUE_STATUS.ANSWERED]: '답변됨',
-  [ISSUE_STATUS.RESOLVED]: '해소됨',
+  [ISSUE_STATUS.OPEN]: '미해결',
+  [ISSUE_STATUS.ANSWERED]: '답변완료',
+  [ISSUE_STATUS.RESOLVED]: '해결',
 };
+
+/** 해결 처리 동작의 버튼 이름 — 상태 낱말(「해결」)과 동작을 구분한다. */
+export const ISSUE_RESOLVE_ACTION_LABEL = '해결 처리';
 
 // 작성자 역할 한글 라벨 — 화면에 코드값(WORKER/REVIEWER)을 그대로 노출하지 않는다.
 // UI 호칭은 '검수자'로 통일(프로젝트 역할 정의).
