@@ -759,12 +759,22 @@ public class VideoQueryService {
                 sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
         List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
                 verificationEventQuestions(vrfcEvntTypeCd);
+        // [@design API-043] 검증 이벤트 유형 카탈로그 — <영상 1건당 1회>만 읽고 아래 두 목록이 공유한다.
+        //   ★ 전체 목록(allVrfcEvntTypes)이 관제 수신 여부와 무관하게 늘 필요하므로 조회는 매번 1회 일어난다.
+        //     고를 수 있는 목록이 같은 표를 따로 다시 읽으면 한 응답에 같은 쿼리가 두 번 나간다.
+        List<LsVrfcEvntType> vrfcEvntTypeCatalog = vrfcEvntTypeRepository.findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
         // [@design API-043] [@design SCREEN-006] [@design AC-1013] [@design UC-019]
         //   관제가 유형을 보내지 않은 영상에서 작업자가 <고를 수 있는> 유형 목록 + 유형별 질문.
-        //   ★ 관제 값이 있으면 <빈 배열>이고 조회도 하지 않는다 — 화면은 이 목록이 비었는지만 보고
+        //   ★ 관제 값이 있으면 <빈 배열>이고 질문 조회도 하지 않는다 — 화면은 이 목록이 비었는지만 보고
         //     유형 선택 노출을 정한다(판정 원천을 두 벌로 만들지 않는다).
         List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes =
-                selectableVerificationEventTypes(vrfcEvntTypeCd);
+                selectableVerificationEventTypes(vrfcEvntTypeCd, vrfcEvntTypeCatalog);
+        // [@design API-043] 검증 이벤트 유형 <전체> 목록(코드·이름) — 화면이 이벤트 분류의 이름을 찾는 데 쓴다.
+        //   ★ selectableVrfcEvntTypes 와 서로 대신하지 않는다: 그 목록은 비었는지가 계약이라 늘 채울 수 없다.
+        //   ★ 정렬은 저장소 메서드 이름이 갖는다 — 여기서 다시 정렬하지 않는다.
+        List<VideoDetailResponse.VrfcEvntTypeDto> allVrfcEvntTypes = vrfcEvntTypeCatalog.stream()
+                .map(t -> new VideoDetailResponse.VrfcEvntTypeDto(t.getVrfcEvntTypeCd(), t.getVrfcEvntTypeNm()))
+                .toList();
         // [@design API-043] [@design SCREEN-009] 영상 해상도 — LS_DATA_META 의 video.resolution.
         //   ★ LS_DATA_RAW 에는 해상도 컬럼이 없어 메타 테이블이 유일한 조달원이다. 미상이면 null 이며
         //     서버가 대체 문자를 지어내지 않는다(표시는 화면의 몫 — fps 와 달리 계산 입력이 아니다).
@@ -773,7 +783,7 @@ public class VideoQueryService {
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
                 skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
-                resolution, selectableVrfcEvntTypes);
+                resolution, selectableVrfcEvntTypes, allVrfcEvntTypes);
     }
 
     /**
@@ -836,7 +846,9 @@ public class VideoQueryService {
      * <h3>★ 관제 값이 있으면 빈 목록이고 <b>질문 조회도 하지 않는다</b></h3>
      * <p>관제 인입에서 유형을 받은 영상은 마킹 화면이 유형 선택을 <b>아예 노출하지 않는다</b>(확정
      * 정책 — 「표시하되 잠근다」가 아니다). 화면은 이 목록이 비었는지만 보고 판정하므로 여기서
-     * 빈 목록을 돌려주는 것이 곧 그 신호다. 대부분의 조회가 이 경로라 <b>추가 질의가 0회</b>여야 한다.
+     * 빈 목록을 돌려주는 것이 곧 그 신호다. 대부분의 조회가 이 경로라 이 메서드가 <b>추가로 내는
+     * 질의는 0회</b>여야 한다. 유형 카탈로그는 호출부가 영상 1건당 1회 읽어 넘긴다 — 유형 전체
+     * 목록({@code allVrfcEvntTypes})이 관제 수신 여부와 무관하게 늘 그 카탈로그를 필요로 하기 때문이다.
      *
      * <h3>★ 왜 질문을 항목 <b>안</b>에 담나</h3>
      * <p>유형을 고르는 시점과 질문을 고르는 시점 사이에 <b>서버 왕복을 두지 않기 위해서</b>다. 왕복을
@@ -859,14 +871,14 @@ public class VideoQueryService {
      *
      * @param normalizedTypeCd 관제 인입에서 받은 유형 코드({@code LsDataIngest.normalizeVrfcEvntType}
      *                         통과값). {@code null}(미수신)일 때만 목록을 채운다
+     * @param types            유형 카탈로그(정렬순서 오름차순, 같으면 코드 오름차순) — 호출부가 1회 읽은 것
      */
     private List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVerificationEventTypes(
-            String normalizedTypeCd) {
+            String normalizedTypeCd, List<LsVrfcEvntType> types) {
         if (normalizedTypeCd != null) {
-            // 관제 값이 있는 영상 — 선택을 노출하지 않으므로 카탈로그·질문 조회를 아예 하지 않는다.
+            // 관제 값이 있는 영상 — 선택을 노출하지 않으므로 질문 조회를 아예 하지 않는다.
             return Collections.emptyList();
         }
-        List<LsVrfcEvntType> types = vrfcEvntTypeRepository.findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
         if (types.isEmpty()) {
             // 고를 유형이 없으면 질문을 읽어봐야 담을 곳이 없다.
             return Collections.emptyList();

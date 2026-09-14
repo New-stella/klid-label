@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -257,14 +258,15 @@ class VideoDetailSelectableVerificationTypesTest {
 
     /**
      * ★★ 노출 판정의 단일 원천이 이 목록이다 — 관제 값이 있는 영상에서 화면은 목록이 비었다는 사실
-     * 하나로 유형 선택을 숨긴다. 그리고 그 대부분의 조회에서 <b>추가 질의가 0회</b>여야 한다.
+     * 하나로 유형 선택을 숨긴다. 그리고 그 영상에서는 유형별 질문 <b>일괄조회가 0회</b>여야 한다
+     * (유형 카탈로그 쪽은 전체 목록 필드 때문에 관제 수신 여부와 무관하게 1회 읽힌다).
      *
      * <p>결과 단언(빈 배열)만으로는 부족하다: 조회를 하고 나서 버려도 결과는 같다. 그래서
      * <b>호출 자체</b>를 단언한다.
      */
     @Test
-    @DisplayName("★★관제_유형이_있으면_목록이_비고_유형카탈로그와_질문_일괄조회를_아예_하지_않는다")
-    void controlProvidedTypeSkipsCatalogQueriesEntirely() {
+    @DisplayName("★★관제_유형이_있으면_목록이_비고_질문_일괄조회를_아예_하지_않는다_카탈로그는_전체목록용_1회뿐이다")
+    void controlProvidedTypeSkipsBulkQuestionQuery() {
         stubDetailBasics();
         given(ingestSourceRepository.findSourceMeta(RAW_SN)).willReturn(ingestRow("fall"));
         given(vrfcEvntQstnRepository.findByVrfcEvntTypeCdOrderBySortSeqAsc("fall")).willReturn(
@@ -276,7 +278,10 @@ class VideoDetailSelectableVerificationTypesTest {
         assertThat(response.selectableVrfcEvntTypes()).isNotNull().isEmpty();
         // 그 영상의 질문 목록(관제 유형 기준)은 그대로 조달된다 — 이 축은 무변경이다.
         assertThat(response.vrfcEvntQuestions()).hasSize(1);
-        verify(vrfcEvntTypeRepository, never()).findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
+        // [@design API-043] 유형 카탈로그는 전체 목록(allVrfcEvntTypes)이 관제 수신 여부와 무관하게 늘 필요해
+        //   영상 1건당 정확히 1회 읽힌다(구 단언 「never」는 그 필드 신설로 폐기). 고를 수 있는 목록이
+        //   같은 표를 한 번 더 읽지 않는지를 times(1) 로 고정한다.
+        verify(vrfcEvntTypeRepository, times(1)).findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
         verify(vrfcEvntQstnRepository, never()).findAllByOrderByVrfcEvntTypeCdAscSortSeqAsc();
     }
 
@@ -294,7 +299,8 @@ class VideoDetailSelectableVerificationTypesTest {
         VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
 
         assertThat(response.selectableVrfcEvntTypes()).isEmpty();
-        verify(vrfcEvntTypeRepository, never()).findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
+        verify(vrfcEvntTypeRepository, times(1)).findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
+        verify(vrfcEvntQstnRepository, never()).findAllByOrderByVrfcEvntTypeCdAscSortSeqAsc();
     }
 
     /* ============================== N+1 회피 ============================== */
