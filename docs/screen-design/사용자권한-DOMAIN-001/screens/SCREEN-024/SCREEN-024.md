@@ -5,11 +5,11 @@ version: 35
 last_updated_at: 2026-09-07T03:55:23.753Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:21:15.709Z
-sync_session: 18
+synced_at: 2026-09-14T05:37:28.434Z
+sync_session: 19
 stale: true
-status: CHANGED
-prev_version: 32
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-024.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-004]]"]
   realizes_use_cases: ["[[UC-030]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v32 → v35**
-> change_summary: 검색 축을 「이름 / 로그인ID」 두 축으로 정합(2026-09-07 사용자 확정). 근거: 조회가 실제로 매칭하던 축은 로그인ID·이름·이메일 셋인데 상위 시스템이 이메일을 인계하지 않아 운영에서 이메일은 전 행이 빈 값이라, 화면이 안내하지 않는 숨은 매칭 축을 남기지 않으려고 이메일 축을 뺐다. 같은 라운드에서 목록 컬럼을 로그인ID로 바꾼 것과 짝이며, 목록에 보이지 않는 값으로 검색하는 비정합을 없앤다. 화면에 실제로 표시되는 placeholder 는 사용자 표현 그대로 「아이디」를 쓰고, 사양 서술은 목록 컬럼명과 같은 어휘 「로그인ID」로 통일했다. 목록 필터가 검색어·역할 두 축뿐이라는 규정은 그대로다. 조회 창구 쪽 파라미터 서술은 별도 담당이 같은 라운드에서 정합한다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 사용자 관리 화면
 

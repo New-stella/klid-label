@@ -593,3 +593,29 @@ a.btn, a.btn:hover { text-decoration: none; }
 svg { stroke-width: 2; }
 .alert-icon { stroke-width: 1.8; }
 .icon-lg { stroke-width: 1.6; }
+
+/* ── 13-a. 산출물 후보 — 신고 이전 파일 표시 · 선택 불가 상태 ──────────
+ * 해소 후보의 자격은 무결성 하나로 판정한다. 신고보다 먼저 만들어진 파일도
+ * 고를 수 있으므로 잠그지 않고 배지로만 알린다 — 마스킹 누락이 남은 산출물이
+ * 되돌아올 수 있다는 것을 사람이 알아볼 유일한 단서라 눈에 띄어야 한다.
+ * 반대로 정상적으로 열리는 영상이 아닌 후보는 잠그되, 왜 못 고르는지 사유를 함께 둔다. */
+.cand-flag {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.cand-note { display: block; margin-top: 2px; color: var(--w-8); }
+.cand-note-block { color: var(--n-6); }
+
+.cand-item.is-disabled {
+  background: var(--n-0);
+  border-color: var(--n-2);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.cand-item.is-disabled:hover { background: var(--n-0); border-color: var(--n-2); }
+.cand-item.is-disabled .cand-name { color: var(--n-6); }
+.cand-item.is-disabled .cand-meta .kv .v { color: var(--n-6); }
+.cand-item.is-disabled input[type="radio"] { cursor: not-allowed; }

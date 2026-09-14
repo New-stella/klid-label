@@ -21,7 +21,7 @@
           "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-021/main.css",
           "surface": "page",
           "platform": "web",
-          "uploaded_at": "2026-09-07T11:57:10.053Z",
+          "uploaded_at": "2026-09-09T23:18:47.780Z",
           "uploaded_by": "claude-screen-design"
         }
       ],
@@ -42,12 +42,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "ADR-065 반영 — 비식별 완료 기록 창구의 폴더 경로 도움말에 「바로가기로 된 허용 저장소에서도 탐색이 돌려준 위치를 그대로 붙여 넣을 수 있습니다.」 한 문장을 덧붙였다. 기존 두 문장은 그대로 두고 추가만 했으며 시각 구성은 손대지 않았다. 문구 정본은 SCREEN-032 v28 이고 이 시안은 표기만 맞췄다. 근거 결정을 brownfield.decided_by 에 처음 채운다.",
+    "current_version": 9,
+    "stale": true,
+    "stale_reason": "UC-016의 data.alternate_flows 변경이 designs로 2-hop 전파",
+    "change_summary": "디자인 화면 업로드 (main, page) +css",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T11:59:14.453Z",
+    "last_updated_at": "2026-09-09T23:18:47.780Z",
     "created_at": "2026-08-13T15:03:59.368Z"
   }
 }

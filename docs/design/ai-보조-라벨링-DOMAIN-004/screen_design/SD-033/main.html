@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
 <body>
 <main class="screen-root">
@@ -26,7 +26,7 @@
 
   
   <div class="dev-notice" role="note">
-    <svg class="dev-icon icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+    <svg class="dev-icon icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
     </svg>
     <div class="dev-body">
@@ -74,7 +74,7 @@
 
           
           <div class="alert alert-info" role="note">
-            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>
             </svg>
             <div class="alert-body">
@@ -93,10 +93,10 @@
           
           <div class="field">
             <label class="field-label t-label" for="up-file">영상 파일 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-            <input type="file" id="up-file" class="file-input" aria-describedby="up-file-help" />
+            <input type="file" id="up-file" class="file-input" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi" aria-describedby="up-file-help" />
             <p id="up-file-help" class="field-help t-caption">mp4 · webm · mov · avi 파일. 확장자 제한은 고르기를 돕는 보조 안내이며 실제 검증은 서버가 합니다. 500MB 한도는 영상 크기 제한이 아니라 한 번에 통째로 보내는 방식의 한도라 파이프라인 즉시 실행에만 걸립니다.</p>
             <p class="file-summary">
-              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
               </svg>
               <span class="file-name t-body-sm">test-crossroad-0817.mp4</span>
@@ -128,7 +128,7 @@
               </div>
               <div class="field">
                 <label class="field-label t-label" for="id-gov">지자체코드 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                <input type="text" id="id-gov" class="input input-mono" value="11680" aria-describedby="id-gov-help" />
+                <input type="text" id="id-gov" class="input input-mono" value="11680" inputmode="numeric" aria-describedby="id-gov-help" />
                 <p id="id-gov-help" class="field-help t-caption">숫자만 1~10자리. 기본값 11680은 강남구입니다.</p>
               </div>
               <div class="field">
@@ -169,7 +169,7 @@
                   <span class="radio-name t-body-sm">PSDO <span class="radio-sub">가명 정보</span></span>
                 </label>
               </div>
-              <p id="up-prvc-help" class="field-help t-caption">여기서 고른 값은 표시용 기록일 뿐이며 비식별 실행 여부를 바꾸지 않습니다. 비식별은 올린 모든 영상에 예외 없이 자동으로 실행됩니다.</p>
+              <p id="up-prvc-help" class="field-help t-caption">여기서 고른 값은 표시용 기록일 뿐이며 비식별 실행 여부를 바꾸지 않습니다. 비식별 단계는 올린 모든 영상에 예외 없이 자동으로 실행됩니다. 다만 출처유형이 생성형 등 비식별 제외로 지정된 영상은 그 단계가 원본 복사로 완료됩니다.</p>
             </fieldset>
           </div>
 
@@ -177,7 +177,7 @@
           <div class="collapse">
             <input type="checkbox" id="cx-loc" class="collapse-toggle sr-only" />
             <label class="collapse-summary" for="cx-loc">
-              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="m9 6 6 6-6 6"></path>
               </svg>
               <span class="sum-title t-title-sm">위치 · CCTV 제원</span>
@@ -203,22 +203,22 @@
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="loc-height">카메라 높이 <span class="opt">선택 · m</span></label>
-                    <input type="text" id="loc-height" class="input input-mono" aria-describedby="loc-height-help" />
+                    <input type="text" id="loc-height" class="input input-mono" inputmode="decimal" aria-describedby="loc-height-help" />
                     <p id="loc-height-help" class="field-help t-caption">미터 단위로 적습니다.</p>
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="loc-lat">위도 <span class="opt">선택</span></label>
-                    <input type="text" id="loc-lat" class="input input-mono" aria-describedby="loc-lat-help" />
+                    <input type="text" id="loc-lat" class="input input-mono" inputmode="decimal" aria-describedby="loc-lat-help" />
                     <p id="loc-lat-help" class="field-help t-caption">WGS84 좌표계.</p>
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="loc-lon">경도 <span class="opt">선택</span></label>
-                    <input type="text" id="loc-lon" class="input input-mono" aria-describedby="loc-lon-help" />
+                    <input type="text" id="loc-lon" class="input input-mono" inputmode="decimal" aria-describedby="loc-lon-help" />
                     <p id="loc-lon-help" class="field-help t-caption">WGS84 좌표계.</p>
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="loc-dir">주감시방향 <span class="opt">선택 · 도</span></label>
-                    <input type="text" id="loc-dir" class="input input-mono" aria-describedby="loc-dir-help" />
+                    <input type="text" id="loc-dir" class="input input-mono" inputmode="numeric" aria-describedby="loc-dir-help" />
                     <p id="loc-dir-help" class="field-help t-caption">0에서 360 사이 각도로 적습니다.</p>
                   </div>
                 </div>
@@ -230,7 +230,7 @@
           <div class="collapse">
             <input type="checkbox" id="cx-evt" class="collapse-toggle sr-only" />
             <label class="collapse-summary" for="cx-evt">
-              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="m9 6 6 6-6 6"></path>
               </svg>
               <span class="sum-title t-title-sm">이벤트 · 관제일지</span>
@@ -266,7 +266,7 @@
                   </div>
                   <div class="field span-all">
                     <label class="field-label t-label" for="ev-log">관제일지 <span class="opt">선택</span></label>
-                    <textarea id="ev-log" class="textarea t-body-md" aria-describedby="ev-log-help"></textarea>
+                    <textarea id="ev-log" class="textarea t-body-md" maxlength="4000" aria-describedby="ev-log-help"></textarea>
                     <p class="field-foot">
                       <span id="ev-log-help" class="field-help t-caption">최대 4,000자까지 적을 수 있습니다.</span>
                       <span class="field-counter">0/4000</span>
@@ -281,7 +281,7 @@
           <div class="collapse">
             <input type="checkbox" id="cx-tech" class="collapse-toggle sr-only" />
             <label class="collapse-summary" for="cx-tech">
-              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chev icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="m9 6 6 6-6 6"></path>
               </svg>
               <span class="sum-title t-title-sm">영상 기술메타 <span class="opt">선택</span></span>
@@ -295,7 +295,7 @@
 
                 
                 <div class="readonly-box">
-                  <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
                   </svg>
                   <div class="rb-body">
@@ -307,19 +307,19 @@
                 <div class="form-grid cols-3">
                   <div class="field">
                     <label class="field-label t-label" for="tm-fps">FPS <span class="opt">선택</span></label>
-                    <input type="text" id="tm-fps" class="input input-mono" />
+                    <input type="text" id="tm-fps" class="input input-mono" inputmode="decimal" />
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="tm-frames">프레임수 <span class="opt">선택</span></label>
-                    <input type="text" id="tm-frames" class="input input-mono" />
+                    <input type="text" id="tm-frames" class="input input-mono" inputmode="numeric" />
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="tm-w">가로 <span class="opt">선택 · px</span></label>
-                    <input type="text" id="tm-w" class="input input-mono" />
+                    <input type="text" id="tm-w" class="input input-mono" inputmode="numeric" />
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="tm-h">세로 <span class="opt">선택 · px</span></label>
-                    <input type="text" id="tm-h" class="input input-mono" />
+                    <input type="text" id="tm-h" class="input input-mono" inputmode="numeric" />
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="tm-res">해상도 <span class="opt">선택</span></label>
@@ -340,7 +340,7 @@
                   </div>
                   <div class="field">
                     <label class="field-label t-label" for="tm-size">파일크기 <span class="opt">선택 · byte</span></label>
-                    <input type="text" id="tm-size" class="input input-mono" aria-describedby="tm-size-help" />
+                    <input type="text" id="tm-size" class="input input-mono" inputmode="numeric" aria-describedby="tm-size-help" />
                     <p id="tm-size-help" class="field-help t-caption">비우면 실제 전송한 크기를 씁니다.</p>
                   </div>
                   <div class="field">
@@ -368,7 +368,7 @@
               <div class="progress-fill pw-0"></div>
             </div>
             <p class="progress-note t-caption">
-              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>
               </svg>
               <span>업로드를 시작하면 전송량과 진행률이 여기에 표시됩니다. 관제 인입 재현은 청크로 나눠 보내므로 연결이 끊겨도 끊긴 지점부터 이어 보낼 수 있습니다.</span>
@@ -378,7 +378,7 @@
           
           <div class="form-actions">
             <button type="submit" class="btn btn-primary t-button">
-              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M12 20V8"></path><path d="m7 12 5-5 5 5"></path><path d="M5 4h14"></path>
               </svg>
               업로드 시작
@@ -445,13 +445,13 @@
           <div class="link-list">
             <a class="link-item t-body-sm" href="#">
               영상 상세로 이동
-              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M5 12h13"></path><path d="m12 6 6 6-6 6"></path>
               </svg>
             </a>
             <a class="link-item t-body-sm" href="#">
               영상 처리 현황 보기
-              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M5 12h13"></path><path d="m12 6 6 6-6 6"></path>
               </svg>
             </a>
@@ -494,7 +494,7 @@
                 업로드 시작
               </button>
               <button type="button" class="btn btn-secondary t-button">
-                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M9 5v14"></path><path d="M15 5v14"></path>
                 </svg>
                 일시정지
@@ -521,7 +521,7 @@
             </div>
             <div class="form-actions">
               <button type="button" class="btn btn-primary t-button">
-                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M8 5v14l11-7z"></path>
                 </svg>
                 재개
@@ -548,7 +548,7 @@
               </div>
             </div>
             <div class="alert alert-error" role="alert">
-              <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                 <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
               </svg>
               <div class="alert-body">
@@ -579,7 +579,7 @@
               </div>
             </div>
             <div class="alert alert-success" role="status">
-              <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                 <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
               </svg>
               <div class="alert-body">
@@ -595,7 +595,7 @@
         <p class="ref-variant-title t-label">⑤ 완료 — 적재되지 않는 경고</p>
         <div class="ref-box">
           <div class="alert alert-warn" role="status">
-            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
             </svg>
             <div class="alert-body">
@@ -611,7 +611,7 @@
         <div class="ref-box">
           <div class="ref-stack">
             <p class="file-summary is-empty">
-              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>
               </svg>
               <span class="file-name is-empty t-body-sm">고른 파일 없음</span>
@@ -636,7 +636,7 @@
               <option selected>직접 입력</option>
             </select>
             <label class="field-label t-label" for="ref-vrfc-manual">시계열 이벤트유형 직접 입력</label>
-            <input type="text" id="ref-vrfc-manual" class="input input-mono" value="smoke_detect" aria-describedby="ref-vrfc-help" />
+            <input type="text" id="ref-vrfc-manual" class="input input-mono" value="smoke_detect" maxlength="20" aria-describedby="ref-vrfc-help" />
             <p id="ref-vrfc-help" class="field-help t-caption">영문 소문자 · 숫자 · 밑줄만, 20자 이내. 이 칸에 적은 값이 전송됩니다.</p>
           </div>
         </div>
@@ -657,7 +657,7 @@
         <p class="ref-variant-title t-label">① 업로드 전 — 패널 자체가 없다</p>
         <div class="ref-box">
           <div class="empty-box" role="status">
-            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m9 10 5 3-5 3z"></path>
             </svg>
             <p class="empty-title t-body-sm">아직 실행한 결과가 없습니다</p>
@@ -670,7 +670,7 @@
         <p class="ref-variant-title t-label">② 관제 인입 재현일 때 — 인입 대기 안내만</p>
         <div class="ref-box">
           <div class="alert alert-info" role="status">
-            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>
             </svg>
             <div class="alert-body">
@@ -685,7 +685,7 @@
         <p class="ref-variant-title t-label">③ 마킹 대기에 닿았을 때</p>
         <div class="ref-box">
           <div class="alert alert-primary" role="status">
-            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
             </svg>
             <div class="alert-body">
@@ -700,7 +700,7 @@
         <p class="ref-variant-title t-label">④ 파이프라인이 실패했을 때</p>
         <div class="ref-box">
           <div class="alert alert-error" role="alert">
-            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
             </svg>
             <div class="alert-body">

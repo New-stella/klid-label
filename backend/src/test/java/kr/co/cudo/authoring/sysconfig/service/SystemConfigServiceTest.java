@@ -356,4 +356,24 @@ class SystemConfigServiceTest {
                 .isInstanceOf(CustomException.class)
                 .hasMessageNotContaining("injected");
     }
+
+    /**
+     * ADR-066 · DFEAT-042 — 비식별 제외 출처유형은 <b>배포 설정 전용</b>이다. 관리 화면 설정 저장 경로로
+     * 바꿀 수 없어야 한다(비식별 우회 스위치를 운영 중 재기동 없이 켜지 못하게). 화이트리스트에 넣지 않는
+     * 것이 구현이고, 이 시험이 그 거부를 고정한다.
+     *
+     * @design ADR-066
+     */
+    @Test
+    @DisplayName("★비식별_제외_출처유형_배포설정_키는_관리화면_설정_저장으로_바꿀_수_없다_INVALID_INPUT")
+    void deidentExcludedSrcTypesKeyIsNotEditable() {
+        String key = "authoring.deidentify.excluded-src-types";
+        assertThat(ConfigKeys.ALLOWED).doesNotContain(key);
+
+        assertThatThrownBy(() -> service.update(key, "ORIGINAL", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(repository, never()).save(any());
+    }
 }

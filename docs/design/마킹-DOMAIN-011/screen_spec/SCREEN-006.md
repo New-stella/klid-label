@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 52
+version: 54
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:22:51.262Z
+synced_at: 2026-09-14T05:33:09.946Z
 status: CHANGED
-prev_version: 51
-content_hash: 40ddd1fc57fe69544500c0dc8e09fc7b8c5cee674fae7bbc64586d160bf8eeae
-stale: false
+prev_version: 52
+content_hash: fb5ffcd5cf812d66bef857d9be390b110476ee432049de6ab4af88e0188b3333
+stale: true
 raw: ./_raw/SCREEN-006.json
 links:
   belongs_to_domain: ["[[DOMAIN-011]]"]
   consumes: ["[[API-043]]", "[[API-047]]", "[[API-084]]", "[[API-091]]", "[[API-114]]"]
-  implements: ["[[IMPREC-120]]", "[[IMPREC-122]]", "[[IMPREC-124]]"]
+  implements: ["[[IMPREC-120]]", "[[IMPREC-122]]", "[[IMPREC-124]]", "[[IMPREC-421]]"]
   realizes: ["[[UC-019]]"]
   references: ["[[API-043]]", "[[API-047]]", "[[API-084]]", "[[API-091]]", "[[API-114]]"]
   requires: ["[[ROLE-001]]", "[[ROLE-002]]"]
@@ -49,6 +49,8 @@ draft
 
 [비식별 누락 신고 — 마킹 단계 진입점] rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report 를 접수한다. ★접수 조건은 배치 단계가 MARKING_READY 일 때뿐이며 그 외에는 412 다 — 그 상태는 선두 비식별 성공 직후·마킹 이전이라 프레임 행도 라벨도 아직 없어 재마킹이 파괴할 작업 결과가 없기 때문이다. 파생영상(증강·해상도 변환본)은 신고 체계 밖이라 아예 접수하지 않는다(412). ★신고해도 라벨과 개인정보 3필드 판정은 모두 보존된다. 신고 즉시 작업락이 걸리고 DE_IDNTF_YN='F' 로 전이되어 스트리밍·라벨 조회·저장이 차단되므로 마킹을 계속할 수 없다. 자동 재비식별 큐는 없으며 외부 솔루션으로 수동 비식별화한 뒤 POST /v1/deident-reports/{rprtSn}/resolve(WORKER 본인 배정 / REVIEWER 전체)로 해소하면, 마킹 단계 신고는 배치 단계가 MARKING_READY 로 되감기고 활성 마킹이 SKIPPED 로 종결돼 재마킹할 수 있게 된다.
 
+[영상 재생 주소 구성] 영상 재생에 쓰는 최종 주소는 서명 URL 발급 응답이 내려준 주소를 그대로 쓰지 않고, 그 앞에 이 화면이 아는 배포 접두(베이스 경로)를 붙여 구성한다. 발급 응답의 주소는 배포 접두를 포함하지 않는 API 기준 경로이며, 발급 측은 자신이 어느 접두 아래 배포되는지 알지 못해 접두를 붙일 수 없기 때문이다. 접두를 붙이지 않으면 요청이 다른 경로 공간으로 나가 스트림에 도달하지 못하고 영상이 재생되지 않는다. 재생에 실패했을 때의 서명 URL 재발급·재시도는 무한히 반복하지 않고 상한을 두며, 상한에 이르면 반복을 멈추고 사용자에게 영상을 재생하지 못했음을 알린다. 발급 응답의 주소 기준과 재시도 상한 요구는 API-114 가 정한다.
+
 접근: REVIEWER/WORKER.
 
 ## sections
@@ -62,7 +64,7 @@ draft
 
 #### [1]
 
-- **note**: GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 <video src> 에 바인딩(HTTP Range 재생). <video> 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도. 서명 URL 재생은 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)를 전제로 한다 — 브라우저가 자동으로 실어 보내고 스크립트로는 다룰 수 없어, 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 쿠키가 없거나 유효하지 않으면 401 이며, 위 1회 재시도가 이 401 도 포괄한다.
+- **note**: GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 <video src> 에 바인딩(HTTP Range 재생). <video> 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도. 서명 URL 재생은 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)를 전제로 한다 — 브라우저가 자동으로 실어 보내고 스크립트로는 다룰 수 없어, 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 쿠키가 없거나 유효하지 않으면 401 이며, 위 1회 재시도가 이 401 도 포괄한다. 발급 주소는 배포 접두를 뺀 API 기준 경로라 이 화면의 배포 접두를 앞에 붙여야 재생된다. 재발급·재시도는 상한까지만 하고 이후 재생 실패를 알린다.
 - **type**: Custom
 - **label**: 영상 플레이어
 
@@ -150,7 +152,11 @@ _(empty)_
 
 - **custom_name**: Spinner
 
-- **description**: VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 <video src>에 바인딩해 HTTP Range 로 재생한다(<video> 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 서명 URL 재생이 성립하려면 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)가 후속 스트림 요청에 함께 실려야 한다. 그 쿠키는 스크립트가 다룰 수 없고 브라우저가 자동으로 부착하므로, 재생 요청이 동일 오리진이면서 쿠키가 실리는 경로여야 한다는 제약이 따른다. 쿠키가 없거나 유효하지 않으면 서명 검증이 실패해 401 이며, 위의 1회 재시도는 서명 만료뿐 아니라 이 401 도 포괄한다 — 재발급을 받으면 쿠키도 함께 새로 내려오기 때문이다. 쿠키 속성 전문은 API-114 가 정하므로 이 화면 사양에 옮겨 적지 않는다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.
+**description**:
+
+VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 <video src>에 바인딩해 HTTP Range 로 재생한다(<video> 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 서명 URL 재생이 성립하려면 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)가 후속 스트림 요청에 함께 실려야 한다. 그 쿠키는 스크립트가 다룰 수 없고 브라우저가 자동으로 부착하므로, 재생 요청이 동일 오리진이면서 쿠키가 실리는 경로여야 한다는 제약이 따른다. 쿠키가 없거나 유효하지 않으면 서명 검증이 실패해 401 이며, 위의 1회 재시도는 서명 만료뿐 아니라 이 401 도 포괄한다 — 재발급을 받으면 쿠키도 함께 새로 내려오기 때문이다. 쿠키 속성 전문은 API-114 가 정하므로 이 화면 사양에 옮겨 적지 않는다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.
+
+[재생 주소 구성·재시도 상한] 발급 응답의 주소는 배포 접두를 포함하지 않는 API 기준 경로이므로, 이 화면이 아는 배포 접두를 앞에 붙여 최종 재생 주소를 만든다(재발급으로 받은 주소도 동일). 접두를 붙이지 않으면 요청이 다른 경로 공간으로 나가 스트림에 도달하지 못해 영상이 재생되지 않는다. 재발급·재시도는 상한 안에서 끝내며, 상한에 이르면 멈추고 사용자에게 재생 실패를 알린다. 두 기준은 API-114 가 정한다.
 
 **references_apis**:
 
@@ -512,7 +518,7 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-004
 
 ### records
 
@@ -523,7 +529,7 @@ _(empty)_
 
 ### progress
 
-95
+100
 
 ### subtasks
 
@@ -531,7 +537,7 @@ _(empty)_
 
 ### last_updated
 
-2026-09-07T15:30:03.835Z
+2026-09-09T03:25:19.525Z
 
 ### module_paths
 

@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-003
 type: class_diagram
-version: 13
+version: 15
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:43:42.711Z
+synced_at: 2026-09-14T05:33:11.264Z
 status: CHANGED
-prev_version: 11
-content_hash: ba46642bc0f6b86ca7fe40a6c8b846a1db82daedc1295ec92d96fa2a4ee590e7
+prev_version: 13
+content_hash: d6bd9587a906e5fc45ea1af2a3f6df67add835febe2b6125ee1229ade290697c
 stale: true
 raw: ./_raw/CDIAG-003.json
 links:
@@ -659,6 +659,7 @@ _(empty)_
 - **type**: String
 - **is_static**: false
 - **visibility**: private
+- **description**: 요청종류. null=일반 배치 비식별 · REDEIDENT=검수 완료 재비식별 · EXCLUDED=비식별 제외 — 배포 설정 제외 목록에 든 출처유형 영상이라 외부 위탁 없이 원본을 비식별 영상 쓰기 위치에 복사해 완료한 행이다(성공 시 SUCCEEDED + 복사본 경로, 실패 시 FAILED). EXCLUDED 행은 POLL_STTS_CD 가 비어 폴링·수락 대기 유예 회수의 대상이 아니다. (REQ_KND_CD)
 - **is_readonly**: false
 
 **implementation**:
@@ -885,7 +886,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력. OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 선커밋한 뒤 생성을 비동기 디스패치하고, 결과는 주기 폴링이 회수한다 — 진행 결과 축과 수락 대기 유예 만료 미결 축 두 종류이며, 미결 회수는 재위탁하지 않고 실패 사유로 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다(코드 실측) — 미결 회수도 제출 확정 실패와 같은 종결 경로라 영상 비식별 여부를 실패로 내린다. 예외는 외부로 나간 것이 없는 취소 종결뿐이다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)
+- **description**: DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력(출처유형 제외 행 포함). OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 선커밋한 뒤 생성을 비동기 디스패치하고, 결과는 주기 폴링이 회수한다 — 진행 결과 축과 수락 대기 유예 만료 미결 축 두 종류이며, 미결 회수는 재위탁하지 않고 실패 사유로 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다(코드 실측) — 미결 회수도 제출 확정 실패와 같은 종결 경로라 영상 비식별 여부를 실패로 내린다. 예외는 외부로 나간 것이 없는 취소 종결뿐이다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)
 
 **enum_values**:
 
@@ -1609,7 +1610,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 수동 비식별 후 resolve 시 해제(LOCKED→RELEASED). (LS_AUTH_WORK_LOCK)
+- **description**: 비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK)
 
 **enum_values**:
 
@@ -1669,7 +1670,7 @@ _(empty)_
 
 ## description
 
-영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다. 그 회수는 두 종류다 — 진행 결과를 집는 축과, 수락 응답조차 관측하지 못한 건을 수락 대기 유예 만료로 집는 미결 축이다. 비식별 축에는 전용 미결 스위퍼가 없어 그 미결 회수도 같은 주기 폴링이 맡으며(시계열 위탁과 갈리는 지점은 제출이 아니라 회수다), 재위탁하지 않고 실패 사유를 남겨 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다 — 코드 실측으로 재정정. 미결 회수(KPST_ACK_MISSING)는 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 영상 상태를 그대로 두는 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)뿐이며, 외부로 아무것도 나가지 않았기 때문이다. 수락 대기 유예 만료 회수를 별도 사유로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 우리가 수락 응답을 관측하지 못했다는 뜻이라 외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있어, 사람이 외부 상태를 확인해야 하는 건을 코드로 식별하려는 분리다.
+영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. 단 출처유형(LS_DATA_RAW.SRC_TYPE)이 배포 설정 authoring.deidentify.excluded-src-types 의 제외 목록에 든 영상은 선두 비식별 단계가 외부 솔루션에 위탁하지 않고 원본을 비식별 영상 쓰기 위치에 원본 파일명 그대로 복사해 완료하며, 그 사실을 DeidentProcLog 에 요청종류 EXCLUDED 인 행으로 남긴다(ADR-066) — 복사 성공 시 SUCCEEDED 와 복사본 경로, 실패 시 FAILED 이고, 외부 진행 상태를 갖지 않아 아래 폴링·수락 대기 유예 회수의 대상이 아니다. 검수 완료 영상의 재비식별(REDEIDENT)은 이 제외를 타지 않고 항상 외부 솔루션에 위탁한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다. 그 회수는 두 종류다 — 진행 결과를 집는 축과, 수락 응답조차 관측하지 못한 건을 수락 대기 유예 만료로 집는 미결 축이다. 비식별 축에는 전용 미결 스위퍼가 없어 그 미결 회수도 같은 주기 폴링이 맡으며(시계열 위탁과 갈리는 지점은 제출이 아니라 회수다), 재위탁하지 않고 실패 사유를 남겨 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다 — 코드 실측으로 재정정. 미결 회수(KPST_ACK_MISSING)는 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 영상 상태를 그대로 두는 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)뿐이며, 외부로 아무것도 나가지 않았기 때문이다. 수락 대기 유예 만료 회수를 별도 사유로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 우리가 수락 응답을 관측하지 못했다는 뜻이라 외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있어, 사람이 외부 상태를 확인해야 하는 건을 코드로 식별하려는 분리다.
 
 ## module_name
 

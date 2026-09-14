@@ -27,8 +27,11 @@ import java.util.Optional;
  * <ul>
  *   <li>자동 재비식별 큐를 신설하지 않는다. 실패 영상은 외부 비식별 프로그램에서 수동 재비식별 후
  *       기존 수동 resolve 경로로 복구한다.</li>
- *   <li>실패 시 deIdntfYn='F' 는 <b>별도 커밋 트랜잭션</b>으로 기록되므로 — 본 run() 의 REQUIRES_NEW
- *       롤백과 독립적으로 'F' 가 영속된다 — 여기서는 WARN 로깅만 하고 예외를 삼킨다(@Async).
+ *   <li>실패 시 deIdntfYn='F' 는 <b>별도 커밋 트랜잭션</b>으로 기록되므로 — {@code DeidentifyStep.run()}
+ *       (트랜잭션 경계 없음, 출처유형 제외 분기가 먼저) → 프록시 → {@code submitToExternal()}(REQUIRES_NEW)
+ *       의 롤백과 독립적으로 'F' 가 영속된다 — 여기서는 WARN 로깅만 하고 예외를 삼킨다(@Async).
+ *       출처유형 제외 분기의 복사·기록 실패는 {@code DeidentExclusionTxService.recordFailure}(REQUIRES_NEW)가
+ *       기록하고 예외가 여기까지 전파된다.
  *       MARKING_READY 로 전이하지 않는다. 기록 주체는 실패 시점에 따라 둘로 나뉜다:
  *       ①<b>제출 이전</b>(mock 원본 부재·KPST 원본 부재/경로 손상) — {@code DeidentifyStep}/
  *       {@code KpstDeidentService} 가 {@code BatchTransitionService.recordDeidentFailure}
@@ -119,8 +122,9 @@ public class AsyncDeidentifyRunner {
                         rawSn);
             }
         } catch (RuntimeException e) {
-            // 실패 시 deIdntfYn='F' 는 DeidentifyStep 이 별도 커밋 트랜잭션(BatchTransitionService
-            // .recordDeidentFailure, REQUIRES_NEW)으로 기록한다 — run() 롤백과 독립 영속.
+            // 실패 시 deIdntfYn='F' 는 별도 커밋 트랜잭션(REQUIRES_NEW)으로 기록된다 — 외부 위탁 분기는
+            // BatchTransitionService.recordDeidentFailure, 출처유형 제외 분기는 DeidentExclusionTxService
+            // .recordFailure. run()(트랜잭션 경계 없음) → 프록시 → submitToExternal()(REQUIRES_NEW) 롤백과 독립 영속.
             // 재시도 큐 enqueue 금지(설계 결정 3).
             // 수동 재비식별 후 기존 resolve 경로로 복구한다. @Async 이므로 예외는 삼킨다.
             log.warn("[AsyncDeidentifyRunner] deidentify failed rawSn={} cause={}",

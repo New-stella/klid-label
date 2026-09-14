@@ -305,6 +305,12 @@ slowBuild: true
   - ⚠ **배정 목록 축의 값 집합은 `PENDING`·`IN_PROGRESS`·`REVIEW_PENDING`·`COMPLETED`·`REJECTED` 이며 `APPROVED` 를 반환하지 않는다.** 이 축의 `COMPLETED` 를 `APPROVED` 로 "정정"하면 **대시보드 진행률이 검수완료 작업마다 0% 로 떨어진다**(소비처 `frontend/src/pages/DashboardPage.tsx` 진행률 계산). 실제로 감사가 이 축을 결함으로 오분류한 사례가 있다(DOMAIN-006 「지배적 결함 4」 — **기각됨**).
   - ⇒ ITEM·문서에서 `APPROVED/COMPLETED` 병기를 보면 **"둘 중 아무거나"가 아니라 "`dataSttsCd=APPROVED` / 응답 `status=COMPLETED`"** 일 수 있다. **단순 치환하면 정확한 계약을 지운다.** 판정 근거는 `ReviewStateMachine`(클래스 javadoc)·`ReviewResponse(mapToFeStatus)`
 - **비식별 호출 조건**: **전체 영상 비식별 후 마킹**(ANONY 포함, 게이팅 폐지 — 무조건 자동 실행) — 비식별이 파이프라인 선두 단계로, 적재 직후 자동 트리거(`VideoIngestedEvent`→`IngestDeidentifyBridge`→`AsyncDeidentifyRunner`→`DeidentifyStep`)된다. 비식별 영상이 마킹 대상이 되며 원본은 별도 보존 (구 규칙 'PRVC/PSDO만' 폐지). **증강(augment) 적재 경로는 아직 `VideoIngestedEvent` 미발행 — 선두 비식별 자동화 미연동(planned/후속)**. 비식별 실패/신고 영상은 자동 재비식별 큐 없이 외부 비식별 프로그램에서 수동 재비식별(`deIdntfYn='F'` + 기존 resolve 경로)
+  - **★예외 — 출처유형 비식별 제외 (2026-09-14 사용자 확정, 구속 · `ADR-066`)**: 배포 설정 `authoring.deidentify.excluded-src-types`(env `DEIDENTIFY_EXCLUDED_SRC_TYPES`, 쉼표 복수, **기본 `GENERATED`**)에 든 출처유형 영상은 KPST 위탁 없이 **원본을 비식별 영상 쓰기 위치에 복사**해 비식별 단계를 끝낸다 — 이력 `LS_DEIDENT_PROC_LOG` 성공 행 + **`REQ_KND_CD='EXCLUDED'`(비식별 제외)** → `DE_IDENT_YN='Y'` → `MARKING_READY`. 뒤 단계(마킹 가드·스트리밍·프레임 두 벌·파생·관제 뷰)는 **무변경**이고 신규 상태값·컬럼도 없다.
+    - **단계를 건너뛰는 것이 아니다** — 「무조건 자동 실행」은 **단계**에 대해 여전히 참이며 그 단계가 위탁 대신 복사로 끝날 뿐이다. ⚠ 「건너뛰기만 하면 된다」로 되돌리지 말 것: 위 소비처가 전부 `'Y'` + 비식별 이력 최신 성공 경로를 전제한다.
+    - **기각한 안(되살리지 말 것)**: ①원본 경로를 이력에 적기만(복사 없음) — 비식별 영상 읽기 허용 base 에 원본 마운트를 넣어야 해 **전 영상** 원본 노출 방어가 약해진다 ②`DE_IDENT_YN` 에 「해당없음」 값 신설 — 소비처 누락 시 조용히 막히거나 원본이 샌다 ③`GENERATED` 하드코딩.
+    - **설정 파일 전용**(관리 화면 설정 아님 — `ConfigKeys.ALLOWED` 에 넣지 말 것) · **기동 시 값 검사 없음**(사용자 확정 — INFO 로그 1줄만) · 처리 시점 1회 판정·**소급 없음** · 비우면 전부 위탁 · `PRVC_TYPE_CD` 불변 · 설치 문서가 `ORIGINAL`·`RELAY`·`IMPORTED` 기재를 경고한다.
+    - **★회수 지점은 검수다** — 오표기(실제 인물 영상이 `GENERATED` 로 인입)는 **검수자가 검수 중 판단해 기존 비식별 누락 신고 → 외부 재비식별 → 해소**로 회수한다. ⚠ **검수완료 재비식별(`ApprovedRedeidentService`·API-112)은 회수 경로가 아니다** — 이미 `'Y'` 인 영상을 409 로 거부하고 제외 성공 영상은 전부 `'Y'` 다(2026-09-14 설계 라운드 중 이 오해가 ITEM 여러 층에 복제됐다가 정정됐다). 승인 이력 영상은 신고도 412 라 **승인 이후·그 파생본은 회수 경로 밖**(인지·수용).
+    - ⚠ 관제 조회 뷰 `DE_IDNTF_YN='Y'` 의 뜻이 「비식별 완료 **또는 제외**」로 넓어진다(구분은 `SRC_TYPE`/`GEN_AI_YN`). 영상 상세 비식별 이력 패널은 표시를 바꾸지 않아 제외 회차가 「비식별 / 배치 비식별」로 보인다(인지·수용).
 - 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
 - **오토라벨링**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
 - YOLO/SAM2는 `AiServerClient`로 호출 (타임아웃 60s + Resilience4j CircuitBreaker). **외부 VLM 은 별개 빈 `VlmClient`**(외부 벤더 직접 호출 · `vlm.client.timeout-seconds` 기본 10s + Resilience4j `vlmClient`)이며 ai-server 를 경유하지 않는다
@@ -1008,6 +1014,12 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★★★★ **2026-09-14 SYNC — 구현 15 키트 전량 (생성형 영상 비식별 제외 라운드 · `CO-20260914-생성형영상-비식별제외`).**
+> 계기는 설계 선반영 약 40 ITEM(신규 `ADR-066` · `ERD-017` · `DFEAT-041/042` · `UC-011/018` · `AC-1020~1022·1063·1064·1067` 등)과 IMPREC-449/450 이다.
+> **검증**: 15키트 전건 `서버 건수 = pin 건수` · 직전 커밋 대비 **유실 0** · 두 바퀴 모두 무열화 통과 · 오늘 바뀐 ITEM 33건의 키트 `_raw` 가 서버 판과 일치.
+> **승격**: `ADR-066` → D012·D003·D007·D017(서로 참조하는 `ADR-023`·`ADR-048`·`EVT-005` 포함) · `FEAT-011~014` → D003·D006·D010·D011·D014(각 도메인 UC 가 realizes — 그 결과 **D006 의 FEAT 0건 해소**) · 관제 세션 연장 산출물 → D001·D016 · `AC-1106` → D013. 근거는 각 `.kit-scope.json` 의 `note_promoted`/`note_pruned`.
+> ⚠ `IMPLEMENTATION.md`·`_domain.md` 재작성(스킬 Phase 4)은 이 라운드에서 하지 않았다 — 새로 승격한 ITEM 이 진입점 문서의 의존 그래프에 아직 없다.
+>
 > ★★★★★ **2026-09-05 SYNC — 구현 15 키트 전량 (비기능 요구 정합 라운드).**
 > 계기는 **`nfr` 26건 신규 + 8건 수정**이다. 요구사항정의서(비기능)의 담당=`공통` 88건 중 저작도구가
 > 담고 있던 것이 9건뿐이어서 나머지를 등재했고(`NFR-023`~`NFR-048`), `nfr` 은 **전역 타입이라 15개 키트
@@ -1068,21 +1080,21 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 108 | implemented 34 / planned 55 / (미기재) 19 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 181 | implemented 82 / in_progress 3 / verified 1 / planned 63 / (미기재) 32 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 175 | implemented 75 / in_progress 7 / planned 61 / (미기재) 32 | TEST 통합시험 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 138 | implemented 63 / in_progress 1 / verified 1 / planned 51 / (미기재) 22 | CONST 상수값 |
-| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 75 | implemented 19 / planned 47 / (미기재) 9 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 110 | implemented 36 / in_progress 1 / planned 51 / (미기재) 22 | CONST 상수값 |
-| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 75 | implemented 22 / planned 46 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 201 | implemented 101 / in_progress 1 / planned 68 / (미기재) 31 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 23 / in_progress 2 / planned 47 / (미기재) 15 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 118 | implemented 36 / in_progress 2 / planned 59 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 127 | implemented 42 / in_progress 3 / planned 67 / (미기재) 15 — **2026-09-06 SYNC(변경 26 · 유실 0)** + PR #195 IMPREC 8건(`IMPREC-394`~`401`) 반영 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 130 | implemented 55 / in_progress 1 / planned 56 / (미기재) 18 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 73 | implemented 20 / planned 48 / (미기재) 5 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 93 | implemented 26 / in_progress 2 / planned 51 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 106 | implemented 33 / in_progress 4 / planned 58 / (미기재) 11 | CONST 상수값, C4 컴포넌트 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 121 | implemented 41 / in_progress 1 / planned 61 / (미기재) 18 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 183 | implemented 84 / in_progress 3 / verified 1 / planned 63 / (미기재) 32 | CONST 상수값 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 179 | implemented 81 / in_progress 7 / planned 60 / (미기재) 31 | TEST 통합시험 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 137 | implemented 64 / in_progress 1 / verified 1 / planned 50 / (미기재) 21 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 75 | implemented 20 / planned 47 / (미기재) 8 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, C4 컴포넌트, INT 외부 연동 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 110 | implemented 37 / in_progress 1 / planned 50 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 74 | implemented 23 / planned 45 / (미기재) 6 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 201 | implemented 102 / in_progress 1 / planned 68 / (미기재) 30 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 24 / in_progress 2 / planned 47 / (미기재) 14 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 122 | implemented 40 / in_progress 2 / planned 56 / (미기재) 24 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 129 | implemented 48 / in_progress 3 / planned 64 / (미기재) 14 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 130 | implemented 58 / in_progress 1 / planned 54 / (미기재) 17 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 72 | implemented 21 / planned 47 / (미기재) 4 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 97 | implemented 28 / in_progress 2 / planned 54 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 106 | implemented 34 / in_progress 4 / planned 55 / (미기재) 13 | CONST 상수값, C4 컴포넌트 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -1186,13 +1198,13 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-05 (s35)** | 477 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-05 (s16) | 227 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-05 (s16) | 180 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-05 (s16) | 166 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-05 (s19) | 163 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-05 (s16) | 172 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-05 (s16) | 176 |
+| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-14 (s39)** | 476 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-14 (s18) | 227 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-14 (s18) | 180 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-14 (s18) | 166 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-14 (s19) | 165 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-14 (s18) | 172 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-14 (s19) | 181 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

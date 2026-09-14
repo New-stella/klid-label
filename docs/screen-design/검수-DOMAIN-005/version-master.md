@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-09-07T15:22:12.008Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 180 |
+| Last sync | 2026-09-14T05:34:09.583Z (session 18) |
+| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 170 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
@@ -17,21 +17,21 @@
 | [[AC-1041]] | acceptance | UC-023 비식별 미완료 승인 거부 — 전이·스냅샷·재생성·통지 전부 미발생 (negative) | 6 | true | UNCHANGED |
 | [[AC-1042]] | acceptance | UC-023 재제출 반복·검수완료 후 수정 → 재검토 표시·재승인 시 새 버전·TASK_MODIFIED (edge) | 6 | true | UNCHANGED |
 | [[AC-1058]] | acceptance | UC-021 라벨 편집 예외 — 타인 403·APPROVED 수정 재검토·신고 구간 412·값 검증·저장 충돌 409 (negative) | 10 | true | UNCHANGED |
-| [[API-008]] | api_endpoint | GET /v1/reviews | 12 | true | UNCHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | true | UNCHANGED |
-| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | true | UNCHANGED |
-| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | true | UNCHANGED |
-| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | true | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | true | UNCHANGED |
-| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | true | UNCHANGED |
+| [[API-008]] | api_endpoint | GET /v1/reviews | 12 | false | UNCHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | false | UNCHANGED |
+| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
+| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
+| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | UNCHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | UNCHANGED |
+| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 15 | false | UNCHANGED |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 15 | false | CHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | UNCHANGED |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 15 | false | UNCHANGED |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 15 | false | CHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
 | [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 7 | false | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 7 | false | CHANGED |
 | [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
 | [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
 | [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | UNCHANGED |
@@ -39,16 +39,16 @@
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | CHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | CHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | true | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 43 | true | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 7 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 12 | true | UNCHANGED |
-| [[UC-009]] | use_case | 검수 완료·수정 통지 | 25 | false | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 30 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | CHANGED |
+| [[UC-009]] | use_case | 검수 완료·수정 통지 | 26 | false | CHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 31 | false | CHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -83,7 +83,7 @@
 | [[UI-032]] | ui_component | feedback: Spinner | 3 | false | UNCHANGED |
 | [[UI-033]] | ui_component | feedback: Skeleton | 3 | false | UNCHANGED |
 | [[UI-034]] | ui_component | layout: AppLayout | 4 | false | UNCHANGED |
-| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | UNCHANGED |
+| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | CHANGED |
 | [[UI-036]] | ui_component | navigation: Lnb | 3 | false | UNCHANGED |
 | [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | UNCHANGED |
 | [[UI-038]] | ui_component | layout: Footer | 3 | false | UNCHANGED |
@@ -91,7 +91,7 @@
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
 | [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
-| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
+| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | CHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
 | [[UI-046]] | ui_component | display: CanvasShell | 8 | false | UNCHANGED |

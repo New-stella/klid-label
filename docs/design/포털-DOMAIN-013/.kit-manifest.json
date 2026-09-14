@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-013",
-  "synced_at": "2026-09-09T07:58:21.132Z",
+  "synced_at": "2026-09-14T05:35:59.239Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 129,
+  "count": 130,
   "items": {
     "AC-1068": {
       "type": "acceptance",
@@ -48,11 +48,17 @@
       "version": 5,
       "content_hash": "ad8f644b1c5060333d85ac626f73f5b1ec838fd4e9c018c6ecd83870a5777197"
     },
+    "AC-1106": {
+      "type": "acceptance",
+      "domain_id": "DOMAIN-001",
+      "version": 8,
+      "content_hash": "62f4ccf5b78a952a3155fa262d16eb7a3a550468ae67730e5d6c5f514449eb6c"
+    },
     "ADR-012": {
       "type": "adr",
       "domain_id": "DOMAIN-001",
-      "version": 14,
-      "content_hash": "085eee6d40042b551b91b7e6cbc2fcd4d53032218e4ee491885ccc28e810c7df"
+      "version": 21,
+      "content_hash": "5963ef735f664c83ff0a9539b467c2c53aa4f4dd1f75216c8b6b0eddea7e9866"
     },
     "ADR-013": {
       "type": "adr",
@@ -345,8 +351,8 @@
     "SEQ-034": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-001",
-      "version": 14,
-      "content_hash": "7592192dbc0dda861f8f6dd0971c764dba93a17a710e905df324e50eec467334"
+      "version": 22,
+      "content_hash": "5e0f21e576f2fd0a7c70b6a5fc6ed1e7e8949d3ae2f64817cc21252916f2a812"
     },
     "DOMAIN-013": {
       "type": "domain",
@@ -411,8 +417,8 @@
     "EXTSYS-006": {
       "type": "external_system",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "6eba716170ec705522771efeeda9f3e32275abd3aae66e66d86dc414511248b3"
+      "version": 15,
+      "content_hash": "b1b25feaf4919dc874ea19b2fbd73e39fc68f9728bd4028119710ab6e1acfce4"
     },
     "INT-008": {
       "type": "integration_point",
@@ -429,14 +435,14 @@
     "INT-013": {
       "type": "integration_point",
       "domain_id": "DOMAIN-013",
-      "version": 22,
-      "content_hash": "dd67ce7ce3efc6c28dfb5c455c51b3f2c7d67f4b199ce171598c3533ac0b1007"
+      "version": 30,
+      "content_hash": "8d009ba7114573c8cbd5586f89f4725db233baed1575806b91a7ea88fd4782b1"
     },
     "INT-014": {
       "type": "integration_point",
       "domain_id": "DOMAIN-013",
-      "version": 9,
-      "content_hash": "9ebba15effeeac6ed4bb60c59417c76766e92b4ea81acec0f629472252488061"
+      "version": 14,
+      "content_hash": "93d48d4dcc638c3ac906be0ba46bc2069f654e74d7cf4dfed7da25505d5a30ec"
     },
     "NAV-002": {
       "type": "navigation_tree",
@@ -477,8 +483,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "3dc7969a0b4ff575ec112b8551779f6a1b1fc7a80368170de6b6d92d795ea361"
+      "version": 13,
+      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
     },
     "NFR-014": {
       "type": "nfr",

@@ -43,10 +43,11 @@ class BatchStepTransactionBoundaryTest {
      * {@code execute} 에 애노테이션이 <b>없어야</b> 정상인 단계 — 사유가 명확한 것만 여기 둔다.
      *
      * <ul>
-     *   <li>{@link DeidentifyStep} — {@code execute} 가 자기참조 프록시({@code ObjectProvider})로
-     *       {@code run()} 을 호출해 경계를 얻는다. 여기에 애노테이션을 <b>추가하면 REQUIRES_NEW 가
-     *       두 번 열린다</b>(중첩). 실동작은
-     *       {@code DeidentifyStepExecutePersistenceIntegrationTest} 가 실 DB 로 보증한다.</li>
+     *   <li>{@link DeidentifyStep} — {@code execute} → 프록시 → {@code run()}(트랜잭션 경계 없음, 출처유형
+     *       제외 분기가 먼저) → 프록시 → {@code submitToExternal()}({@code REQUIRES_NEW}) 사슬로 외부 위탁
+     *       분기의 경계를 얻는다. {@code execute} 에 애노테이션을 <b>추가하면 외부 위탁 분기에서
+     *       REQUIRES_NEW 가 두 번 열리고</b>(중첩) 제외 분기의 대용량 원본 복사가 트랜잭션 안에서 돈다.
+     *       제외 분기의 실동작은 {@code DeidentifyStepKpstDisabledIntegrationTest} 가 실 DB 로 확인한다.</li>
      *   <li>{@link MarkingLoadStep} — 마킹 조회 + JSON 파싱만 수행하고 DML 이 없다(쓰기 0건).</li>
      * </ul>
      */
@@ -107,8 +108,9 @@ class BatchStepTransactionBoundaryTest {
     @Test
     @DisplayName("결함1_자기참조_프록시로_경계를_얻는_단계는_execute에_애노테이션이_없어야_한다_중첩방지")
     void selfProxyStepsMustNotAnnotateExecute() {
-        // DeidentifyStep 은 execute 에서 프록시 경유로 run() 을 호출한다. 여기에 @Transactional 을
-        // 덧붙이면 REQUIRES_NEW 가 두 번 열려 스텝 1건이 트랜잭션 2건이 된다(외부 tx 정지 + 신규 tx).
+        // DeidentifyStep 은 execute → 프록시 → run()(트랜잭션 경계 없음, 출처유형 제외 분기가 먼저) → 프록시
+        // → submitToExternal()(REQUIRES_NEW) 로 경계를 얻는다. execute 에 @Transactional 을 덧붙이면
+        // 외부 위탁 분기에서 REQUIRES_NEW 가 두 번 열리고(외부 tx 정지 + 신규 tx) 제외 분기의 복사가 tx 안에서 돈다.
         Transactional tx = AnnotatedElementUtils.findMergedAnnotation(
                 executeMethod(DeidentifyStep.class), Transactional.class);
         assertThat(tx)

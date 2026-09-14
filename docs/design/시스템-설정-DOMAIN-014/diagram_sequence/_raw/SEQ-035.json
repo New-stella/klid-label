@@ -3,14 +3,14 @@
     "id": "SEQ-035",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "diagram_sequence",
-    "title": "파일 업로드로 영상 한 건 투입 — 두 적재 경로가 갈리고 비식별은 예외 없이 실행된다",
+    "title": "파일 업로드로 영상 한 건 투입 — 두 적재 경로가 갈리고 비식별 단계는 예외 없이 실행된다",
     "slug": "파일-업로드로-영상-한-건-투입-두-적재-경로가-갈리고-비식별은-예외-없이-실행된다",
     "sub_id": null,
     "status": "draft",
     "data": {
       "theme": "neutral",
-      "title": "파일 업로드로 영상 한 건 투입 — 두 적재 경로가 갈리고 비식별은 예외 없이 실행된다",
-      "source": "sequenceDiagram\n    actor admin as 관리자(ADMIN)\n    participant screen as 파일 업로드 화면\n    participant sessionCtl as AdminSessionController\n    participant devCtl as DevAutolabelTestController\n    participant tusCtrl as TusUploadController\n    participant tusSvc2 as TusUploadService\n    participant probe as VideoProbe\n    participant ingestSvc as TrainingVideoIngestService\n    participant scanJob as ControlTrainingVideoScanJob\n    participant pipeline as BatchOrchestrator\n    participant deidStep as DeidentifyStep\n    participant videoCtl as VideoController\n    participant db as LS_DATA_RAW · LS_DATA_INGEST · LS_TUS_UPLOAD\n\n    admin->>screen: 파일 업로드 화면에 진입한다\n    admin->>screen: 관리자 패스워드를 확인해 단기 유효창을 연다\n    screen->>sessionCtl: POST /v1/manage/admin-session\n    sessionCtl-->>screen: 유효창 토큰\n    Note over sessionCtl: 유효창은 역할을 올리지 않고 주체에 묶여 감사가 개인 단위로 남는다\n    admin->>screen: 적재 경로를 고른다 — 파이프라인 즉시 실행 또는 관제 인입 재현\n    Note over screen: 두 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다. 실행할 단계를 고르는 기능은 두지 않는다\n    admin->>screen: 영상 파일 한 건을 고르고 식별 정보를 채운다\n    admin->>screen: 위치와 촬영 장비 제원 · 이벤트와 관제일지 · 시계열 이벤트 유형 · 영상 기술메타 중 필요한 것만 펼쳐 채운다\n    Note over screen: 영상 기술메타는 비워 두면 서버가 채우고 영상 길이는 아예 입력하지 않는다. 고른 경로에서 서버로 전달되지 않는 입력 묶음은 화면이 그 사실을 알린다\n    admin->>screen: 업로드를 시작한다\n    alt 파이프라인 즉시 실행을 골랐을 때\n        screen->>devCtl: POST /v1/dev/upload — 영상과 메타를 한 번에 보낸다\n        devCtl->>devCtl: 단기 유효창을 확인한다 — 없으면 시작을 거부한다\n        Note over devCtl: [대안] 권한이 모자란 것인지 유효창이 없는 것인지 구분해 알리지 않는다. 관리자는 관리자 페이지에서 패스워드를 확인해 유효창을 다시 연다\n        devCtl->>devCtl: 필수 항목 · 형식 · 확장자 · 용량과 영상 클립 식별자 중복을 확인한다\n        Note over devCtl: [대안] 허용 밖 입력은 잘못된 요청 · 크기 초과 · 충돌 중 해당 사유로 거부한다. 영상은 적재되지 않고 파이프라인도 시작되지 않으며 화면이 서버가 보낸 거부 문구를 그대로 보여준다\n        devCtl->>probe: 비워 둔 영상 기술메타를 올린 파일에서 직접 읽는다\n        probe-->>devCtl: 해상도 · 가로 · 세로 · 초당 프레임 수 · 비트율 · 코덱\n        devCtl->>ingestSvc: 영상을 적재한다\n        ingestSvc->>db: LS_DATA_RAW 적재\n        db-->>ingestSvc: 영상 식별자\n        ingestSvc-)pipeline: 비식별을 선두로 파이프라인을 시작한다\n        devCtl-->>screen: 200 OK — 영상 식별자와 저장 경로와 파이프라인 상태\n    end\n    alt 관제 인입 재현을 골랐을 때\n        screen->>tusCtrl: POST /v1/uploads — 전송 세션을 만든다\n        tusCtrl->>tusSvc2: createSession(사용자 번호, 전체 길이, 인입 메타데이터)\n        tusSvc2->>db: 전송 세션을 만들고 그 시점에 인입 대기 행이 함께 생긴다\n        tusCtrl-->>screen: 전송 세션 위치\n        screen->>tusCtrl: PATCH /v1/uploads/{uploadId} — 영상을 조각으로 나눠 보낸다\n        screen->>tusCtrl: HEAD /v1/uploads/{uploadId} — 끊기면 이어 보낼 지점을 확인한다\n        Note over tusCtrl: 이어 올리기 · 취소 · 진행 위치 조회는 단기 유효창을 요구하지 않는다 — 유효창보다 오래 걸리는 대용량 전송이 도중에 끊기기 때문이며 그 자리는 전송의 소유자 판정이 대신 지킨다\n        scanJob->>db: 주기 배치가 미처리 인입 행을 폴링한다\n        db-->>scanJob: 인입 대기 행\n        scanJob->>ingestSvc: 영상을 적재한다 — 이때 영상 식별자가 생긴다\n        ingestSvc-)pipeline: 비식별을 선두로 파이프라인을 시작한다\n    end\n    pipeline->>deidStep: 비식별 단계 실행 — 예외 없이 항상 실행된다\n    deidStep->>db: 비식별이 끝나면 영상을 마킹 대기 상태로 전이\n    Note over pipeline: 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이다\n    screen->>videoCtl: GET /v1/videos/{rawSn} — 결과 패널이 주기적으로 상태를 확인한다\n    videoCtl-->>screen: 파이프라인 상태\n    Note over screen: 마킹 대기 또는 실패에 이를 때까지 보여준다\n    screen-->>admin: 마킹 대기 도달\n    admin->>screen: 마킹 화면이나 영상 목록으로 이어 간다\n    Note over admin: 마킹이 끝난 영상 묶음을 폴더째 한 번에 들여오는 일은 이 흐름의 대상이 아니다 — 그것은 입력이 서버 내부 폴더 경로라 산출물 가져오기가 맡는다\n",
+      "title": "파일 업로드로 영상 한 건 투입 — 두 적재 경로가 갈리고 비식별 단계는 예외 없이 실행된다",
+      "source": "sequenceDiagram\n    actor admin as 관리자(ADMIN)\n    participant screen as 파일 업로드 화면\n    participant sessionCtl as AdminSessionController\n    participant devCtl as DevAutolabelTestController\n    participant tusCtrl as TusUploadController\n    participant tusSvc2 as TusUploadService\n    participant probe as VideoProbe\n    participant ingestSvc as TrainingVideoIngestService\n    participant scanJob as ControlTrainingVideoScanJob\n    participant pipeline as BatchOrchestrator\n    participant deidStep as DeidentifyStep\n    participant videoCtl as VideoController\n    participant db as LS_DATA_RAW · LS_DATA_INGEST · LS_TUS_UPLOAD\n\n    admin->>screen: 파일 업로드 화면에 진입한다\n    admin->>screen: 관리자 패스워드를 확인해 단기 유효창을 연다\n    screen->>sessionCtl: POST /v1/manage/admin-session\n    sessionCtl-->>screen: 유효창 토큰\n    Note over sessionCtl: 유효창은 역할을 올리지 않고 주체에 묶여 감사가 개인 단위로 남는다\n    admin->>screen: 적재 경로를 고른다 — 파이프라인 즉시 실행 또는 관제 인입 재현\n    Note over screen: 두 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다. 실행할 단계를 고르는 기능은 두지 않는다\n    admin->>screen: 영상 파일 한 건을 고르고 식별 정보를 채운다\n    admin->>screen: 위치와 촬영 장비 제원 · 이벤트와 관제일지 · 시계열 이벤트 유형 · 영상 기술메타 중 필요한 것만 펼쳐 채운다\n    Note over screen: 영상 기술메타는 비워 두면 서버가 채우고 영상 길이는 아예 입력하지 않는다. 고른 경로에서 서버로 전달되지 않는 입력 묶음은 화면이 그 사실을 알린다\n    admin->>screen: 업로드를 시작한다\n    alt 파이프라인 즉시 실행을 골랐을 때\n        screen->>devCtl: POST /v1/dev/upload — 영상과 메타를 한 번에 보낸다\n        devCtl->>devCtl: 단기 유효창을 확인한다 — 없으면 시작을 거부한다\n        Note over devCtl: [대안] 권한이 모자란 것인지 유효창이 없는 것인지 구분해 알리지 않는다. 관리자는 관리자 페이지에서 패스워드를 확인해 유효창을 다시 연다\n        devCtl->>devCtl: 필수 항목 · 형식 · 확장자 · 용량과 영상 클립 식별자 중복을 확인한다\n        Note over devCtl: [대안] 허용 밖 입력은 잘못된 요청 · 크기 초과 · 충돌 중 해당 사유로 거부한다. 영상은 적재되지 않고 파이프라인도 시작되지 않으며 화면이 서버가 보낸 거부 문구를 그대로 보여준다\n        devCtl->>probe: 비워 둔 영상 기술메타를 올린 파일에서 직접 읽는다\n        probe-->>devCtl: 해상도 · 가로 · 세로 · 초당 프레임 수 · 비트율 · 코덱\n        devCtl->>ingestSvc: 영상을 적재한다\n        ingestSvc->>db: LS_DATA_RAW 적재\n        db-->>ingestSvc: 영상 식별자\n        ingestSvc-)pipeline: 비식별을 선두로 파이프라인을 시작한다\n        devCtl-->>screen: 200 OK — 영상 식별자와 저장 경로와 파이프라인 상태\n    end\n    alt 관제 인입 재현을 골랐을 때\n        screen->>tusCtrl: POST /v1/uploads — 전송 세션을 만든다\n        tusCtrl->>tusSvc2: createSession(사용자 번호, 전체 길이, 인입 메타데이터)\n        tusSvc2->>db: 전송 세션을 만들고 그 시점에 인입 대기 행이 함께 생긴다\n        tusCtrl-->>screen: 전송 세션 위치\n        screen->>tusCtrl: PATCH /v1/uploads/{uploadId} — 영상을 조각으로 나눠 보낸다\n        screen->>tusCtrl: HEAD /v1/uploads/{uploadId} — 끊기면 이어 보낼 지점을 확인한다\n        Note over tusCtrl: 이어 올리기 · 취소 · 진행 위치 조회는 단기 유효창을 요구하지 않는다 — 유효창보다 오래 걸리는 대용량 전송이 도중에 끊기기 때문이며 그 자리는 전송의 소유자 판정이 대신 지킨다\n        scanJob->>db: 주기 배치가 미처리 인입 행을 폴링한다\n        db-->>scanJob: 인입 대기 행\n        scanJob->>ingestSvc: 영상을 적재한다 — 이때 영상 식별자가 생긴다\n        ingestSvc-)pipeline: 비식별을 선두로 파이프라인을 시작한다\n    end\n    pipeline->>deidStep: 비식별 단계 실행 — 예외 없이 항상 실행된다\n    alt 출처유형이 비식별 제외 목록에 있음 — 기본값 GENERATED (ADR-066)\n        deidStep->>deidStep: 외부 위탁 없이 원본 영상을 비식별 영상 쓰기 위치에 원본 파일명 그대로 일반 파일로 복사한다\n        deidStep->>db: 요청종류 EXCLUDED 인 성공 이력을 남기고 영상 비식별여부를 'Y' 로 두어 마킹 대기 상태로 전이\n        Note over deidStep: [대안] 복사가 실패하면 영상에 실패 표식('F')과 요청종류 EXCLUDED 인 실패 이력을 남기고 마킹 대기로 전이하지 않는다. 원본은 지우거나 고치지 않는다\n    else 그 밖의 출처유형 — 외부 비식별 위탁\n        deidStep->>db: 비식별이 끝나면 영상을 마킹 대기 상태로 전이\n    end\n    Note over pipeline: 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이다\n    screen->>videoCtl: GET /v1/videos/{rawSn} — 결과 패널이 주기적으로 상태를 확인한다\n    videoCtl-->>screen: 파이프라인 상태\n    Note over screen: 마킹 대기 또는 실패에 이를 때까지 보여준다\n    screen-->>admin: 마킹 대기 도달\n    admin->>screen: 마킹 화면이나 영상 목록으로 이어 간다\n    Note over admin: 마킹이 끝난 영상 묶음을 폴더째 한 번에 들여오는 일은 이 흐름의 대상이 아니다 — 그것은 입력이 서버 내부 폴더 경로라 산출물 가져오기가 맡는다\n",
       "messages": [
         {
           "to": "screen",
@@ -228,6 +228,24 @@
           "label": "비식별 단계 실행 — 예외 없이 항상 실행된다"
         },
         {
+          "to": "deidStep",
+          "from": "deidStep",
+          "kind": "self",
+          "label": "외부 위탁 없이 원본 영상을 비식별 영상 쓰기 위치에 원본 파일명 그대로 일반 파일로 복사한다"
+        },
+        {
+          "to": "db",
+          "from": "deidStep",
+          "kind": "sync",
+          "label": "요청종류 EXCLUDED 인 성공 이력을 남기고 영상 비식별여부를 'Y' 로 두어 마킹 대기 상태로 전이"
+        },
+        {
+          "to": "deidStep",
+          "from": "deidStep",
+          "kind": "note",
+          "label": "[대안] 복사가 실패하면 영상에 실패 표식('F')과 요청종류 EXCLUDED 인 실패 이력을 남기고 마킹 대기로 전이하지 않는다. 원본은 지우거나 고치지 않는다"
+        },
+        {
           "to": "db",
           "from": "deidStep",
           "kind": "sync",
@@ -289,6 +307,18 @@
           "label": "관제 인입 재현을 골랐을 때",
           "end_index": 33,
           "start_index": 23
+        },
+        {
+          "kind": "alt",
+          "label": "출처유형이 비식별 제외 목록에 있음 — 외부 위탁 없이 원본 복사로 비식별 단계 완료 (ADR-066)",
+          "end_index": 37,
+          "start_index": 35
+        },
+        {
+          "kind": "alt",
+          "label": "그 밖의 출처유형 — 외부 비식별 위탁 (위 분기의 else)",
+          "end_index": 38,
+          "start_index": 38
         }
       ],
       "brownfield": {
@@ -298,7 +328,7 @@
         ],
         "diff_summary": "2차 신규 — UC-042 의 흐름을 참가자와 메시지로 처음 시각화한다."
       },
-      "description": "관제 인입을 기다리지 않고 손에 있는 영상 한 건을 직접 올려 처리에 태우고, 그 영상이 마킹 대기에 이르렀는지 결과 패널에서 확인하는 흐름을 그린다.\n\n관리자 패스워드 확인으로 단기 유효창을 연 뒤 적재 경로를 두 갈래 중에 고른다. 두 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다. 파이프라인 즉시 실행은 영상과 메타를 한 번에 보내 곧바로 처리에 태우고, 관제 인입 재현은 인입 원장에 적재해 주기 배치가 가져가게 한다.\n\n실행할 단계를 고르는 기능은 두지 않는다. 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이고 비식별은 예외 없이 항상 실행된다.\n\n영상 기술메타는 비워 두면 서버가 올린 파일에서 직접 읽어 채우고 영상 길이는 아예 입력하지 않는다. 고른 경로에서 서버로 전달되지 않는 입력 묶음은 화면이 그 사실을 알려 저장됐다고 오해하지 않게 한다.\n\n이어 올리기와 취소와 진행 위치 조회는 단기 유효창을 요구하지 않는다. 유효창보다 오래 걸리는 대용량 전송이 도중에 끊기기 때문이며, 그 자리는 전송의 소유자 판정이 대신 지킨다.\n\n마킹이 끝난 영상 묶음을 폴더째 한 번에 들여오는 일은 이 흐름의 대상이 아니다 — 그것은 입력이 서버 내부 폴더 경로라 산출물 가져오기가 맡는다.",
+      "description": "관제 인입을 기다리지 않고 손에 있는 영상 한 건을 직접 올려 처리에 태우고, 그 영상이 마킹 대기에 이르렀는지 결과 패널에서 확인하는 흐름을 그린다.\n\n관리자 패스워드 확인으로 단기 유효창을 연 뒤 적재 경로를 두 갈래 중에 고른다. 두 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다. 파이프라인 즉시 실행은 영상과 메타를 한 번에 보내 곧바로 처리에 태우고, 관제 인입 재현은 인입 원장에 적재해 주기 배치가 가져가게 한다.\n\n실행할 단계를 고르는 기능은 두지 않는다. 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이고 비식별 단계는 예외 없이 항상 실행된다. 다만 출처유형이 배포 설정 authoring.deidentify.excluded-src-types(기본값 GENERATED)의 비식별 제외 목록에 든 영상은 그 단계가 외부 위탁 대신 원본을 비식별 영상 쓰기 위치에 복사하고 요청종류 EXCLUDED 인 성공 이력을 남겨 마킹 대기로 넘어간다(ADR-066) — 단계를 건너뛰는 것이 아니다.\n\n영상 기술메타는 비워 두면 서버가 올린 파일에서 직접 읽어 채우고 영상 길이는 아예 입력하지 않는다. 고른 경로에서 서버로 전달되지 않는 입력 묶음은 화면이 그 사실을 알려 저장됐다고 오해하지 않게 한다.\n\n이어 올리기와 취소와 진행 위치 조회는 단기 유효창을 요구하지 않는다. 유효창보다 오래 걸리는 대용량 전송이 도중에 끊기기 때문이며, 그 자리는 전송의 소유자 판정이 대신 지킨다.\n\n마킹이 끝난 영상 묶음을 폴더째 한 번에 들여오는 일은 이 흐름의 대상이 아니다 — 그것은 입력이 서버 내부 폴더 경로라 산출물 가져오기가 맡는다.",
       "invokes_apis": [
         "API-194",
         "API-152",
@@ -404,12 +434,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 앞선 정리에서 이 자리만 빠졌다. 메시지와 조각은 그대로다.",
+    "change_summary": "제목과 설명의 「비식별은 예외 없이 실행된다」를 「비식별 단계는 예외 없이 실행된다」로 좁힌다(ADR-066). 이 도면의 원래 주장은 실행할 단계를 고르는 기능이 없어 비식별 단계를 건너뛸 수 없다는 것이고 그 주장은 그대로 참이다 — 다만 출처유형이 배포 설정 authoring.deidentify.excluded-src-types(기본값 GENERATED)에 든 영상은 그 단계가 외부 위탁 대신 원본 복사로 완료되므로, 「비식별이 실행된다」는 문자 그대로의 표현이 ADR-066 과 어긋났다. slug 는 바꾸지 않았다. 비식별 단계 실행 메시지 뒤에 제외 분기를 alt 조각으로 더했고(원본 복사 → 요청종류 EXCLUDED 성공 이력·비식별여부 'Y'·마킹 대기 전이, 복사 실패는 [대안] 노트), 기존 마킹 대기 전이 메시지는 문구를 바꾸지 않고 else 분기로 감쌌다. 정형 messages 에는 새 메시지 3건을 순수 삽입했고 기존 두 조각은 앞쪽이라 인덱스가 바뀌지 않는다. 설명에는 제외 예외 문장을 덧붙였다. 쓰기 전 stale=true, stale_reason='EVT-005의 4개 필드 변경 — triggers' — EVT-005 도 이번 비식별 제외 축으로 갱신된 항목이라 이 쓰기가 그 전파를 해소한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T19:30:55.694Z",
+    "last_updated_at": "2026-09-14T03:55:35.261Z",
     "created_at": "2026-09-03T06:52:04.989Z"
   }
 }
