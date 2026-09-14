@@ -25,9 +25,14 @@ import java.util.List;
  * 신규 연동이므로 조용한 전면 허용 기본값을 물려받지 않는다. 허용하려면 대역을 <b>명시</b>해야
  * 하고, 값 형식 오류는 기동을 막는다({@link WebhookCidrParser}).
  *
- * <p>설정: {@code webhook.genai.allowed-ip-cidrs} (CSV, 기본 {@code none} = 허용 IP 없음).
- * 로컬/개발처럼 발신 IP 가 유동적인 환경은 {@code 0.0.0.0/0,::/0} 를 <b>명시</b>한다 — 전면 허용을
- * 의도했다는 사실이 설정값에 남아야 grep 으로 드러난다.
+ * <p>설정: {@code webhook.genai.allowed-ip-cidrs} (CSV, 빈 값·{@code none} = 허용 IP 없음 = 전면 차단).
+ * 값은 쉼표로 나열한 IPv4·IPv6 주소 리터럴 또는 CIDR 이며, IPv6 는 {@code ::} 압축을 포함한 표준
+ * 텍스트 표기를 받는다(예 {@code 10.0.0.0/8}, {@code 203.0.113.5}, {@code 2001:db8::/32}, {@code ::1}).
+ * 전면 허용은 <b>명시</b>한다 — IPv4 전체 {@code 0.0.0.0/0}, IPv4·IPv6 전체 {@code 0.0.0.0/0,::/0}.
+ * 전면 허용을 의도했다는 사실이 설정값에 남아야 grep 으로 드러난다. 배포 기본값은 {@code 0.0.0.0/0}
+ * 이다(외부 유입 차단은 인프라 방화벽 담당). IPv6 발신까지 받으려면 {@code 0.0.0.0/0,::/0} 으로 둔다.
+ *
+ * @design INT-006
  */
 @Slf4j
 @Component

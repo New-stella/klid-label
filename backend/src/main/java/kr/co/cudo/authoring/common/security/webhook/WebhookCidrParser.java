@@ -36,8 +36,11 @@ final class WebhookCidrParser {
     /** 프리픽스 길이 표기 — 숫자만(선행 0 허용, 상한은 IpAddressMatcher 가 주소 폭으로 검증). */
     private static final Pattern PREFIX_BITS = Pattern.compile("^\\d{1,3}$");
 
-    /** IPv6 그룹 최대 개수. */
+    /** IPv6 16비트 그룹 개수(압축 없는 전체 표기). */
     private static final int IPV6_MAX_GROUPS = 8;
+
+    /** IPv6 텍스트 표기 최대 길이(IPv4 꼬리 포함 전체 표기 45자). */
+    private static final int IPV6_MAX_TEXT_LENGTH = 45;
 
     private WebhookCidrParser() {
     }
@@ -114,33 +117,101 @@ final class WebhookCidrParser {
                                            : IPV4_LITERAL.matcher(candidate).matches();
     }
 
-    /** IPv6 구조 검증 — 16진 그룹(≤4자) + {@code ::} 축약 + IPv4 매핑 꼬리 허용. */
+    /**
+     * IPv6 텍스트 표기 구조 검증 — RFC 4291 §2.2 규칙을 <b>문자열 구조만으로</b> 판정한다.
+     *
+     * <p>{@code InetAddress.getByName} 을 판정에 쓰지 않는다 — 리터럴이 아닌 값이 들어오면 DNS 조회로
+     * 이어지기 때문이다(요청 경로 L-3 · 호스트명 금지). 모두 만족해야 리터럴이다:
+     * <ul>
+     *   <li>길이 ≤ 45. 영역 식별자({@code %eth0})는 받지 않는다.</li>
+     *   <li>{@code ::} 는 0회 또는 1회({@code :::}·{@code 1::2::3} 거부). {@code ::} 단독은 미지정 주소로 허용.</li>
+     *   <li>{@code ::} 로 시작/끝나는 경우가 아니면 콜론 하나로 시작·끝나지 않는다({@code :1}·{@code 1:} 거부).</li>
+     *   <li>16진 그룹은 1~4자. IPv4 점4분 꼬리는 <b>주소 맨 끝 그룹에만</b> 오며 16비트 그룹 2개로 센다.</li>
+     *   <li>{@code ::} 가 없으면 그룹 수가 정확히 8, 있으면 7 이하(0 포함).</li>
+     * </ul>
+     */
+    // [design: INT-006] [design: INT-003] — 허용 목록 값 형식(IPv6 는 :: 압축 포함 표준 텍스트 표기)
     private static boolean isIpv6Literal(String value) {
-        if (value.length() > 45 || value.contains(":::")) {
+        if (value.length() > IPV6_MAX_TEXT_LENGTH || value.indexOf('%') >= 0 || value.contains(":::")) {
             return false;
         }
-        int groups = 0;
-        for (String group : value.split(":", -1)) {
-            if (group.isEmpty()) {
-                continue; // "::" 축약으로 생기는 빈 그룹
-            }
-            if (group.indexOf('.') >= 0) { // IPv4 매핑 꼬리 (예: ::ffff:192.0.2.1)
-                if (!IPV4_LITERAL.matcher(group).matches()) {
-                    return false;
-                }
-                groups += 2;
-                continue;
-            }
-            if (group.length() > 4) {
+        int compression = value.indexOf("::");
+        if (compression >= 0 && value.indexOf("::", compression + 1) >= 0) {
+            return false; // "::" 두 번 이상
+        }
+        boolean compressed = compression >= 0;
+        if (value.startsWith(":") && compression != 0) {
+            return false; // ":1" — 단일 콜론 시작
+        }
+        if (value.endsWith(":") && (!compressed || compression != value.length() - 2)) {
+            return false; // "1:" — 단일 콜론 끝
+        }
+
+        List<String> groups = new ArrayList<>();
+        boolean lastGroupEndsAddress;
+        if (compressed) {
+            String head = value.substring(0, compression);
+            String tail = value.substring(compression + 2);
+            if (!splitGroups(head, groups) || !splitGroups(tail, groups)) {
                 return false;
             }
-            for (int i = 0; i < group.length(); i++) {
-                if (Character.digit(group.charAt(i), 16) < 0) {
+            lastGroupEndsAddress = !tail.isEmpty(); // "1.2.3.4::" 처럼 끝이 "::" 면 IPv4 꼬리가 아니다
+        } else {
+            if (!splitGroups(value, groups)) {
+                return false;
+            }
+            lastGroupEndsAddress = true;
+        }
+
+        int bitGroups = 0;
+        for (int i = 0; i < groups.size(); i++) {
+            String group = groups.get(i);
+            if (group.indexOf('.') >= 0) { // IPv4 점4분 꼬리 (예: ::ffff:192.0.2.1)
+                if (i != groups.size() - 1 || !lastGroupEndsAddress
+                        || !IPV4_LITERAL.matcher(group).matches()) {
                     return false;
                 }
+                bitGroups += 2;
+            } else if (isHexGroup(group)) {
+                bitGroups++;
+            } else {
+                return false;
             }
-            groups++;
         }
-        return groups > 0 && groups <= IPV6_MAX_GROUPS;
+        return compressed ? bitGroups <= IPV6_MAX_GROUPS - 1 : bitGroups == IPV6_MAX_GROUPS;
+    }
+
+    /** 콜론으로 구분된 그룹을 모은다. 빈 문자열은 그룹 0개. 빈 그룹(연속 콜론·양끝 콜론)이 있으면 false. */
+    private static boolean splitGroups(String part, List<String> out) {
+        if (part.isEmpty()) {
+            return true;
+        }
+        for (String group : part.split(":", -1)) {
+            if (group.isEmpty()) {
+                return false;
+            }
+            out.add(group);
+        }
+        return true;
+    }
+
+    /**
+     * ASCII 16진 1~4자.
+     *
+     * <p>{@code Character.digit} 을 쓰지 않는다 — 전각 숫자·전각 영문·다른 문자 체계의 숫자까지 16진으로
+     * 받아 {@code ::１} 같은 값이 리터럴로 통과하고, 요청 경로에서는 그 문자열이 클라이언트 IP 로 채택된다.
+     */
+    private static boolean isHexGroup(String group) {
+        if (group.isEmpty() || group.length() > 4) {
+            return false;
+        }
+        for (int i = 0; i < group.length(); i++) {
+            char c = group.charAt(i);
+            boolean asciiHex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            if (!asciiHex) {
+                return false;
+            }
+        }
+        return true;
     }
 }
