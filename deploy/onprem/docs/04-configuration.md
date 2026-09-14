@@ -360,7 +360,7 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 | 외부 시스템 | 토글(env) | 설정 |
 |-------------|-----------|------|
-| **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원 |
+| **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원. 단 `DEIDENTIFY_EXCLUDED_SRC_TYPES`(기본 `GENERATED`)에 든 출처유형은 위탁 없이 원본 복사로 완료(아래 표) |
 | 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | 외부 있으면 `true` + `CONTROL_NOTIFY_URL`, 없으면 `false`(기본) |
 | 외부 VLM 시계열 | `VLM_SERVICE_URL` | 외부 있으면 실제 주소 + `VLM_SERVICE_TOKEN`, 없으면 **빈 값**(기본). 활성/비활성 토글은 폐지됐다 — 비우면 기동은 정상이고 위탁만 실패하므로, 연동 전 구간에는 시계열 묶음을 화면에서 스킵한다 |
 | 외부 증강 | (콜백 수신, HMAC 시크릿만) | 콜백 안 받아도 HMAC 시크릿만 채워 부팅 통과 |
@@ -379,6 +379,7 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   | 변수 | 의미 / 기본 |
   |------|-------------|
   | `KPST_DEID_ENABLED` | **항상 `true`**(기본). 폴링 위탁 단일 경로 |
+  | `DEIDENTIFY_EXCLUDED_SRC_TYPES` | 기본 **`GENERATED`**. 쉼표 구분 복수. 여기 든 출처유형(`LS_DATA_RAW.SRC_TYPE`) 영상은 **KPST 에 위탁하지 않고 원본을 비식별 영상 자리에 복사**해 비식별 단계를 끝낸다 — 이력은 `LS_DEIDENT_PROC_LOG` 성공 행 + 요청종류 `EXCLUDED`(비식별 제외), 이후 마킹·프레임 추출·관제 조회는 일반 영상과 같다. ⚠ **원천 CCTV 출처유형 `ORIGINAL` · `RELAY` · `IMPORTED` 를 넣지 말 것** — 그 유형 전체가 마스킹 없이 흐른다. **기동 시 값 검사는 하지 않으며** 적용 목록은 기동 로그 INFO 한 줄로만 남는다(설치 후 로그로 확인). 비우면 모든 영상 위탁(안전측). 판정은 영상마다 처리 시점 1회·**소급 없음**. **관리자 화면 설정이 아니다**(설정 저장 API 도 이 키를 거부) — 이 파일에서 바꾸고 재기동. `KPST_DEID_ENABLED` 와 무관하게 동작. 잘못 인입된 영상은 **검수 중 비식별 누락 신고 → 외부 재비식별**로 회수한다(승인 이후는 신고 불가 — 기존 정책) |
   | `KPST_DEID_BASE_URL` | 동거 KPST 주소. `https://IP:PORT`(CA 필수) **또는** `http://IP:PORT`(격리망 평문, CA 불요). 본 패키지 템플릿 기본값 `https://127.0.0.1:9201`(Spring 코드 기본은 `localhost`이나 `env.template`을 진실원으로 봄) → 실주소로 교체 |
   | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **위탁·산출이 거부**된다(CWE-295 — 검증할 수 없으면 보내지 않는다). ⚠ **구 서술 폐기(2026-09-03)**: *"부팅 fail-closed"* 는 사실이 아니다 — 설정 한 줄로 앱 전체가 멈추지 않도록 **막는 자리를 기동 → 전송 시점으로 옮겼다**(막는 규칙·강도는 그대로, 우회 없음). 기동 시 ERROR 로그가 남는다. http 면 비워둔다 |
   | `KPST_DEID_CREATOR_ID` | 기본 `authoring`. `/project` 호출 기본값 |
@@ -396,6 +397,12 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   `mock-mode=true` 자족 비식별은 application-local.yml 전용이고 `local` 프로파일은 `LocalProfileGuard`
   가 운영 호스트에서 거부한다. `KPST_DEID_ENABLED=false` 이고 mock 도 아니면 `DeidentifyStep` 이
   설정오류로 거부한다. **비식별을 끄면 PII 노출 + 마킹/프레임추출 차단**이므로 KPST 동거 연동을 반드시 갖춘다.
+
+- **출처유형 비식별 제외는 우회가 아니라 대상 판정 예외다 (2026-09-14 확정)**: `DEIDENTIFY_EXCLUDED_SRC_TYPES`
+  에 든 출처유형(기본 생성형 영상 `GENERATED`)은 실제 인물이 없어 KPST 위탁 없이 원본 복사로 비식별 단계를
+  완료한다. 비식별 단계 자체를 건너뛰는 것이 아니며(비식별 여부 `Y` · 마킹 대기로 같은 흐름) 그 밖의 출처유형은
+  여전히 KPST 연동이 필수다. ⚠ 관제 조회 뷰의 비식별 여부 `Y` 는 이제 **「비식별 완료 또는 제외」**를 뜻한다 —
+  구분은 출처유형(`SRC_TYPE`)·생성형AI여부로 한다.
 
 - **미연동 시 증상·진단**: 영상이 비식별 실패(`DE_IDENT_YN='F'`) 상태로 남고, 비식별 미완료라 마킹
   스트리밍/프레임추출이 차단된다. 부팅 거부·연결 실패 진단은

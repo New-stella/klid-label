@@ -129,7 +129,15 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+- **새 `@SpringBootTest` 는 시험 컨텍스트 종류 상한(75)을 깬다 — 대상 스위트는 초록인데 전체 회귀만 red** (CO-20260914-생성형영상-비식별제외)
+  - 함정: 고유한 `@MockBean`/`@TestPropertySource` 조합을 가진 새 통합시험 클래스가 캐시 컨텍스트 종류를 하나 늘려 `TestContextDiversityRatchetTest` 가 `76 > 75` 로 실패했다. 영향 스위트만 돌리면 보이지 않는다.
+  - 대응: 상한을 올리지 말고 **같은 애노테이션 집합을 가진 기존 클래스에 케이스를 합류**시킨다. `@DynamicPropertySource` 를 쓰는 클래스는 클래스 단위 키라 메서드를 더해도 종류가 늘지 않는다(판정 규칙 `TestContextDiversityRatchetTest.contextKey`). 쓸모없는 목(예: test 프로파일에서 꺼진 클라이언트의 `@MockBean`)부터 걷어낸다.
+  - 재발 조건: 실 DB 통합시험을 새로 쓸 때마다. 착수 전에 `TestContextDiversityRatchetTest` 를 단독 실행해 여유를 본다.
+- **「기존 규약 재사용」 지시는 코드를 열어 규칙을 확인한 뒤 따른다 — 변경지시서 서술이 실제와 다를 수 있다** (CO-20260914-생성형영상-비식별제외)
+  - 함정: 변경지시서가 「KPST 위탁 전 원본 실재 검증 규약 재사용(NOFOLLOW)」이라고 적었는데 실제 `KpstDeidentService.verifySourceOrFail` 은 `Files.isRegularFile(Paths.get(path))` 로 **링크를 따라간다**. NOFOLLOW 는 같은 서비스의 **대상(산출) 쪽** 검사에만 있다. 서술대로 구현하면 NAS 원본 경로가 링크인 현장에서 새 경로만 전부 실패한다.
+  - 대응: **원본(소스)은 링크 추종, 우리가 만드는 산출물(대상)은 NOFOLLOW·링크 금지**가 이 도메인의 비대칭 규칙이다. 원본을 읽어 비식별 산출물을 쓰는 경로를 새로 만들 때 이 짝을 코드에서 대조한다.
+- **ADR 은 구현 추적(IMPREC)을 기록할 수 없다** (CO-20260914-생성형영상-비식별제외)
+  - `mark_implementation(ADR-*)` 는 `E_NOT_TRACKABLE`. `design_refs` 가 새 ADR 로 시작하는 작업이면 IMPREC 은 그 ADR 에 연결된 DFEAT·ERD 등에 기록한다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

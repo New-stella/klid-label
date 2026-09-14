@@ -18,10 +18,28 @@ public class LsDeidentProcLog {
     public static final String FAILED = "FAILED";
 
     /**
-     * 요청 종류(REQ_KIND_CD) — 비식별 처리 경로 구분. null=기존 배치 비식별 경로(무영향),
-     * {@code REDEIDENT}=검수완료 영상 재비식별(Approved Re-deidentification) 경로.
+     * 요청 종류(REQ_KIND_CD) — 비식별 처리 경로 구분. 값역은 셋이다.
+     * <ul>
+     *   <li>{@code null} — 기존 배치 비식별 경로(외부 솔루션 위탁)</li>
+     *   <li>{@link #REQ_KIND_REDEIDENT} — 검수완료 영상 재비식별(Approved Re-deidentification) 경로</li>
+     *   <li>{@link #REQ_KIND_EXCLUDED} — 비식별 제외(설정한 출처유형이라 외부 위탁 없이 원본 복사로 완료)</li>
+     * </ul>
      */
     public static final String REQ_KIND_REDEIDENT = "REDEIDENT";
+
+    /**
+     * 요청 종류 — <b>비식별 제외</b>. 배포 설정 {@code authoring.deidentify.excluded-src-types} 에 든
+     * 출처유형 영상은 외부 솔루션에 위탁하지 않고 원본을 비식별 영상 쓰기 위치에 복사해 완료한다.
+     *
+     * <p>이 행은 외부 진행 상태를 갖지 않으므로 {@code POLL_STTS_CD} 가 {@code null} 이다 — 폴링 대상
+     * ({@code WAITING}/{@code POLLING})과 ACK 대기 회수({@code WAITING})에 오르지 않는다. 반면 최신 성공 조회
+     * ({@code findLatestSuccessByDataRawSn})는 요청종류를 가리지 않으므로 이 행을 집는다(의도 — 뒤 단계가
+     * 복사본 경로를 비식별 영상 경로로 읽는다).
+     *
+     * @design ADR-066
+     * @design ERD-017
+     */
+    public static final String REQ_KIND_EXCLUDED = "EXCLUDED";
 
     /** 폴링 상태(POLL_STTS_CD) — KPST 위탁 후 다운로드까지의 폴링 진행 단계. null=콜백 경로/미사용. */
     public static final String POLL_WAITING = "WAITING";
@@ -294,5 +312,15 @@ public class LsDeidentProcLog {
     /** 이 로그를 검수완료 재비식별 경로로 표시한다. */
     public void markRedeident() {
         this.reqKindCd = REQ_KIND_REDEIDENT;
+    }
+
+    /** 비식별 제외(출처유형 제외 — 원본 복사로 완료) 경로 여부. */
+    public boolean isExcluded() {
+        return REQ_KIND_EXCLUDED.equals(reqKindCd);
+    }
+
+    /** 이 로그를 비식별 제외(출처유형 제외 — 외부 위탁 없이 원본 복사) 경로로 표시한다. */
+    public void markExcluded() {
+        this.reqKindCd = REQ_KIND_EXCLUDED;
     }
 }
