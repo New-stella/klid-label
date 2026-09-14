@@ -16,7 +16,7 @@
     - 복사 실패(원본 부재·경로 위반·IO): `'F'` + 이력 `FAILED`(EXCLUDED) + `MARKING_READY` 미전이 + 임시 파일 정리 · 원본 불변.
     - 제외 행은 `POLL_STTS_CD` 가 비어 KPST 폴링·ACK 유예 회수 대상이 아니다.
     - **회수 지점은 검수** — 오표기(실제 인물 영상이 `GENERATED`)는 검수 중 비식별 누락 신고(§8.4) → 외부 재비식별 → 해소. ⚠ 검수완료 재비식별(§8.6)은 이미 `'Y'` 인 영상을 거부하므로 **회수 경로가 아니다**. 승인 이후·그 파생본은 경로 밖(인지·수용).
-    - 영상 상세 비식별 이력 패널은 표시를 바꾸지 않았다 — 제외 회차가 「비식별 / 배치 비식별」로 보인다(인지·수용). 관제 뷰 `DE_IDNTF_YN='Y'` 는 「완료 또는 제외」(구분은 `GEN_AI_YN`).
+    - 영상 상세 비식별 이력 패널은 표시를 바꾸지 않았다 — 제외 회차가 「비식별 / 배치 비식별」로 보인다(인지·수용). 관제 뷰 `DE_IDNTF_YN='Y'` 가 제외 영상에도 서지만 관제와 무관하다 — 2026-09-14 관제 회신: 비식별 작업은 전부 저작도구로 이관돼 관제는 이 값으로 판단하지 않고, `GENERATED` 는 기존에도 생성형 AI 서버 산출물에만 넣는다(관제 수정 없음).
 - **자동 트리거**: 적재(TUS 업로드 + dev 경로) → `VideoIngestedEvent` → `IngestDeidentifyBridge`(AFTER_COMMIT) → `AsyncDeidentifyRunner`(@Async) → `DeidentifyStep.run` → 성공 시 `LsDataRaw.dataSttsCd = MARKING_READY`
   - ⚠ **증강(augment) 적재 경로는 아직 `VideoIngestedEvent` 미발행** — 선두 비식별 자동화 미연동(planned/후속)
 - 출력: `STORAGE_DEIDENTIFIED_PATH` 하위 강제 (CWE-22 경로 검증)
