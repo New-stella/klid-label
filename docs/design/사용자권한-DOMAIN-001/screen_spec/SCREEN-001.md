@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-001
 type: screen_spec
-version: 22
+version: 23
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-09T07:56:51.649Z
+synced_at: 2026-09-14T05:33:03.562Z
 status: CHANGED
 prev_version: 22
-content_hash: b54dc04a2e4468db4077eaf7bec2fe346762e71edec61c3e27e20ba9404217ce
+content_hash: 953294cf23a7c2fcf225132d8a1a7e9d10f88049ee00602e84c5c2907858a7f5
 stale: false
 raw: ./_raw/SCREEN-001.json
 links:
@@ -270,9 +270,9 @@ _(empty)_
 _(empty)_
 
 - **description**: v18 사양 기준 재생성 — 역할 확보 완료 전 로딩 유지, 재확보 실패 표시를 인증 실패와 구분
-- **source_hash**: bbcb7e88775a979de6ec1a2cb7f10dd39067d06836f1848b106ae71c54f55091
-- **generated_at**: 2026-09-08T04:10:02.480Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 40e1a6fd3d22b4c5515335301cb2d70efaa307e971457630d6124c852fdcb29b
+- **generated_at**: 2026-09-10T06:57:50.433Z
+- **generated_by**: session_01EL1k4Kbj4LcTHm5RJKpGmW
 
 **triggered_by**:
 

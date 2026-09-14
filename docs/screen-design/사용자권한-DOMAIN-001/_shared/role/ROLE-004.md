@@ -2,14 +2,10 @@
 logicraft_item: ROLE-004
 type: permission_role
 version: 5
-status: CHANGED
-prev_version: 4
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/ROLE-004.json
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v4 → v5**
-> change_summary: 관리자·검수자·작업자 -> 관리자·검수자·작업자·포털
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 관리자 (ADMIN)
 

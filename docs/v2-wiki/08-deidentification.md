@@ -11,6 +11,12 @@
 
 - **파이프라인 선두 단계**(구현됨): 영상 적재 직후 자동 실행되며, 마킹 단계의 선행 조건이다 → [07](07-batch-pipeline.md#71-파이프라인-순서-구현됨)
 - 대상: **전체 영상 무조건**(`PRVC_TYPE_CD` 게이팅 폐지 — `ANONY` 포함). 비식별 영상이 마킹·작업 대상이 되며 원본은 별도 보존
+  - **★예외 — 출처유형 비식별 제외 (2026-09-14 확정 · ADR-066)**: 배포 설정 `authoring.deidentify.excluded-src-types`(env `DEIDENTIFY_EXCLUDED_SRC_TYPES`, 쉼표 복수, 기본 `GENERATED`)에 든 출처유형 영상은 **KPST 위탁 없이 원본을 비식별 영상 쓰기 위치(`deidVideoDir`)에 원본 파일명 그대로 일반 파일로 복사**해 단계를 끝낸다. 이력 `LS_DEIDENT_PROC_LOG` 성공 행(`REQ_KND_CD='EXCLUDED'`, `DE_IDNTF_FILE_PATH_NM`=복사본) → `DE_IDENT_YN='Y'` → `MARKING_READY`. **단계를 건너뛰지 않는다** — 뒤 소비처(마킹 가드·스트리밍·프레임 두 벌·파생·관제 뷰)는 무변경.
+    - 판정: 비식별 단계(`DeidentifyStep.run`) 처리 시점 1회, KPST 활성 여부 검사보다 앞 · `srcType` null 은 대상 아님 · 비우면 전부 위탁 · **소급 없음** · **기동 시 값 검사 없음**(적용 목록 INFO 로그 1줄) · 관리 화면 설정 아님(`ConfigKeys.ALLOWED` 밖 — 저장 API 거부).
+    - 복사 실패(원본 부재·경로 위반·IO): `'F'` + 이력 `FAILED`(EXCLUDED) + `MARKING_READY` 미전이 + 임시 파일 정리 · 원본 불변.
+    - 제외 행은 `POLL_STTS_CD` 가 비어 KPST 폴링·ACK 유예 회수 대상이 아니다.
+    - **회수 지점은 검수** — 오표기(실제 인물 영상이 `GENERATED`)는 검수 중 비식별 누락 신고(§8.4) → 외부 재비식별 → 해소. ⚠ 검수완료 재비식별(§8.6)은 이미 `'Y'` 인 영상을 거부하므로 **회수 경로가 아니다**. 승인 이후·그 파생본은 경로 밖(인지·수용).
+    - 영상 상세 비식별 이력 패널은 표시를 바꾸지 않았다 — 제외 회차가 「비식별 / 배치 비식별」로 보인다(인지·수용). 관제 뷰 `DE_IDNTF_YN='Y'` 가 제외 영상에도 서지만 관제와 무관하다 — 2026-09-14 관제 회신: 비식별 작업은 전부 저작도구로 이관돼 관제는 이 값으로 판단하지 않고, 생성형 AI 서버에서 생성된 작업은 기존에도 `GENERATED` 로 전달된다(관제 수정 없음).
 - **자동 트리거**: 적재(TUS 업로드 + dev 경로) → `VideoIngestedEvent` → `IngestDeidentifyBridge`(AFTER_COMMIT) → `AsyncDeidentifyRunner`(@Async) → `DeidentifyStep.run` → 성공 시 `LsDataRaw.dataSttsCd = MARKING_READY`
   - ⚠ **증강(augment) 적재 경로는 아직 `VideoIngestedEvent` 미발행** — 선두 비식별 자동화 미연동(planned/후속)
 - 출력: `STORAGE_DEIDENTIFIED_PATH` 하위 강제 (CWE-22 경로 검증)

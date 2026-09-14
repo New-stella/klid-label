@@ -194,7 +194,10 @@ export function EventTypeField({
   );
 }
 
-/** 개인정보 유형 — 표시용 메타. 비식별은 업로드된 모든 영상에 예외 없이 자동 실행된다. */
+/**
+ * 개인정보 유형 — 표시용 메타. 비식별 단계는 업로드된 모든 영상에 예외 없이 자동 실행된다
+ * (출처유형 비식별 제외는 원본 복사로 완료 — ADR-066). [@design SCREEN-027]
+ */
 export function PrivacyTypeField({
   value,
   onChange,
@@ -225,8 +228,9 @@ export function PrivacyTypeField({
         }))}
       />
       <FieldDescription>
-        표시용 메타입니다 — 비식별은 올린 모든 영상에 예외 없이 자동 실행되므로 이 선택이 비식별
-        수행 여부를 바꾸지 않습니다.
+        표시용 메타입니다 — 비식별 단계는 올린 모든 영상에 예외 없이 자동으로 실행되므로 이
+        선택이 비식별 수행 여부를 바꾸지 않습니다. 다만 출처유형이 생성형 등 비식별 제외로 지정된
+        영상은 그 단계가 원본 복사로 완료됩니다.
       </FieldDescription>
       <UnsentNotice group="개인정보 유형" route={route} />
     </Field>

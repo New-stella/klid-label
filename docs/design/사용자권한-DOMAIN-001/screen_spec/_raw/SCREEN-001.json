@@ -130,9 +130,9 @@
           "platform": "web",
           "sections": [],
           "description": "v18 사양 기준 재생성 — 역할 확보 완료 전 로딩 유지, 재확보 실패 표시를 인증 실패와 구분",
-          "source_hash": "bbcb7e88775a979de6ec1a2cb7f10dd39067d06836f1848b106ae71c54f55091",
-          "generated_at": "2026-09-08T04:10:02.480Z",
-          "generated_by": "sections-deterministic-generator",
+          "source_hash": "40e1a6fd3d22b4c5515335301cb2d70efaa307e971457630d6124c852fdcb29b",
+          "generated_at": "2026-09-10T06:57:50.433Z",
+          "generated_by": "session_01EL1k4Kbj4LcTHm5RJKpGmW",
           "triggered_by": []
         }
       ],
@@ -144,12 +144,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 22,
+    "current_version": 23,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "'인증 실패 안내' 섹션에 재시도 조작(Button '다시 시도', secondary, API-006)을 추가하고 설명 끝에 그 동작 한 문장을 덧붙였다. 기존 문장·부품은 손대지 않았고 순수 추가다. 근거: 그 섹션 설명이 이미 '다시 시도는 사람이 하며 자동으로 반복하지 않는다'를 담는데 부품에는 Alert 하나뿐이라 누를 수단이 없어, 안내가 시도를 권하면서 시도할 수단이 없는 상태였다(ADR-063 규정 ⑨ · UC-041 대체 흐름). 자동 반복은 도입하지 않는다. 표기는 SCREEN-023 오류 배너의 재시도 버튼(Button·secondary)과 SCREEN-041 재시도 버튼의 triggers_api 관례를 따랐다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-09-08T12:03:42.097Z",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.6KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-10T06:57:50.433Z",
     "created_at": "2026-05-30T07:53:20.685Z"
   }
 }

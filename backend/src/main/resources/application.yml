@@ -555,6 +555,16 @@ authoring:
     sign-secret: ${STREAM_SIGN_SECRET:}
     url-ttl-seconds: ${STREAM_URL_TTL_SECONDS:60}
     cookie-secure: ${STREAM_COOKIE_SECURE:false}
+  # ★ 비식별 제외 출처유형 (@design ADR-066) — 아래 integration.deidentify(헬스 핑 전용 주소)와 <다른 축>이다.
+  #   쉼표 구분 복수. 여기 든 출처유형(LS_DATA_RAW.SRC_TYPE)의 영상은 외부 비식별 솔루션에 위탁하지 않고
+  #   원본을 비식별 영상 쓰기 위치에 복사해 「비식별 제외」로 완료한다(이력 요청종류 EXCLUDED).
+  #   · 비우면(DEIDENTIFY_EXCLUDED_SRC_TYPES=) 목록이 비어 <전 영상을 위탁>한다 — 안전측.
+  #   · ⚠ 원천 CCTV 출처유형 ORIGINAL · RELAY · IMPORTED 를 넣지 말 것 — 그 출처 영상 전체가 마스킹 없이 흐른다.
+  #   · 판정은 비식별 단계가 영상을 처리하는 시점에 1회이며, 설정을 바꿔도 이미 처리된 영상에 <소급하지 않는다>.
+  #   · 관리 화면 시스템 설정이 아니라 <배포 설정>이다(재기동해야 반영). 기동 시 허용값 검사는 없고
+  #     적용 목록을 [Deident] excluded srcTypes=[...] INFO 한 줄로 남긴다.
+  deidentify:
+    excluded-src-types: ${DEIDENTIFY_EXCLUDED_SRC_TYPES:GENERATED}
   integration:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}

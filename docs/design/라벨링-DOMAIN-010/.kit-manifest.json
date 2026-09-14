@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-010",
-  "synced_at": "2026-09-08T12:01:42.139Z",
+  "synced_at": "2026-09-14T05:35:53.625Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 201,
+  "count": 202,
   "items": {
     "AC-1052": {
       "type": "acceptance",
@@ -99,8 +99,8 @@
     "ADR-006": {
       "type": "adr",
       "domain_id": "DOMAIN-012",
-      "version": 4,
-      "content_hash": "6a8bee473d54bdc7359618c91b1bb6fc39cc4f7910810f069c9a8d4ccecd1ea5"
+      "version": 6,
+      "content_hash": "4d79cb61c5d305c39cfdc9d962582653e1cb3f3ac8daba13e518ce7d2265e913"
     },
     "ADR-007": {
       "type": "adr",
@@ -141,8 +141,8 @@
     "ADR-022": {
       "type": "adr",
       "domain_id": "DOMAIN-012",
-      "version": 5,
-      "content_hash": "95d436964535df9eaf214388c506a0eb04672b7662b668946634f641d3c891d3"
+      "version": 6,
+      "content_hash": "5028a1a994b4e52e97b94cd3214de1351e64b518c17eb29d7484f297b144ee85"
     },
     "ADR-032": {
       "type": "adr",
@@ -195,8 +195,8 @@
     "ADR-058": {
       "type": "adr",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "2bcf8dd7afde009eb50a4e0b4d21b5cb9c78353a8825eb964732b4f6322a393c"
+      "version": 10,
+      "content_hash": "91098d1aa7a8efa169a4f3d18976cd9f2894116456d992199aae01c62581f0d8"
     },
     "API-012": {
       "type": "api_endpoint",
@@ -291,8 +291,8 @@
     "API-032": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-010",
-      "version": 9,
-      "content_hash": "f217b72c8f9571783b24141539b205cf1cf5c78c0cbadee98e70088e40772889"
+      "version": 10,
+      "content_hash": "7de508471421c2f695803a7a4e3a805b668957f500ebd967b6f45d5d99a5a839"
     },
     "API-034": {
       "type": "api_endpoint",
@@ -633,8 +633,8 @@
     "SEQ-014": {
       "type": "diagram_sequence",
       "domain_id": null,
-      "version": 15,
-      "content_hash": "f8a3307d0756248bebc33913f069fe05ec14b0c69dc337178ac60d2b6b5bbc17"
+      "version": 16,
+      "content_hash": "a148412f608026a5fcff73cc20e5ddf77459550ee08f6cc92c78eb6723f790cb"
     },
     "SEQ-020": {
       "type": "diagram_sequence",
@@ -723,8 +723,8 @@
     "DFEAT-048": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-012",
-      "version": 19,
-      "content_hash": "9531486642527b4545a9eeba58d365b9bf0a705f05cc130880935f1e28bacb93"
+      "version": 20,
+      "content_hash": "5d86a490e05260951989f484460e4ed76d20e76415df89bab8ec400c5025f6dd"
     },
     "DFEAT-050": {
       "type": "domain_feature",
@@ -765,8 +765,8 @@
     "FEAT-005": {
       "type": "feature",
       "domain_id": null,
-      "version": 11,
-      "content_hash": "591f14ff9fdd48c9f0675fcc09a7a49d6f3787b70a7157250723bf2027a34f6f"
+      "version": 12,
+      "content_hash": "bec51767a811b9f85d7b83b3fcfe1ed688f0b46000ac18261dc9a69d0dd334f5"
     },
     "FEAT-007": {
       "type": "feature",
@@ -779,6 +779,12 @@
       "domain_id": null,
       "version": 3,
       "content_hash": "091368476aeebcffad16fba1fa41e708b380be625a77a0940abbc650f202dd02"
+    },
+    "FEAT-013": {
+      "type": "feature",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "28b3140b2b3bac884752eeccceaa60b8c478ca112ea3e9f91c5f2fabd7e41337"
     },
     "NFR-008": {
       "type": "nfr",
@@ -813,8 +819,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "3dc7969a0b4ff575ec112b8551779f6a1b1fc7a80368170de6b6d92d795ea361"
+      "version": 13,
+      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
     },
     "NFR-014": {
       "type": "nfr",
@@ -856,7 +862,7 @@
       "type": "nfr",
       "domain_id": null,
       "version": 11,
-      "content_hash": "2bd5e74ecd484e7a9a8f62894af974900c322f87ba55cdbad4d3bb031a108c1e"
+      "content_hash": "0ab41a716cfc837483e55007b558bfd5fecc1cbf69d3ca2e4de7ed2374562d3b"
     },
     "NFR-021": {
       "type": "nfr",

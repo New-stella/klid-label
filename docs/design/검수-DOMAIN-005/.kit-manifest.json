@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-005",
-  "synced_at": "2026-09-08T12:01:38.483Z",
+  "synced_at": "2026-09-14T05:35:45.034Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -363,8 +363,8 @@
     "EVT-008": {
       "type": "domain_event",
       "domain_id": "DOMAIN-012",
-      "version": 8,
-      "content_hash": "842cdf51cb794b094e1d3d080177b2258a034923b44156eb812a37c372da4628"
+      "version": 9,
+      "content_hash": "68b8f987c0ad80c474380b407459c293e6aaf5d7a85b5c6861e56234b839d3b2"
     },
     "EVT-009": {
       "type": "domain_event",
@@ -495,8 +495,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "3dc7969a0b4ff575ec112b8551779f6a1b1fc7a80368170de6b6d92d795ea361"
+      "version": 13,
+      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
     },
     "NFR-014": {
       "type": "nfr",
@@ -538,7 +538,7 @@
       "type": "nfr",
       "domain_id": null,
       "version": 11,
-      "content_hash": "2bd5e74ecd484e7a9a8f62894af974900c322f87ba55cdbad4d3bb031a108c1e"
+      "content_hash": "0ab41a716cfc837483e55007b558bfd5fecc1cbf69d3ca2e4de7ed2374562d3b"
     },
     "NFR-021": {
       "type": "nfr",

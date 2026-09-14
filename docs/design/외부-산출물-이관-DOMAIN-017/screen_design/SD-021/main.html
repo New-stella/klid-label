@@ -367,7 +367,7 @@
           <circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>
         </svg>
         <div class="alert-body">
-          <span class="alert-desc t-body-sm">외부 솔루션이 같은 이름으로 덮어쓰지 않고 다른 이름으로 산출할 수 있어, 기본값을 정해 두지 않았습니다. 크기와 수정시각을 보고 이번에 새로 만들어진 것을 고르세요.</span>
+          <span class="alert-desc t-body-sm">외부 솔루션이 같은 이름으로 덮어쓰지 않고 다른 이름으로 산출할 수 있어, 기본값을 정해 두지 않았습니다. 파일명·크기·수정시각을 보고 해소에 쓸 산출물을 고르세요. 만들어진 시각은 선택을 막지 않으며, 신고보다 먼저 만들어진 파일도 고를 수 있습니다.</span>
         </div>
       </div>
 
@@ -394,22 +394,25 @@
                 <span class="kv"><span>크기</span><span class="v">183.7 MB</span></span>
                 <span class="kv"><span>수정</span><span class="v">2026-08-05 09:31:12</span></span>
               </span>
+              <span class="cand-note t-caption">신고 접수(2026-08-12 14:22:07)보다 먼저 만들어진 파일입니다. 마스킹 누락이 그대로 남아 있을 수 있으니 확인 후 고르세요.</span>
             </span>
             <span class="cand-flag">
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>신고 이전 파일</span>
               <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>현재 이력에 기록됨</span>
             </span>
           </label>
 
-          <label class="cand-item">
-            <input type="radio" name="artifact" value="3" />
+          <label class="cand-item is-disabled">
+            <input type="radio" name="artifact" value="3" disabled />
             <span class="cand-body">
               <span class="cand-name">3187-mask-tmp.mp4</span>
               <span class="cand-meta t-caption">
                 <span class="kv"><span>크기</span><span class="v">42.1 MB</span></span>
                 <span class="kv"><span>수정</span><span class="v">2026-08-12 15:55:03</span></span>
               </span>
+              <span class="cand-note cand-note-block t-caption">정상적으로 열리는 영상 파일이 아니라 선택할 수 없습니다. 외부 솔루션으로 비식별을 다시 수행해 주세요.</span>
             </span>
-            <span class="cand-flag"></span>
+            <span class="cand-flag"><span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>선택 불가</span></span>
           </label>
         </div>
       </fieldset>
@@ -460,7 +463,7 @@
                   <span class="kv"><span>수정</span><span class="v">2026-08-05 09:31:12</span></span>
                 </span>
               </span>
-              <span class="cand-flag"><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>현재 이력에 기록됨</span></span>
+              <span class="cand-flag"><span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>신고 이전 파일</span><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>현재 이력에 기록됨</span></span>
             </label>
           </div>
           <div class="dialog-foot">

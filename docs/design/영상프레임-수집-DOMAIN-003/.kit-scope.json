@@ -187,7 +187,9 @@
     "UC-018",
     "UC-032",
     "UC-038",
-    "UC-042"
+    "UC-042",
+    "ADR-066",
+    "FEAT-011"
   ],
   "pending": [
     "SHELL-001",
@@ -197,7 +199,6 @@
     "MOD-045",
     "MOD-046",
     "MOD-048",
-    "FEAT-011",
     "IMPREC-025",
     "IMPREC-026",
     "IMPREC-027",
@@ -268,8 +269,8 @@
     "NAV-001",
     "OSS-102"
   ],
-  "last_sync_at": "2026-09-08T12:01:30.929Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 12(핵심타입) / 기각 52(제외타입) / 보류 1(미분류·배포형상) | 2026-09-05 2차 판정: 승격 5(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 75(제외타입) / 보류 1 | 2026-09-08 판정: 승격 1 / 기각 75 / 보류 1. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 승격 ADR-065(pin 보유 CDIAG-036·SEQ-030 이 인용). 보류 OSS-102(미분류 타입)",
+  "last_sync_at": "2026-09-14T05:35:33.825Z",
+  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 12(핵심타입) / 기각 52(제외타입) / 보류 1(미분류·배포형상) | 2026-09-05 2차 판정: 승격 5(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 75(제외타입) / 보류 1 | 2026-09-08 판정: 승격 1 / 기각 75 / 보류 1. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다. 승격 ADR-065(pin 보유 CDIAG-036·SEQ-030 이 인용). 보류 OSS-102(미분류 타입) | 2026-09-14 판정(비식별 출처유형 제외·관제 세션 연장 라운드): 승격 2 / 기각 75 / 보류 1. 기각 중 제외 타입 75건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·CTX). 보류 OSS-102(미분류 타입)",
   "note_promoted": [
     {
       "at": "2026-09-02",
@@ -284,6 +285,14 @@
         "ADR-065"
       ],
       "reason": "adr — pin 보유 CDIAG-036·SEQ-030 이 based_on 으로 이 결정을 인용한다"
+    },
+    {
+      "at": "2026-09-14",
+      "ids": [
+        "ADR-066",
+        "FEAT-011"
+      ],
+      "reason": "ADR-066 은 이 키트 pin EVT-005(VideoIngested)를 참조하고 적재 직후 비식별 판정 축을 바꾼다 · FEAT-011 은 pin 보유 UC-018·UC-042 가 realizes"
     }
   ]
 }
