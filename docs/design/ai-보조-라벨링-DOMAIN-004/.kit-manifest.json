@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
-  "synced_at": "2026-09-14T05:36:00.415Z",
+  "synced_at": "2026-09-14T07:37:18.067Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -243,8 +243,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 17,
-      "content_hash": "ab4233a1c0c5a29bf1aa992566a3e61a33ad7f46f706e92621f988216bebc8c4"
+      "version": 18,
+      "content_hash": "2a7397a0015f6b5848ea1a127732336e2d237c9b0c335d934de6ca3960680fd7"
     },
     "ADR-047": {
       "type": "adr",
@@ -297,8 +297,8 @@
     "ADR-062": {
       "type": "adr",
       "domain_id": null,
-      "version": 6,
-      "content_hash": "e1ae9715a5556586ac3905f1a26d5aabc0f376a8e74090811ffb2cc102d0819b"
+      "version": 7,
+      "content_hash": "23889c17ada08b654ebb226ea8f4c363301297a2c8609a9be00b046533779aee"
     },
     "API-019": {
       "type": "api_endpoint",
@@ -567,8 +567,8 @@
     "SEQ-025": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "39ba02dbd0b6155fcc6aa776c7df50b8779010f7f66a287cf0cd23c391bfbdf7"
+      "version": 10,
+      "content_hash": "d89d3d20b4f27cc349ac4c519666f658b4708723b93f9d35b2d37bfe5c8b6a7c"
     },
     "SEQ-028": {
       "type": "diagram_sequence",
@@ -639,8 +639,8 @@
     "DFEAT-045": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-014",
-      "version": 27,
-      "content_hash": "2a41c7ea8fa2f7e27d4dba0fe450ddfbe4c5557271b335181e68a6fbcbc33479"
+      "version": 28,
+      "content_hash": "9bf173e32b0182886c2c26993ab2d6000c4a07ea8c26d38316e33f44ec4ef785"
     },
     "DFEAT-060": {
       "type": "domain_feature",
@@ -771,8 +771,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 13,
-      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
+      "version": 14,
+      "content_hash": "19ac42d53225c3b9108cf743487835a1178c0e6fe5a119d388d077a4febe2ea6"
     },
     "NFR-014": {
       "type": "nfr",
@@ -1041,8 +1041,8 @@
     "SCREEN-042": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-014",
-      "version": 25,
-      "content_hash": "328c34908d6bf8e83318cba3a8be1c42be09f5b77dc7c46e889cf7232d3e972f"
+      "version": 27,
+      "content_hash": "257205f86125f8654c7a4804e50b003fb38c76876d73ff0a8e1bedc1af2c61ca"
     },
     "UC-004": {
       "type": "use_case",

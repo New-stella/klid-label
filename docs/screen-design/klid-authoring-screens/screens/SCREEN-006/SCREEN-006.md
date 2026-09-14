@@ -5,11 +5,11 @@ version: 54
 last_updated_at: 2026-09-09T03:25:19.525Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.713Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.216Z
+sync_session: 40
 stale: true
-status: CHANGED
-prev_version: 49
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-019]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v49 → v54**
-> change_summary: 재생 주소 배포 접두 결합 + 재발급 상한·실패 통지 구현
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 마킹 화면
 

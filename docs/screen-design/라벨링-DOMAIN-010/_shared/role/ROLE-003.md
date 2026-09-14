@@ -2,14 +2,10 @@
 logicraft_item: ROLE-003
 type: permission_role
 version: 15
-status: CHANGED
-prev_version: 14
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/ROLE-003.json
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v14 → v15**
-> change_summary: 포털 회원 역할에서 폐기된 화면 접근 권한 한 건(포털 업로드 라벨링 SCREEN-034)을 제거. 조건 문구 자체가 "[폐기] … 화면이 포털 라벨링 화면으로 합쳐져 이 항목을 따로 두지 않는다"였다. 본인 업로드 자산의 라벨링 권한은 포털 라벨링 항목이 담는다. 권한 목록에 남겨 두면 권한 관련 산출물에 폐기 표기가 그대로 실리거나, 표기만 걷혀 없는 권한이 부여된 것처럼 보인다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 회원 (PORTAL_USER)
 

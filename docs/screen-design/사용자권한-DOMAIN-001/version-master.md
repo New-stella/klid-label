@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-09-14T05:37:28.479Z (session 19) |
-| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 178 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| Last sync | 2026-09-14T07:37:36.536Z (session 20) |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 179 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/사용자권한-DOMAIN-001 |
 
 ## ITEM 버전 표
 
@@ -18,9 +18,9 @@
 | [[AC-1018]] | acceptance | UC-030 사용자 계정·역할 관리 — 조회·검색·필터·역할 변경(유효창 가산) (happy) | 7 | true | UNCHANGED |
 | [[AC-1019]] | acceptance | UC-030 역할 변경 거부 — 유효창 없음/만료·화이트리스트 밖 400·마지막 관리자 409 (negative) | 6 | false | UNCHANGED |
 | [[AC-1098]] | acceptance | UC-041 역할 미부여 진입자의 이름 조달과 창구 개폐 판정 — 자기 정보 조회→개폐 조회→도착지 갈림 (happy) | 5 | true | UNCHANGED |
-| [[AC-1104]] | acceptance | 관제 채널 토큰 추종과 세션 갱신 — 매 요청 현재 토큰·선제 갱신 1회·401 후 1회 재시도·관제 형식 저장·탭 간 중복 갱신 방지 (happy) | 3 | true | NEW |
-| [[AC-1105]] | acceptance | 관제 채널 세션 만료 연장 팝업 — 임계 도달 시 표시(감시 주기 되풀이 없음)·「로그아웃」·「로그인 연장」 두 버튼만(ESC·배경 클릭 무반응)·만료 시 로그아웃·셸 밖 전체 화면 적용·미저장 편집 경고와 만료 시 확인 없이 이동 | 7 | true | NEW |
-| [[AC-1106]] | acceptance | 관제 채널 세션 종결과 적용 경계 — 갱신 거절·401 재시도 실패 시 즉시 로그아웃(다른 탭이 이미 갱신했으면 예외)·일시 장애는 만료까지 유지·세션 만료 아닌 인증 실패 제외·관제 로그아웃 추종·갱신 토큰 없는 진입·포털 채널 무동작 (negative) | 8 | false | NEW |
+| [[AC-1104]] | acceptance | 관제 채널 토큰 추종과 세션 갱신 — 매 요청 현재 토큰·선제 갱신 1회·401 후 1회 재시도·관제 형식 저장·탭 간 중복 갱신 방지 (happy) | 3 | true | UNCHANGED |
+| [[AC-1105]] | acceptance | 관제 채널 세션 만료 연장 팝업 — 임계 도달 시 표시(감시 주기 되풀이 없음)·「로그아웃」·「로그인 연장」 두 버튼만(ESC·배경 클릭 무반응)·만료 시 로그아웃·셸 밖 전체 화면 적용·미저장 편집 경고와 만료 시 확인 없이 이동 | 8 | false | CHANGED |
+| [[AC-1106]] | acceptance | 관제 채널 세션 종결과 적용 경계 — 갱신 거절·401 재시도 실패 시 즉시 로그아웃(다른 탭이 이미 갱신했으면 예외)·일시 장애는 만료까지 유지·세션 만료 아닌 인증 실패 제외·관제 로그아웃 추종·갱신 토큰 없는 진입·포털 채널 무동작 (negative) | 9 | false | CHANGED |
 | [[API-001]] | api_endpoint | GET /v1/users | 10 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
 | [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 6 | false | UNCHANGED |

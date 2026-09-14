@@ -5,11 +5,11 @@ version: 41
 last_updated_at: 2026-09-08T07:22:32.820Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.734Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.238Z
+sync_session: 40
 stale: false
-status: CHANGED
-prev_version: 34
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-024]]"]
   acceptance: ["[[AC-1068]]", "[[AC-1069]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v34 → v41**
-> change_summary: 이 화면이 쓰는 포털 전용 부품을 잇는다 — 배지(UI-150) · 빈 상태(UI-151) · 구역 머리(UI-152) · 목록 자리표시자(UI-153) · 카드 표면(UI-146) · 안내 배너(UI-147). 관제 공통 부품을 쓰지 않는 이유는 그것들을 관제 화면 여럿이 함께 써서 포털 모양을 넣으면 관제 화면이 같이 바뀌기 때문이다(관제향 화면·컴포넌트 불변).
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 내 작업 화면
 

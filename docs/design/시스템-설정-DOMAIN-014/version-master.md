@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-09-14T05:35:37.438Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 130 |
+| Last sync | 2026-09-14T07:37:41.452Z |
+| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 131 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 19건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 23건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[FEAT-005]]
+- NEW [[INT-015]]
 
 ## ITEM 표
 
@@ -51,9 +51,9 @@
 | [[AC-1023]] | acceptance | 6 | UNCHANGED |
 | [[AC-1028]] | acceptance | 4 | UNCHANGED |
 | [[AC-1029]] | acceptance | 5 | UNCHANGED |
-| [[AC-1072]] | acceptance | 12 | UNCHANGED |
+| [[AC-1072]] | acceptance | 13 | UNCHANGED |
 | [[AC-1073]] | acceptance | 5 | UNCHANGED |
-| [[AC-1074]] | acceptance | 6 | UNCHANGED |
+| [[AC-1074]] | acceptance | 7 | UNCHANGED |
 | [[AC-1087]] | acceptance | 2 | UNCHANGED |
 | [[AC-1088]] | acceptance | 2 | UNCHANGED |
 | [[AC-1089]] | acceptance | 2 | UNCHANGED |
@@ -63,15 +63,15 @@
 | [[ADR-006]] | adr | 6 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-039]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-051]] | adr | 8 | UNCHANGED |
 | [[ADR-053]] | adr | 3 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-057]] | adr | 22 | UNCHANGED |
-| [[ADR-062]] | adr | 6 | UNCHANGED |
+| [[ADR-062]] | adr | 7 | UNCHANGED |
 | [[API-004]] | api_endpoint | 10 | UNCHANGED |
 | [[API-068]] | api_endpoint | 4 | UNCHANGED |
-| [[API-069]] | api_endpoint | 12 | UNCHANGED |
+| [[API-069]] | api_endpoint | 13 | UNCHANGED |
 | [[API-090]] | api_endpoint | 4 | UNCHANGED |
 | [[API-118]] | api_endpoint | 2 | UNCHANGED |
 | [[API-141]] | api_endpoint | 2 | UNCHANGED |
@@ -92,18 +92,19 @@
 | [[CDIAG-025]] | class_diagram | 1 | UNCHANGED |
 | [[CDIAG-033]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 10 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 27 | UNCHANGED |
-| [[DOMAIN-014]] | domain | 8 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 28 | UNCHANGED |
+| [[DOMAIN-014]] | domain | 9 | UNCHANGED |
 | [[ERD-016]] | erd | 14 | UNCHANGED |
 | [[ERD-033]] | erd | 4 | UNCHANGED |
 | [[EXTSYS-002]] | external_system | 18 | UNCHANGED |
-| [[FEAT-005]] | feature | 12 | NEW |
+| [[FEAT-005]] | feature | 12 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[INT-002]] | integration_point | 23 | UNCHANGED |
 | [[INT-004]] | integration_point | 16 | UNCHANGED |
 | [[INT-005]] | integration_point | 10 | UNCHANGED |
-| [[INT-007]] | integration_point | 11 | UNCHANGED |
+| [[INT-007]] | integration_point | 12 | UNCHANGED |
+| [[INT-015]] | integration_point | 8 | NEW |
 | [[INTSPEC-003]] | integration_spec | 20 | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 26 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
@@ -111,7 +112,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -160,21 +161,21 @@
 | [[SCREEN-038]] | screen_spec | 15 | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 9 | UNCHANGED |
 | [[SCREEN-041]] | screen_spec | 10 | UNCHANGED |
-| [[SCREEN-042]] | screen_spec | 25 | UNCHANGED |
+| [[SCREEN-042]] | screen_spec | 27 | UNCHANGED |
 | [[SCREEN-043]] | screen_spec | 7 | UNCHANGED |
 | [[SD-015]] | screen_design | 9 | UNCHANGED |
 | [[SD-034]] | screen_design | 6 | UNCHANGED |
 | [[SD-035]] | screen_design | 4 | UNCHANGED |
-| [[SD-036]] | screen_design | 14 | UNCHANGED |
+| [[SD-036]] | screen_design | 16 | UNCHANGED |
 | [[SD-037]] | screen_design | 5 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-018]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-024]] | diagram_sequence | 3 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-035]] | diagram_sequence | 7 | UNCHANGED |
 | [[SHELL-001]] | app_shell | 18 | UNCHANGED |
 | [[UC-006]] | use_case | 12 | UNCHANGED |
 | [[UC-013]] | use_case | 13 | UNCHANGED |
 | [[UC-030]] | use_case | 17 | UNCHANGED |
-| [[UC-031]] | use_case | 20 | UNCHANGED |
+| [[UC-031]] | use_case | 21 | UNCHANGED |

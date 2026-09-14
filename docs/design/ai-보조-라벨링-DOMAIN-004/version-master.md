@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-09-14T05:36:00.415Z |
+| Last sync | 2026-09-14T07:37:18.067Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 180 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -85,7 +85,7 @@
 | [[ADR-039]] | adr | 7 | UNCHANGED |
 | [[ADR-040]] | adr | 2 | UNCHANGED |
 | [[ADR-041]] | adr | 4 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-047]] | adr | 1 | UNCHANGED |
 | [[ADR-048]] | adr | 6 | UNCHANGED |
 | [[ADR-052]] | adr | 3 | UNCHANGED |
@@ -94,7 +94,7 @@
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-056]] | adr | 4 | UNCHANGED |
 | [[ADR-057]] | adr | 22 | UNCHANGED |
-| [[ADR-062]] | adr | 6 | UNCHANGED |
+| [[ADR-062]] | adr | 7 | UNCHANGED |
 | [[API-019]] | api_endpoint | 8 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
 | [[API-043]] | api_endpoint | 27 | UNCHANGED |
@@ -137,7 +137,7 @@
 | [[DFEAT-018]] | domain_feature | 10 | UNCHANGED |
 | [[DFEAT-019]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-020]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 27 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 28 | UNCHANGED |
 | [[DFEAT-060]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-004]] | domain | 11 | UNCHANGED |
 | [[ERD-019]] | erd | 24 | UNCHANGED |
@@ -162,7 +162,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -206,13 +206,13 @@
 | [[SCREEN-025]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 54 | UNCHANGED |
 | [[SCREEN-039]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-042]] | screen_spec | 25 | UNCHANGED |
+| [[SCREEN-042]] | screen_spec | 27 | UNCHANGED |
 | [[SD-033]] | screen_design | 14 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 12 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-031]] | diagram_sequence | 7 | UNCHANGED |

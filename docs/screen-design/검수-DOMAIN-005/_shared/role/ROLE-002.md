@@ -2,14 +2,10 @@
 logicraft_item: ROLE-002
 type: permission_role
 version: 10
-status: CHANGED
-prev_version: 9
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/ROLE-002.json
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v9 → v10**
-> change_summary: 라벨링 작업자 역할에서 폐기된 화면 접근 권한 두 건(영상 상세 SCREEN-009, 영상 처리 현황 SCREEN-008)을 제거. 각 항목의 조건 문구 자체가 "[폐기] … 이 화면의 접근 권한을 두지 않는다"였다. 두 화면은 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며 그것은 라벨 수정·검수 제출을 하는 작업자의 일이 아니다. 권한 목록에 남겨 두면 권한 관련 산출물에 폐기 표기가 그대로 실리거나, 표기만 걷혀 없는 권한이 부여된 것처럼 보인다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 작업자 (WORKER)
 

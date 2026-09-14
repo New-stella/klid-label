@@ -5,11 +5,11 @@ version: 43
 last_updated_at: 2026-09-08T08:05:29.855Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.740Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.245Z
+sync_session: 40
 stale: false
-status: CHANGED
-prev_version: 37
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-027]]"]
   acceptance: ["[[AC-1070]]", "[[AC-1071]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v37 → v43**
-> change_summary: 행 카드 전환으로 쓰게 된 부품 셋을 잇는다 — 목록 행 카드와 사실 칩, 그리고 목록 로딩 자리표시자. 부품 쪽 역참조는 표시 전용이라 링크를 만들지 않으므로 이 자리가 화면과 부품 관계의 진실원이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 

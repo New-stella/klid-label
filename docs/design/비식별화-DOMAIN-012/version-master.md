@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-09-14T05:35:56.945Z |
-| Mode | SYNC — NEW 4 / CHANGED 0 / UNCHANGED 119 |
+| Last sync | 2026-09-14T07:37:38.312Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 123 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,10 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-023]]
-- NEW [[ADR-048]]
-- NEW [[ADR-066]]
-- NEW [[EVT-005]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -59,22 +56,22 @@
 | [[ADR-006]] | adr | 6 | UNCHANGED |
 | [[ADR-020]] | adr | 11 | UNCHANGED |
 | [[ADR-022]] | adr | 6 | UNCHANGED |
-| [[ADR-023]] | adr | 9 | NEW |
+| [[ADR-023]] | adr | 9 | UNCHANGED |
 | [[ADR-024]] | adr | 3 | UNCHANGED |
 | [[ADR-025]] | adr | 3 | UNCHANGED |
 | [[ADR-027]] | adr | 4 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
-| [[ADR-048]] | adr | 6 | NEW |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
+| [[ADR-048]] | adr | 6 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 8 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
-| [[ADR-062]] | adr | 6 | UNCHANGED |
+| [[ADR-062]] | adr | 7 | UNCHANGED |
 | [[ADR-065]] | adr | 1 | UNCHANGED |
-| [[ADR-066]] | adr | 2 | NEW |
+| [[ADR-066]] | adr | 3 | UNCHANGED |
 | [[API-032]] | api_endpoint | 10 | UNCHANGED |
 | [[API-091]] | api_endpoint | 13 | UNCHANGED |
 | [[API-094]] | api_endpoint | 10 | UNCHANGED |
@@ -95,9 +92,9 @@
 | [[DFEAT-048]] | domain_feature | 20 | UNCHANGED |
 | [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
-| [[DOMAIN-012]] | domain | 14 | UNCHANGED |
+| [[DOMAIN-012]] | domain | 15 | UNCHANGED |
 | [[ERD-017]] | erd | 26 | UNCHANGED |
-| [[EVT-005]] | domain_event | 6 | NEW |
+| [[EVT-005]] | domain_event | 6 | UNCHANGED |
 | [[EVT-007]] | domain_event | 3 | UNCHANGED |
 | [[EVT-008]] | domain_event | 9 | UNCHANGED |
 | [[EXTSYS-003]] | external_system | 15 | UNCHANGED |
@@ -111,7 +108,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -162,7 +159,7 @@
 | [[SEQ-012]] | diagram_sequence | 19 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 16 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-031]] | diagram_sequence | 7 | UNCHANGED |
 | [[SEQ-035]] | diagram_sequence | 7 | UNCHANGED |

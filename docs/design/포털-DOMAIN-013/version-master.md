@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-09-14T05:35:59.239Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 129 |
+| Last sync | 2026-09-14T07:37:39.904Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 130 |
 | 출력 루트 | docs/design/포털-DOMAIN-013 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-1106]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -53,8 +53,8 @@
 | [[AC-1071]] | acceptance | 10 | UNCHANGED |
 | [[AC-1102]] | acceptance | 3 | UNCHANGED |
 | [[AC-1103]] | acceptance | 5 | UNCHANGED |
-| [[AC-1106]] | acceptance | 8 | NEW |
-| [[ADR-012]] | adr | 21 | UNCHANGED |
+| [[AC-1106]] | acceptance | 9 | UNCHANGED |
+| [[ADR-012]] | adr | 22 | UNCHANGED |
 | [[ADR-013]] | adr | 23 | UNCHANGED |
 | [[ADR-026]] | adr | 6 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
@@ -121,7 +121,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -172,7 +172,7 @@
 | [[SD-027]] | screen_design | 11 | UNCHANGED |
 | [[SEQ-016]] | diagram_sequence | 15 | UNCHANGED |
 | [[SEQ-019]] | diagram_sequence | 14 | UNCHANGED |
-| [[SEQ-034]] | diagram_sequence | 22 | UNCHANGED |
+| [[SEQ-034]] | diagram_sequence | 23 | UNCHANGED |
 | [[SHELL-002]] | app_shell | 8 | UNCHANGED |
 | [[TEST-005]] | test_scenario | 22 | UNCHANGED |
 | [[UC-024]] | use_case | 34 | UNCHANGED |

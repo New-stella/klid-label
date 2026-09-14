@@ -28,7 +28,7 @@
         "notes": "**아웃바운드(저작도구→관제) 통지에는 인증 헤더가 없다** — 통지 요청은 Content-Type 만 설정하며 Authorization 등을 부착하지 않는다. ⚠ 관제 정본은 `x-access-token` 을 필수로 요구하므로 현재 상태로는 401 이 된다.\n반면 **인바운드 조회 API**(`GET /v1/tasks/{rawSn}/summary|labels|meta`)는 bearer JWT + REVIEWER·WORKER 역할 인가 + 영상 접근권 검증(IDOR 방지)으로 보호된다 — 방향별 인증 체계가 다르다.\n사용자 확정(2026-07-27): **JWT 는 관제서버가 발급한 것을 사용**하며 저작도구는 발급하지 않는다 — 관제 ADR-027 의 '저작도구 발급 JWT' 표현은 관제 측 부정확이므로 협의 시 정정 요청 대상. 인증 방식 적용은 차후 진행."
       },
       "data_format": "json",
-      "description": "저작도구가 검수 완료(`TASK_COMPLETED`)·검수후 수정(`TASK_MODIFIED`)을 관제서버로 push 하는 **단방향 outbound 통지**. 관제는 수신 후 저작도구 inbound 조회 API 또는 데이터마트 뷰로 상세를 가져간다. 통지 단위는 **영상 1건**(RAW_SN)이며 라벨·메타 본문은 싣지 않는다.\n\n## ★★ 계약 전면 교체 완료 — 관제 정본과 경로·페이로드 정합\n구 단일경로 `POST /api/v1/notify`(eventType 으로 완료/수정 구분) + 2단 중첩 `ControlNotifyRequest` DTO 는 **폐기**되었다. 현재:\n\n| 통지 종류 | 경로(관제 API 대응) | 페이로드 |\n|---|---|---|\n| 완료 | `POST {base}/api/data-set/v2/jobs/{job_id}/notify-completed`(관제 API-251) | `TaskCompletedPayload` 평면 **required 필드**: `job_id`·`event_type_cd`·`evnt_cls_cd`·`evnt_ctgry_cd`·`lclgv_cd`·`lclgv_nm`·`duration_sec`·`image_count`·`gen_ai_yn` + **선택 `output_ver_no`** |\n| 수정 | `POST {base}/api/data-set/v2/jobs/{job_id}/notify-updated`(관제 API-285) | `TaskModifiedPayload`: `job_id` + `changed_items{images[], jsons[]}`(변경 파일명 리스트, `{FRM_NO 4자리 zero-pad}.jpg`/`.json`) + **선택 `ver_expln`·`output_ver_no`** |\n\n→ 경로·필드명이 관제 정본과 **정합 완료**(구 등록의 \"경로 불일치→404 / 페이로드 교집합 0→422\" 서술은 해소됨). job_id 는 `RAW_SN` 을 문자열로 표기한 값이다.\n\n## ★ 미확정 — 인증 (B-4, 관제 회신 대기)\n관제 정본은 `x-access-token` 헤더를 요구하나, 현재 통지 요청은 **Content-Type 만 설정하고 Authorization 등을 부착하지 않는다** — 현재 상태로 관제 서버에 붙이면 401 이 예상된다. `x-access-token` 발급 주체가 관제서버 발급 토큰인지 저작도구 발급 authoring JWT 인지 저작도구(사용자)와 관제 ADR-027 서술이 상충해 **미확정**이다. → auth_type 은 현재 코드 실측대로 `none` 을 유지하며, 확정 전까지 `x-access-token(관제 발급 예정, 미확정)` 으로 등록하지 않는다.\n\n## 인바운드 조회 API\n`GET /v1/tasks/{rawSn}/summary|labels|meta` — JWT + REVIEWER·WORKER 역할 인가 + 영상 접근권 검증(IDOR 방지)으로 보호.\n\n## 활성화 — 환경별 (불명 없음, 전부 확정)\n| 환경 | authoring.control-notify.enabled | 실질 |\n|---|---|---|\n| local | true(오버라이드) | 실배선 |\n| dev/stg/prd | false(기본 상속, 오버라이드 없음) | 미연동 |\n\n## ★★ 관제 협의 대상 (BREAKING)\n이 계약 전면교체는 관제 측 수신 엔드포인트·파서를 새 계약(2경로·평면 페이로드)에 맞춰 재구현해야 성립한다. 구 단일경로/2단 중첩 계약을 기대하던 관제 로직이 있다면 **파손**된다. 인증 헤더(B-4) 미확정 상태로는 관제 프로덕션 연동이 불가능하다 — **관제 협의 대상**.\n\n## 해소된 갭 (job_id 타입·image_count)\n- **job_id 타입 — 해소.** 수신측이 문자열 업무키를 유지하기로 확정했고, 발신측은 `RAW_SN` 을 문자열로 표기해 보낸다.\n- **image_count 타이밍 — 해소.** 완료 통지는 산출이 성공(SUCCEEDED/PARTIAL)으로 확정된 뒤에만 발송되므로, 통지 시점에 프레임수가 미확정인 구간은 없다. 산출이 실패하면 통지 자체가 보류되고 재산출 성공 시점에 발송된다.\n\n## 필드 유무 규약 (비대칭 — 의도된 설계)\n- **required 필드는 값이 없어도 키를 남긴다**(명시적 `null`). 키를 빼면 수신측 검증에서 전량 거부된다.\n- **선택 필드는 값이 없으면 키를 생략한다**(`ver_expln`·`output_ver_no`). 특히 `output_ver_no` 가 없으면 수신측은 **\"산출물 변경 없음 — 재픽업 불요\"** 로 처리한다.\n- `output_ver_no` 는 그 통지가 대응하는 **산출 버전 폴더 번호**다. 재승인 1건이 새 폴더 1개와 통지 1건에 대응하므로 수신측이 통지↔폴더를 추적할 수 있다.",
+      "description": "저작도구가 검수 완료(`TASK_COMPLETED`)·검수후 수정(`TASK_MODIFIED`)을 관제서버로 push 하는 **단방향 outbound 통지**. 관제는 수신 후 저작도구 inbound 조회 API 또는 데이터마트 뷰로 상세를 가져간다. 통지 단위는 **영상 1건**(RAW_SN)이며 라벨·메타 본문은 싣지 않는다.\n\n## ★★ 계약 전면 교체 완료 — 관제 정본과 경로·페이로드 정합\n구 단일경로 `POST /api/v1/notify`(eventType 으로 완료/수정 구분) + 2단 중첩 `ControlNotifyRequest` DTO 는 **폐기**되었다. 현재:\n\n| 통지 종류 | 경로(관제 API 대응) | 페이로드 |\n|---|---|---|\n| 완료 | `POST {base}/api/data-set/v2/jobs/{job_id}/notify-completed`(관제 API-251) | `TaskCompletedPayload` 평면 **required 필드**: `job_id`·`event_type_cd`·`evnt_cls_cd`·`evnt_ctgry_cd`·`lclgv_cd`·`lclgv_nm`·`duration_sec`·`image_count`·`gen_ai_yn` + **선택 `output_ver_no`** |\n| 수정 | `POST {base}/api/data-set/v2/jobs/{job_id}/notify-updated`(관제 API-285) | `TaskModifiedPayload`: `job_id` + `changed_items{images[], jsons[]}`(변경 파일명 리스트, `{FRM_NO 4자리 zero-pad}.jpg`/`.json`) + **선택 `ver_expln`·`output_ver_no`** |\n\n→ 경로·필드명이 관제 정본과 **정합 완료**(구 등록의 \"경로 불일치→404 / 페이로드 교집합 0→422\" 서술은 해소됨). job_id 는 `RAW_SN` 을 문자열로 표기한 값이다.\n\n## ★ 미확정 — 인증 (B-4, 관제 회신 대기)\n관제 정본은 `x-access-token` 헤더를 요구하나, 현재 통지 요청은 **Content-Type 만 설정하고 Authorization 등을 부착하지 않는다** — 현재 상태로 관제 서버에 붙이면 401 이 예상된다. `x-access-token` 발급 주체가 관제서버 발급 토큰인지 저작도구 발급 authoring JWT 인지 저작도구(사용자)와 관제 ADR-027 서술이 상충해 **미확정**이다. → auth_type 은 현재 코드 실측대로 `none` 을 유지하며, 확정 전까지 `x-access-token(관제 발급 예정, 미확정)` 으로 등록하지 않는다.\n\n## 인바운드 조회 API\n`GET /v1/tasks/{rawSn}/summary|labels|meta` — JWT + REVIEWER·WORKER 역할 인가 + 영상 접근권 검증(IDOR 방지)으로 보호.\n\n## 수신처 주소 — 통지 전용\n통지 경로의 `{base}` 는 관제 통지 수신처 주소(설정 키 `authoring.control-notify.url`)가 정한다. 관리자가 연동 서버 주소 설정에서 바꾼 값은 재기동 없이 다음 호출부터 반영된다.\n- **이 주소는 통지만 쓴다.** 관제 채널 세션 중계(갱신 `POST {관제}/api/account/auth/refresh` · 로그아웃 `POST {관제}/api/account/auth/logout`, [[INT-015]])는 이 주소를 쓰지 않고 별도 연동 주소 「관제 계정 창구」(설정 키 `authoring.control-account.url`)를 쓴다. 두 주소는 서로를 대신하지 않는다(폴백 없음).\n- **넣을 값**: 관제 웹서버 주소, 또는 관제 데이터셋 창구(`/api/data-set/`)를 가진 WAS 주소. 관제는 계정 창구(`/api/account/`)와 데이터셋 창구를 서로 다른 WAS 에 두므로, WAS 에 직접 붙이면 그 WAS 에 없는 창구의 경로는 404 가 된다.\n- 통지 인증·활성화 토글·재시도와 장애 격리·페이로드 계약은 이 주소 분리와 무관하다.\n\n## 활성화 — 환경별 (불명 없음, 전부 확정)\n| 환경 | authoring.control-notify.enabled | 실질 |\n|---|---|---|\n| local | true(오버라이드) | 실배선 |\n| dev/stg/prd | false(기본 상속, 오버라이드 없음) | 미연동 |\n\n## ★★ 관제 협의 대상 (BREAKING)\n이 계약 전면교체는 관제 측 수신 엔드포인트·파서를 새 계약(2경로·평면 페이로드)에 맞춰 재구현해야 성립한다. 구 단일경로/2단 중첩 계약을 기대하던 관제 로직이 있다면 **파손**된다. 인증 헤더(B-4) 미확정 상태로는 관제 프로덕션 연동이 불가능하다 — **관제 협의 대상**.\n\n## 해소된 갭 (job_id 타입·image_count)\n- **job_id 타입 — 해소.** 수신측이 문자열 업무키를 유지하기로 확정했고, 발신측은 `RAW_SN` 을 문자열로 표기해 보낸다.\n- **image_count 타이밍 — 해소.** 완료 통지는 산출이 성공(SUCCEEDED/PARTIAL)으로 확정된 뒤에만 발송되므로, 통지 시점에 프레임수가 미확정인 구간은 없다. 산출이 실패하면 통지 자체가 보류되고 재산출 성공 시점에 발송된다.\n\n## 필드 유무 규약 (비대칭 — 의도된 설계)\n- **required 필드는 값이 없어도 키를 남긴다**(명시적 `null`). 키를 빼면 수신측 검증에서 전량 거부된다.\n- **선택 필드는 값이 없으면 키를 생략한다**(`ver_expln`·`output_ver_no`). 특히 `output_ver_no` 가 없으면 수신측은 **\"산출물 변경 없음 — 재픽업 불요\"** 로 처리한다.\n- `output_ver_no` 는 그 통지가 대응하는 **산출 버전 폴더 번호**다. 재승인 1건이 새 폴더 1개와 통지 1건에 대응하므로 수신측이 통지↔폴더를 추적할 수 있다.",
       "idempotency": true,
       "retry_policy": "Retry `controlNotify` 3회/1s/×2, CB 50%/10/5/open 30s, CALL 타임아웃 10s(동기 대기 권장 15s). **영속 fallback 큐 + dead-letter**: 실패 즉시 적재(idempotencyKey unique, 큐 깊이 상한 10000 — CWE-770), 재전송 배치가 5분 간격·batch 20 으로 재시도, 백오프 2^n분(60분 cap), max 5회 초과 시 DEAD_LETTER. 성공도 SUCCEEDED 행으로 감사 기록. ⚠ `ignore-exceptions` 미설정이라 4xx 도 5회 재시도 후 DEAD_LETTER 로 빠진다 — 관제 409 기반 자기치유 설계와 충돌하는 지점.",
       "triggers_apis": [
@@ -36,12 +36,14 @@
         "API-075",
         "API-076"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "pii_in_payload": false,
       "related_events": [
@@ -66,12 +68,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "완료 통지 페이로드 서술에서 필수 필드 개수 표기를 걷어냈다. 이 프로젝트에서 그 수는 실제로 두 번 틀렸고(완료 통지 필수 필드가 여섯으로 적혀 있다가 아홉으로 드러났고, 수정 통지 페이로드가 셋으로 적혀 있다가 넷으로 드러났다) 그때마다 그 수를 인용한 층들이 동시에 어긋났다. 필드가 하나 늘 때 개수만 남은 층이 조용히 거짓이 되므로 판정은 이어지는 필드명 열거가 맡는다. 필드명 열거·선택 필드 표기·키 유무 비대칭 서술은 그대로 두었고 다른 축의 수(경로 종류·중첩 단계·단위 건수)는 손대지 않았다.",
+    "current_version": 12,
+    "stale": true,
+    "stale_reason": "INT-015의 4개 필드 변경 — references",
+    "change_summary": "관제 통지 수신처 주소의 용도를 통지 전용으로 못박는 절 「## 수신처 주소 — 통지 전용」을 설명의 「## 활성화 — 환경별」 절 바로 앞에 삽입했다. 2026-09-14 사용자 확정 「관제 계정 창구 주소를 관제 통지 수신처와 분리한다, 폴백 없음」에 따른 것이다. 근거: 관제는 계정 창구(/api/account/)와 데이터셋 창구(/api/data-set/)를 서로 다른 WAS 에 두어, 주소 하나를 두 창구가 나눠 쓰면 WAS 에 직접 붙이는 순간 통지·세션 중 한쪽이 404 가 된다(개발 서버 실측). 삽입 내용: 통지 경로의 base 는 설정 키 authoring.control-notify.url 이 정하고 관리자 변경은 재기동 없이 다음 호출부터 반영 · 이 주소는 통지만 쓰며 관제 채널 세션 중계(갱신 /api/account/auth/refresh · 로그아웃 /api/account/auth/logout, INT-015)는 별도 연동 주소 「관제 계정 창구」(authoring.control-account.url)를 쓰고 서로 대신하지 않는다 · 넣을 값은 관제 웹서버 주소 또는 데이터셋 창구를 가진 WAS 주소 · 통지 인증·활성화 토글·재시도와 장애 격리·페이로드 계약은 무관. 2026-09-10 라운드가 이 ITEM 에 「세션 중계도 이 주소를 재사용한다」를 적지 않은 채 후속으로 남겼는데, 이번 결정으로 그 후속이 반대 방향(재사용하지 않는다)으로 닫혔다 — 이 ITEM 본문에는 재사용 서술이 없었으므로 폐기 표기할 대상은 없다. 쓰기 방식: 서버 JSON-RPC 덤프를 기준선으로 두고 앵커 count==1 을 확인한 순수 삽입으로 기대본을 만든 뒤 merge 로 description 만 썼다. 다른 절·필드·배열 원소·status·implementation 은 건드리지 않았다. 쓰기 전 stale=false · stale_reason 없음.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T16:10:14.884Z",
+    "last_updated_at": "2026-09-14T05:38:05.635Z",
     "created_at": "2026-06-01T06:34:30.636Z"
   }
 }

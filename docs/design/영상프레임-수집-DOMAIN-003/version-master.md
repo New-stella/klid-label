@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-09-14T05:35:33.825Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 182 |
+| Last sync | 2026-09-14T07:37:13.250Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 184 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-066]]
-- NEW [[FEAT-011]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -63,7 +62,7 @@
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-048]] | adr | 6 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-050]] | adr | 5 | UNCHANGED |
@@ -73,7 +72,7 @@
 | [[ADR-058]] | adr | 10 | UNCHANGED |
 | [[ADR-059]] | adr | 1 | UNCHANGED |
 | [[ADR-065]] | adr | 1 | UNCHANGED |
-| [[ADR-066]] | adr | 2 | NEW |
+| [[ADR-066]] | adr | 3 | UNCHANGED |
 | [[API-021]] | api_endpoint | 9 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
 | [[API-043]] | api_endpoint | 27 | UNCHANGED |
@@ -136,7 +135,7 @@
 | [[DFEAT-019]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-020]] | domain_feature | 6 | UNCHANGED |
 | [[DFEAT-029]] | domain_feature | 18 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 27 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 28 | UNCHANGED |
 | [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-060]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-003]] | domain | 14 | UNCHANGED |
@@ -147,7 +146,7 @@
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 6 | UNCHANGED |
 | [[FEAT-004]] | feature | 11 | UNCHANGED |
-| [[FEAT-011]] | feature | 1 | NEW |
+| [[FEAT-011]] | feature | 1 | UNCHANGED |
 | [[INT-002]] | integration_point | 23 | UNCHANGED |
 | [[INT-003]] | integration_point | 23 | UNCHANGED |
 | [[INT-004]] | integration_point | 16 | UNCHANGED |
@@ -164,7 +163,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |

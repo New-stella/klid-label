@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-09-14T05:35:54.993Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 87 |
+| Last sync | 2026-09-14T07:37:36.554Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 88 |
 | 출력 루트 | docs/design/마킹-DOMAIN-011 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[FEAT-012]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -56,7 +56,7 @@
 | [[ADR-022]] | adr | 6 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-052]] | adr | 3 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-043]] | api_endpoint | 27 | UNCHANGED |
@@ -77,7 +77,7 @@
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 6 | UNCHANGED |
 | [[FEAT-005]] | feature | 12 | UNCHANGED |
-| [[FEAT-012]] | feature | 1 | NEW |
+| [[FEAT-012]] | feature | 1 | UNCHANGED |
 | [[INT-002]] | integration_point | 23 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 20 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
@@ -85,7 +85,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |

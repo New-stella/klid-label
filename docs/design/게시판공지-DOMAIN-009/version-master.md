@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-09-14T05:35:49.771Z |
+| Last sync | 2026-09-14T07:37:32.936Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 75 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -72,7 +72,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |

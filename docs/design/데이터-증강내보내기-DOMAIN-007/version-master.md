@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-09-14T05:35:35.753Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 110 |
+| Last sync | 2026-09-14T07:37:28.497Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 111 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-066]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -68,8 +68,8 @@
 | [[ADR-058]] | adr | 10 | UNCHANGED |
 | [[ADR-059]] | adr | 1 | UNCHANGED |
 | [[ADR-061]] | adr | 1 | UNCHANGED |
-| [[ADR-062]] | adr | 6 | UNCHANGED |
-| [[ADR-066]] | adr | 2 | NEW |
+| [[ADR-062]] | adr | 7 | UNCHANGED |
+| [[ADR-066]] | adr | 3 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
 | [[API-059]] | api_endpoint | 9 | UNCHANGED |
 | [[API-060]] | api_endpoint | 18 | UNCHANGED |
@@ -105,7 +105,7 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |

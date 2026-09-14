@@ -5,21 +5,17 @@ version: 15
 last_updated_at: 2026-09-07T10:45:31.795Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.745Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.250Z
+sync_session: 40
 stale: true
-status: CHANGED
-prev_version: 14
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-038.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-185]]", "[[API-186]]", "[[API-219]]", "[[API-220]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v14 → v15**
-> change_summary: 질문 문구가 추가 질문 축의 위탁 요청 본문에 직접 실려 나간다는 사실과, 편집이 이미 나간 위탁에 소급되지 않는다는 점을 화면 안내에 반영했다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 이벤트유형 관리 화면
 

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-010",
-  "synced_at": "2026-09-14T05:35:53.625Z",
+  "synced_at": "2026-09-14T07:37:34.693Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -819,8 +819,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 13,
-      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
+      "version": 14,
+      "content_hash": "19ac42d53225c3b9108cf743487835a1178c0e6fe5a119d388d077a4febe2ea6"
     },
     "NFR-014": {
       "type": "nfr",

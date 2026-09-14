@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-012",
-  "synced_at": "2026-09-14T05:35:56.945Z",
+  "synced_at": "2026-09-14T07:37:38.312Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -111,8 +111,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 17,
-      "content_hash": "ab4233a1c0c5a29bf1aa992566a3e61a33ad7f46f706e92621f988216bebc8c4"
+      "version": 18,
+      "content_hash": "2a7397a0015f6b5848ea1a127732336e2d237c9b0c335d934de6ca3960680fd7"
     },
     "ADR-048": {
       "type": "adr",
@@ -147,8 +147,8 @@
     "ADR-062": {
       "type": "adr",
       "domain_id": null,
-      "version": 6,
-      "content_hash": "e1ae9715a5556586ac3905f1a26d5aabc0f376a8e74090811ffb2cc102d0819b"
+      "version": 7,
+      "content_hash": "23889c17ada08b654ebb226ea8f4c363301297a2c8609a9be00b046533779aee"
     },
     "ADR-065": {
       "type": "adr",
@@ -159,8 +159,8 @@
     "ADR-066": {
       "type": "adr",
       "domain_id": "DOMAIN-012",
-      "version": 2,
-      "content_hash": "36377aac86abcd124816c427b73490a38e7f44ecef268f94ec266662d1461fc0"
+      "version": 3,
+      "content_hash": "4cb77c59662a0adb9381498c74bfd3c340aface2b3f083dac284b0553a1b3119"
     },
     "API-032": {
       "type": "api_endpoint",
@@ -279,8 +279,8 @@
     "SEQ-025": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "39ba02dbd0b6155fcc6aa776c7df50b8779010f7f66a287cf0cd23c391bfbdf7"
+      "version": 10,
+      "content_hash": "d89d3d20b4f27cc349ac4c519666f658b4708723b93f9d35b2d37bfe5c8b6a7c"
     },
     "SEQ-030": {
       "type": "diagram_sequence",
@@ -303,8 +303,8 @@
     "DOMAIN-012": {
       "type": "domain",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "69ab08aabd372a6a87ef8fde1fa6acdc4869c710353c3d5eb151d9c033e53fc8"
+      "version": 15,
+      "content_hash": "b02ad734b6bebab55c41502b36a31cd7f660b3076ce1e6e7ad5b9889e618c4d6"
     },
     "EVT-005": {
       "type": "domain_event",
@@ -429,8 +429,8 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 13,
-      "content_hash": "bce267ec555ec6cb8902abebe5e5949ede5b679ddf3bc54bb399cd4f2fbdff7a"
+      "version": 14,
+      "content_hash": "19ac42d53225c3b9108cf743487835a1178c0e6fe5a119d388d077a4febe2ea6"
     },
     "NFR-014": {
       "type": "nfr",

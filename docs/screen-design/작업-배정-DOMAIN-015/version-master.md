@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-09-14T05:34:16.624Z (session 18) |
-| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 158 |
-| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
+| Last sync | 2026-09-14T07:37:27.590Z (session 19) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 166 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
 
@@ -15,9 +15,9 @@
 |---|---|---|---|---|---|
 | [[AC-1075]] | acceptance | UC-029 작업 목록 조회·필터링·배정 — 역할별 범위·일괄 확정 필터·시간축 정렬·KPI 토글·배정/일괄배정 (happy) | 6 | true | UNCHANGED |
 | [[AC-1076]] | acceptance | UC-029 작업 목록 분기 — 미등록 정렬 키 strict 400·옵션 절단 안내·배정 이력 Drawer (negative) | 5 | true | UNCHANGED |
-| [[API-001]] | api_endpoint | GET /v1/users | 10 | false | CHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 10 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
-| [[API-070]] | api_endpoint | POST /v1/assignments | 10 | false | CHANGED |
+| [[API-070]] | api_endpoint | POST /v1/assignments | 10 | false | UNCHANGED |
 | [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
 | [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
 | [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | UNCHANGED |
@@ -28,13 +28,13 @@
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | CHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 49 | false | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | CHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 14 | false | CHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 14 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -69,7 +69,7 @@
 | [[UI-032]] | ui_component | feedback: Spinner | 3 | false | UNCHANGED |
 | [[UI-033]] | ui_component | feedback: Skeleton | 3 | false | UNCHANGED |
 | [[UI-034]] | ui_component | layout: AppLayout | 4 | false | UNCHANGED |
-| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | CHANGED |
+| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | UNCHANGED |
 | [[UI-036]] | ui_component | navigation: Lnb | 3 | false | UNCHANGED |
 | [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | UNCHANGED |
 | [[UI-038]] | ui_component | layout: Footer | 3 | false | UNCHANGED |
@@ -77,7 +77,7 @@
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
 | [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
-| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | CHANGED |
+| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
 | [[UI-046]] | ui_component | display: CanvasShell | 8 | false | UNCHANGED |

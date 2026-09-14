@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-09-14T05:35:43.703Z |
-| Mode | SYNC — NEW 8 / CHANGED 0 / UNCHANGED 114 |
+| Last sync | 2026-09-14T07:37:07.186Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 122 |
 | 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 56건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 57건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,14 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-1104]]
-- NEW [[AC-1105]]
-- NEW [[AC-1106]]
-- NEW [[API-246]]
-- NEW [[API-247]]
-- NEW [[EXTSYS-005]]
-- NEW [[INT-007]]
-- NEW [[INT-015]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -58,25 +51,25 @@
 | [[AC-1017]] | acceptance | 12 | UNCHANGED |
 | [[AC-1018]] | acceptance | 7 | UNCHANGED |
 | [[AC-1019]] | acceptance | 6 | UNCHANGED |
-| [[AC-1072]] | acceptance | 12 | UNCHANGED |
+| [[AC-1072]] | acceptance | 13 | UNCHANGED |
 | [[AC-1073]] | acceptance | 5 | UNCHANGED |
-| [[AC-1074]] | acceptance | 6 | UNCHANGED |
+| [[AC-1074]] | acceptance | 7 | UNCHANGED |
 | [[AC-1095]] | acceptance | 1 | UNCHANGED |
 | [[AC-1096]] | acceptance | 1 | UNCHANGED |
 | [[AC-1097]] | acceptance | 1 | UNCHANGED |
 | [[AC-1098]] | acceptance | 5 | UNCHANGED |
 | [[AC-1103]] | acceptance | 5 | UNCHANGED |
-| [[AC-1104]] | acceptance | 3 | NEW |
-| [[AC-1105]] | acceptance | 7 | NEW |
-| [[AC-1106]] | acceptance | 8 | NEW |
+| [[AC-1104]] | acceptance | 3 | UNCHANGED |
+| [[AC-1105]] | acceptance | 8 | UNCHANGED |
+| [[AC-1106]] | acceptance | 9 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-012]] | adr | 21 | UNCHANGED |
+| [[ADR-012]] | adr | 22 | UNCHANGED |
 | [[ADR-021]] | adr | 5 | UNCHANGED |
 | [[ADR-039]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-058]] | adr | 10 | UNCHANGED |
 | [[ADR-063]] | adr | 9 | UNCHANGED |
@@ -94,8 +87,8 @@
 | [[API-243]] | api_endpoint | 8 | UNCHANGED |
 | [[API-244]] | api_endpoint | 7 | UNCHANGED |
 | [[API-245]] | api_endpoint | 2 | UNCHANGED |
-| [[API-246]] | api_endpoint | 3 | NEW |
-| [[API-247]] | api_endpoint | 4 | NEW |
+| [[API-246]] | api_endpoint | 4 | UNCHANGED |
+| [[API-247]] | api_endpoint | 5 | UNCHANGED |
 | [[CDIAG-008]] | class_diagram | 10 | UNCHANGED |
 | [[CDIAG-016]] | class_diagram | 1 | UNCHANGED |
 | [[CDIAG-028]] | class_diagram | 1 | UNCHANGED |
@@ -106,17 +99,17 @@
 | [[DFEAT-003]] | domain_feature | 12 | UNCHANGED |
 | [[DOMAIN-001]] | domain | 15 | UNCHANGED |
 | [[ERD-029]] | erd | 5 | UNCHANGED |
-| [[EXTSYS-005]] | external_system | 17 | NEW |
-| [[INT-007]] | integration_point | 11 | NEW |
+| [[EXTSYS-005]] | external_system | 18 | UNCHANGED |
+| [[INT-007]] | integration_point | 12 | UNCHANGED |
 | [[INT-013]] | integration_point | 30 | UNCHANGED |
 | [[INT-014]] | integration_point | 14 | UNCHANGED |
-| [[INT-015]] | integration_point | 7 | NEW |
+| [[INT-015]] | integration_point | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -173,6 +166,6 @@
 | [[SD-034]] | screen_design | 6 | UNCHANGED |
 | [[SD-037]] | screen_design | 5 | UNCHANGED |
 | [[SEQ-018]] | diagram_sequence | 9 | UNCHANGED |
-| [[SEQ-034]] | diagram_sequence | 22 | UNCHANGED |
+| [[SEQ-034]] | diagram_sequence | 23 | UNCHANGED |
 | [[UC-030]] | use_case | 17 | UNCHANGED |
 | [[UC-041]] | use_case | 29 | UNCHANGED |

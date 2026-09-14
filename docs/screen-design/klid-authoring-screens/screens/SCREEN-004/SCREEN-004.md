@@ -5,20 +5,16 @@ version: 18
 last_updated_at: 2026-09-10T08:53:19.078Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.709Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.210Z
+sync_session: 40
 stale: false
-status: CHANGED
-prev_version: 17
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-004.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-153]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v17 → v18**
-> change_summary: purpose 에 관제 채널 개발용 발급 토큰의 세션 동작 한 문단을 덧붙인다: 이 화면이 발급한 토큰에는 세션 정보(tokenInfo)와 refresh 토큰이 함께 놓이지 않으므로 세션 연장(갱신)이 일어나지 않고 만료 시각까지 그대로 쓰며, 세션 정보가 없다는 이유로 로그아웃되지 않는다. 근거는 관제 채널 토큰 갱신·세션 연장 확정(INT-013 「내부(관제) 채널 창구의 동작」의 refresh 토큰 없는 진입은 갱신하지 않고 현재 토큰을 돌려준다 · tokenInfo 는 있다가 사라졌을 때만 로그아웃 — SHELL-001 세션 만료 감시 동반). 토큰 발급 폼 절 설명이 932자로 상한 1000자에 여유가 없어 purpose 에 두었다 — sections 무변경이라 정적 렌더 source_hash 는 그대로 맞다. 쓰기 전 stale 표식은 「API-153의 3개 필드 변경 — consumes」였고, 그 변경(API-153 v6: 역할·채널 조합 서술에 ADMIN 추가, 스키마 무변경)은 이 화면 역할 선택지에 이미 ADMIN 이 있어 이번 축과 무관하게 정합이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 개발용 로그인 화면
 

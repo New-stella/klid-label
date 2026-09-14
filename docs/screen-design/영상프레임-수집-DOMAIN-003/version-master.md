@@ -5,16 +5,16 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-09-14T05:37:32.813Z (session 19) |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 163 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| Last sync | 2026-09-14T07:37:30.816Z (session 20) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 165 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-1022]] | acceptance | UC-038 배치 자동 처리 — 비식별 선두→마킹 대기→마킹완료 시 잔여단계 논블로킹 수행 (happy) | 7 | true | NEW |
-| [[AC-1023]] | acceptance | UC-038 파이프라인 분기 — 프리셋 없어 오토라벨 보류·전체 건너뛰기·선점 노드 멈춤 회수 (edge) | 6 | true | NEW |
+| [[AC-1022]] | acceptance | UC-038 배치 자동 처리 — 비식별 선두→마킹 대기→마킹완료 시 잔여단계 논블로킹 수행 (happy) | 7 | true | UNCHANGED |
+| [[AC-1023]] | acceptance | UC-038 파이프라인 분기 — 프리셋 없어 오토라벨 보류·전체 건너뛰기·선점 노드 멈춤 회수 (edge) | 6 | true | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 27 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 9 | false | UNCHANGED |

@@ -1016,6 +1016,12 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★★★★★ **2026-09-14 2차 SYNC — 구현 15 키트 전량 (관제 계정 창구 주소 분리 라운드 · `CO-20260914-관제계정창구-주소분리` · PR #218).**
+> 계기는 설계 선반영 21건(`INT-015` v8 · `API-247` v5 · `API-246` v4 · `ADR-012` v22 · **`NFR-013` v14 — 전역이라 15개 전부 영향권** · `ADR-046` v18 · `SCREEN-042` v27 · `DOMAIN-014` v9 등)이다.
+> **검증**: 15키트 전건 `서버 건수 = pin 건수` · 직전 커밋 대비 **유실 0** · 두 바퀴 무열화 통과 · 이번 라운드 ITEM 이 들어가야 할 키트에 **전부 서버 현재 버전**(불일치 0).
+> **승격**: `INT-015` → D014(D014 소속 `SEQ-025` 가 참조 · 관제 계정 창구가 연동 주소 설정 축에 들어옴). **기각**: D001 `SEQ-025`(D014 에 이미 pin, D001 에는 한 칸 건너 약참조). 근거는 D014 `note_promoted` · 각 `note_pruned`.
+> ⚠ **version-master.md 의 changelog 는 2차 실행분만 남는다** — 다운로더가 매 실행마다 새로 써서 1차의 CHANGED 목록이 지워진다. 바뀐 ITEM 파일 자체의 `status: CHANGED`·변경 배너는 남는다. 델타는 git 으로 본다.
+>
 > ★★★★★★ **2026-09-14 SYNC — 구현 15 키트 전량 (생성형 영상 비식별 제외 라운드 · `CO-20260914-생성형영상-비식별제외`).**
 > 계기는 설계 선반영 약 40 ITEM(신규 `ADR-066` · `ERD-017` · `DFEAT-041/042` · `UC-011/018` · `AC-1020~1022·1063·1064·1067` 등)과 IMPREC-449/450 이다.
 > **검증**: 15키트 전건 `서버 건수 = pin 건수` · 직전 커밋 대비 **유실 0** · 두 바퀴 모두 무열화 통과 · 오늘 바뀐 ITEM 33건의 키트 `_raw` 가 서버 판과 일치.
@@ -1093,7 +1099,7 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 24 / in_progress 2 / planned 47 / (미기재) 14 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 122 | implemented 40 / in_progress 2 / planned 56 / (미기재) 24 | CONST 상수값 |
 | DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 129 | implemented 48 / in_progress 3 / planned 64 / (미기재) 14 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 130 | implemented 58 / in_progress 1 / planned 54 / (미기재) 17 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 131 | implemented 58 / in_progress 1 / planned 55 / (미기재) 17 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 72 | implemented 21 / planned 47 / (미기재) 4 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 97 | implemented 28 / in_progress 2 / planned 54 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
 | DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 106 | implemented 34 / in_progress 4 / planned 55 / (미기재) 13 | CONST 상수값, C4 컴포넌트 |
@@ -1122,6 +1128,10 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ★ **2026-09-14 2차 SYNC — 7개 키트 전부 (관제 계정 창구 주소 분리 라운드 · PR #218).** 전 키트 `서버 건수 = pin 건수` · 유실 0 · 재실행 변경 0 · `design.html`/`design.css` 원본 변경 0.
+> 반영: 통합 키트 `SCREEN-042` v25→**v27** · `SD-036` v14→**v16**(미러 갱신) · `UC-031` v21 · `API-069` v13 / D001 `AC-1105` v8 · `AC-1106` v9.
+> ⚠ **통합 키트에 구조적으로 이어져 있는데 pin 에 없는 ITEM 이 약 100건이다** — 이번 라운드 몫은 `AC-1072`·`AC-1074`(`UC-031` 의 수용기준)이고, `SCREEN-042` 가 소비하는 `API-226`~`230` 등도 빠져 있다. 통합 키트는 미판정에 NFR 만 올라오는 구조라 **이 누락이 목록에 드러나지 않는다.** 2026-09-01 기록의 「전 화면 재승격은 별건」에 따라 승격하지 않았다(판단 대기).
+>
 > ⚠ **후속 라운드(같은 날) — 평평 디렉터리 정리 + 화면 2건 편입.**
 > ①**키트 루트의 평평한 타입 디렉터리를 전부 지웠다**(추적 파일 **2,423개** — 앞 문단의 「1,155개」는 과소
 > 집계였다). 지우기 전에 그 내용이 정본 경로에 있는지 대조했고, 이름이 정본에 없던 `SD-*` 26건도
@@ -1200,13 +1210,13 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-14 (s39)** | 476 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-14 (s18) | 227 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-14 (s18) | 180 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-14 (s18) | 166 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-14 (s19) | 165 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-14 (s18) | 172 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-14 (s19) | 181 |
+| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-14 (s40)** | 476 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-14 (s19) | 227 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-14 (s19) | 180 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-14 (s19) | 166 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-14 (s20) | 165 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-14 (s19) | 172 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-14 (s20) | 181 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

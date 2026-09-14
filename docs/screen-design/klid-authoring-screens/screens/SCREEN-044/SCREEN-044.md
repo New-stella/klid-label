@@ -5,11 +5,11 @@ version: 14
 last_updated_at: 2026-09-08T21:50:42.638Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.756Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.258Z
+sync_session: 40
 stale: false
-status: CHANGED
-prev_version: 8
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-044.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-027]]"]
   acceptance: ["[[AC-1070]]", "[[AC-1071]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v8 → v14**
-> change_summary: 첫 섹션 세 번째 부품의 note 에서 폐기 서술을 걷어냈다. 화면정의서는 발주처 산출물이라 본문에 폐기 문구를 두지 않고 실제 화면 구성만 적는다 — 실제로 「구 처리 폐기 — … 되살리지 말 것」이 D2 사용자 인터페이스 설계서 hwpx 본문에 그대로 나갔다(2026-09-09 산출물 실측, 포털포함·포털향 두 벌). 남긴 사양은 그대로다: 실패한 줄에만 보이고, 자르지 않고 줄바꿈해 전문을 보인다. 여기로 옮겨 보존하는 폐기 이력: 구 처리는 「상태 표시 옆 같은 칸에 한 줄, 넘치면 줄임표, 전문은 가리키면 뜨는 말풍선」이었고 폐기 사유는 말풍선이 터치 환경에서 뜨지 않으며 게시본 정리기가 그 속성을 지워 보완책이 되지 못한다는 것이다. 되살리지 않는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 증강 화면
 

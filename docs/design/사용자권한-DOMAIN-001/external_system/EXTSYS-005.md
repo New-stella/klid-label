@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-005
 type: external_system
-version: 17
+version: 18
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:35:43.702Z
-status: NEW
-prev_version: null
-content_hash: e87bfd4c4affdc81cf5a88157cbfedaedf94f156d47ddf2bc2ed179a6bdc0733
+synced_at: 2026-09-14T07:34:48.946Z
+status: CHANGED
+prev_version: 17
+content_hash: 8b4101a111cefb65704a92c484301f282507374c0ec321e0d945f7413579bb06
 stale: false
 raw: ./_raw/EXTSYS-005.json
 links:
@@ -70,12 +70,13 @@ high
 
 관제지원시스템(관제서버). 저작도구는 검수 완료된 학습데이터를 관제로 통지하고, 관제가 그것을 데이터마트로 가져간다. **데이터마트 구축·검색·다운로드 자체는 범위 외**(외부 제공 시스템 책임).
 
-## 연동 표면 5종
+## 연동 표면
 1. **outbound 통지**(INT-007) — TASK_COMPLETED(검수 승인 시) / TASK_MODIFIED(완료된 영상의 수정이 재검수에서 승인될 때). 영상 1건 단위, 라벨·메타 본문 미포함. **경로·페이로드가 관제 정본(API-251/API-285)과 정합 완료** — 인증(x-access-token)만 미확정(B-4).
 2. **inbound 조회 API** — GET /v1/tasks/{rawSn}/summary|labels|meta. 관제가 통지 수신 후 상세를 가져가는 경로(JWT+역할+IDOR 가드).
 3. **데이터마트 적재용 View 4종**(INT-010 참조) — klid_at 스키마, 검수 완료(APPROVED) 영상만 노출: V_COMPLETED_VIDEO(+export 폴더 경로·프레임수·비식별 영상 경로·대표 이미지 경로) · V_COMPLETED_FRAME · V_COMPLETED_LABEL_CHANGE · V_COMPLETED_META.
 4. **파생영상(증강·해상도) 메타** — ORGNL_RAW_SN not null 인 행은 ORGNL_VDO_PATH_NM(개명 전 ORIGINAL_VIDEO_PATH) 가 NULL 로 동결되고 DE_IDNTF_FILE_PATH_NM(V138)으로 픽업(★BREAKING, 아래 참조).
-5. **관제 채널 브라우저 → 관제 계정 세션 갱신**(INT-015) — 관제 채널로 진입한 저작도구 프론트엔드(브라우저)가 관제지원 계정 서비스의 세션 갱신 창구를 직접 호출해 access 토큰을 재발급받는다. 저작도구 백엔드는 이 호출에 끼지 않는다.
+5. **저작도구 서버 → 관제 계정 세션 창구 — 갱신·로그아웃 중계**(INT-015) — 관제 채널 브라우저는 관제를 부르지 않고 저작도구의 갱신 API(API-247)·로그아웃 API(API-246)를 부르며, 저작도구 서버가 관제지원 계정 서비스의 갱신 창구(`POST /api/account/auth/refresh`)·로그아웃 창구(`POST /api/account/auth/logout`)로 중계한다. 대상 주소는 관제 계정 창구 주소(`authoring.control-account.url`)만 쓰며 1번 통지의 수신처 주소와 무관하다(폴백 없음) — 관제는 계정 창구와 데이터셋 창구를 서로 다른 WAS 에 둔다. 통지 활성화 토글과도 무관하게 동작한다.
+   - [폐기] (2026-09-10) 관제 채널 브라우저가 관제 계정 서비스의 세션 갱신 창구를 직접 호출하고 저작도구 백엔드는 이 호출에 끼지 않는다는 서술은 두지 않는다 — 관제 호출은 저작도구 서버 경유로 확정됐다(ADR-012).
 
 ## 활성화 — 환경별 (확정, 불명 없음)
 | 환경 | authoring.control-notify.enabled | 실질 |

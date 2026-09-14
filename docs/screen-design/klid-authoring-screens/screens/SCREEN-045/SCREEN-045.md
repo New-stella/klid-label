@@ -5,21 +5,17 @@ version: 6
 last_updated_at: 2026-09-09T03:01:13.894Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.758Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.259Z
+sync_session: 40
 stale: false
-status: CHANGED
-prev_version: 5
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-045.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-238]]", "[[API-239]]", "[[API-240]]", "[[API-241]]", "[[API-140]]"]
   required_roles: ["[[ROLE-003]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v5 → v6**
-> change_summary: 한 화면 레이아웃 확정 — 넓은 폭 두 열(왼쪽 재생 무대 · 오른쪽 설정+지점 목록), 재생 무대는 영상·눈금·조작 한 표면, 눈금에 재생 위치 표시, 지점 목록은 자리 안에서만 스크롤
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 영상 마킹 화면
 

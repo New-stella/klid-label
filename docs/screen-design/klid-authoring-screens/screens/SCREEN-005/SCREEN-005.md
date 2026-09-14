@@ -5,11 +5,11 @@ version: 106
 last_updated_at: 2026-09-07T14:56:20.111Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:34:04.711Z
-sync_session: 39
+synced_at: 2026-09-14T07:37:14.214Z
+sync_session: 40
 stale: true
-status: CHANGED
-prev_version: 102
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-004]]", "[[UC-005]]", "[[UC-006]]", "[[UC-007]]", "[[UC-008]]", "[[UC-021]]", "[[UC-022]]", "[[UC-034]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v102 → v106**
-> change_summary: 마킹 화면을 거친 영상은 검증 이벤트 유형과 질문이 반드시 있다는 사실을 덧붙여 조건부 갈래의 성립 범위를 좁혔다. 갈래 자체는 지우지 않았고 동작·계약·응답 필드·조달 순서·필수 목록은 무변경이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 

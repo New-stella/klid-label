@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-09-14T05:35:47.033Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 75 |
+| Last sync | 2026-09-14T07:37:25.800Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 76 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[FEAT-014]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -68,13 +68,13 @@
 | [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
 | [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-006]] | domain | 10 | UNCHANGED |
-| [[FEAT-014]] | feature | 1 | NEW |
+| [[FEAT-014]] | feature | 1 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |

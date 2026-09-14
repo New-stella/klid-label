@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-14T05:35:41.566Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 96 |
+| Last sync | 2026-09-14T07:37:46.339Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 98 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[API-247]]
-- NEW [[INT-015]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -55,18 +54,18 @@
 | [[AC-1097]] | acceptance | 1 | UNCHANGED |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-012]] | adr | 21 | UNCHANGED |
+| [[ADR-012]] | adr | 22 | UNCHANGED |
 | [[ADR-013]] | adr | 23 | UNCHANGED |
 | [[ADR-020]] | adr | 11 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
-| [[ADR-046]] | adr | 17 | UNCHANGED |
+| [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
 | [[API-076]] | api_endpoint | 9 | UNCHANGED |
-| [[API-247]] | api_endpoint | 4 | NEW |
+| [[API-247]] | api_endpoint | 5 | UNCHANGED |
 | [[CDIAG-013]] | class_diagram | 12 | UNCHANGED |
 | [[CDIAG-044]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 21 | UNCHANGED |
@@ -85,19 +84,19 @@
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
 | [[EVT-010]] | domain_event | 4 | UNCHANGED |
-| [[EXTSYS-005]] | external_system | 17 | UNCHANGED |
+| [[EXTSYS-005]] | external_system | 18 | UNCHANGED |
 | [[FEAT-003]] | feature | 11 | UNCHANGED |
-| [[INT-007]] | integration_point | 11 | UNCHANGED |
+| [[INT-007]] | integration_point | 12 | UNCHANGED |
 | [[INT-010]] | integration_point | 12 | UNCHANGED |
 | [[INT-011]] | integration_point | 2 | UNCHANGED |
-| [[INT-015]] | integration_point | 7 | NEW |
+| [[INT-015]] | integration_point | 8 | UNCHANGED |
 | [[INTSPEC-004]] | integration_spec | 13 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 13 | UNCHANGED |
+| [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
@@ -143,6 +142,6 @@
 | [[SEQ-015]] | diagram_sequence | 5 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-025]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-025]] | diagram_sequence | 10 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[UC-009]] | use_case | 26 | UNCHANGED |

@@ -29,7 +29,7 @@
         저장 가능
       </span>
     </div>
-    <p class="page-desc t-body-sm text-muted">주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 / 장비 목록 — 추론 · 외부 시계열 분석</p>
+    <p class="page-desc t-body-sm text-muted">주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 · 관제 계정 창구 / 장비 목록 — 추론 · 외부 시계열 분석</p>
     <p class="page-desc t-caption scope-note">
       <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
       <span>데이터베이스 접속정보는 이 화면에서 다루지 않습니다.</span>
@@ -44,7 +44,7 @@
         <header class="card-header">
           <div class="config-heading">
             <h2 class="t-title-md" id="cfg-endpoint-title">연동 서버 주소</h2>
-            <p class="t-caption text-muted">저작도구가 다른 서버로 요청을 보내는 주소입니다. 이 절은 <strong>저장한 값이 곧 진실원인 축</strong>만 다룹니다 — <strong>비식별 서버</strong> · <strong>외부 증강 벤더</strong> · <strong>관제 통지 수신처</strong>이며, 셋 다 보낼 곳이 한 곳뿐이라 고를 일이 없습니다.</p>
+            <p class="t-caption text-muted">저작도구가 다른 서버로 요청을 보내는 주소입니다. 이 절은 <strong>저장한 값이 곧 진실원인 축</strong>만 다룹니다 — <strong>비식별 서버</strong> · <strong>외부 증강 벤더</strong> · <strong>관제 통지 수신처</strong> · <strong>관제 계정 창구</strong>이며, 모두 보낼 곳이 한 곳뿐이라 고를 일이 없습니다.</p>
             <p class="t-caption text-muted"><strong>추론</strong>과 <strong>외부 시계열 분석</strong>의 주소 칸은 이 절에 두지 않습니다 — 그 둘은 장비를 여러 대 두고 골라 보내므로 진실원이 장비 원장이고, 주소를 바꾸는 자리는 아래 <strong>장비 목록</strong> 하나입니다.</p>
           </div>
           <div class="config-actions">
@@ -95,11 +95,24 @@
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify-ro">관제 통지 수신처 주소</label>
               </div>
-              <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
+              <p class="t-caption ep-role">작업 완료·수정 통지를 받는 관제 창구 주소. 관제 웹서버 주소 또는 데이터셋 창구를 가진 WAS 주소를 넣는다.</p>
               <input class="input input-mono" id="ep-notify-ro" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" disabled />
               <p class="t-caption ep-empty">
                 <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
                 <span>저장된 값 없음 — 배포 기본값으로 동작 중</span>
+              </p>
+            </div>
+
+            <div class="field ep-field">
+              <div class="field-head">
+                <label class="t-label field-label" for="ep-account-ro">관제 계정 창구 주소</label>
+              </div>
+              <p class="t-caption ep-role">관제 채널 세션 연장·로그아웃을 중계할 관제 창구 주소. 관제 웹서버 주소 또는 계정 창구를 가진 WAS 주소를 넣는다. 비어 있으면 세션 연장이 동작하지 않는다.</p>
+              <input class="input input-mono" id="ep-account-ro" type="text" placeholder="미설정 — 세션 연장 불가" disabled />
+              <p class="t-caption ep-key">authoring.control-account.url</p>
+              <p class="t-caption ep-empty">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <span>미설정 — 세션 연장 불가</span>
               </p>
             </div>
 
@@ -152,11 +165,24 @@
               <div class="field-head">
                 <label class="t-label field-label" for="ep-notify">관제 통지 수신처 주소</label>
               </div>
-              <p class="t-caption ep-role">검수 완료·수정 사실을 관제서버로 보내는 곳입니다.</p>
+              <p class="t-caption ep-role">작업 완료·수정 통지를 받는 관제 창구 주소. 관제 웹서버 주소 또는 데이터셋 창구를 가진 WAS 주소를 넣는다.</p>
               <input class="input input-mono" id="ep-notify" type="text" placeholder="http:// 또는 https:// 로 시작하는 주소" aria-describedby="ep-scheme-help ep-notify-empty" />
               <p class="t-caption ep-empty" id="ep-notify-empty">
                 <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
                 <span>저장된 값 없음 — 배포 기본값으로 동작 중</span>
+              </p>
+            </div>
+
+            <div class="field ep-field">
+              <div class="field-head">
+                <label class="t-label field-label" for="ep-account">관제 계정 창구 주소</label>
+              </div>
+              <p class="t-caption ep-role">관제 채널 세션 연장·로그아웃을 중계할 관제 창구 주소. 관제 웹서버 주소 또는 계정 창구를 가진 WAS 주소를 넣는다. 비어 있으면 세션 연장이 동작하지 않는다.</p>
+              <input class="input input-mono" id="ep-account" type="text" placeholder="미설정 — 세션 연장 불가" aria-describedby="ep-scheme-help ep-account-empty" />
+              <p class="t-caption ep-key">authoring.control-account.url</p>
+              <p class="t-caption ep-empty" id="ep-account-empty">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5m0-3h.01"></path></svg>
+                <span>미설정 — 세션 연장 불가</span>
               </p>
             </div>
 

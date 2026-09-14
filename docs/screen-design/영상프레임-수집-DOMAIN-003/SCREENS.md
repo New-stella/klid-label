@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-09-14T05:37:32.807Z (session 19) |
+| last sync | 2026-09-14T07:37:30.811Z (session 20) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -47,13 +47,6 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[AC-1022]] | acceptance | NEW |
-| [[AC-1023]] | acceptance | NEW |
 
 ## Obsidian 볼트로 보기
 

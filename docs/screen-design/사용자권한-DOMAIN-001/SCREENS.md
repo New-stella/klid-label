@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-09-14T05:37:28.474Z (session 19) |
+| last sync | 2026-09-14T07:37:36.529Z (session 20) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -60,9 +60,8 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-1104]] | acceptance | NEW |
-| [[AC-1105]] | acceptance | NEW |
-| [[AC-1106]] | acceptance | NEW |
+| [[AC-1105]] | acceptance | CHANGED (v7→v8) |
+| [[AC-1106]] | acceptance | CHANGED (v8→v9) |
 
 ## Obsidian 볼트로 보기
 
