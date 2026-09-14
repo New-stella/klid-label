@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 76
-last_updated_at: 2026-09-01T08:27:11.143Z
+version: 78
+last_updated_at: 2026-09-08T08:26:57.767Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T06:20:00.298Z
-sync_session: 38
+synced_at: 2026-09-14T05:34:04.715Z
+sync_session: 39
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 76
 raw: ./_raw/SCREEN-009.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]"]
   acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v76 → v78**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (18.3KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 상세 화면
 
@@ -508,7 +512,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 배치 조치 패널에서 재수행을 고르면 뜨는 확인 창이다. 두 작업 묶음(시계열·오토라벨) 모두 이 창을 거치며, 확인 없이 곧바로 접수되는 재수행은 없다. 다만 두 창은 같은 모양이 아니다 — 창을 두는 근거와 경고 상자를 두는 근거가 서로 다르기 때문이다. ★확인 창을 두는 근거는 재수행이 공짜가 아니라는 것이다. 재수행은 외부 분석 서비스로 다시 위탁을 보내는 행위라 비용과 시간이 들고 동시 처리 한도를 먹는다. 두 묶음 모두 이 근거에 해당한다. ★경고 상자를 두는 근거는 되돌릴 수 없다는 것이다. 오토라벨 재수행은 사람이 손댄 보간 라벨을 새로 계산된 값으로 덮는다. 시계열 묶음은 이 근거에 해당하지 않는다. ⇒ 확인이 균일해져 무뎌지는 것이 아니라 위험도에 따라 층이 갈린다. 일관성을 이유로 두 창을 같은 모양으로 만들면 한쪽이 틀리게 된다.
+- **description**: 배치 조치 패널에서 재수행을 고르면 뜨는 확인 창이다. 두 작업 묶음(시계열·오토라벨) 모두 이 창을 거치며, 확인 없이 곧바로 접수되는 재수행은 없다. 다만 두 창은 같은 모양이 아니다 — 창을 두는 근거와 경고 상자를 두는 근거가 서로 다르기 때문이다. ★확인 창을 두는 근거는 재수행이 공짜가 아니라는 것이다. 재수행은 외부 분석 서비스로 다시 위탁을 보내는 행위라 시간이 들고 동시 처리 한도를 먹는다. 두 묶음 모두 이 근거에 해당한다. ★경고 상자를 두는 근거는 되돌릴 수 없다는 것이다. 오토라벨 재수행은 사람이 손댄 보간 라벨을 새로 계산된 값으로 덮는다. 시계열 묶음은 이 근거에 해당하지 않는다. ⇒ 확인이 균일해져 무뎌지는 것이 아니라 위험도에 따라 층이 갈린다. 일관성을 이유로 두 창을 같은 모양으로 만들면 한쪽이 틀리게 된다.
 
 **references_apis**:
 
@@ -641,8 +645,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: b1ae0b1c45db7ad45159395b241ca33dc835171b7c5321b1899ec00b9547c3cc
-- **generated_at**: 2026-08-27T09:26:35.639Z
+- **source_hash**: 11a774342b42817f1e3551781d360e036b990f3a6b4eae723f68f9305fc936c0
+- **generated_at**: 2026-09-08T08:26:57.766Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

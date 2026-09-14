@@ -5,33 +5,35 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-09-08T00:21:16.815Z (session 18) |
-| Mode | SYNC — NEW 2 / CHANGED 24 / UNCHANGED 137 / RETIRED 5 |
+| Last sync | 2026-09-14T05:37:32.813Z (session 19) |
+| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 163 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
+| [[AC-1022]] | acceptance | UC-038 배치 자동 처리 — 비식별 선두→마킹 대기→마킹완료 시 잔여단계 논블로킹 수행 (happy) | 7 | true | NEW |
+| [[AC-1023]] | acceptance | UC-038 파이프라인 분기 — 프리셋 없어 오토라벨 보류·전체 건너뛰기·선점 노드 멈춤 회수 (edge) | 6 | true | NEW |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 27 | false | CHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 27 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 9 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 6 | false | CHANGED |
-| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 10 | false | NEW |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 6 | false | UNCHANGED |
+| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 10 | false | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 9 | true | CHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 9 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | CHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | NEW |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | CHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 76 | true | CHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 78 | true | UNCHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 19 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 12 | true | CHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 21 | false | CHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 31 | true | CHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 24 | false | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 34 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -66,18 +68,18 @@
 | [[UI-032]] | ui_component | feedback: Spinner | 3 | false | UNCHANGED |
 | [[UI-033]] | ui_component | feedback: Skeleton | 3 | false | UNCHANGED |
 | [[UI-034]] | ui_component | layout: AppLayout | 4 | false | UNCHANGED |
-| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | CHANGED |
+| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | UNCHANGED |
 | [[UI-036]] | ui_component | navigation: Lnb | 3 | false | UNCHANGED |
-| [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | CHANGED |
+| [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | UNCHANGED |
 | [[UI-038]] | ui_component | layout: Footer | 3 | false | UNCHANGED |
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
 | [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
-| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | CHANGED |
+| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
-| [[UI-046]] | ui_component | display: CanvasShell | 8 | false | CHANGED |
+| [[UI-046]] | ui_component | display: CanvasShell | 8 | false | UNCHANGED |
 | [[UI-047]] | ui_component | action: ToolBar | 6 | false | UNCHANGED |
 | [[UI-048]] | ui_component | overlay: LabelPickerModal | 7 | false | UNCHANGED |
 | [[UI-049]] | ui_component | data: ObjectClassTree | 7 | false | UNCHANGED |
@@ -102,8 +104,8 @@
 | [[UI-068]] | ui_component | [폐기] input: VersionPicker | 6 | false | UNCHANGED |
 | [[UI-069]] | ui_component | overlay: RollbackConfirmModal | 4 | false | UNCHANGED |
 | [[UI-070]] | ui_component | layout: HistoryPanel | 4 | false | UNCHANGED |
-| [[UI-071]] | ui_component | input: ProcessKindCard | 5 | false | CHANGED |
-| [[UI-072]] | ui_component | display: JobCard | 5 | false | CHANGED |
+| [[UI-071]] | ui_component | input: ProcessKindCard | 5 | false | UNCHANGED |
+| [[UI-072]] | ui_component | display: JobCard | 5 | false | UNCHANGED |
 | [[UI-073]] | ui_component | action: DecisionCard | 4 | false | UNCHANGED |
 | [[UI-074]] | ui_component | [폐기] input: TimeseriesSidePanel | 5 | false | UNCHANGED |
 | [[UI-075]] | ui_component | [폐기] display: StateChangeTimeline | 5 | false | UNCHANGED |
@@ -127,7 +129,7 @@
 | [[UI-093]] | ui_component | [폐기] display: BatchStageSteps | 6 | false | UNCHANGED |
 | [[UI-094]] | ui_component | action: VideoActions | 5 | false | UNCHANGED |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | UNCHANGED |
-| [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | CHANGED |
+| [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | UNCHANGED |
 | [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | UNCHANGED |
 | [[UI-098]] | ui_component | input: FileInput | 2 | false | UNCHANGED |
 | [[UI-099]] | ui_component | input: Field | 2 | false | UNCHANGED |
@@ -136,7 +138,7 @@
 | [[UI-102]] | ui_component | display: ReadOnlyBadge | 1 | false | UNCHANGED |
 | [[UI-103]] | ui_component | feedback: AlertBanner | 1 | false | UNCHANGED |
 | [[UI-104]] | ui_component | display: CountChip | 1 | false | UNCHANGED |
-| [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | CHANGED |
+| [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | UNCHANGED |
 | [[UI-106]] | ui_component | data: KeyValueGrid | 1 | false | UNCHANGED |
 | [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
@@ -160,18 +162,18 @@
 | [[UI-126]] | ui_component | display: DisplayNameSourceChip | 1 | false | UNCHANGED |
 | [[UI-127]] | ui_component | display: DetectClassMapChip | 1 | false | UNCHANGED |
 | [[UI-128]] | ui_component | data: DatamartVideoCard | 1 | false | UNCHANGED |
-| [[UI-129]] | ui_component | layout: PortalHero | 4 | false | CHANGED |
+| [[UI-129]] | ui_component | layout: PortalHero | 4 | false | UNCHANGED |
 | [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
-| [[UI-131]] | ui_component | input: UploadDropzone | 2 | false | CHANGED |
-| [[UI-132]] | ui_component | display: AssetTypeChip | 2 | false | CHANGED |
+| [[UI-131]] | ui_component | input: UploadDropzone | 2 | false | UNCHANGED |
+| [[UI-132]] | ui_component | display: AssetTypeChip | 2 | false | UNCHANGED |
 | [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | UNCHANGED |
-| [[UI-134]] | ui_component | display: SelectionSummary | 2 | false | CHANGED |
+| [[UI-134]] | ui_component | display: SelectionSummary | 2 | false | UNCHANGED |
 | [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
 | [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |
 | [[UI-137]] | ui_component | feedback: InlineResultSummary | 1 | false | UNCHANGED |
-| [[UI-138]] | ui_component | data: FramePairGrid | 2 | false | CHANGED |
-| [[UI-139]] | ui_component | overlay: SideBySideCompare | 2 | false | CHANGED |
-| [[UI-140]] | ui_component | display: AugmentPromptSummary | 2 | false | CHANGED |
+| [[UI-138]] | ui_component | data: FramePairGrid | 2 | false | UNCHANGED |
+| [[UI-139]] | ui_component | overlay: SideBySideCompare | 2 | false | UNCHANGED |
+| [[UI-140]] | ui_component | display: AugmentPromptSummary | 2 | false | UNCHANGED |
 | [[UI-141]] | ui_component | feedback: AugmentProgressPanel | 1 | false | UNCHANGED |
 | [[UI-142]] | ui_component | display: WorkerNameSub | 1 | false | UNCHANGED |
 | [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |

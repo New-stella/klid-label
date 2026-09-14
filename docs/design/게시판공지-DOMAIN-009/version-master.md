@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-09-08T12:01:40.875Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 72 |
+| Last sync | 2026-09-14T05:35:49.771Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 75 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 47건
-  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 213건
-  ℹ️  erd: 이번 키트 1건 / 스코프 밖 23건
+  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 215건
+  ℹ️  erd: 이번 키트 1건 / 스코프 밖 24건
   ℹ️  diagram_sequence: 이번 키트 1건 / 스코프 밖 35건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 87건 (그중 domain_id 없음 9건)
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 92건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 2건 / 스코프 밖 56건 (그중 domain_id 없음 12건)
+  ℹ️  adr: 이번 키트 2건 / 스코프 밖 57건 (그중 domain_id 없음 12건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 14건 (그중 domain_id 없음 13건) — 전량 누락
 ```
 
@@ -41,9 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[NFR-020]] (prev v10)
-- CHANGED [[ROLE-002]] (prev v9)
-- CHANGED [[ROLE-003]] (prev v14)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -74,14 +72,14 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 10 | UNCHANGED |
+| [[NFR-013]] | nfr | 13 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 11 | CHANGED |
+| [[NFR-020]] | nfr | 11 | UNCHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -111,8 +109,8 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 10 | CHANGED |
-| [[ROLE-003]] | permission_role | 15 | CHANGED |
+| [[ROLE-002]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 15 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-030]] | screen_spec | 26 | UNCHANGED |
 | [[SCREEN-031]] | screen_spec | 33 | UNCHANGED |

@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-09-07T15:22:12.002Z (session 17) |
+| last sync | 2026-09-14T05:34:09.578Z (session 18) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
@@ -49,6 +49,21 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-018]] — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-019]] — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-102]] | api_endpoint | CHANGED (v14→v15) |
+| [[API-104]] | api_endpoint | CHANGED (v14→v15) |
+| [[API-132]] | api_endpoint | CHANGED (v5→v7) |
+| [[SHELL-001]] | app_shell | CHANGED (v11→v18) |
+| [[ROLE-002]] | permission_role | CHANGED (v9→v10) |
+| [[ROLE-003]] | permission_role | CHANGED (v14→v15) |
+| [[UI-035]] | ui_component | CHANGED (v7→v8) |
+| [[UI-043]] | ui_component | CHANGED (v4→v5) |
+| [[UC-009]] | use_case | CHANGED (v23→v26) |
+| [[UC-023]] | use_case | CHANGED (v30→v31) |
 
 ## Obsidian 볼트로 보기
 

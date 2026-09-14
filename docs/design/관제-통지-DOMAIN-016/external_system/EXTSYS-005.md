@@ -1,19 +1,19 @@
 ---
 logicraft_item: EXTSYS-005
 type: external_system
-version: 16
+version: 17
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:45.312Z
+synced_at: 2026-09-14T05:33:01.584Z
 status: CHANGED
-prev_version: 15
-content_hash: 074fd5571961b71bc5af76e7c8875495da5e5375e64f6cb676f2d1789a46d2a3
+prev_version: 16
+content_hash: e87bfd4c4affdc81cf5a88157cbfedaedf94f156d47ddf2bc2ed179a6bdc0733
 stale: false
 raw: ./_raw/EXTSYS-005.json
 links:
   based_on: ["[[ADR-007]]"]
   depends_on_backward: ["[[DOMAIN-016]]"]
-  provided_by_backward: ["[[INT-007]]", "[[INT-010]]", "[[INT-011]]"]
+  provided_by_backward: ["[[INT-007]]", "[[INT-010]]", "[[INT-011]]", "[[INT-015]]"]
 ---
 
 # 관제서버 (데이터마트 동기화)
@@ -70,11 +70,12 @@ high
 
 관제지원시스템(관제서버). 저작도구는 검수 완료된 학습데이터를 관제로 통지하고, 관제가 그것을 데이터마트로 가져간다. **데이터마트 구축·검색·다운로드 자체는 범위 외**(외부 제공 시스템 책임).
 
-## 연동 표면 4종
+## 연동 표면 5종
 1. **outbound 통지**(INT-007) — TASK_COMPLETED(검수 승인 시) / TASK_MODIFIED(완료된 영상의 수정이 재검수에서 승인될 때). 영상 1건 단위, 라벨·메타 본문 미포함. **경로·페이로드가 관제 정본(API-251/API-285)과 정합 완료** — 인증(x-access-token)만 미확정(B-4).
 2. **inbound 조회 API** — GET /v1/tasks/{rawSn}/summary|labels|meta. 관제가 통지 수신 후 상세를 가져가는 경로(JWT+역할+IDOR 가드).
 3. **데이터마트 적재용 View 4종**(INT-010 참조) — klid_at 스키마, 검수 완료(APPROVED) 영상만 노출: V_COMPLETED_VIDEO(+export 폴더 경로·프레임수·비식별 영상 경로·대표 이미지 경로) · V_COMPLETED_FRAME · V_COMPLETED_LABEL_CHANGE · V_COMPLETED_META.
 4. **파생영상(증강·해상도) 메타** — ORGNL_RAW_SN not null 인 행은 ORGNL_VDO_PATH_NM(개명 전 ORIGINAL_VIDEO_PATH) 가 NULL 로 동결되고 DE_IDNTF_FILE_PATH_NM(V138)으로 픽업(★BREAKING, 아래 참조).
+5. **관제 채널 브라우저 → 관제 계정 세션 갱신**(INT-015) — 관제 채널로 진입한 저작도구 프론트엔드(브라우저)가 관제지원 계정 서비스의 세션 갱신 창구를 직접 호출해 access 토큰을 재발급받는다. 저작도구 백엔드는 이 호출에 끼지 않는다.
 
 ## 활성화 — 환경별 (확정, 불명 없음)
 | 환경 | authoring.control-notify.enabled | 실질 |
@@ -144,6 +145,7 @@ _(empty)_
 ## used_by_domains
 
 - DOMAIN-016
+- DOMAIN-001
 
 ## data_sensitivity
 

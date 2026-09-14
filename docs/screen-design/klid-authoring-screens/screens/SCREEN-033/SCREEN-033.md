@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-033
 type: screen_spec
-version: 38
-last_updated_at: 2026-09-05T07:24:36.293Z
+version: 43
+last_updated_at: 2026-09-08T08:05:29.855Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T06:20:00.319Z
-sync_session: 38
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-09-14T05:34:04.740Z
+sync_session: 39
+stale: false
+status: CHANGED
+prev_version: 37
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-027]]"]
   acceptance: ["[[AC-1070]]", "[[AC-1071]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v37 → v43**
+> change_summary: 행 카드 전환으로 쓰게 된 부품 셋을 잇는다 — 목록 행 카드와 사실 칩, 그리고 목록 로딩 자리표시자. 부품 쪽 역참조는 표시 전용이라 링크를 만들지 않으므로 이 자리가 화면과 부품 관계의 진실원이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 
@@ -125,6 +129,7 @@ _(empty)_
 
 #### [1]
 
+- **note**: 한 줄이 자산 하나다. 줄은 파일명과 상태 배지를 먼저 보이고, 그 아래에 다음에 무슨 일이 일어나는지와 실패 사유를 놓고 유형·크기·프레임을 칩으로 흔는다. 오른쪽에는 올린 일시와 만료 예정일, 그 아래에 그 자산에서 할 수 있는 조작을 둔다. 표를 쓰지 않는 이유는 폭이다 — 여덟 칸이 요구하는 최소 폭이 본문 최대 폭을 넘어 파일명과 상태 부제가 반드시 접히거나 잘렸다. 파일명은 자르지 않고 줄바꿈해 확장자까지 보인다 — 거부 사유가 「지원하지 않는 형식」이라 그 꼬리가 곳 근거다. 프레임 수처럼 아직 없는 값은 칩을 두지 않는다 — 열이 없으므로 빈 자리가 「열이 밀렸나」로 읽힐 염려가 없다.
 - **type**: List
 - **label**: 업로드 자산 목록
 
@@ -652,7 +657,14 @@ _(empty)_
 
 ## uses_components
 
-_(empty)_
+- UI-131
+- UI-146
+- UI-147
+- UI-148
+- UI-149
+- UI-153
+- UI-154
+- UI-155
 
 ## external_designs
 

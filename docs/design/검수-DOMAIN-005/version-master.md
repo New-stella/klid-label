@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-09-08T12:01:38.483Z |
-| Mode | SYNC — NEW 0 / CHANGED 11 / UNCHANGED 127 |
+| Last sync | 2026-09-14T05:35:45.034Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 138 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 6건 / 스코프 밖 43건
-  ℹ️  api_endpoint: 이번 키트 25건 / 스코프 밖 198건
-  ℹ️  erd: 이번 키트 3건 / 스코프 밖 21건
+  ℹ️  api_endpoint: 이번 키트 25건 / 스코프 밖 200건
+  ℹ️  erd: 이번 키트 3건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 11건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 34건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 80건 (그중 domain_id 없음 9건)
+  ℹ️  acceptance: 이번 키트 9건 / 스코프 밖 85건 (그중 domain_id 없음 9건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 11건 / 스코프 밖 47건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 48건 (그중 domain_id 없음 8건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 10건 (그중 domain_id 없음 9건)
 ```
 
@@ -41,17 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[CDIAG-006]] (prev v15)
-- CHANGED [[CDIAG-014]] (prev v17)
-- CHANGED [[ERD-015]] (prev v17)
-- CHANGED [[NFR-020]] (prev v10)
-- CHANGED [[ROLE-002]] (prev v9)
-- CHANGED [[ROLE-003]] (prev v14)
-- CHANGED [[UC-007]] (prev v15)
-- CHANGED [[UC-009]] (prev v25)
-- CHANGED [[UC-010]] (prev v17)
-- CHANGED [[UC-022]] (prev v29)
-- CHANGED [[UC-023]] (prev v30)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -102,8 +92,8 @@
 | [[API-172]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
-| [[CDIAG-006]] | class_diagram | 16 | CHANGED |
-| [[CDIAG-014]] | class_diagram | 18 | CHANGED |
+| [[CDIAG-006]] | class_diagram | 16 | UNCHANGED |
+| [[CDIAG-014]] | class_diagram | 18 | UNCHANGED |
 | [[CDIAG-019]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 9 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 9 | UNCHANGED |
@@ -113,13 +103,13 @@
 | [[DFEAT-049]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-005]] | domain | 16 | UNCHANGED |
-| [[ERD-015]] | erd | 18 | CHANGED |
+| [[ERD-015]] | erd | 18 | UNCHANGED |
 | [[ERD-023]] | erd | 12 | UNCHANGED |
 | [[ERD-030]] | erd | 2 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
 | [[EVT-004]] | domain_event | 10 | UNCHANGED |
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
-| [[EVT-008]] | domain_event | 8 | UNCHANGED |
+| [[EVT-008]] | domain_event | 9 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
 | [[FEAT-003]] | feature | 11 | UNCHANGED |
 | [[FEAT-004]] | feature | 11 | UNCHANGED |
@@ -132,14 +122,14 @@
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 10 | UNCHANGED |
+| [[NFR-013]] | nfr | 13 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 11 | CHANGED |
+| [[NFR-020]] | nfr | 11 | UNCHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -169,8 +159,8 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 10 | CHANGED |
-| [[ROLE-003]] | permission_role | 15 | CHANGED |
+| [[ROLE-002]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 15 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 106 | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 29 | UNCHANGED |
@@ -189,9 +179,9 @@
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 5 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 4 | UNCHANGED |
-| [[UC-007]] | use_case | 16 | CHANGED |
-| [[UC-009]] | use_case | 26 | CHANGED |
-| [[UC-010]] | use_case | 18 | CHANGED |
-| [[UC-022]] | use_case | 30 | CHANGED |
-| [[UC-023]] | use_case | 31 | CHANGED |
+| [[UC-007]] | use_case | 16 | UNCHANGED |
+| [[UC-009]] | use_case | 26 | UNCHANGED |
+| [[UC-010]] | use_case | 18 | UNCHANGED |
+| [[UC-022]] | use_case | 30 | UNCHANGED |
+| [[UC-023]] | use_case | 31 | UNCHANGED |
 | [[UI-097]] | ui_component | 5 | UNCHANGED |

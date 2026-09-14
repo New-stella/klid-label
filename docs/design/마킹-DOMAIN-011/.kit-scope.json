@@ -92,12 +92,12 @@
     "SEQ-036",
     "TEST-001",
     "TEST-002",
-    "UC-019"
+    "UC-019",
+    "FEAT-012"
   ],
   "pending": [
     "SHELL-001",
     "MOD-004",
-    "FEAT-012",
     "IMPREC-118",
     "IMPREC-119",
     "IMPREC-120",
@@ -108,8 +108,18 @@
     "IMPREC-366",
     "IMPREC-390",
     "IMPREC-419",
+    "IMPREC-421",
     "NAV-001"
   ],
-  "last_sync_at": "2026-09-08T12:01:43.260Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 1(핵심타입) / 기각 0(제외타입) / 보류 0(미분류·배포형상) | 2026-09-05 2차 판정: 승격 4(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 12(제외타입) / 보류 0 | 2026-09-08 판정: 승격 0 / 기각 12 / 보류 0. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다"
+  "last_sync_at": "2026-09-14T05:35:54.996Z",
+  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 1(핵심타입) / 기각 0(제외타입) / 보류 0(미분류·배포형상) | 2026-09-05 2차 판정: 승격 4(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 12(제외타입) / 보류 0 | 2026-09-08 판정: 승격 0 / 기각 12 / 보류 0. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다 | 2026-09-14 판정(비식별 출처유형 제외·관제 세션 연장 라운드): 승격 1 / 기각 14 / 보류 0. 기각 중 제외 타입 14건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·CTX).",
+  "note_promoted": [
+    {
+      "at": "2026-09-14",
+      "ids": [
+        "FEAT-012"
+      ],
+      "reason": "pin 보유 UC-019 가 realizes"
+    }
+  ]
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
 <body>
 <main class="screen-root">
@@ -23,13 +23,14 @@
           <p class="auth-title t-body-lg">세션을 확인하는 중</p>
         </div>
         <p class="auth-desc t-body-sm">관제서버 또는 포털에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.</p>
+        <p class="auth-desc t-caption"><span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>확보 완료 전</span> 인가 역할을 확보하기 전에는 도착지를 판정하지 않고 이 상태를 유지합니다. 화면을 다시 불러올 때도 같은 확보를 수행하며, 확보는 채널을 가리지 않습니다.</p>
       </div>
     </div>
   </section>
 
 
   <section class="state-frame" aria-label="인증 실패 안내 상태">
-    <p class="state-caption t-label"><span class="state-no">2</span>인증 실패 안내 — 이동할 로그인 화면이 없을 때만 표시</p>
+    <p class="state-caption t-label"><span class="state-no">2</span>인증 실패 안내 — 이동할 로그인 화면이 없거나 권한 정보를 확인하지 못했을 때 표시</p>
     <div class="state-stage">
       <div class="auth-card">
         <div class="alert alert-error" role="alert" aria-live="assertive">
@@ -41,7 +42,9 @@
             <p class="alert-text t-body-sm">관제서버 또는 포털에서 다시 접근해주세요.</p>
           </div>
         </div>
-        <p class="auth-desc t-caption">인증 정보가 없거나 만료된 경우에는 원래 접근하려던 위치를 기억한 채 로그인 화면으로 자동 이동합니다. 이 안내는 이동할 로그인 화면 주소가 설정돼 있지 않은 경우에만 보입니다.</p>
+        <p class="auth-desc t-caption">인증 정보가 없거나 만료된 경우에는 원래 접근하려던 위치를 기억한 채 로그인 화면으로 자동 이동합니다. 이 안내는 이동할 로그인 화면 주소가 설정돼 있지 않은 경우에 보입니다.</p>
+        <p class="auth-desc t-caption"><span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>인증 실패</span> 토큰이 없거나 만료·검증 실패인 경우입니다. 로그인 화면으로 이동하며, 이동할 주소가 없을 때만 위 배너가 보입니다.</p>
+        <p class="auth-desc t-caption"><span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>역할 재확보 실패</span> 화면을 다시 불러오며 역할을 다시 확보하는 조회가 실패한 경우입니다. 그 밖의 조회 장애이므로 위 배너로 알리며, 역할 없음으로 다루지 않고 도착지 판정도 내리지 않습니다.</p>
       </div>
     </div>
   </section>
@@ -50,7 +53,7 @@
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
-      <span class="t-body-sm text-muted">인증 실패 안내에 들어가는 문구는 실패 사유에 따라 두 가지입니다 — 실제 화면에서는 이 중 하나만 위 자리에 표시됩니다.</span>
+      <span class="t-body-sm text-muted">인증 실패 안내에 들어가는 문구는 실패 사유에 따라 세 가지입니다 — 실제 화면에서는 이 중 하나만 위 자리에 표시됩니다.</span>
     </div>
     <div class="reference-grid">
 
@@ -78,6 +81,20 @@
             <p class="alert-text t-body-sm">관제서버 또는 포털에서 다시 접근해주세요.</p>
           </div>
         </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 권한 정보를 확인하지 못한 경우</p>
+        <div class="alert alert-error" role="region" aria-label="역할 확보 실패 문구">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+          </svg>
+          <div class="alert-body">
+            <p class="alert-title t-title-sm">권한 정보를 확인하지 못했습니다</p>
+            <p class="alert-text t-body-sm">잠시 후 다시 시도해주세요.</p>
+          </div>
+        </div>
+        <p class="t-caption text-muted">이 실패를 역할 없음으로 다루지 않습니다 — 최초 관리자 등록 안내로도, 역할 부여를 요청하라는 안내로도 바꾸어 표시하지 않습니다.</p>
+      </div>
       </div>
 
     </div>
@@ -87,7 +104,7 @@
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
-      <span class="t-body-sm text-muted">이 화면이 진입 직후 한 번만 수행하는 처리 순서입니다. 화면에 보이는 요소는 아니며, 어느 단계에서 멈추면 위 2번 상태가 되는지를 나타냅니다.</span>
+      <span class="t-body-sm text-muted">이 화면이 진입할 때마다, 그리고 다시 불러올 때마다 수행하는 처리 순서입니다. 화면에 보이는 요소는 아니며, 어느 단계에서 멈추면 위 2번 상태가 되는지를 나타냅니다.</span>
     </div>
     <ol class="flow-list t-body-sm">
       <li>
@@ -101,6 +118,11 @@
         </span>
       </li>
       <li>
+        <span>인가 역할을 저작도구에 다시 물어 확보합니다. 확보가 끝나기 전에는 도착지를 판정하지 않고 1번 상태를 유지합니다.
+          <span class="flow-branch t-caption">화면을 다시 불러올 때마다 확보하며 채널을 가리지 않습니다. 알아낸 역할은 인계 토큰을 두는 자리에 함께 보관하지 않습니다.</span>
+        </span>
+      </li>
+      <li>
         <span>확인에 성공하면 채널에 따라 이동합니다 — 포털이면 포털 홈, 그 외에는 대시보드.
           <span class="flow-branch t-caption">뒤로가기로 이 화면에 다시 남지 않도록 현재 화면을 교체하며 이동합니다.</span>
         </span>
@@ -108,6 +130,11 @@
       <li>
         <span>실패하면 로그인 화면으로 이동합니다 — 개발 환경이면 개발용 로그인 화면, 운영이면 채널별 로그인 화면.
           <span class="flow-branch t-caption">원래 접근하려던 위치를 함께 넘겨 로그인 후 그 자리로 돌아오게 하며, 허용된 주소로만 이동합니다. 이동할 주소가 없을 때만 2번 상태를 표시합니다.</span>
+        </span>
+      </li>
+      <li>
+        <span>역할을 확보하는 조회가 실패하면 원인에 따라 갈라집니다 — 인증이 유효하지 않으면 위와 같이 로그인 화면으로 이동하고, 그 밖의 조회 장애는 2번 상태로 알립니다.
+          <span class="flow-branch t-caption">확인하지 못한 상태를 역할 없음으로 읽으면 잘못된 안내로 보내지므로, 확보되지 않은 동안에는 도착지 판정을 내리지 않은 채로 둡니다.</span>
         </span>
       </li>
     </ol>

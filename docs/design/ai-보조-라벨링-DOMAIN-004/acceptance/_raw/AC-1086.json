@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "notes": "이 자리는 영상을 한 건씩 올리는 통로다. 마킹이 끝난 영상 묶음을 한 번에 올리는 일은 다른 화면의 소관이라 이 기준의 대상이 아니다. 두 적재 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다 — 단계별 실행을 고르는 기능은 두지 않으며 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이고 비식별은 예외 없이 항상 실행된다. 개인정보 유형은 표시용 값일 뿐 비식별 수행 여부를 가르지 않는다.",
+      "notes": "이 자리는 영상을 한 건씩 올리는 통로다. 마킹이 끝난 영상 묶음을 한 번에 올리는 일은 다른 화면의 소관이라 이 기준의 대상이 아니다. 두 적재 경로는 입력 폼이 완전히 같고 보내는 곳과 그 뒤 흐름만 갈린다 — 단계별 실행을 고르는 기능은 두지 않으며 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이고 비식별 단계는 예외 없이 항상 실행된다(출처유형이 배포 설정의 비식별 제외 목록에 든 영상은 그 단계가 외부 위탁 없이 원본 복사로 완료된다 — ADR-066). 개인정보 유형은 표시용 값일 뿐 비식별 수행 여부를 가르지 않는다.",
       "priority": "high",
       "scenario": {
         "then": [
@@ -50,12 +50,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": true,
-    "stale_reason": "UC-042의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "단건 투입 흐름을 사용 사례로 세워 이 기준을 그 흐름에 매단다. 종전에는 파생시킬 상위 흐름이 없어 어느 사용 사례에도 매달리지 않은 채 떠 있었다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "notes 의 「비식별은 예외 없이 항상 실행된다」를 「비식별 단계는 예외 없이 항상 실행된다」로 좁히고 출처유형 제외 예외를 괄호로 덧붙인다(ADR-066, SEQ-035 v7 과 같은 방식). 검증 대상은 넓히지 않았다 — statement·scenario 는 무변경이다. 쓰기 전 stale=true, stale_reason='UC-042의 data.realizes_features 변경 — derived_from'.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:25:05.695Z",
+    "last_updated_at": "2026-09-14T04:22:15.988Z",
     "created_at": "2026-09-01T06:25:02.978Z"
   }
 }

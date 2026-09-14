@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-09-07T15:22:14.244Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 227 |
+| Last sync | 2026-09-14T05:34:14.130Z (session 18) |
+| Mode | SYNC — NEW 0 / CHANGED 22 / UNCHANGED 205 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
@@ -20,9 +20,9 @@
 | [[AC-1056]] | acceptance | UC-008 확정 저장 게이트 — 신고 구간 412·검수완료 후 저장 통지(UC-009)·폐기 회차 적용 예외 (negative) | 5 | true | UNCHANGED |
 | [[AC-1057]] | acceptance | UC-021 라벨 편집·임시저장 — 본인 배정 확인→캔버스 편집·속성→full-replace upsert(낙관적 토큰) (happy) | 6 | true | UNCHANGED |
 | [[AC-1058]] | acceptance | UC-021 라벨 편집 예외 — 타인 403·APPROVED 수정 재검토·신고 구간 412·값 검증·저장 충돌 409 (negative) | 10 | true | UNCHANGED |
-| [[AC-1061]] | acceptance | UC-032 라벨 프리셋 CRUD — 이벤트유형+라벨 멀티셀렉트(이름·설명 없음)·labelId 실시간 join·보류 재개 (happy) | 6 | true | UNCHANGED |
+| [[AC-1061]] | acceptance | UC-032 라벨 프리셋 CRUD — 이벤트유형+라벨 멀티셀렉트(이름·설명 없음)·labelId 실시간 join·보류 재개 (happy) | 7 | true | CHANGED |
 | [[AC-1062]] | acceptance | UC-032 프리셋 저장 분기 — 라벨 0건=오토라벨 제외·중복 409·미지정 400·미연결 자동제외·AI 미매핑 저장+경고 (negative) | 5 | true | UNCHANGED |
-| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | true | UNCHANGED |
+| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 5 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
 | [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 14 | false | UNCHANGED |
@@ -30,7 +30,7 @@
 | [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
 | [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
 | [[API-024]] | api_endpoint | GET /v1/manage/labels | 6 | false | UNCHANGED |
-| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 9 | false | UNCHANGED |
+| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 10 | true | CHANGED |
 | [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 9 | false | UNCHANGED |
 | [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 11 | false | UNCHANGED |
 | [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 11 | false | UNCHANGED |
@@ -42,9 +42,9 @@
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
 | [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | UNCHANGED |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 15 | false | UNCHANGED |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 15 | false | CHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | UNCHANGED |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 15 | false | UNCHANGED |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 15 | false | CHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
 | [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | UNCHANGED |
 | [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 13 | false | UNCHANGED |
@@ -54,10 +54,10 @@
 | [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | UNCHANGED |
 | [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
 | [[API-129]] | api_endpoint | PUT /v1/frames/{srcSn}/description | 5 | false | UNCHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 7 | false | UNCHANGED |
-| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 4 | true | UNCHANGED |
-| [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 7 | false | UNCHANGED |
-| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 4 | true | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 7 | false | CHANGED |
+| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 4 | false | UNCHANGED |
+| [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 7 | false | CHANGED |
+| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 4 | false | UNCHANGED |
 | [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
 | [[API-170]] | api_endpoint | PUT /v1/videos/{rawSn}/environment-meta | 3 | false | UNCHANGED |
 | [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | UNCHANGED |
@@ -78,24 +78,24 @@
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | CHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | CHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 106 | false | UNCHANGED |
-| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 35 | true | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 106 | true | CHANGED |
+| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 41 | true | CHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 17 | true | UNCHANGED |
-| [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 5 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 12 | true | UNCHANGED |
-| [[UC-004]] | use_case | 객체 자동 추적 | 18 | true | UNCHANGED |
-| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 13 | true | UNCHANGED |
-| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 11 | true | UNCHANGED |
-| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 15 | true | UNCHANGED |
-| [[UC-008]] | use_case | 버전 비교·복구 | 17 | true | UNCHANGED |
-| [[UC-021]] | use_case | 라벨 편집·임시저장 | 23 | true | UNCHANGED |
-| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 29 | false | UNCHANGED |
-| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 14 | true | UNCHANGED |
-| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 7 | true | UNCHANGED |
-| [[UC-039]] | use_case | 온라인 AI 객체 탐지 | 5 | true | UNCHANGED |
+| [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 9 | true | CHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | CHANGED |
+| [[UC-004]] | use_case | 객체 자동 추적 | 19 | false | CHANGED |
+| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 14 | false | CHANGED |
+| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 12 | false | CHANGED |
+| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 16 | false | CHANGED |
+| [[UC-008]] | use_case | 버전 비교·복구 | 18 | false | CHANGED |
+| [[UC-021]] | use_case | 라벨 편집·임시저장 | 25 | false | CHANGED |
+| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 30 | false | CHANGED |
+| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 16 | false | CHANGED |
+| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 7 | false | UNCHANGED |
+| [[UC-039]] | use_case | 온라인 AI 객체 탐지 | 5 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -130,7 +130,7 @@
 | [[UI-032]] | ui_component | feedback: Spinner | 3 | false | UNCHANGED |
 | [[UI-033]] | ui_component | feedback: Skeleton | 3 | false | UNCHANGED |
 | [[UI-034]] | ui_component | layout: AppLayout | 4 | false | UNCHANGED |
-| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | UNCHANGED |
+| [[UI-035]] | ui_component | navigation: Gnb | 8 | false | CHANGED |
 | [[UI-036]] | ui_component | navigation: Lnb | 3 | false | UNCHANGED |
 | [[UI-037]] | ui_component | layout: PortalLayout | 6 | false | UNCHANGED |
 | [[UI-038]] | ui_component | layout: Footer | 3 | false | UNCHANGED |
@@ -138,7 +138,7 @@
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
 | [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
-| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
+| [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | CHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
 | [[UI-046]] | ui_component | display: CanvasShell | 8 | false | UNCHANGED |

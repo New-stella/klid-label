@@ -434,11 +434,14 @@
       "scenario_type": "happy_path",
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-434"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-08T12:03:41.371Z",
         "module_paths": []
       },
       "publishes_events": [],
@@ -461,10 +464,10 @@
     "schema_version": 1,
     "current_version": 8,
     "stale": true,
-    "stale_reason": "UC-031의 data.frequency 변경 — realizes",
+    "stale_reason": "FEAT-005의 data.business_rules 변경이 realizes로 2-hop 전파",
     "change_summary": "설정값이 진실원인 축의 열거에 외부 증강 벤더를 넣었다. 「그 축이나 이 화면의 교체 창구에는 아직 등록되지 않았다 — 채워야 할 잔여」는 그 잔여가 실행돼 거짓이 됐다 — 증강 주소 칸이 그 창구에 실재하며 다른 설정값 축과 같은 규칙으로 저장된다. 그래서 연동 대상 참여자 이름도 그 셋을 담도록 넓혔고, 셋 다 보낼 곳이 한 곳뿐이라 고를 일이 없어 설정값 하나가 곧 진실원임을 함께 적었다. 장비 목록 관리 창구 참여자의 이름은 그 창구가 실제로 다루는 범위대로 좁혔다 — 종전 이름은 증강도 AI 위탁이라 거기 있어야 할 것처럼 읽혔는데, 가르는 축은 「AI 위탁인가」가 아니라 「고를 대상이 여럿인가」다. mermaid 원문과 정형 참여자 필드를 함께 고쳐 두 층이 갈리지 않게 했다. 메시지 배열과 프래그먼트 구간은 손대지 않았다(프래그먼트 인덱스 보존). 장비 원장 축 서술, 유효창 발급과 인가 흐름, 저장 축 세 관문, 비식별 배선 두 겹, 씨앗·폴백 조항은 이번 변경 대상이 아니며 그대로다. 배열 원소는 하나도 지우지 않았다 — 참여자 둘은 이름만 바뀌었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-08T05:02:56.530Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-08T12:03:41.371Z",
     "created_at": "2026-08-16T04:23:51.595Z"
   }
 }

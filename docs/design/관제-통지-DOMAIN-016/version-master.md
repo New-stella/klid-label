@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-08T12:01:35.783Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 93 |
+| Last sync | 2026-09-14T05:35:41.566Z |
+| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 96 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 7건 / 스코프 밖 42건
-  ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 220건
-  ℹ️  erd: 이번 키트 2건 / 스코프 밖 22건
+  ℹ️  api_endpoint: 이번 키트 4건 / 스코프 밖 221건
+  ℹ️  erd: 이번 키트 2건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 13건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 37건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 84건 (그중 domain_id 없음 6건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 89건 (그중 domain_id 없음 6건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 10건 / 스코프 밖 48건 (그중 domain_id 없음 10건)
+  ℹ️  adr: 이번 키트 10건 / 스코프 밖 49건 (그중 domain_id 없음 10건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 13건 (그중 domain_id 없음 12건)
 ```
 
@@ -41,9 +41,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[NFR-020]] (prev v10)
-- CHANGED [[ROLE-002]] (prev v9)
-- CHANGED [[ROLE-003]] (prev v14)
+- NEW [[API-247]]
+- NEW [[INT-015]]
 
 ## ITEM 표
 
@@ -56,7 +55,7 @@
 | [[AC-1097]] | acceptance | 1 | UNCHANGED |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-012]] | adr | 13 | UNCHANGED |
+| [[ADR-012]] | adr | 21 | UNCHANGED |
 | [[ADR-013]] | adr | 23 | UNCHANGED |
 | [[ADR-020]] | adr | 11 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
@@ -67,6 +66,7 @@
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
 | [[API-076]] | api_endpoint | 9 | UNCHANGED |
+| [[API-247]] | api_endpoint | 4 | NEW |
 | [[CDIAG-013]] | class_diagram | 12 | UNCHANGED |
 | [[CDIAG-044]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 21 | UNCHANGED |
@@ -85,25 +85,26 @@
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
 | [[EVT-010]] | domain_event | 4 | UNCHANGED |
-| [[EXTSYS-005]] | external_system | 16 | UNCHANGED |
+| [[EXTSYS-005]] | external_system | 17 | UNCHANGED |
 | [[FEAT-003]] | feature | 11 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[INT-010]] | integration_point | 12 | UNCHANGED |
 | [[INT-011]] | integration_point | 2 | UNCHANGED |
+| [[INT-015]] | integration_point | 7 | NEW |
 | [[INTSPEC-004]] | integration_spec | 13 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
 | [[NFR-011]] | nfr | 7 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
-| [[NFR-013]] | nfr | 10 | UNCHANGED |
+| [[NFR-013]] | nfr | 13 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
-| [[NFR-020]] | nfr | 11 | CHANGED |
+| [[NFR-020]] | nfr | 11 | UNCHANGED |
 | [[NFR-021]] | nfr | 2 | UNCHANGED |
 | [[NFR-022]] | nfr | 3 | UNCHANGED |
 | [[NFR-023]] | nfr | 1 | UNCHANGED |
@@ -134,8 +135,8 @@
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[RISK-004]] | risk | 4 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 10 | CHANGED |
-| [[ROLE-003]] | permission_role | 15 | CHANGED |
+| [[ROLE-002]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 15 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 5 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 18 | UNCHANGED |
