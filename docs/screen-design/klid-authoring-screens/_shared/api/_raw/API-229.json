@@ -1,0 +1,91 @@
+{
+  "item": {
+    "id": "API-229",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PATCH /v1/manage/ai-servers/{srvrId}/status",
+    "slug": "patch-v1manageai-serverssrvridstatus",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/ai-servers/{srvrId}/status",
+      "tags": [
+        "manage",
+        "ai-server"
+      ],
+      "method": "PATCH",
+      "summary": "AI 장비 상태 전이",
+      "security": [
+        {
+          "jwt": [
+            "ADMIN"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "전이됨.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "description": "알 수 없는 상태값. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "403": {
+          "description": "ADMIN 권한 없음. 관리자 단기 유효창이 없거나 만료된 경우에도 같은 응답이며 둘 중 어느 쪽인지 구분해 알리지 않는다 — 거부 사유에 내부 상태를 싣지 않는다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "description": "그 식별자의 장비가 없다. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "description": "허용되지 않는 전이이거나 같은 상태이거나, 그 유형의 마지막 가용 장비를 내리려 한다. 어느 사유인지는 메시지로 구분한다. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srvrId",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "장비 식별자."
+        }
+      ],
+      "description": "AI 추론·외부 시계열 분석 장비의 노드 원장을 다루는 관리 창구다. 이 원장이 장비 주소의 진실원이며, 배포 설정값은 원장이 비어 있을 때 최초 1회 씨앗으로만 쓰인다.\n\n주소 검증은 진실원이 옮겨갔다고 사라지지 않는다 — 저장되는 주소에도 스킴(http 또는 https)·형식·예약 대역 거부가 그대로 걸린다. **평문 http 와 사설 대역은 통과가 정상이다**(대역 차단은 폐기됐다). 거부되는 것은 클라우드 메타데이터·링크로컬 같은 예약 대역과 비허용 스킴·형식 위반이며, 거부 사유에 입력 원문·호스트·해석 결과를 싣지 않는다 — 실으면 그 응답이 내부망을 훑는 수단이 된다.\n\n장비 유형은 추론(탐지·분할·추적)과 외부 시계열 분석 둘이며 유형마다 여러 대를 둘 수 있다. 부하를 세는 축이 유형마다 다르다 — 추론은 동기 호출이라 큐 길이가 곧 부하지만, 시계열은 위탁 후 콜백이라 큐를 볼 수 없어 우리 원장의 미결 위탁 수를 센다.\n\n상태 축은 이 원장에 있는 추론과 외부 시계열 분석 장비에만 있다. 외부 증강 벤더는 이 원장에 두지 않으며, 그 벤더 규격에 서버가 지금 일을 받을 수 있는지를 묻는 창구가 없어 상태를 매길 근거 자체가 없다. 범위를 가르는 축과 옮겨올 조건은 API-226 이 적는다.\n\n이 창구는 운영·관리 성격의 쓰기라 관리자 권한에 더해 유효한 관리자 단기 유효창을 함께 요구한다. 유효창은 권한을 대체하지 않고 가산되며 역할을 승격시키지도 않는다 — 관리자 권한은 그대로 필요하다. ⚠ 검수자는 이 창구를 열 수 없다. 계층(ROLE_ADMIN > ROLE_REVIEWER)은 관리자가 검수자 자리를 통과하게 할 뿐 그 반대는 성립하지 않는다.\n\n상태는 가용·이용불가·정비중·비활성 넷이며 아무 상태로나 갈 수 있는 것이 아니다. 정비중은 신규 배정만 막고 진행 중인 배정은 끝까지 간다 — 그것이 무중단의 정의다. 이용불가는 상태점검 연속 실패로 자동 배제된 상태이고 복귀는 연속 성공으로 한다.\n\n★정비중에서 이용불가로 가는 길도 열려 있다. 정비중은 하던 일을 끝까지 맡긴다는 뜻이지 죽은 장비를 살아 있는 것으로 친다는 뜻이 아니므로, 정비중인 장비가 상태점검 연속 실패로 관측되면 이용불가로 내린다. ⚠ 이 전이는 사람이 이 창구에서 고르는 선택지가 아니라 상태점검이 판정한다 — 이 창구가 이미 적고 있는 상태점검 자동 이용불가 전이와 같은 축이고, 그 축의 출발 상태에 정비중이 더해진 것이다. 상태 값역은 그대로 넷이다.\n\n★같은 상태로의 전이는 전이가 아니라 아무것도 아니므로 거부한다 — 허용하면 무변경 갱신이 감사 경로를 그대로 타게 된다.\n\n★그 유형의 마지막 가용 장비를 가용에서 내리는 것은 거부한다. 내리면 그 유형의 위탁이 통째로 실패하기 때문이다. ⚠ 상태점검이 자동으로 내리는 이용불가 전이는 이 거부의 대상이 아니다 — 그건 사람의 결정이 아니라 관측이고, 막으면 죽은 장비로 계속 보내게 된다.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-430"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-08T12:03:40.703Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": [
+        "AC-1090",
+        "AC-1091"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "장비 상태 전이 규칙에 정비중에서 이용불가로 가는 길을 더한다 — 이미 이 창구가 적고 있던 상태점검 자동 이용불가 전이 축의 출발 상태에 정비중을 추가한 것이며, 사람이 이 창구에서 고르는 선택지가 아님을 함께 명시. 정비중이 하던 일을 끝까지 맡긴다는 약속은 장비가 살아 있을 때의 것이라 죽은 장비를 살아 있는 것으로 칠 근거가 되지 않는다. 상태 값역 넷·경로·계약·응답 무변경, 서술 추가만",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-08T12:03:40.703Z",
+    "created_at": "2026-09-01T14:06:15.755Z"
+  }
+}

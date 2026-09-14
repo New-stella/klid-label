@@ -1,0 +1,85 @@
+{
+  "item": {
+    "id": "API-228",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PATCH /v1/manage/ai-servers/{srvrId}",
+    "slug": "patch-v1manageai-serverssrvrid",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/ai-servers/{srvrId}",
+      "tags": [
+        "manage",
+        "ai-server"
+      ],
+      "method": "PATCH",
+      "summary": "AI 장비 이름·주소 수정",
+      "security": [
+        {
+          "jwt": [
+            "ADMIN"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "수정됨.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "description": "주소 형식·스킴 위반 또는 예약 대역. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "403": {
+          "description": "ADMIN 권한 없음. 관리자 단기 유효창이 없거나 만료된 경우에도 같은 응답이며 둘 중 어느 쪽인지 구분해 알리지 않는다 — 거부 사유에 내부 상태를 싣지 않는다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "description": "그 식별자의 장비가 없다. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srvrId",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "장비 식별자."
+        }
+      ],
+      "description": "AI 추론·외부 시계열 분석 장비의 노드 원장을 다루는 관리 창구다. 이 원장이 장비 주소의 진실원이며, 배포 설정값은 원장이 비어 있을 때 최초 1회 씨앗으로만 쓰인다.\n\n주소 검증은 진실원이 옮겨갔다고 사라지지 않는다 — 저장되는 주소에도 스킴(http 또는 https)·형식·예약 대역 거부가 그대로 걸린다. **평문 http 와 사설 대역은 통과가 정상이다**(대역 차단은 폐기됐다). 거부되는 것은 클라우드 메타데이터·링크로컬 같은 예약 대역과 비허용 스킴·형식 위반이며, 거부 사유에 입력 원문·호스트·해석 결과를 싣지 않는다 — 실으면 그 응답이 내부망을 훑는 수단이 된다.\n\n장비 유형은 추론(탐지·분할·추적)과 외부 시계열 분석 둘이며 유형마다 여러 대를 둘 수 있다. 부하를 세는 축이 유형마다 다르다 — 추론은 동기 호출이라 큐 길이가 곧 부하지만, 시계열은 위탁 후 콜백이라 큐를 볼 수 없어 우리 원장의 미결 위탁 수를 센다.\n\n이 창구가 주소를 고치는 대상은 이 원장에 있는 추론과 외부 시계열 분석 장비뿐이다. 외부 증강 벤더 주소는 이 원장이 아니라 연동 서버 주소 설정 칸이 갖는다. 범위를 가르는 축은 API-226 이 적는다.\n\n이 창구는 운영·관리 성격의 쓰기라 관리자 권한에 더해 유효한 관리자 단기 유효창을 함께 요구한다. 유효창은 권한을 대체하지 않고 가산되며 역할을 승격시키지도 않는다 — 관리자 권한은 그대로 필요하다. ⚠ 검수자는 이 창구를 열 수 없다. 계층(ROLE_ADMIN > ROLE_REVIEWER)은 관리자가 검수자 자리를 통과하게 할 뿐 그 반대는 성립하지 않는다.\n\n이름과 주소만 고친다. 유형과 상태는 이 창구가 바꾸지 않는다 — 유형이 바뀌면 그 장비를 고르던 축이 통째로 달라지므로 새로 등록하는 것이 맞고, 상태는 전이 규칙이 있는 별도 창구가 소유한다.\n\n주소를 바꾸면 재기동 없이 다음 호출부터 반영된다.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-01T14:34:07.892Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": [
+        "AC-1089",
+        "AC-1090"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "AI 장비 원장이 담는 범위를 이 창구 독자에게 필요한 만큼 한 줄 명시 — 외부 증강 벤더는 이 원장 대상이 아니며 가르는 축과 옮겨올 조건은 API-226 이 소유. 이름·경로·계약 무변경",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T05:14:31.606Z",
+    "created_at": "2026-09-01T14:06:15.677Z"
+  }
+}

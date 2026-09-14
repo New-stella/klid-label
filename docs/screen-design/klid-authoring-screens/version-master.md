@@ -5,20 +5,93 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 전체 통합 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038, SCREEN-039, SCREEN-040, SCREEN-041, SCREEN-042, SCREEN-043, SCREEN-044, SCREEN-045 |
-| Last sync | 2026-09-14T07:37:14.426Z (session 40) |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 472 |
+| Last sync | 2026-09-14T07:56:46.976Z (session 41) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 577 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
+| [[AC-1013]] | acceptance | UC-019 이벤트 마킹 — 마킹·질문 선택·완료→잔여 배치 시작 (happy) | 9 | true | UNCHANGED |
+| [[AC-1014]] | acceptance | UC-019 마킹 중 비식별 누락 신고 → 마킹 중단·해소 후 재마킹 (edge) | 4 | true | UNCHANGED |
+| [[AC-1015]] | acceptance | UC-019 마킹 진입·스트리밍·생성 차단 — 단계 불충족 412·비식별 미완료 404·관제 이벤트 유형 부재 400 (negative) | 7 | true | UNCHANGED |
+| [[AC-1018]] | acceptance | UC-030 사용자 계정·역할 관리 — 조회·검색·필터·역할 변경(유효창 가산) (happy) | 7 | true | UNCHANGED |
+| [[AC-1019]] | acceptance | UC-030 역할 변경 거부 — 유효창 없음/만료·화이트리스트 밖 400·마지막 관리자 409 (negative) | 6 | true | UNCHANGED |
+| [[AC-1020]] | acceptance | UC-018 영상 적재 — 관제 인입 직접 INSERT→폴링 클레임→파일 검증→LS_DATA_RAW 적재 (happy) | 9 | false | UNCHANGED |
+| [[AC-1021]] | acceptance | UC-018 적재 예외 — 파일 미도착 PENDING 유지·backoff·중복 INSERT 차단·비식별 실패 보존·재큐 (negative) | 7 | false | UNCHANGED |
+| [[AC-1022]] | acceptance | UC-038 배치 자동 처리 — 비식별 선두→마킹 대기→마킹완료 시 잔여단계 논블로킹 수행 (happy) | 7 | true | UNCHANGED |
+| [[AC-1023]] | acceptance | UC-038 파이프라인 분기 — 프리셋 없어 오토라벨 보류·전체 건너뛰기·선점 노드 멈춤 회수 (edge) | 6 | true | UNCHANGED |
+| [[AC-1024]] | acceptance | UC-004 객체 자동 추적 — 시드 지정→SAM2 track 전파→자동 라벨 저장·보간 (happy) | 7 | true | UNCHANGED |
+| [[AC-1025]] | acceptance | UC-004 추적 실패·정확도 저하 — 서킷 브레이커·원본 유지·수동 보정 (negative) | 5 | true | UNCHANGED |
+| [[AC-1026]] | acceptance | UC-005 객체 외곽 경계 자동 밀착 — SAM2 segment→폴리곤 단순화·적용 (happy) | 5 | true | UNCHANGED |
+| [[AC-1027]] | acceptance | UC-005 밀착 실패 — 외곽 인식 실패 수동 전환·추론 실패 502·시드 유지 (negative) | 5 | true | UNCHANGED |
+| [[AC-1028]] | acceptance | UC-006 라벨링 정밀도 조절 — epsilon 영속 설정·요청 1회성 override·폴백 (happy) | 4 | true | UNCHANGED |
+| [[AC-1029]] | acceptance | UC-006 정밀도 설정 거부 — 범위 초과 400·WORKER 권한 부족 403 (negative) | 5 | true | UNCHANGED |
+| [[AC-1030]] | acceptance | UC-034 온디맨드 AI 자동 추적 — 구간 다객체 조회·묶음 수락/자동반영·labelId 보존 저장 (happy) | 4 | true | UNCHANGED |
+| [[AC-1031]] | acceptance | UC-034 온디맨드 추적 분기 — labelId 없는 검출 미반영·묶음 제외·미저장 미확정 (edge) | 5 | true | UNCHANGED |
 | [[AC-1032]] | acceptance | UC-037 마킹 끝난 영상 일괄 올리기 — 폴더 재귀 짝짓기·판정·비동기 적재·비식별 후 마킹 활성 (happy) | 9 | true | UNCHANGED |
 | [[AC-1033]] | acceptance | UC-037 일괄 적재 예외 — 짝 못찾음 건너뜀·FPS 어긋남 중단·중복 식별자 건너뜀·비식별 실패 마감·재기동 복구 (negative) | 11 | true | UNCHANGED |
+| [[AC-1036]] | acceptance | UC-022 VLM 시계열 메타 검토 — 두 창구 콜백 적재·검수큐 진입·어노 초안 채움·패널 검토·승인 (happy) | 8 | true | UNCHANGED |
+| [[AC-1037]] | acceptance | UC-022 VLM 결과 오류 — 검수자 직접 수정 후 승인 또는 반려 (edge) | 5 | true | UNCHANGED |
+| [[AC-1038]] | acceptance | UC-010 증강 영상 활용 검수 — 조회·확인·accept/reject(리뷰 축)·등재 게이트·유예 폐기 (happy) | 8 | true | UNCHANGED |
+| [[AC-1039]] | acceptance | UC-010 증강 검수 예외 — 재결정 409·사유 누락 400·유예내 복구·해상도 예외·그랜드퍼더링·검수 승인 이력 제외 (negative) | 6 | true | UNCHANGED |
+| [[AC-1040]] | acceptance | UC-023 검수 승인·반려 — 제출→검토→승인(APPROVED/COMPLETED)+스냅샷+export+통지 / 반려 (happy) | 6 | true | UNCHANGED |
+| [[AC-1041]] | acceptance | UC-023 비식별 미완료 승인 거부 — 전이·스냅샷·재생성·통지 전부 미발생 (negative) | 6 | true | UNCHANGED |
+| [[AC-1042]] | acceptance | UC-023 재제출 반복·검수완료 후 수정 → 재검토 표시·재승인 시 새 버전·TASK_MODIFIED (edge) | 6 | true | UNCHANGED |
+| [[AC-1043]] | acceptance | UC-033 전체 구축 현황 조회 — 검수완료 기준 주수치·전체 병기·표시명 그룹 분포 (happy) | 4 | true | UNCHANGED |
+| [[AC-1044]] | acceptance | UC-001 증강 영상 생성 요청 — 대상·생성 조건 지정→외부 생성형 AI 위임→비동기 수락 (happy) | 6 | true | UNCHANGED |
+| [[AC-1045]] | acceptance | UC-001 증강 요청 거부 — 파생본 400·비식별 신고 구간 412 (negative) | 4 | true | UNCHANGED |
+| [[AC-1046]] | acceptance | UC-002 증강 결과 수신·등록 — 콜백 검증→새 RAW_SN·ORGNL 연결→비식별본 복사→라벨/메타 복사·계승→PENDING (happy) | 8 | true | UNCHANGED |
+| [[AC-1047]] | acceptance | UC-002 증강 결과 예외 — 검증 실패·비식별본 부재·재수신 멱등/409·다건 유일부여 (negative) | 6 | true | UNCHANGED |
+| [[AC-1048]] | acceptance | UC-003 해상도 변경 수행 — 프리셋 예약→비디오 복사+프레임 균일배율 리스케일→좌표 재계산→finalize (happy) | 6 | true | UNCHANGED |
+| [[AC-1049]] | acceptance | UC-003 해상도 변경 예외 — 전부 스킵 400·일부 실패 201/전부 500·파생본 400·비식별 신고 통과 (negative) | 5 | true | UNCHANGED |
+| [[AC-1052]] | acceptance | UC-007 라벨 버전 저장·이력 추적 — 승인 시점 전체 스냅샷 적재·해시 식별·이력 기록 (happy) | 9 | true | UNCHANGED |
+| [[AC-1053]] | acceptance | UC-007 비식별 미완료로 승인 거부 시 버전 미생성 — 스냅샷·해시·이력·재생성·통지 미발생 (negative) | 7 | true | UNCHANGED |
+| [[AC-1054]] | acceptance | UC-008 버전 비교·복구 — 버전 목록→로드 모달(최신 기본)→작업본 diff→전체 불러오기·저장 (happy) | 6 | true | UNCHANGED |
+| [[AC-1055]] | acceptance | UC-008 버전 화면 분기 — 둘 미만 모달 미표시·변경없음 안내·손상 400·저장 충돌 409 (negative) | 5 | true | UNCHANGED |
+| [[AC-1056]] | acceptance | UC-008 확정 저장 게이트 — 신고 구간 412·검수완료 후 저장 통지(UC-009)·폐기 회차 적용 예외 (negative) | 5 | true | UNCHANGED |
+| [[AC-1057]] | acceptance | UC-021 라벨 편집·임시저장 — 본인 배정 확인→캔버스 편집·속성→full-replace upsert(낙관적 토큰) (happy) | 6 | true | UNCHANGED |
+| [[AC-1058]] | acceptance | UC-021 라벨 편집 예외 — 타인 403·APPROVED 수정 재검토·신고 구간 412·값 검증·저장 충돌 409 (negative) | 10 | true | UNCHANGED |
+| [[AC-1059]] | acceptance | UC-028 라벨 클래스·속성 정의 관리 — 마스터·속성 CRUD(단일 진실원)·형태·매핑 즉시 반영 (happy) | 6 | true | UNCHANGED |
+| [[AC-1060]] | acceptance | UC-028 라벨 관리 예외 — 미연결 코드 '미연결' 표시·WORKER 403 (negative) | 4 | true | UNCHANGED |
+| [[AC-1061]] | acceptance | UC-032 라벨 프리셋 CRUD — 이벤트유형+라벨 멀티셀렉트(이름·설명 없음)·labelId 실시간 join·보류 재개 (happy) | 7 | true | UNCHANGED |
+| [[AC-1062]] | acceptance | UC-032 프리셋 저장 분기 — 라벨 0건=오토라벨 제외·중복 409·미지정 400·미연결 자동제외·AI 미매핑 저장+경고 (negative) | 5 | true | UNCHANGED |
+| [[AC-1063]] | acceptance | UC-011 비식별 처리 요청 — KPST 위탁(공유마운트 경로만)→폴링 완료 감지→비식별본 저장·원본 유지·이력·출처유형 제외 시 원본 복사로 완료 (happy) | 8 | false | UNCHANGED |
+| [[AC-1064]] | acceptance | UC-011 비식별 위탁 예외 — 연동 실패 F·원본 보존·수동 재비식별·응답 유실 폴링 회수 F 마감·취소 종결만 상태 불변·신고 구간 보류·제외 복사 실패 F·제외 행 회수 대상 아님·제외 출처유형 오표기는 검수 중 신고로 회수 (negative) | 11 | false | UNCHANGED |
+| [[AC-1065]] | acceptance | UC-013 비식별 옵션 설정 — 관리 화면에서 설정·저장·이후 요청에 적용 (happy) | 4 | true | UNCHANGED |
+| [[AC-1066]] | acceptance | UC-016 비식별 상태·이력·누락 신고·해소 — 상태 확인→신고(작업락+F, 라벨 보존)→구간 차단→산출물 선택(무결성 판정)→resolve 원자 클레임·단계별 재개 (happy) | 11 | true | UNCHANGED |
+| [[AC-1067]] | acceptance | UC-016 신고·해소 예외 — 무결성 불통과 409·이미 잠금 409·재-resolve 409·마킹 조건 412·파생 412·타인 403·비식별 실패 F (negative) | 8 | false | UNCHANGED |
+| [[AC-1068]] | acceptance | UC-024 포털 라벨 작업 — 마트 영상 Load·수정·메타/어노 편집(포털 전용 저장, 단방향)·기간내 다운로드 (happy) | 13 | true | UNCHANGED |
+| [[AC-1069]] | acceptance | UC-024 포털 작업 데이터 격리 — 타인 작업 데이터 조회/다운로드 403 (negative) | 10 | true | UNCHANGED |
 | [[AC-1070]] | acceptance | UC-027 포털 자산 업로드·수동 라벨링 — 업로드·등록·업로드 영상 마킹·BBOX/POLYGON 수동 라벨링·AI 증강(검수 없음)·다운로드 (happy) | 19 | true | UNCHANGED |
 | [[AC-1071]] | acceptance | UC-027 포털 업로드 예외 — 재개 가능 업로드·타인 자산 403 (negative) | 10 | false | UNCHANGED |
+| [[AC-1072]] | acceptance | UC-031 시스템 운영 설정 관리 — 카드별 변경분만 개별 PUT·관리자 유효창으로 연동 주소·위험 액션·헬스 폴링 (happy) | 13 | false | UNCHANGED |
+| [[AC-1073]] | acceptance | UC-031 설정 저장 거부 — 범위 밖 400 공통 토스트·변경 없는 카드 비활성·위험 액션 취소 (negative) | 5 | true | UNCHANGED |
+| [[AC-1074]] | acceptance | UC-031 관리자 유효창·연동 주소 거부 — 유효창 없이 403·주소 값 위반 400·만료 후 이어서·패스워드 불일치·위반 주소는 기동 통과 후 나가려는 순간 거부 (negative) | 7 | false | UNCHANGED |
+| [[AC-1075]] | acceptance | UC-029 작업 목록 조회·필터링·배정 — 역할별 범위·일괄 확정 필터·시간축 정렬·KPI 토글·배정/일괄배정 (happy) | 6 | true | UNCHANGED |
+| [[AC-1076]] | acceptance | UC-029 작업 목록 분기 — 미등록 정렬 키 strict 400·옵션 절단 안내·배정 이력 Drawer (negative) | 5 | true | UNCHANGED |
+| [[AC-1077]] | acceptance | UC-009 검수 완료·수정 통지 — TASK_COMPLETED/TASK_MODIFIED 평면 페이로드 비동기 push·조회 UPSERT (happy) | 6 | true | UNCHANGED |
+| [[AC-1078]] | acceptance | UC-009 통지 신뢰성 — 전송 실패 dead-letter·재등록 큐·다수 변경 재승인 1건=통지 1건 (edge) | 8 | true | UNCHANGED |
+| [[AC-1079]] | acceptance | UC-035 외부 산출물 가져오기 — 폴더 탐색·원본/비식별 지정·판정 단일값·분류 매핑·적재·검수 대기 (happy) | 9 | true | UNCHANGED |
+| [[AC-1080]] | acceptance | UC-035 이관 적재 거부/경고 — 이미 가져옴 거부·미확정 분류 거부·허용 범위 밖 위치 거부·짝 안 맞음 경고 미차단 (negative) | 7 | true | UNCHANGED |
+| [[AC-1081]] | acceptance | UC-035 원본 지정 이관 — 검수 승인 보류(비식별화완료여부 N)·다른 통로는 열림·비식별 성공 시 보류 해제 (edge) | 7 | true | UNCHANGED |
+| [[AC-1082]] | acceptance | UC-036 이관 이력 조회 — 목록 시간순·상태 필터·승인 보류 축 가려내기·상세 경위/실패 사유 (happy) | 7 | true | UNCHANGED |
+| [[AC-1083]] | acceptance | UC-036 이관 이력 조회 예외 — 잘못 물은 요청 거부·빈 상태 별도·찾을 수 없음·보류 미상 3갈래·실패 사유 갈래 (negative) | 5 | true | UNCHANGED |
+| [[AC-1084]] | acceptance | SCREEN-021 전체 구축 현황 리포트 내려받기 — 섹션 5개 실집계와 화면 수치 일치 (happy) | 3 | true | UNCHANGED |
+| [[AC-1085]] | acceptance | SCREEN-021 전체 구축 현황 리포트 내려받기 — 권한·기간값 거부와 셀 안전 처리 (negative) | 4 | true | UNCHANGED |
 | [[AC-1086]] | acceptance | SCREEN-027 파일 업로드 — 적재 경로 선택·단건 전송·기술메타 자동 채움·결과 상태 추적 (happy) | 3 | false | UNCHANGED |
 | [[AC-1087]] | acceptance | SCREEN-027 파일 업로드 — 유효창 없는 시작·허용 밖 형식과 용량·필수값 누락·중복 식별자 거부 (negative) | 2 | true | UNCHANGED |
+| [[AC-1088]] | acceptance | AI 장비를 유형별로 여러 대 등록해 쓸 수 있다 | 2 | false | UNCHANGED |
+| [[AC-1089]] | acceptance | 장비 주소는 저장될 때도 검증을 받는다 | 2 | false | UNCHANGED |
+| [[AC-1090]] | acceptance | 장비 관리 쓰기는 관리자와 유효창을 함께 요구한다 | 2 | false | UNCHANGED |
+| [[AC-1091]] | acceptance | 그 유형의 마지막 가용 장비는 잃지 않는다 | 2 | false | UNCHANGED |
+| [[AC-1092]] | acceptance | 시계열 장비 씨앗은 주소가 있을 때만 심고 덮어쓰지 않는다 | 2 | false | UNCHANGED |
+| [[AC-1095]] | acceptance | 관제 통지 x-access-token 은 발송 시점에 관제 규칙으로 발급된다 | 1 | true | UNCHANGED |
+| [[AC-1096]] | acceptance | 정적 토큰 override 가 설정되면 동적 발급보다 우선한다 | 1 | true | UNCHANGED |
+| [[AC-1097]] | acceptance | 시크릿·토큰 미설정 시 x-access-token 미부착 fail-safe | 1 | true | UNCHANGED |
+| [[AC-1105]] | acceptance | 관제 채널 세션 만료 연장 팝업 — 임계 도달 시 표시(감시 주기 되풀이 없음)·「로그아웃」·「로그인 연장」 두 버튼만(ESC·배경 클릭 무반응)·만료 시 로그아웃·셸 밖 전체 화면 적용·미저장 편집 경고와 만료 시 확인 없이 이동 | 8 | false | UNCHANGED |
+| [[AC-1106]] | acceptance | 관제 채널 세션 종결과 적용 경계 — 갱신 거절·401 재시도 실패 시 즉시 로그아웃(다른 탭이 이미 갱신했으면 예외)·일시 장애는 만료까지 유지·세션 만료 아닌 인증 실패 제외·관제 로그아웃 추종·갱신 토큰 없는 진입·포털 채널 무동작 (negative) | 9 | false | UNCHANGED |
 | [[API-001]] | api_endpoint | GET /v1/users | 10 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
 | [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 6 | false | UNCHANGED |
@@ -78,7 +151,7 @@
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
 | [[API-068]] | api_endpoint | GET /v1/manage/configs | 4 | false | UNCHANGED |
-| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 13 | false | CHANGED |
+| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 13 | false | UNCHANGED |
 | [[API-070]] | api_endpoint | POST /v1/assignments | 10 | false | UNCHANGED |
 | [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
 | [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
@@ -220,12 +293,26 @@
 | [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 19 | true | UNCHANGED |
 | [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 13 | true | UNCHANGED |
 | [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 8 | true | UNCHANGED |
+| [[API-225]] | api_endpoint | GET /v1/portal/user-works | 9 | false | UNCHANGED |
+| [[API-226]] | api_endpoint | GET /v1/manage/ai-servers | 4 | false | UNCHANGED |
+| [[API-227]] | api_endpoint | POST /v1/manage/ai-servers | 5 | false | UNCHANGED |
+| [[API-228]] | api_endpoint | PATCH /v1/manage/ai-servers/{srvrId} | 4 | false | UNCHANGED |
+| [[API-229]] | api_endpoint | PATCH /v1/manage/ai-servers/{srvrId}/status | 5 | false | UNCHANGED |
+| [[API-230]] | api_endpoint | DELETE /v1/manage/ai-servers/{srvrId} | 4 | false | UNCHANGED |
+| [[API-231]] | api_endpoint | POST /v1/portal/uploads/{uldSn}/augments | 5 | true | UNCHANGED |
 | [[API-232]] | api_endpoint | GET /v1/portal/augments | 4 | false | UNCHANGED |
 | [[API-233]] | api_endpoint | GET /v1/portal/augments/{augSn} | 5 | false | UNCHANGED |
+| [[API-234]] | api_endpoint | 포털 프레임 메타 Load | 5 | false | UNCHANGED |
+| [[API-235]] | api_endpoint | 포털 프레임 메타 저장 | 5 | false | UNCHANGED |
+| [[API-236]] | api_endpoint | 포털 이벤트 어노테이션 Load | 3 | false | UNCHANGED |
+| [[API-237]] | api_endpoint | 포털 이벤트 어노테이션 저장 | 4 | false | UNCHANGED |
 | [[API-238]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/stream | 1 | true | UNCHANGED |
 | [[API-239]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/stream-url | 1 | true | UNCHANGED |
 | [[API-240]] | api_endpoint | POST /v1/portal/uploads/{uldSn}/markings | 4 | true | UNCHANGED |
 | [[API-241]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/markings | 1 | true | UNCHANGED |
+| [[API-245]] | api_endpoint | GET /v1/auth/role-claim/availability — 관리자 부트스트랩 창구 개폐 조회 | 2 | false | UNCHANGED |
+| [[API-246]] | api_endpoint | DELETE /v1/auth/control-session — 관제 세션 로그아웃 중계 | 4 | true | UNCHANGED |
+| [[API-247]] | api_endpoint | POST /v1/auth/control-tokens — 관제 세션 갱신 중계 | 5 | true | UNCHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
@@ -269,7 +356,7 @@
 | [[SCREEN-039]] | screen_spec | 산출물 가져오기 | 45 | true | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 관리자 페이지 진입 화면 | 9 | false | UNCHANGED |
 | [[SCREEN-041]] | screen_spec | 관리자 패스워드 교체 | 10 | false | UNCHANGED |
-| [[SCREEN-042]] | screen_spec | 연동 서버 주소 관리 화면 | 27 | false | CHANGED |
+| [[SCREEN-042]] | screen_spec | 연동 서버 주소 관리 화면 | 27 | false | UNCHANGED |
 | [[SCREEN-043]] | screen_spec | 위험 작업 화면 | 7 | false | UNCHANGED |
 | [[SCREEN-044]] | screen_spec | 포털 증강 화면 | 14 | false | UNCHANGED |
 | [[SCREEN-045]] | screen_spec | 포털 업로드 영상 마킹 화면 | 6 | false | UNCHANGED |
@@ -308,7 +395,7 @@
 | [[SD-033]] | screen_design | SCREEN-027 파일 업로드 | 14 | false | UNCHANGED |
 | [[SD-034]] | screen_design | SCREEN-040 관리자 페이지 진입 화면 | 6 | false | UNCHANGED |
 | [[SD-035]] | screen_design | SCREEN-043 위험 작업 화면 | 4 | true | UNCHANGED |
-| [[SD-036]] | screen_design | SCREEN-042 연동 서버 주소 관리 화면 | 16 | false | CHANGED |
+| [[SD-036]] | screen_design | SCREEN-042 연동 서버 주소 관리 화면 | 16 | false | UNCHANGED |
 | [[SD-037]] | screen_design | SCREEN-041 관리자 패스워드 교체 화면 | 5 | true | UNCHANGED |
 | [[SD-038]] | screen_design | SCREEN-039 산출물 가져오기 | 3 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
@@ -336,13 +423,17 @@
 | [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 9 | false | UNCHANGED |
 | [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 14 | false | UNCHANGED |
 | [[UC-030]] | use_case | 사용자 계정·역할 관리 | 17 | false | UNCHANGED |
-| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 21 | true | CHANGED |
+| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 21 | true | UNCHANGED |
 | [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 16 | false | UNCHANGED |
 | [[UC-033]] | use_case | 전체 구축 현황 조회 — 검수완료 기준과 전체 기준 병기 | 8 | false | UNCHANGED |
 | [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 7 | false | UNCHANGED |
 | [[UC-035]] | use_case | 외부 산출물 가져오기 | 20 | true | UNCHANGED |
 | [[UC-036]] | use_case | 이관 이력 조회 | 9 | true | UNCHANGED |
 | [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 16 | false | UNCHANGED |
+| [[UC-038]] | use_case | 배치 자동 처리 파이프라인 | 9 | false | UNCHANGED |
+| [[UC-039]] | use_case | 온라인 AI 객체 탐지 | 5 | true | UNCHANGED |
+| [[UC-040]] | use_case | 공지·가이드라인 관리와 열람 | 5 | true | UNCHANGED |
+| [[UC-041]] | use_case | 인증 인계와 채널·역할 인가 | 29 | true | UNCHANGED |
 | [[UC-042]] | use_case | 파일 업로드로 영상 한 건 투입 | 6 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
@@ -489,3 +580,13 @@
 | [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |
 | [[UI-144]] | ui_component | display: ProcessingStackBar | 1 | false | UNCHANGED |
 | [[UI-145]] | ui_component | overlay: PathPicker | 1 | false | UNCHANGED |
+| [[UI-146]] | ui_component | layout: PortalCard | 1 | false | UNCHANGED |
+| [[UI-147]] | ui_component | feedback: PortalAlert | 1 | false | UNCHANGED |
+| [[UI-148]] | ui_component | feedback: PortalProgress | 1 | false | UNCHANGED |
+| [[UI-149]] | ui_component | display: PortalUploadStatusBadge | 1 | false | UNCHANGED |
+| [[UI-150]] | ui_component | display: PortalBadge | 1 | false | UNCHANGED |
+| [[UI-151]] | ui_component | feedback: PortalEmptyState | 1 | false | UNCHANGED |
+| [[UI-152]] | ui_component | layout: PortalSectionHead | 1 | false | UNCHANGED |
+| [[UI-153]] | ui_component | feedback: PortalListSkeleton | 1 | false | UNCHANGED |
+| [[UI-154]] | ui_component | display: PortalRecordRow | 1 | false | UNCHANGED |
+| [[UI-155]] | ui_component | display: PortalFactChip | 1 | false | UNCHANGED |

@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "UI-151",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "feedback: PortalEmptyState",
+    "slug": "feedback-portalemptystate",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PortalEmptyState",
+      "tags": [
+        "portal",
+        "ds-002",
+        "empty-state"
+      ],
+      "category": "feedback",
+      "description": "포털 채널 빈 상태. 그림 한 개와 무슨 일인지, 그리고 다음에 무엇을 하면 되는지를 함께 보인다. 사실 한 줄만 있는 빈 상태는 이용자를 그 자리에 세워 두는데, 포털 채널은 특히 그렇다 — 영상을 고르는 목록이 이 배포본 바깥에 있어 어디로 가야 목록이 채워지는지가 화면 안에 드러나지 않는다. 그래서 설명 한 줄을 규정으로 둔다. 조작은 갈 곳이 이 배포본 안에 있을 때만 두고 바깥이면 두지 않는다 — 누를 수 없는 자리를 만들면 빈 상태가 또 한 번 막다른 길이 된다.",
+      "code_snippet": "<PortalEmptyState icon={Inbox} title=\"저장한 작업이 없습니다.\" description=\"포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다.\" />",
+      "props_schema": [
+        {
+          "name": "icon",
+          "type": "LucideIcon",
+          "required": true,
+          "description": "그림 한 개. 라벨이 이미 말하는 것을 되풀이하지 않는 축의 글리프를 고른다."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "무슨 일인지 — 사실 한 줄."
+        },
+        {
+          "name": "description",
+          "type": "ReactNode",
+          "required": false,
+          "description": "다음에 무엇을 하면 되는지 — 이 자리가 이 부품의 존재 이유다."
+        },
+        {
+          "name": "action",
+          "type": "ReactNode",
+          "required": false,
+          "description": "갈 곳이 이 배포본 안에 있을 때만 둔다."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "data-testid",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "usage_example": "포털 내 작업(SCREEN-028)의 0건은 조작 없이 설명만 둔다 — 영상을 고르는 자리가 Host 화면이라 여기서 갈 수 있는 곳이 없다. 포털 증강(SCREEN-044)의 0건은 조작을 둔다 — 증강을 거는 자리가 이 배포본 안(내 업로드)이다. 두 화면의 차이는 의도이며 한쪽으로 통일하지 않는다.",
+      "attached_files": [],
+      "design_system_id": "DS-002",
+      "accessibility_notes": "조회가 끝나고 결과가 0건이라는 것은 방금 일어난 일이라 role=status 로 알린다. alert 로 두지 않는다 — 끼어들 만큼 급한 소식이 아니고, 화면에 늘 서 있는 안내를 alert 로 두면 진입할 때마다 낭독을 끊는다. 그림에는 aria-hidden 을 건다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: feedback: PortalEmptyState",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T07:21:07.355Z",
+    "created_at": "2026-09-08T07:21:07.355Z"
+  }
+}

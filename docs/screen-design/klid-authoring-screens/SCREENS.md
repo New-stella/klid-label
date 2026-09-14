@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 전체 통합 |
-| last sync | 2026-09-14T07:37:14.420Z (session 40) |
+| last sync | 2026-09-14T07:56:46.970Z (session 41) |
 | 화면 수 | 38개 |
-| ui_component 카탈로그 | populated 145건 |
+| ui_component 카탈로그 | populated 155건 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
@@ -52,7 +52,7 @@
 | [[SCREEN-039]] | 산출물 가져오기 | UNCHANGED | ✅ | [[API-205]], [[API-206]], [[API-207]], [[API-208]], [[API-209]], [[API-210]], [[API-211]], [[API-215]], [[API-221]], [[API-222]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-004]] |
 | [[SCREEN-040]] | 관리자 페이지 진입 화면 | UNCHANGED | ✅ | [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-041]] | 관리자 패스워드 교체 | UNCHANGED | ✅ | [[API-223]], [[API-194]] | [[ROLE-004]] |
-| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | CHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
+| [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]], [[API-226]], [[API-227]], [[API-228]], [[API-229]], [[API-230]] | [[ROLE-004]] |
 | [[SCREEN-043]] | 위험 작업 화면 | UNCHANGED | ✅ |  | [[ROLE-004]] |
 | [[SCREEN-044]] | 포털 증강 화면 | UNCHANGED | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
 | [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | UNCHANGED | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
@@ -62,9 +62,9 @@
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 145 |
+| ui_component | _shared/ui-catalog.md | 155 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 207 |
+| api_endpoint | _shared/api/ | 221 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -122,22 +122,13 @@
 | 37 | [[SCREEN-044]] — 포털 증강 화면 | screens/SCREEN-044/SCREEN-044.md | wireframe.html | uc/ | ac/ |
 | 38 | [[SCREEN-045]] — 포털 업로드 영상 마킹 화면 | screens/SCREEN-045/SCREEN-045.md | wireframe.html | uc/ | ac/ |
 
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-069]] | api_endpoint | CHANGED (v12→v13) |
-| [[SD-036]] | screen_design | CHANGED (v14→v16) |
-| [[SCREEN-042]] | screen_spec | CHANGED (v25→v27) |
-| [[UC-031]] | use_case | CHANGED (v20→v21) |
-
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 15건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 41건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -148,12 +139,38 @@
 > - UC-027 — SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
 > - UC-032 — SCREEN-026, SCREEN-038
 > - UC-036 — SCREEN-032, SCREEN-039
+> - UC-040 — SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037
+> - UC-041 — SCREEN-001, SCREEN-002, SCREEN-003
+> - AC-1022 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
+> - AC-1023 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
+> - AC-1028 — SCREEN-005, SCREEN-025
+> - AC-1029 — SCREEN-005, SCREEN-025
 > - AC-1032 — SCREEN-039, SCREEN-039
 > - AC-1033 — SCREEN-039, SCREEN-039
+> - AC-1040 — SCREEN-018, SCREEN-019
+> - AC-1041 — SCREEN-018, SCREEN-019
+> - AC-1042 — SCREEN-018, SCREEN-019
+> - AC-1054 — SCREEN-005, SCREEN-010
+> - AC-1055 — SCREEN-005, SCREEN-010
+> - AC-1056 — SCREEN-005, SCREEN-010
+> - AC-1061 — SCREEN-026, SCREEN-038
+> - AC-1062 — SCREEN-026, SCREEN-038
+> - AC-1063 — SCREEN-008, SCREEN-009
+> - AC-1064 — SCREEN-008, SCREEN-009
+> - AC-1066 — SCREEN-009, SCREEN-032
+> - AC-1067 — SCREEN-009, SCREEN-032
+> - AC-1068 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029
+> - AC-1069 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029
 > - AC-1070 — SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
 > - AC-1071 — SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
+> - AC-1082 — SCREEN-032, SCREEN-039
+> - AC-1083 — SCREEN-032, SCREEN-039
+> - AC-1084 — SCREEN-021, SCREEN-021
+> - AC-1085 — SCREEN-021, SCREEN-021
 > - AC-1086 — SCREEN-027, SCREEN-027
 > - AC-1087 — SCREEN-027, SCREEN-027
+> - AC-1105 — SCREEN-001, SCREEN-002, SCREEN-003
+> - AC-1106 — SCREEN-001, SCREEN-002, SCREEN-003
 
 ## git 권장
 

@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (145건)
+# UI 컴포넌트 카탈로그 (155건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -147,6 +147,16 @@
 | UI-143 | display: RateGaugeCard | display |
 | UI-144 | display: ProcessingStackBar | display |
 | UI-145 | overlay: PathPicker | overlay |
+| UI-146 | layout: PortalCard | layout |
+| UI-147 | feedback: PortalAlert | feedback |
+| UI-148 | feedback: PortalProgress | feedback |
+| UI-149 | display: PortalUploadStatusBadge | display |
+| UI-150 | display: PortalBadge | display |
+| UI-151 | feedback: PortalEmptyState | feedback |
+| UI-152 | layout: PortalSectionHead | layout |
+| UI-153 | feedback: PortalListSkeleton | feedback |
+| UI-154 | display: PortalRecordRow | display |
+| UI-155 | display: PortalFactChip | display |
 
 ---
 
@@ -10419,4 +10429,862 @@ DS-001
 ## accessibility_notes
 
 창은 role=dialog · aria-modal=true 이고 제목 요소를 aria-labelledby 로 가리킨다. 목록 항목은 링크·버튼 등 조작 요소로 두어 키보드 초점을 받으며 한 줄의 조작 영역 높이를 44px 이상으로 확보한다. 폴더와 영상 파일은 아이콘만으로 가르지 않고 종류를 글자로도 적어 색·모양에만 기대지 않는다. 빈 결과와 조회 거부는 각각 role=status·role=alert 로 알리고 창을 닫지 않는다. 빵부스러기는 nav 로 감싸고 구분 기호는 aria-hidden 으로 낭독에서 뺀다.
+
+
+---
+
+<!-- UI-146 -->
+
+# layout: PortalCard
+
+## name
+
+PortalCard
+
+## tags
+
+- portal
+- layout
+- card
+- surface
+
+## category
+
+layout
+
+## variants
+
+### default
+
+- **description**: 제목 줄 + 본문.
+
+### titleless
+
+**props_diff**:
+
+#### title
+
+_(null)_
+
+- **description**: 제목을 주지 않은 형태. 제목 줄을 그리지 않고 본문만 둔다.
+
+### with-action
+
+- **description**: 제목 우측에 목록 전체에 걸리는 조작 하나를 함께 둔 형태.
+
+## description
+
+포털 채널 카드 표면 — 제목 줄 + 본문. 관제 채널의 공통 카드와 따로 두는 것은 형태 축이 갈리기 때문이다. 이 채널은 표면을 큰 모서리로 두고 그림자를 기본으로 걸지 않는다(평면이 출발점이고 띄우는 것이 예외다). 면을 가르는 일은 경계가 맡는다. 제목 우측에는 성격이 다른 두 자리가 있다. 하나는 건수·범위처럼 제목을 보조하는 텍스트 자리이고, 다른 하나는 목록 전체에 걸리는 조작 하나를 두는 자리다. 행마다 걸리는 조작은 여기 두지 않고 행이 갖는다. 제목을 주지 않으면 제목 줄 자체를 그리지 않는다 — 빈 줄이 남으면 본문이 까닭 없이 아래로 밀린다.
+
+## props_schema
+
+### title
+
+- **type**: string
+- **required**: false
+- **description**: 카드 제목. 주지 않으면 제목 줄을 그리지 않는다.
+
+### count
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 제목을 보조하는 텍스트(건수·범위). 조작이 아니다.
+
+### action
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 카드가 소유한 조작 하나. 목록 전체에 걸리는 것만 둔다.
+
+### ariaLabel
+
+- **type**: string
+- **required**: false
+- **description**: 랜드마크 이름. 주면 영역이 이름을 갖는다.
+
+### children
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 본문.
+
+## usage_example
+
+포털 업로드 화면(SCREEN-033)의 「영상 업로드」·「업로드 자산」 두 카드가 이 부품이다. 목록 카드는 제목 우측에 건수·범위 텍스트와 「증강 요청 현황·결과」 진입을 함께 둔다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+랜드마크 이름을 주면 그 영역이 이름을 얻어 보조기술이 영역 단위로 건너뛸 수 있다. 제목은 heading 으로 그리고 보조 텍스트는 heading 밖에 둔다 — 안에 넣으면 목차에 건수까지 읽힌다.
+
+
+---
+
+<!-- UI-147 -->
+
+# feedback: PortalAlert
+
+## name
+
+PortalAlert
+
+## tags
+
+- portal
+- feedback
+- alert
+- banner
+
+## category
+
+feedback
+
+## variants
+
+### info
+
+- **description**: 안내. 이 경로가 무엇이 아닌지를 먼저 알리는 상시 배너에 쓴다.
+
+### error
+
+**props_diff**:
+
+#### live
+
+true
+
+#### tone
+
+error
+
+- **description**: 오류. 조회 실패처럼 방금 일어난 일에 쓰며 live 를 함께 켜는다.
+
+### warning
+
+- **description**: 경고.
+
+## description
+
+포털 채널 안내 배너 — 제목 한 줄 + 설명, 그리고 선택적으로 그 배너가 소유한 조작. 안내·오류·경고 세 결을 가지며 색만으로 뜻을 전하지 않는다. 결마다 아이콘이 함께 붙고 아이콘의 획 굵기를 옆 글자 굵기에 맞춘다. 보조기술이 즉시 읽는 성질은 기본으로 켜지 않는다 — 방금 일어난 일에만 켜고, 화면에 늘 서 있는 안내를 그렇게 두면 들어올 때마다 끼어들어 소음이 된다. 이 배너는 포털 화면이 「이 경로가 무엇이 아닌지」를 맨 위에서 먼저 알리는 자리로도 쓴다. 포털 경로에는 자동 라벨링·검수·버전 관리가 없는데 화면에 그 사실이 없으면 이용자가 올려두면 알아서 되겠지로 기다리게 된다.
+
+## props_schema
+
+### tone
+
+- **type**: 'info' | 'error' | 'warning'
+- **default**: info
+- **required**: false
+- **description**: 결. 색과 아이콘이 함께 바뀜다.
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 한 줄로 읽힐 제목.
+
+### description
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 설명.
+
+### action
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 배너가 소유한 조작(예: 다시 시도).
+
+### live
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 보조기술이 즉시 읽게 할지. 방금 일어난 일에만 켜다.
+
+## usage_example
+
+포털 업로드 화면(SCREEN-033) 상단의 「여기에 올린 자산은 본인만 볼 수 있습니다」 상시 안내, 전송이 끊겼을 때의 이어서 올리기 안내, 목록 조회 실패 안내(다시 시도 조작 포함)가 모두 이 부품이다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+방금 일어난 일에만 live 를 켜 보조기술이 끼어들어 읽게 한다. 상시 안내에 켜면 화면에 들어올 때마다 낭독을 가로챈다. 결은 색만으로 구분하지 않으며 아이콘이 함께 붙는다.
+
+
+---
+
+<!-- UI-148 -->
+
+# feedback: PortalProgress
+
+## name
+
+PortalProgress
+
+## tags
+
+- portal
+- feedback
+- progress
+- upload
+
+## category
+
+feedback
+
+## variants
+
+### default
+
+- **description**: 진행 중.
+
+### with-caption
+
+- **description**: 보난 용량을 병기한 형태. 5GB 급 영상에서는 이쪽을 쓴다.
+
+### failed
+
+**props_diff**:
+
+#### failed
+
+true
+
+- **description**: 전송이 끊긴 상태. 채움이 오류색이고 값은 멈춘 지점을 그대로 남긴다.
+
+## description
+
+포털 업로드 진행률 — 막대와 함께 보낸 용량을 병기한다. 백분율만 두지 않는 것은 영상이 최대 5GB 라 68퍼센트만으로는 얼마나 더 기다려야 하는지 가늠할 수 없기 때문이다. 막대 위에 보낸 양과 전체 양을 적고, 막대 아래에는 지금 무엇을 할 수 있고 없는지를 한 줄로 덧붙일 수 있다. 숫자는 고정폭으로 그린다 — 진행률은 계속 갱신되는데 비례폭 숫자를 쓰면 자릿수가 바뀔 때마다 옆 글자가 밀린다. 범위를 벗어난 값은 0과 100 사이로 자른다. 보조기술이 읽을 이름을 반드시 받는다. 실패·중단을 표시하면 채움이 오류색으로 바뀌되 값 자체는 남는다 — 어디까지 갔는지가 이어서 올리기의 근거이기 때문이다.
+
+## props_schema
+
+### percent
+
+- **type**: number
+- **required**: true
+- **description**: 0에서 100. 범위 밖 값은 잘라 넣는다.
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 보조기술이 읽을 이름.
+
+### caption
+
+- **type**: string
+- **required**: false
+- **description**: 막대 위 설명. 보난 양과 전체 양을 적는다.
+
+### note
+
+- **type**: string
+- **required**: false
+- **description**: 막대 아래 보조 안내. 멈추지 못하는 사실과 이어서 올라간다는 사실을 한 자리에 적는다.
+
+### failed
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 실패·중단 표시. 채움이 오류색으로 바뀜다.
+
+## usage_example
+
+포털 업로드 화면(SCREEN-033)의 영상 업로드 진행률. 조작 자리(업로드 버튼)에도 같은 백분율을 실어 스크롤로 막대가 가려져도 상태를 읽을 수 있게 한다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+진행률 역할과 이름·현재값·최소·최대를 함께 노출한다. 값 갱신이 잦으므로 숫자는 고정폭으로 그려 옆 글자가 밀리지 않게 한다.
+
+
+---
+
+<!-- UI-149 -->
+
+# display: PortalUploadStatusBadge
+
+## name
+
+PortalUploadStatusBadge
+
+## tags
+
+- portal
+- display
+- badge
+- status
+- upload
+
+## category
+
+display
+
+## variants
+
+### uploaded
+
+- **description**: 마킹 대기. 덧붙는 줄은 마킹을 마치면 그 지점으로 프레임을 뽑는다고 알린다. ★업로드됨으로 되돌리지 말 것.
+
+### processing
+
+- **description**: 처리중. 덧붙는 줄은 프레임을 뽑는 중이라고 알린다.
+
+### ready
+
+- **description**: 준비 완료. 덧붙는 줄이 없다.
+
+### failed
+
+- **description**: 실패. 아이콘이 함께 붙고 덧붙는 줄은 지운 뒤 다시 올리라고 안내한다.
+
+### unknown
+
+- **description**: 계약에 없는 값. 자리를 비우지 않고 받은 값을 그대로 보여 준다.
+
+## description
+
+포털 업로드 자산의 상태 배지 — 알약 하나로 끝내지 않고 그 아래에 다음에 무슨 일이 일어나는지를 한 줄로 덧붙일 수 있다. 마킹 대기와 처리중은 이용자가 지금 아무것도 할 수 없는 상태라, 배지만 있으면 기다려야 하는지 잘못된 것인지 알 수 없다. 준비 완료에는 덧붙이지 않는다 — 할 수 있는 일이 그 행의 조작으로 이미 드러나 있어 설명이 소음이 된다. 업로드 완료 상태의 표기는 「마킹 대기」다. 마킹을 마쳐야 그 지점으로 프레임이 추출되므로 이 자리에서 알려야 할 것은 업로드가 끝났다는 사실이 아니라 다음에 무엇을 해야 하는가이며, 표기만 그렇게 하고 상태값 자체는 바뀌지 않는다. 색만으로 구분하지 않는다 — 배지마다 한글 라벨이 있고 실패에는 아이콘이 함께 붙는다. 계약에 없는 값이 와도 자리를 비우지 않고 값 자체를 보여 준다. 빈 칸은 상태가 없다로 읽힌다.
+
+## props_schema
+
+### status
+
+- **type**: string
+- **required**: true
+- **description**: 자산 상태값. 서버 계약이라 바꾸지 않고 표기만 옮긴다.
+
+### withSub
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 다음에 할 일 한 줄을 붙일지. 목록 행처럼 자리가 있을 때만 켜다.
+
+## usage_example
+
+포털 업로드 화면(SCREEN-033) 자산 목록의 상태 열. 목록 행이라 다음에 할 일 한 줄을 함께 켠다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+상태를 색만으로 전하지 않는다. 배지마다 한글 라벨이 있고 실패에는 아이콘이 함께 붙어 색을 구분하지 못해도 뜻이 전해진다.
+
+
+---
+
+<!-- UI-150 -->
+
+# display: PortalBadge
+
+## name
+
+PortalBadge
+
+## tags
+
+- portal
+- ds-002
+- badge
+
+## category
+
+display
+
+## variants
+
+### primary
+
+**props_diff**:
+
+#### tone
+
+primary
+
+- **description**: 주색 면 — 내 것·활성 축. DS-002 에서 안내(info)와 주색이 같은 값이라 둘을 나란히 놓고 구별시키는 자리에는 쓸 수 없다.
+
+### outline
+
+**props_diff**:
+
+#### tone
+
+outline
+
+- **description**: 면 없이 선만 — 성격이 아니라 어느 갈래인지만 말하는 가장 조용한 자리.
+
+### success
+
+**props_diff**:
+
+#### tone
+
+success
+
+- **description**: 결과 도착처럼 끝난 일.
+
+### danger
+
+**props_diff**:
+
+#### tone
+
+danger
+
+- **description**: 실패. 색만으로 말하지 않으므로 라벨이 사실을 함께 적는다.
+
+## description
+
+포털 채널 알약 배지. 분류·출처·상태처럼 훑어서 읽는 표식에 쓴다. 색이 뜻을 혼자 나르지 않게 언제나 한글 라벨을 함께 갖고, 라벨이 이미 말한 것을 되풀이하는 장식 아이콘은 안에 두지 않는다. 굵기 500 은 본문 400 한 단 위이자 DS-002 상한 600 한 단 아래다. 관제 공통 배지를 쓰지 않는 이유는 그 부품을 관제 화면 여럿이 함께 써서 포털 모양을 넣으면 관제 화면이 같이 바뀌기 때문이다.
+
+## code_snippet
+
+<PortalBadge tone="primary">내 업로드</PortalBadge>
+
+## props_schema
+
+### tone
+
+- **type**: 'gray' | 'primary' | 'success' | 'warning' | 'danger' | 'outline'
+- **default**: gray
+- **required**: false
+- **description**: 면과 글자색. gray·outline 은 분류를 말하는 조용한 자리라 먹색 글자를 유지하고, 의미 톤(success·warning·danger)에서만 글자색을 가른다.
+
+### children
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 배지 라벨. 언제나 글자를 갖는다.
+
+### className
+
+- **type**: string
+- **required**: false
+
+### data-testid
+
+- **type**: string
+- **required**: false
+- **description**: 행 안에서 이 배지를 집는 자리.
+
+## usage_example
+
+포털 내 작업 목록(SCREEN-028)의 자산 출처 표기(데이터마트 · 내 업로드)와 포털 증강 목록(SCREEN-044)의 요청 상태 표기(결과 도착 · 결과 대기 중 · 실패)에 쓴다. 상태 문구와 판정은 화면 밖 단일 진실원이 정하고 이 부품은 색과 모양만 맡는다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+색상 단독 구분 금지(KRDS) 요건을 글자가 단독으로 충족한다 — 배지는 언제나 한글 라벨을 갖는다. 배지 자체에 role 을 두지 않는다(장식이 아니라 본문 글자다).
+
+
+---
+
+<!-- UI-151 -->
+
+# feedback: PortalEmptyState
+
+## name
+
+PortalEmptyState
+
+## tags
+
+- portal
+- ds-002
+- empty-state
+
+## category
+
+feedback
+
+## description
+
+포털 채널 빈 상태. 그림 한 개와 무슨 일인지, 그리고 다음에 무엇을 하면 되는지를 함께 보인다. 사실 한 줄만 있는 빈 상태는 이용자를 그 자리에 세워 두는데, 포털 채널은 특히 그렇다 — 영상을 고르는 목록이 이 배포본 바깥에 있어 어디로 가야 목록이 채워지는지가 화면 안에 드러나지 않는다. 그래서 설명 한 줄을 규정으로 둔다. 조작은 갈 곳이 이 배포본 안에 있을 때만 두고 바깥이면 두지 않는다 — 누를 수 없는 자리를 만들면 빈 상태가 또 한 번 막다른 길이 된다.
+
+## code_snippet
+
+<PortalEmptyState icon={Inbox} title="저장한 작업이 없습니다." description="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다." />
+
+## props_schema
+
+### icon
+
+- **type**: LucideIcon
+- **required**: true
+- **description**: 그림 한 개. 라벨이 이미 말하는 것을 되풀이하지 않는 축의 글리프를 고른다.
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 무슨 일인지 — 사실 한 줄.
+
+### description
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 다음에 무엇을 하면 되는지 — 이 자리가 이 부품의 존재 이유다.
+
+### action
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 갈 곳이 이 배포본 안에 있을 때만 둔다.
+
+### className
+
+- **type**: string
+- **required**: false
+
+### data-testid
+
+- **type**: string
+- **required**: false
+
+## usage_example
+
+포털 내 작업(SCREEN-028)의 0건은 조작 없이 설명만 둔다 — 영상을 고르는 자리가 Host 화면이라 여기서 갈 수 있는 곳이 없다. 포털 증강(SCREEN-044)의 0건은 조작을 둔다 — 증강을 거는 자리가 이 배포본 안(내 업로드)이다. 두 화면의 차이는 의도이며 한쪽으로 통일하지 않는다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+조회가 끝나고 결과가 0건이라는 것은 방금 일어난 일이라 role=status 로 알린다. alert 로 두지 않는다 — 끼어들 만큼 급한 소식이 아니고, 화면에 늘 서 있는 안내를 alert 로 두면 진입할 때마다 낭독을 끊는다. 그림에는 aria-hidden 을 건다.
+
+
+---
+
+<!-- UI-152 -->
+
+# layout: PortalSectionHead
+
+## name
+
+PortalSectionHead
+
+## tags
+
+- portal
+- ds-002
+- section-header
+
+## category
+
+layout
+
+## description
+
+포털 채널 구역 머리. 구역 제목과 한 줄 설명, 건수, 구역 조작을 한 줄에 담는다. 페이지 제목(h1)을 만들지 않는 것이 이 부품의 핵심 규정이다 — 포털 채널의 저작도구 화면은 Host 화면 안에서 실행되고 서비스 이름은 Host 머리 영역이, 화면 이름은 본문 상단 이동 탭의 활성 항목이 이미 말한다. 여기서 다시 쓰면 같은 말이 두 번 뜨고 이동 탭과 제목이 서로를 흉내 내는 것으로 읽힌다. 설명 한 줄은 장식이 아니라 규정이다 — 목록만 놓인 화면은 여기 실리는 것이 무엇인지를 스스로 말하지 못한다.
+
+## code_snippet
+
+<PortalSectionHead id="portal-my-works" title="내 저장 작업" lead="내가 올린 자산과, 내가 라벨이나 메타를 더한 영상이 여기에 모입니다." count="12건" />
+
+## props_schema
+
+### id
+
+- **type**: string
+- **required**: true
+- **description**: aria-labelledby 로 구역과 잇는 제목 id.
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 구역 제목. h2 로 그린다.
+
+### lead
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 여기 실리는 것이 무엇인지 한 줄.
+
+### count
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 건수·범위 등 제목을 보조하는 글. 조작이 아니다.
+
+### action
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 구역 전체에 걸리는 조작 하나. 행별 조작은 행이 갖는다 — 여기 올리면 어느 행에 걸리는지 알 수 없다.
+
+### className
+
+- **type**: string
+- **required**: false
+
+## usage_example
+
+포털 내 작업(SCREEN-028)은 제목·설명·건수를 두고 조작은 두지 않는다. 포털 증강(SCREEN-044)은 요청이 있을 때만 영상을 고르러 가는 링크를 조작 자리에 둔다 — 0건일 때는 빈 상태가 같은 이름의 링크를 대신 가져, 같은 접근 이름의 링크가 한 화면에 둘이 되지 않게 한다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+제목은 h2 이고 h1 을 만들지 않는다(Host 가 페이지 제목을 소유한다 — SHELL-002). id 를 받아 감싸는 section 의 aria-labelledby 와 잇는다. 선택 항목을 넘기지 않으면 그 자리 자체를 그리지 않아 빈 요소가 낭독되지 않는다.
+
+
+---
+
+<!-- UI-153 -->
+
+# feedback: PortalListSkeleton
+
+## name
+
+PortalListSkeleton
+
+## tags
+
+- portal
+- ds-002
+- skeleton
+
+## category
+
+feedback
+
+## description
+
+포털 채널 목록 로딩 자리표시자. 불러오는 중이라는 글 한 줄은 아무것도 없는 화면과 모양이 거의 같아서, 자리표시자가 올 것이 있고 그것이 목록 모양이라는 사실을 형태로 먼저 말한다. 결과가 붙는 순간 화면이 튀지 않는 효과도 함께 얻는다. 보조기술에서는 빠진다 — 회색 상자는 읽을 내용이 없어 노출하면 빈 항목이 여러 개 낭독된다. 불러오는 중이라는 사실은 호출부가 별도 문구로 알린다.
+
+## code_snippet
+
+<PortalListSkeleton rows={3} />
+
+## props_schema
+
+### rows
+
+- **type**: number
+- **default**: 3
+- **required**: false
+- **description**: 그릴 줄 수. 실제로 올 건수를 모르므로 목록임을 말할 만큼만 둔다.
+
+### className
+
+- **type**: string
+- **required**: false
+
+## usage_example
+
+포털 내 작업(SCREEN-028)·포털 증강(SCREEN-044)·포털 업로드(SCREEN-033) 세 목록 화면이 함께 쓴다. 호출부는 이 부품과 role=status 문구를 짝으로 둔다 — 자리표시자만 두면 비었다와 모양이 같고, 글만 두면 결과가 붙는 순간 화면이 튄다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+뿌리에 aria-hidden 을 건다. 로딩 사실은 호출부의 role=status 문구가 단독으로 나른다.
+
+
+---
+
+<!-- UI-154 -->
+
+# display: PortalRecordRow
+
+## name
+
+PortalRecordRow
+
+## tags
+
+- portal
+- ds-002
+- list-row
+- card
+
+## category
+
+display
+
+## description
+
+포털 채널 목록의 행 카드. 그림 없이 글자만 남는 목록의 한 줄이며 제목·표식·본문·사실값·조작을 한 표면에 담는다. 표를 쓰지 않는 이유는 폭이다 — 증강 목록 한 행이 요구하는 최소 폭이 본문 최대 폭을 넘어 어느 칸이든 반드시 접히거나 잘렸고, 실제로 생성 조건 칸이 최소 폭까지 눌려 한 글자씩 세로로 흘러내렸다. 행 카드는 줄바꿈이 손해가 아닌 구조라 그 부족분 자체가 사라진다. 어느 자리에도 말줄임을 두지 않으며 긴 값은 줄바꿈으로 전문을 보인다. 치수는 Host 포털 원본의 목록 행 실측값이다 — 흰 면, 경계 중립 200단, 라운드 16, 그림자 없음, 패딩 20, 안쪽 간격 세로 12 가로 20, 항목 사이 16, 마우스가 얹히면 주색 최옅단으로 짚는다.
+
+## code_snippet
+
+<PortalRecordList aria-label="증강 요청 목록">{rows.map((r) => (<li key={r.id}><PortalRecordRow title={r.name} titleAside={<PortalBadge tone="success">결과 도착</PortalBadge>} body={<span className="flex flex-wrap gap-tight">{conds.map((c) => <PortalFactChip key={c.key} label={c.label} value={c.value} />)}</span>} meta={<span>요청 {r.requestedAt}</span>} actions={<button type="button">결과 확인</button>} /></li>))}</PortalRecordList>
+
+## props_schema
+
+### title
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 이 줄이 무엇인지. 길면 자르지 않고 줄바꿈한다 — 잘리는 꼬리가 확장자라 거부 사유가 화면에서 사라진다.
+
+### titleAside
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 제목 오른쪽에 붙는 표식(상태 배지). 제목과 같은 줄에서 흐른다.
+
+### body
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 제목 아래 본문 — 조건 칩·부제·실패 사유처럼 폭을 먹는 것.
+
+### meta
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 오른쪽 사실값(일시·크기). 자리폭 고정이라 줄끼리 세로로 선다.
+
+### actions
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 오른쪽 조작. 사실값 아래에 선다.
+
+### selected
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 고른 줄. 색만으로 말하지 않으므로 호출부가 누름 상태를 함께 둔다.
+
+### className
+
+- **type**: string
+- **required**: false
+
+### data-testid
+
+- **type**: string
+- **required**: false
+
+## usage_example
+
+포털 업로드 자산 목록(SCREEN-033)과 포털 증강 요청 현황(SCREEN-044)이 함께 쓴다. 두 목록 모두 값 길이가 제각각이고 한 항목이 조작을 여럿 담아 표로는 폭이 모자랐다. 형제 화면인 포털 내 작업 목록(SCREEN-028)은 네 열이 전부 짧은 값이라 표로 남는다 — 형태는 담는 내용이 정한다. 함께 쓰는 부품 둘: 목록 껍데기 PortalRecordList, 사실 한 조각을 담는 PortalFactChip.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+목록은 ul/li 로 짜 보조기술이 항목 수를 먼저 알린다. 왼쪽 갈래 아이콘 타일과 상태를 알리는 좌측 색 띠를 두지 않는다 — 두 목록 다 갈래가 한 종류뿐이라 같은 그림이 모든 줄에 반복될 뿐이고, 색 띠가 나르던 정보는 상태 배지와 실패 사유가 이미 갖는다. 사실값 글자색은 중립 600단이다 — Host 원본은 500단이지만 이 줄의 hover 면 위에서 4.01:1 로 AA 미달이라 한 단 올렸다(상대에 제기할 대상). 말풍선(title 속성)을 보완책으로 쓰지 않는다 — 터치 환경에서 뜨지 않고 게시본 정리기가 그 속성을 지운다.
+
+
+---
+
+<!-- UI-155 -->
+
+# display: PortalFactChip
+
+## name
+
+PortalFactChip
+
+## tags
+
+- portal
+- ds-002
+- chip
+
+## category
+
+display
+
+## description
+
+사실 한 조각을 담는 칩. 이름과 값 두 도막으로 이루어지며 이름은 뒤로 물러나고 값이 앞선다 — 훑을 때 눈에 들어와야 하는 것은 값이다. 서술을 한 줄로 이어 붙이지 않기 위한 부품이다. 생성 조건 다섯을 가운뎃점으로 이어 한 덩이 문자열로 두면 폭이 모자랄 때 통째로 잘려 어느 값이 사라졌는지조차 알 수 없게 되는데, 칩으로 흩으면 줄바꿈이 자연스럽고 항목 하나하나가 독립적으로 읽힌다. 사각 태그 모양이라 알약인 상태 배지와 형태로 갈린다.
+
+## code_snippet
+
+<PortalFactChip label="시간대" value="밤" />
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 항목 이름. 중립 600단 — 값보다 한 단 물러나되 옆은 면(50단) 위에서 AA 를 지킨다.
+
+### value
+
+- **type**: string
+- **required**: true
+- **description**: 항목 값. 중립 800단 + 굵기 500.
+
+## usage_example
+
+포털 증강 요청 현황(SCREEN-044)의 생성 조건 다섯 항목과, 포털 업로드 자산 목록(SCREEN-033)의 유형·크기·프레임에 쓴다. 아직 값이 없는 항목은 칩 자체를 두지 않는다 — 열이 없으므로 빈 자리가 「열이 밀렸나」로 읽힐 염려가 없고, 없는 값을 위해 자리를 지어내지 않는다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-002
+
+## accessibility_notes
+
+이름과 값이 모두 글자라 색에 기대지 않는다. 이름 글자색은 중립 600단이다 — 500단은 이 칩의 면(중립 50단) 위에서 4.13:1 로 AA 미달이다(대비 가드 실측).
 
