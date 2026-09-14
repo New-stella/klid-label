@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Iterator
 
 import pytest
@@ -140,8 +141,8 @@ def test_미지의_event_type은_폴백_서술로_콜백한다(
 ) -> None:
     """값을 지어내 이벤트별 서술을 만들지 않는다 — 표준 7종만 전용 서술을 갖는다.
 
-    ★ 검증 대상은 **추가 질문 창구**다. 묘사 창구의 서술은 영상 길이에서 나오는 구간 서술이라
-    event_type 에 따라 갈리지 않는다 — 그 창구로 이 성질을 확인하면 늘 통과하는 헛 단정이 된다.
+    ★ 검증 대상은 **추가 질문 창구**다. 묘사 창구의 이벤트별 서술은 아래 「서술 형식」 절이 따로
+    고정한다.
     """
     captured = _patch_capture(monkeypatch)
     res = client.post(DESCRIBE_SUB_URL, json=_request_body(event_type="earthquake"))
@@ -514,3 +515,242 @@ def test_허용호스트는_환경변수로_확장할_수_있다(
     # then
     assert res.status_code == 202
     reload_settings()
+
+
+# ── 서술 형식 — 실제 사업자 응답 정합 ────────────────────────────
+# 정본: reports/vlm-klid-integration/실응답-20260914/LIVE-*.json (2026-09-14 수신 콜백 원문).
+#   - 묘사: 라벨 줄 5개(장소·날씨·상황·환경·심각성) 순서 고정, 줄 머리 「- 」는 호출마다 있기도 없기도.
+#   - 사용자 프롬프트: 결론 첫 문장 → ### 근거: → 번호/글머리표 목록 → (선택) --- → 「따라서, …」.
+CUSTOM_URL = "/v1/videovlm-klid/custom"
+_LABEL_ORDER = ["장소", "날씨", "상황", "환경", "심각성"]
+#: 저작도구의 「상황」 추출 규칙과 같은 정규식(DescriptionSituationExtractor) — 줄 단위로 적용한다.
+_SITUATION_LINE = re.compile(r"^\s*(?:-\s*)?상황\s*:\s*(.*)$")
+_LABEL_LINE = re.compile(r"^(- )?(장소|날씨|상황|환경|심각성): (.+)$")
+_SEGMENT_SENTENCE = re.compile(r"\d+\s*~\s*\d+\s*초|초 구간")
+_EVENT_TYPES = ["fire", "smoke", "fall", "violence", "flooding", "car_accident", "kidnapping"]
+_QUESTION = "영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?"
+
+
+def _custom_body(**over: object) -> dict:
+    body = {
+        "request_id": "c0000001",
+        "prompt": _QUESTION,
+        "media": {
+            "type": "video",
+            "source_type": "path",
+            "path": "/data/videos/deid.mp4",
+            "frame_policy": {"mode": "frame_interval"},
+        },
+        "callback_url": "http://klid-backend:8080/api/v1/vlm/callback",
+    }
+    body.update(over)
+    return body
+
+
+def _extract_situation(description: str) -> str | None:
+    """저작도구 추출기와 같은 규칙 — 줄마다 정규식을 대 첫 일치의 값을 돌려준다."""
+    for line in re.split(r"\r\n|\r|\n", description):
+        match = _SITUATION_LINE.match(line)
+        if match:
+            value = match.group(1).strip()
+            return value or None
+    return None
+
+
+def _describe_description(client: TestClient, monkeypatch: pytest.MonkeyPatch, **over: object) -> str:
+    captured = _patch_capture(monkeypatch)
+    res = client.post(DESCRIBE_URL, json=_request_body(**over))
+    assert res.status_code == 202
+    assert len(captured) == 1
+    return captured[0][1]["results"]["description"]
+
+
+@pytest.mark.parametrize("event_type", [*_EVENT_TYPES, None, "earthquake"])
+def test_묘사_서술은_라벨_5줄이_장소_날씨_상황_환경_심각성_순서다(event_type: str | None) -> None:
+    from app.services import vlm_sim
+
+    for index in range(12):
+        text = vlm_sim.mock_describe_text(f"order-{index}", event_type, 30)
+        lines = text.split("\n")
+        assert len(lines) == 5, text
+        matches = [_LABEL_LINE.match(line) for line in lines]
+        assert all(matches), text
+        assert [m.group(2) for m in matches] == _LABEL_ORDER  # type: ignore[union-attr]
+        # 한 서술 안에서는 줄 머리 형식이 섞이지 않는다.
+        assert len({m.group(1) for m in matches}) == 1  # type: ignore[union-attr]
+
+
+def test_묘사_서술의_줄머리_대시는_요청마다_있기도_없기도_하다() -> None:
+    """실응답은 car_accident 건에 「- 」가 없고 fire 건에 있었다 — 두 형식이 모두 나와야 한다."""
+    from app.services import vlm_sim
+
+    forms = {
+        vlm_sim.mock_describe_text(f"LIVE-DESC-{index:04d}", "car_accident", 40).startswith("- ")
+        for index in range(20)
+    }
+    assert forms == {True, False}
+
+
+@pytest.mark.parametrize("event_type", [*_EVENT_TYPES, None])
+def test_묘사_서술의_상황_값은_저작도구_추출_규칙으로_뽑힌다(event_type: str | None) -> None:
+    from app.services import vlm_sim
+
+    for index in range(10):
+        text = vlm_sim.mock_describe_text(f"sit-{index}", event_type, 40)
+        situation = _extract_situation(text)
+        assert situation, text
+        # 뽑힌 값은 「상황」 줄 한 줄뿐이다 — 다음 라벨 줄이 섞이지 않는다.
+        assert "환경:" not in situation and "\n" not in situation
+        assert len(situation) >= 60
+
+
+def test_묘사_서술의_심각성은_N점_형식이다() -> None:
+    from app.services import vlm_sim
+
+    formats = set()
+    for index in range(30):
+        text = vlm_sim.mock_describe_text(f"sev-{index}", "fall", 20)
+        severity_line = text.split("\n")[-1]
+        match = re.match(r"^(?:- )?심각성: (\d+)점\. (이유: )?\S", severity_line)
+        assert match, severity_line
+        assert 1 <= int(match.group(1)) <= 10
+        formats.add(match.group(2) is not None)
+    # 「N점. 이유: …」와 「N점. …」 두 형식이 모두 나온다(실응답도 둘 다 있었다).
+    assert formats == {True, False}
+
+
+def test_묘사_서술에는_구간_문장이_없고_2000자_이내다() -> None:
+    from app.services import vlm_sim
+
+    for event_type in [*_EVENT_TYPES, None, "earthquake"]:
+        for index in range(30):
+            for duration in (3, 40, 3600):
+                text = vlm_sim.mock_describe_text(f"len-{index}", event_type, duration)
+                assert 0 < len(text) <= 2000
+                assert _SEGMENT_SENTENCE.search(text) is None, text
+
+
+def test_묘사_서술은_이벤트_유형에_따라_상황이_달라진다() -> None:
+    """표준 유형은 그 이벤트의 발생/미발생 서술, 모르는 유형은 이벤트를 판정하지 않는 일반 서술."""
+    from app.services import vlm_sim
+
+    fire = {_extract_situation(vlm_sim.mock_describe_text(f"ev-{i}", "fire", 40)) for i in range(20)}
+    assert all("화재" in s for s in fire if s)
+    # 발생·미발생 두 갈래가 모두 나온다.
+    assert any(s and s.startswith("화재 발생") for s in fire)
+    assert any(s and s.startswith("화재는 확인되지 않음") for s in fire)
+
+    unknown = _extract_situation(vlm_sim.mock_describe_text("ev-0", "earthquake", 40))
+    assert unknown and unknown.startswith("일반적인 시내 교통 상황")
+    assert unknown == _extract_situation(vlm_sim.mock_describe_text("ev-0", None, 40))
+
+
+def test_묘사_콜백은_같은_request_id에_같은_서술을_돌려준다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _describe_description(client, monkeypatch, request_id="same-0001", event_type="fire")
+    second = _describe_description(client, monkeypatch, request_id="same-0001", event_type="fire")
+    assert first == second
+    assert _extract_situation(first)
+
+
+def test_묘사_콜백은_요청의_event_type을_서술에_반영한다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    description = _describe_description(client, monkeypatch, event_type="car_accident")
+    situation = _extract_situation(description)
+    assert situation and "교통사고" in situation
+
+
+def test_상황_생략_옵션을_켜면_상황_줄이_통째로_빠진다(monkeypatch: pytest.MonkeyPatch) -> None:
+    """「상황 줄이 없으면 채우지 않는다」 분기를 로컬에서 재현하는 옵션 — 나머지 4줄 순서는 유지."""
+    from app.config import reload_settings
+    from app.services import vlm_sim
+
+    monkeypatch.setenv("MOCK_DESCRIBE_OMIT_SITUATION", "true")
+    reload_settings()
+    try:
+        text = vlm_sim.mock_describe_text("omit-1", "fire", 40)
+        labels = [_LABEL_LINE.match(line).group(2) for line in text.split("\n")]  # type: ignore[union-attr]
+        assert labels == ["장소", "날씨", "환경", "심각성"]
+        assert _extract_situation(text) is None
+    finally:
+        monkeypatch.delenv("MOCK_DESCRIBE_OMIT_SITUATION", raising=False)
+        reload_settings()
+    assert _extract_situation(vlm_sim.mock_describe_text("omit-1", "fire", 40))
+
+
+def test_사용자프롬프트_콜백은_마크다운_근거와_질문의_이벤트_문구를_담는다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured = _patch_capture(monkeypatch)
+    res = client.post(CUSTOM_URL, json=_custom_body())
+    assert res.status_code == 202
+    assert len(captured) == 1
+    _, payload = captured[0]
+    assert payload["status"] == "completed"
+    assert set(payload["results"]) == {"description"}
+    description = payload["results"]["description"]
+    first_line = description.split("\n")[0]
+    assert first_line.startswith("영상에서 ")
+    assert "화염이 보이는 불" in first_line
+    assert "발생" in first_line
+    assert "\n\n### 근거:\n" in description
+    assert description.rstrip().split("\n")[-1].startswith("따라서, ")
+    assert 0 < len(description) <= 2000
+
+
+def test_사용자프롬프트_서술은_번호목록과_글머리표목록_구분선_유무가_섞인다() -> None:
+    from app.services import vlm_sim
+
+    numbered = bullet = with_rule = without_rule = False
+    for index in range(40):
+        text = vlm_sim.mock_custom_text(f"LIVE-CUST-{index:04d}", _QUESTION)
+        evidence = text.split("### 근거:\n", 1)[1]
+        if re.match(r"1\. \*\*[^*]+\*\*:  \n   \S", evidence):
+            numbered = True
+            assert "\n\n2. **" in evidence
+        elif evidence.startswith("- "):
+            bullet = True
+        else:  # pragma: no cover — 두 형식 밖이면 실패
+            pytest.fail(text)
+        if "\n\n---\n\n" in text:
+            with_rule = True
+        else:
+            without_rule = True
+    assert numbered and bullet and with_rule and without_rule
+
+
+def test_사용자프롬프트_서술은_따옴표_문구가_없으면_질문을_요약해_싣는다() -> None:
+    from app.services import vlm_sim
+
+    text = vlm_sim.mock_custom_text("q-1", "영상 속에 쓰러진 사람이 있는지 알려줘?")
+    assert text.split("\n")[0].startswith("질문하신 「영상 속에 쓰러진 사람이 있는지 알려줘」")
+    assert "### 근거:" in text
+    # 주제 낱말(쓰러)로 그 주제의 근거가 붙는다.
+    assert "넘어" in text or "누운" in text or "누워" in text
+
+
+def test_사용자프롬프트_서술은_같은_request_id면_같고_2000자_이내다() -> None:
+    from app.services import vlm_sim
+
+    long_prompt = "영상에서 '" + "가" * 200 + "' 이벤트가 있나? " + "나" * 3500
+    for index in range(30):
+        for prompt in (_QUESTION, long_prompt, "무엇이 보이나요"):
+            first = vlm_sim.mock_custom_text(f"det-{index}", prompt)
+            assert first == vlm_sim.mock_custom_text(f"det-{index}", prompt)
+            assert 0 < len(first) <= 2000
+
+
+def test_추가질문_서술은_네_또는_아니요로_시작하는_짧은_문장이다() -> None:
+    """규격 describe-sub 예시(「네, 두 사람이 …」) 정합 — 저작도구는 쓰지 않지만 목에 남아 있다."""
+    from app.services import vlm_sim
+
+    for event_type in _EVENT_TYPES:
+        starts = set()
+        for index in range(20):
+            text = vlm_sim.build_describe_sub_callback(f"sub-{index}", event_type)["results"]["description"]
+            assert text.startswith(("네, ", "아니요, ")), text
+            assert len(text) <= 200
+            starts.add(text.split(",")[0])
+        assert starts == {"네", "아니요"}

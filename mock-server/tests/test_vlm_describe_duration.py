@@ -10,7 +10,8 @@
 - 폴백: ffprobe 미설치/실패/타임아웃/이상값 → 16초 graceful degrade(콜백 자체는 계속 발사).
 - 보안: ffprobe 는 shell 없이 리스트 인자로만 호출하고(CWE-78), 절대경로 + 허용 루트 안의
   파일만 조회한다(CWE-22). 허용 루트 미설정이면 조회하지 않는다(fail-closed).
-- 콘텐츠: 구간마다 다른 한글 설명(결정적 순환), BE @Size(max=2000) 이내.
+- 콘텐츠: 서술에 구간(N~M초) 문장을 싣지 않는다(실응답 형식). 영상 길이는 「상황」 문장 수에만
+  반영되며, 서술은 BE 상한 2,000자 이내다. 형식 자체는 ``test_vlm.py`` 의 서술 형식 절이 고정한다.
 """
 
 from __future__ import annotations
@@ -74,28 +75,28 @@ def _describe_body(**over: object) -> dict:
     return body
 
 
-def _windows_of(payload: dict) -> list[tuple[int, int]]:
-    """콜백 서술에서 구간 목록을 되읽는다.
+#: 구 목이 서술에 싣던 구간 문장의 흔적 — 실응답에는 없으므로 새 서술에 나타나면 안 된다.
+_SEGMENT_SENTENCE = re.compile(r"\d+\s*~\s*\d+\s*초|초 구간")
 
-    ★ 콜백의 ``results`` 는 KLID 규격 §2.8 상 **단일 객체**이고 항목은 ``description`` 하나다.
-    구 규격의 구간 배열은 폐기됐으므로, 목이 만드는 서술에서 구간을 파싱해 기존 커버리지 단정을
-    그대로 유지한다. 구간 계획 자체는 ``mock_describe_results`` 를 직접 부르는 단위 테스트가
-    따로 고정한다.
 
-    ⚠ 목의 묘사 전문은 이제 <영상 1건당 한 벌>인 규격 형식(``- 라벨: 값``)이고, 구간 서술은
-    그 안의 **「상황」 한 줄**에 이어 붙는다. 구 형식("- 0~8초: ...")은 구간마다 5항목 블록을
-    반복하며 첫 줄을 뭉갰던 것이라 폐기됐다.
+def _spy_duration(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """describe 페이로드 생성에 넘어간 영상 길이를 수집한다.
+
+    ★ 서술에는 구간 문장이 없다(실응답 형식) — 그래서 길이 조회 체인이 어떤 길이를 골랐는지는
+    서술을 되읽는 대신 **페이로드 생성 함수의 인자**로 확인한다. 원 함수는 그대로 호출해
+    페이로드 자체도 정상 생성되는지 함께 본다.
     """
-    description = payload["results"]["description"]
-    situation_lines = [
-        line for line in description.splitlines() if line.lstrip().startswith("- 상황:")
-    ]
-    if not situation_lines:
-        return []
-    return [
-        (int(m.group(1)), int(m.group(2)))
-        for m in re.finditer(r"(\d+)~(\d+)초 구간에서", situation_lines[0])
-    ]
+    from app.services import vlm_sim
+
+    seen: list[object] = []
+    original = vlm_sim.build_describe_callback
+
+    def _spy(request_id: str, duration_sec: object = None, event_type: object = None) -> dict:
+        seen.append(duration_sec)
+        return original(request_id, duration_sec, event_type)
+
+    monkeypatch.setattr(vlm_sim, "build_describe_callback", _spy)
+    return seen
 
 
 def _patch_capture(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict]]:
@@ -233,35 +234,44 @@ def test_동일_입력은_항상_동일_결과를_만든다() -> None:
     # given / when
     from app.services import vlm_sim
 
-    first = vlm_sim.mock_describe_results(45)
-    second = vlm_sim.mock_describe_results(45)
+    first = vlm_sim.mock_describe_text("req-45", "fire", 45)
+    second = vlm_sim.mock_describe_text("req-45", "fire", 45)
     # then — 랜덤 금지(테스트 재현성)
     assert first == second
 
 
 # ── 더미 콘텐츠 품질 ─────────────────────────────────────────────
-def test_구간마다_서로_다른_한글_설명이_생성된다() -> None:
-    # given / when — 10구간(80초)
+def _situation_sentences(description: str) -> list[str]:
+    """「상황」 값의 문장 목록(마침표 기준)."""
+    for line in description.splitlines():
+        match = re.match(r"^\s*(?:-\s*)?상황\s*:\s*(.*)$", line)
+        if match:
+            return [s for s in re.split(r"(?<=[.다])\s+", match.group(1).strip()) if s]
+    return []
+
+
+def test_긴_영상은_짧은_영상보다_상황_문장이_많다() -> None:
+    """영상 길이는 구간 문장이 아니라 「상황」 문단의 관측 문장 수로만 드러난다(최대 4문장)."""
     from app.services import vlm_sim
 
-    results = vlm_sim.mock_describe_results(80)
-    # then — 인접 구간 설명이 모두 달라야 하고, 전체적으로도 다양해야 한다
-    descriptions = [r["description"] for r in results]
-    assert len(results) == 10
-    for prev, cur in zip(descriptions, descriptions[1:]):
-        assert prev != cur
-    assert len(set(descriptions)) == len(descriptions)
+    short = vlm_sim.mock_describe_text("same-id", "car_accident", 5)
+    long = vlm_sim.mock_describe_text("same-id", "car_accident", 600)
+    assert len(_situation_sentences(short)) == 3
+    assert len(_situation_sentences(long)) == 4
 
 
-def test_설명은_BE_상한_2000자_이내이고_구간초를_담는다() -> None:
-    # given / when
+@pytest.mark.parametrize("duration", [0.4, 5, 16, 60, 3600, 100_000])
+def test_서술에는_구간_문장이_없고_BE_상한_2000자_이내다(duration: float) -> None:
+    """구 목은 「0~8초 구간에서 …」를 구간 수만큼 이어 붙여 긴 영상일수록 서술이 한없이 늘었다.
+
+    실응답에는 구간 문장이 없고, 수신 측은 2,000자를 넘는 서술을 거부한다.
+    """
     from app.services import vlm_sim
 
-    results = vlm_sim.mock_describe_results(60)
-    # then
-    for seg in results:
-        assert 0 < len(seg["description"]) <= 2000
-        assert f"{seg['start_sec']}~{seg['end_sec']}초" in seg["description"]
+    for index in range(20):
+        text = vlm_sim.mock_describe_text(f"dur-{index}", "fire", duration)
+        assert 0 < len(text) <= 2000
+        assert _SEGMENT_SENTENCE.search(text) is None, text
 
 
 # ── duration 3단 폴백 체인 ───────────────────────────────────────
@@ -599,27 +609,27 @@ def test_실제_영상_길이를_조회해_구간을_생성한다(
 
 
 # ── describe 콜백 e2e ────────────────────────────────────────────
-def test_describe_콜백은_영상_길이_전체를_커버하는_구간을_담는다(
+def test_describe_콜백은_조회한_영상_길이로_서술을_만든다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given — 40초 영상
     from app.services import media_probe
 
     monkeypatch.setattr(media_probe, "probe_duration_sec", lambda *a, **k: 40.0)
+    durations = _spy_duration(monkeypatch)
     captured = _patch_capture(monkeypatch)
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
-    # then — 5구간(8초 × 5)이 0~40초를 연속 커버
+    # then — 조회 길이(40초)가 페이로드 생성에 넘어가고, 긴 영상이라 「상황」은 4문장이다
     assert res.status_code == 202
+    assert durations == [40.0]
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "completed"
-    windows = _windows_of(payload)
-    assert len(windows) == 5
-    _assert_contiguous(windows, 40)
+    assert len(_situation_sentences(payload["results"]["description"])) == 4
 
 
-def test_describe_콜백_서술은_BE계약_길이_안에_들고_구간이_정수_초다(
+def test_describe_콜백_서술은_BE계약_길이_안에_들고_구간_문장이_없다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given
@@ -629,16 +639,12 @@ def test_describe_콜백_서술은_BE계약_길이_안에_들고_구간이_정�
     captured = _patch_capture(monkeypatch)
     # when
     client.post(DESCRIBE_URL, json=_describe_body())
-    # then — BE VlmResultRequest.Results.description @Size(max=2000) 안에 들어야 한다.
-    #   구 계약(구간 배열의 정수 start/end)은 폐기됐으나, 목이 만드는 서술 안의 구간 표기는
-    #   여전히 정수 초여야 한다(서술이 사람에게 읽히는 형태이므로).
+    # then — BE VlmResultRequest.Results.description @Size(max=2000) 안에 들어야 하고,
+    #   실응답에 없는 구간 문장(「0~8초 구간에서 …」)은 싣지 않는다.
     _, payload = captured[0]
     description = payload["results"]["description"]
     assert description.strip() and len(description) <= 2000
-    windows = _windows_of(payload)
-    assert windows, "서술에서 구간을 하나도 읽지 못했다"
-    for start, end in windows:
-        assert 0 <= start < end <= 86_400
+    assert _SEGMENT_SENTENCE.search(description) is None
 
 
 def test_describe_요청의_duration_힌트를_우선_사용한다(
@@ -648,6 +654,7 @@ def test_describe_요청의_duration_힌트를_우선_사용한다(
     from app.services import media_probe
 
     monkeypatch.setattr(media_probe, "probe_duration_sec", lambda *a, **k: 16.0)
+    durations = _spy_duration(monkeypatch)
     captured = _patch_capture(monkeypatch)
     media = {
         "type": "video",
@@ -657,28 +664,30 @@ def test_describe_요청의_duration_힌트를_우선_사용한다(
     }
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body(media=media))
-    # then
+    # then — ffprobe 값(16)이 아니라 힌트(64)가 쓰였다
     assert res.status_code == 202
-    _, payload = captured[0]
-    assert len(_windows_of(payload)) == 8
+    assert durations == [64]
+    assert captured[0][1]["status"] == "completed"
 
 
-def test_ffprobe가_실패해도_describe_콜백은_폴백_구간으로_발사된다(
+def test_ffprobe가_실패해도_describe_콜백은_폴백_길이로_발사된다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given — probe 가 실패(None)해도 콜백은 죽지 않아야 한다
     from app.services import media_probe
 
     monkeypatch.setattr(media_probe, "probe_duration_sec", lambda *a, **k: None)
+    durations = _spy_duration(monkeypatch)
     captured = _patch_capture(monkeypatch)
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
-    # then — 폴백 16초 → 2구간
+    # then — 폴백 16초
     assert res.status_code == 202
+    assert durations == [16.0]
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "completed"
-    assert _windows_of(payload) == [(0, 8), (8, 16)]
+    assert payload["results"]["description"]
 
 
 def test_probe가_예외를_던져도_describe_콜백은_발사된다(
@@ -703,7 +712,7 @@ def test_probe가_예외를_던져도_describe_콜백은_발사된다(
 def test_실제_영상으로_describe_요청하면_그_길이만큼_구간이_콜백된다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """라우터→백그라운드→ffprobe→구간생성 <b>전 경로</b>를 목 없이 확인한다(도구 있을 때만)."""
+    """라우터→백그라운드→ffprobe→서술생성 <b>전 경로</b>를 목 없이 확인한다(도구 있을 때만)."""
     if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
         pytest.skip("ffmpeg/ffprobe 미설치 환경")
 
@@ -724,20 +733,21 @@ def test_실제_영상으로_describe_요청하면_그_길이만큼_구간이_�
     if not video.is_file() or video.stat().st_size == 0:
         pytest.skip("테스트 영상 생성 실패(인코더 부재)")
     _allow_root(monkeypatch, tmp_path)
+    durations = _spy_duration(monkeypatch)
     captured = _patch_capture(monkeypatch)
     media = {"type": "video", "source_type": "path", "path": os.fspath(video)}
 
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body(media=media))
 
-    # then — 20초 → 8+8+나머지 = 3구간. 마지막 끝값은 실제 길이의 올림(20 또는 21)이다.
+    # then — 실제 조회 길이(약 20초)로 서술을 만든다. 서술에 구간 문장은 없다.
     assert res.status_code == 202
+    assert len(durations) == 1
+    assert isinstance(durations[0], float) and 19.5 <= durations[0] <= 21.0
     assert len(captured) == 1
     _, payload = captured[0]
-    windows = _windows_of(payload)
-    assert windows[:2] == [(0, 8), (8, 16)]
-    assert len(windows) == 3
-    assert windows[2][0] == 16 and windows[2][1] >= 20
+    assert payload["status"] == "completed"
+    assert _SEGMENT_SENTENCE.search(payload["results"]["description"]) is None
 
 
 # ── F-5: ffprobe / describe 자원 상한 (CWE-400/CWE-770) ──────────
@@ -835,16 +845,18 @@ def test_describe_조회가_동시상한을_넘으면_즉시_폴백_페이로드
         media_probe, "probe_duration_sec", lambda *a, **k: calls.append(a) or 400.0
     )
     monkeypatch.setattr(vlm_sim, "MAX_DESCRIBE_PROBE_INFLIGHT", 0)
+    durations = _spy_duration(monkeypatch)
 
     # when
     payload = asyncio.run(
         vlm_sim.build_describe_callback_async("r1", "/app/storage/x.mp4", None)
     )
 
-    # then — 조회는 생략되지만 콜백 페이로드는 정상 생성된다(폴백 16초 → 2구간)
+    # then — 조회는 생략되지만 콜백 페이로드는 정상 생성된다(폴백 16초)
     assert calls == []
+    assert durations == [vlm_sim.FALLBACK_DURATION_SEC]
     assert payload["status"] == "completed"
-    assert _windows_of(payload) == [(0, 8), (8, 16)]
+    assert payload["results"]["description"]
 
 
 def test_describe_조회_카운터는_정상경로에서_원복된다(

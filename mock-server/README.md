@@ -4,7 +4,7 @@
 로컬/테스트 전용 목 서버다. 다음 외부 벤더 API를 흉내낸다.
 
 - **KPST 비식별화** 솔루션 (프로젝트 생성 → 폴링 진행률 → 리포트/프레임 조회)
-- **IntelliVIX Video VLM** 시계열 (verify/describe, 비동기 콜백)
+- **IntelliVIX Video VLM** 시계열 — KLID 연동 API v1.2.0 (describe/custom/describe-sub, 비동기 콜백 · 서술은 실응답 형식)
 - **생성형 AI(증강)** — 「생성형 AI API 연동명세서 v1.3」 정합 (`/api/genai/*`, 작업 접수 →
   단계별 Webhook → 결과 파일 실제 생성 → 상태/결과 조회/취소)
 
@@ -17,7 +17,7 @@
 **이 서버는 로컬/테스트 전용이다. 운영/외부망에 절대 노출하지 말 것.**
 
 - **인증이 없다.** 모든 엔드포인트가 무인증으로 열려 있다.
-- **SSRF 표면 (CWE-918):** VLM `verify`/`describe`는 요청자가 지정한 `callback_url`로
+- **SSRF 표면 (CWE-918):** VLM `describe`/`custom`/`describe-sub`는 요청자가 지정한 `callback_url`로
   서버측 outbound POST를 발사한다. 벤더 규격 동작(비동기 콜백)이라 재현하되, **허용 호스트
   allowlist(`MOCK_CALLBACK_ALLOWED_HOSTS`, 기본 `klid-backend,localhost,127.0.0.1`)** 밖이면
   접수 자체를 400으로 거부하고 outbound를 발사하지 않는다. 생성형 AI(`/api/genai/*`)는
@@ -99,18 +99,69 @@ cd mock-server
 | GET  | `/dataset_frames` | 비식별 데이터셋 프레임 목록 |
 | GET  | `/retrieve_job_logs` | 작업 로그 조회 |
 
-### IntelliVIX Video VLM (`/v1/videovlm/*`)
+### IntelliVIX Video VLM — KLID 연동 API v1.2.0 (`/v1/videovlm-klid/*`)
 
 | 메서드 | 경로 | 설명 |
 |:------:|------|------|
-| POST | `/v1/videovlm/verify` | 이벤트 검증 접수 → 즉시 `accepted`, 이후 콜백 발사 |
-| POST | `/v1/videovlm/describe` | 상황 묘사 접수 → 즉시 `accepted`, 이후 구간별 결과 콜백 |
-| GET  | `/v1/videovlm/status` | VLM 목 상태 확인 |
+| POST | `/v1/videovlm-klid/describe` | 이벤트 묘사 접수 → 즉시 **202** `accepted`, 이후 서술 콜백 |
+| POST | `/v1/videovlm-klid/custom` | 사용자 프롬프트(저작도구 추가 질문 축) 접수 → 202, 이후 답변 콜백 |
+| POST | `/v1/videovlm-klid/describe-sub` | 이벤트 추가 질문 접수 → 202, 이후 답변 콜백(저작도구 미사용 — 목에만 존치) |
+| GET  | `/v1/videovlm-klid/events` | 지원 이벤트 목록과 창구별 가용성 |
+| GET  | `/v1/videovlm-klid/status` | 처리 가능 상태 |
 
-#### describe 구간은 **영상 실제 길이**에 맞춰 생성된다
+> 판정 창구(verify)는 두지 않는다 — 저작도구가 연동하지 않는다.
 
-`describe` 콜백의 `results[]`는 고정 16초가 아니라 **대상 영상 길이 전체를 덮는** 구간 배열이다
-(8초 window, `start = 직전 end` 누적이라 겹침·빈틈 없음). 길이는 3단 폴백으로 정한다:
+#### 콜백 서술 형식 — **실제 사업자 응답과 같은 모양**
+
+형식의 정본은 2026-09-14 에 받은 실제 콜백 원문이다:
+`reports/vlm-klid-integration/실응답-20260914/LIVE-{DESC,CUST}-*.json` (콜백 본문은 각 파일의 `body`).
+구 목 형식(`- 상황: 0~8초 구간에서 …` 을 구간 수만큼 이어 붙인 서술)은 실응답과 모양이 달라 폐기했다.
+콜백 `results` 는 어느 창구든 `{"description": "…"}` 하나다(판정 항목 없음).
+
+**묘사(describe)** — 라벨 줄 5개가 **장소 · 날씨 · 상황 · 환경 · 심각성** 순서로 한 줄씩 온다.
+
+```
+- 장소: 도심 주요 교차로 (왕복 6차선 도로와 횡단보도가 함께 보이는 구간)
+- 날씨: 비 (노면이 젖어 있어 차량 전조등과 후미등 불빛이 바닥에 반사된다.)
+- 상황: 화재는 확인되지 않음. 화면 전체에서 불꽃이나 연기 같은 … (3~4문장)
+- 환경: 건물이 도로 양쪽에 밀집한 도심 지역. … (여러 문장)
+- 심각성: 2점. 이유: 화재를 판단할 불꽃·연기·대피 행동이 모두 관찰되지 않았으며 …
+```
+
+- 줄 머리 `- ` 는 **요청마다 있기도 없기도 하다**(실응답도 car_accident 건은 없고 fire 건은 있었다).
+- 심각성은 `N점. …` 또는 `N점. 이유: …`.
+- **구간(0~8초 등) 문장은 없다.**
+- `event_type` 표준 7종은 그 이벤트의 **발생/미발생** 서술 중 하나, 모르는 유형·미지정은 특정 이벤트를
+  판정하지 않는 일반 교통 서술이다(값을 지어내지 않는다).
+- `MOCK_DESCRIBE_OMIT_SITUATION=true` 면 「상황」 줄을 통째로 뺀다(저작도구의 미채움 분기 재현용).
+
+**사용자 프롬프트(custom)** — 마크다운이다.
+
+```
+영상에서 '화염이 보이는 불' 이벤트는 **발생하지 않았습니다**.
+
+### 근거:
+1. **화염·불꽃 부재**:  
+   도로 위나 주변 건물 어디에서도 …
+                                   ← 번호 목록 대신 `- …` 글머리표 목록일 수도 있다
+---                                ← 있을 수도 없을 수도 있다
+
+따라서, **영상 내용 기준으로 ‘화염이 보이는 불’ 이벤트는 발생하지 않았으며**, …
+```
+
+- 요청 `prompt` 에서 **따옴표 안 이벤트 문구**를 뽑아 첫 문장과 결론에 싣는다. 따옴표가 없으면 질문을
+  요약해 「질문하신 「…」에 해당하는 이벤트는 …」으로 시작한다. 문구의 낱말로 근거 주제를 고른다.
+- 굵게 위치·번호/글머리표·`---` 유무·발생 여부가 요청마다 달라진다(실응답도 호출마다 구조가 조금씩 달랐다).
+
+**describe-sub** — 규격 예시처럼 「네, …」/「아니요, …」로 시작하는 한 문장이다.
+
+**결정성·길이** — 모든 변형은 `request_id` 의 SHA-256 으로 고르므로 **같은 요청은 언제나 같은 서술**을
+받는다. 서술은 400~600자 안팎이며, 저작도구 콜백 수신 상한(2,000자)을 넘지 않도록 마지막에 잘라낸다.
+
+#### 영상 길이 조회 — 서술 분량에만 쓰인다
+
+묘사 콜백은 대상 영상 길이를 3단 폴백으로 정한다. 그 길이는 **「상황」 문장 수**(8초 이하 3문장, 그보다
+길면 4문장)에만 반영되고 구간 문장으로는 실리지 않는다:
 
 1. 요청 `media.duration_sec` — **목 전용 확장**(벤더 규격에 없음, BE는 보내지 않음). 테스트/데모에서
    특정 길이를 결정적으로 재현할 때 쓴다.
@@ -118,11 +169,6 @@ cd mock-server
    `MOCK_OUTPUT_BASE` 각 항목의 상위) 안의 파일**일 때만. 루트 미설정이면 조회하지 않는다(fail-closed).
 3. 고정 폴백 **16초** — ffprobe 미설치/실패/타임아웃/경로 거부/이상값(0·음수·`nan`·`inf`). 이 경우에도
    콜백은 정상 발사된다(graceful degrade).
-
-구간 수는 **최대 450개**(BE `VlmResultRequest.results` `@Size(max=500)` 대비 여유). 상한을 넘는 길이는
-뒷부분을 잘라내지 않고 window를 늘려 균등 재분배하며, 길이는 24시간(BE `Segment` `@Max(86400)`)으로
-clamp한다. 1초 미만 영상도 `start == end`인 0 길이 구간 없이 최소 1구간을 만든다. 구간 설명은
-장소/날씨/상황/환경/심각성 축을 서로 다른 주기로 **결정적 순환**시켜 구간마다 다른 한글 문구가 된다.
 
 > ffprobe는 워터마킹용 `ffmpeg`와 같은 패키지라 Dockerfile에 이미 포함돼 있다. 컨테이너 밖에서
 > 맨몸 uvicorn으로 띄우면 ffprobe 부재/루트 미설정으로 폴백(16초)이 될 수 있다.
@@ -224,7 +270,7 @@ vlm:
 
 ## 콜백 흐름 (VLM)
 
-VLM `verify`/`describe`는 **즉시** `{"request_id","status":"accepted"}`로 접수하고, 지연
+VLM `describe`/`custom`/`describe-sub`는 **즉시** `{"request_id","status":"accepted"}`로 접수하고, 지연
 (`MOCK_CALLBACK_DELAY_SECONDS`, 기본 2초) 후 요청의 `callback_url`로 결과를 POST한다.
 
 우리 BE의 VLM 콜백 수신 엔드포인트는 **`POST /v1/vlm/callback`**이다
@@ -796,12 +842,12 @@ curl -X POST http://localhost:9400/api/genai/_mock/jobs/{job_id}/status-sync
 
 - `app/main.py` — 앱/미들웨어/라우터 등록, `/health`, shutdown 시 백그라운드 태스크 정리
 - `app/routers/deid.py` — KPST 비식별 11개 엔드포인트
-- `app/routers/vlm.py` — IntelliVIX VLM verify/describe/status
+- `app/routers/vlm.py` — IntelliVIX VLM describe/custom/describe-sub/events/status
 - `app/routers/augment.py` — 생성형 AI(증강) `/api/genai/*` + 목 전용 `_mock` EP
 - `app/schemas/genai.py` — 명세서 v1.3 요청/응답 스키마 + 상태·오류코드 enum
 - `app/services/genai_sim.py` — 단계 진행 시뮬레이션 · 결과 파일 생성 · Webhook 발신 · 보안 가드
-- `app/services/vlm_sim.py` — VLM 콜백 페이로드 생성 + 비동기 발사(SSRF 경고 주석) ·
-  describe 구간 계획(영상 길이 기반, 폴백 16초)
+- `app/services/vlm_sim.py` — VLM 콜백 페이로드 생성(실응답 형식 서술, request_id 결정적 변형) +
+  비동기 발사(SSRF 경고 주석) · describe 영상 길이 조회(폴백 16초)
 - `app/services/media_probe.py` — ffprobe 미디어 길이 조회(shell 미사용 · 허용 루트 검증 ·
   실패 시 `None` 반환으로 폴백 유도)
 - `app/state.py` — 인메모리 상태(KPST 프로젝트 + 생성형 AI 작업 저장소)
