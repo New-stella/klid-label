@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.evntanno.service.MarkingSelectedQuestionReader;
 import kr.co.cudo.authoring.evntanno.service.VerificationEventTypeResolver;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.support.VlmKlidLiveFixtures;
 import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -483,6 +484,95 @@ class EvntAnnoResultApplierTest {
         assertThat(applier.applyDescription(RAW_SN, "  ")).isFalse();
         assertThat(applier.applyDescription(RAW_SN, null)).isFalse();
         verifyNoInteractions(annoRepository, approvalGate);
+    }
+
+    // ------------------------------------------------------- 사업자 실응답 원문 (2026-09-14)
+    // 원문 출처·보존 규칙은 fixtures/vlm-klid-live-20260914/README.md. [design: CDIAG-014] [design: ADR-051]
+
+    @Test
+    @DisplayName("실응답_교통사고_묘사를_받으면_상황값이_사고단계_1단계에_원문_그대로_실린다")
+    void liveCarAccidentDescriptionFillsFirstCotStep() {
+        stubIngestType("car_accident");
+
+        boolean drafted = applier.applyDescription(RAW_SN,
+                VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT));
+
+        assertThat(drafted).isTrue();
+        EventAnnotationPayload payload = captureCreated();
+        assertThat(payload.eventClass()).isEqualTo("car_accident");
+        assertThat(payload.caption().get(CANDIDATE).cot())
+                .containsOnlyKeys(FIRST_STEP)
+                .containsEntry(FIRST_STEP, VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT_SITUATION);
+        assertThat(payload.question()).as("묘사 축은 질문을 보내지 않는다").isNull();
+    }
+
+    @Test
+    @DisplayName("실응답_화재_묘사를_받으면_대시_접두_형식에서도_상황값이_사고단계_1단계에_원문_그대로_실린다")
+    void liveFireDescriptionFillsFirstCotStep() {
+        boolean drafted = applier.applyDescription(RAW_SN,
+                VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.DESCRIBE_FIRE));
+
+        assertThat(drafted).isTrue();
+        assertThat(captureCreated().caption().get(CANDIDATE).cot())
+                .containsOnlyKeys(FIRST_STEP)
+                .containsEntry(FIRST_STEP, VlmKlidLiveFixtures.DESCRIBE_FIRE_SITUATION);
+    }
+
+    @Test
+    @DisplayName("실응답_교통사고_추가질문을_받으면_마크다운_원문이_캡션본문에_그대로_실리고_질문은_보낸_문구다")
+    void liveCarAccidentCustomFillsCaptionTextVerbatim() {
+        stubIngestType("car_accident");
+        String original = VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT);
+
+        boolean drafted = applier.applySubDescription(RAW_SN, original,
+                VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT_SENT_QUESTION);
+
+        assertThat(drafted).isTrue();
+        EventAnnotationPayload payload = captureCreated();
+        String captionText = payload.caption().get(CANDIDATE).captionText();
+        assertThat(captionText).as("캡션 본문은 원문과 한 글자도 달라지면 안 된다").isEqualTo(original);
+        // 원문의 형식 요소가 실제로 남아 있는지 리터럴로 한 번 더 고정한다 — 원문이 다듬어져 들어오면 여기가 깨진다.
+        assertThat(captionText)
+                .contains("### 근거:\n1. **모든 차량이 정상적으로 주행**:  \n")
+                .contains("\n\n---\n\n");
+        assertThat(payload.question()).isEqualTo(VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT_SENT_QUESTION);
+        assertThat(payload.answer()).as("답변 칸은 사람이 확정할 공란이다").isNull();
+    }
+
+    @Test
+    @DisplayName("실응답_화재_추가질문을_받으면_글머리표_원문이_캡션본문에_그대로_실리고_질문은_보낸_문구다")
+    void liveFireCustomFillsCaptionTextVerbatim() {
+        String original = VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.CUSTOM_FIRE);
+
+        boolean drafted = applier.applySubDescription(RAW_SN, original,
+                VlmKlidLiveFixtures.CUSTOM_FIRE_SENT_QUESTION);
+
+        assertThat(drafted).isTrue();
+        EventAnnotationPayload payload = captureCreated();
+        assertThat(payload.caption().get(CANDIDATE).captionText())
+                .isEqualTo(original)
+                .contains("### 근거:\n- 영상 전체를 검토한 결과");
+        assertThat(payload.question()).isEqualTo(VlmKlidLiveFixtures.CUSTOM_FIRE_SENT_QUESTION);
+    }
+
+    @Test
+    @DisplayName("실응답_두_창구가_모두_오면_같은_후보에_상황값과_캡션본문이_함께_남는다")
+    void liveBothWindowsLandOnSameCandidate() {
+        stubIngestType("car_accident");
+        String custom = VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT);
+        applier.applyDescription(RAW_SN,
+                VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT));
+        LsEvntAnno anno = stubExisting(captureCreated());
+
+        boolean drafted = applier.applySubDescription(RAW_SN, custom,
+                VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT_SENT_QUESTION);
+
+        assertThat(drafted).isTrue();
+        EventAnnotationPayload merged = captureUpdated(anno);
+        assertThat(merged.caption().get(CANDIDATE).captionText()).isEqualTo(custom);
+        assertThat(merged.caption().get(CANDIDATE).cot())
+                .containsEntry(FIRST_STEP, VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT_SITUATION);
+        assertThat(merged.question()).isEqualTo(VlmKlidLiveFixtures.CUSTOM_CAR_ACCIDENT_SENT_QUESTION);
     }
 
     // ------------------------------------------------------------------ helpers
