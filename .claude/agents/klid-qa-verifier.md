@@ -99,6 +99,15 @@ claimed_verification: | <구현 에이전트가 주장한 build/test/lint 결과
 곁들여: 변이 원복은 `git diff` 로 확인할 수 없다 — **추적되지 않은 신규 파일은 보이지 않는다.**
 백업을 떠 두고 `cmp`·sha256 으로 **바이트 대조**해야 한다.
 
+### 워크트리에서 재실행하면 「원인이 가려진 실패」와 「거짓 성공」이 둘 다 난다 (2026-09-14)
+
+`.claude/worktrees/*` 세션 세 가지: ①**`frontend/node_modules` 가 없다** — `npx vitest/tsc/eslint` 가 config 로드
+실패·엉뚱한 패키지 안내·eslint 새 설치로 **코드 결함처럼 보이는 오류**를 낸다 → lockfile sha 대조 후 `cp -Rc`
+복제, `./node_modules/.bin/*` 직접 호출 ②격리 검사가 **복합 셸·heredoc 을 거부**한다 → 환경변수 접두의
+**단일 명령**(`JAVA_HOME=… backend/gradlew -p backend …`), 긴 변이 스크립트는 파일로 쓴 뒤 실행 ③셸이 **zsh** 라
+`${PIPESTATUS[0]}` 가 **빈 값** → 파이프 뒤 종료코드로 성공을 판정하면 거짓 성공이다. 리다이렉트로 판정하라.
+QA 가 구현 쪽 주장을 「재현 못 함」으로 뒤집기 전에 이 셋부터 배제한다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 verdict: pass | pass_with_notes | fail | blocked

@@ -59,6 +59,9 @@ services:
       #   (base 는 관제 통지 대상이 환경마다 달라 주입하지 않으므로 local override 에만 둔다)
       CONTROL_NOTIFY_ENABLED: "true"
       CONTROL_NOTIFY_URL: "http://klid-mock-server:9400"
+      # 관제 계정 창구(세션 갱신·로그아웃 중계) — 통지 주소와 <별개 설정>이다(폴백 없음, 2026-09-14 확정).
+      #   mock-server 의 POST /api/account/auth/refresh|logout 이 관제 실측 계약을 흉내낸다.
+      CONTROL_ACCOUNT_URL: "http://klid-mock-server:9400"
       # Phase 7-A1 실동작 설정 — 증강(생성형 AI) 위탁을 목 서버로 실제 POST 한다(내부 목모드 우회 금지).
       #   mock-server 의 POST /api/genai/jobs 가 「생성형 AI API 연동명세서 v1.1」 그대로 202 + job_id 를
       #   돌려주므로 job_id 발급 주체 반전·분할 위탁이 HTTP 왕복으로 검증된다.

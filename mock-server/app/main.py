@@ -7,6 +7,7 @@ klid-la 외부 벤더 목(mock) 서버.
 - vlm    : IntelliVIX Video VLM 시계열
 - augment: 증강 AI (WINTER/NIGHT/RAIN) — Phase 4 확장
 - control: 관제지원시스템 inbound 통지 (notify-completed / notify-updated)
+- control_account: 관제지원 계정 서비스 세션 창구 (auth/refresh / auth/logout — 저작도구 세션 중계)
 
 인증/DB 없이 인메모리 상태(app.state)만으로 동작한다.
 """
@@ -23,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIdMiddleware
-from app.routers import augment, control, deid, vlm
+from app.routers import augment, control, control_account, deid, vlm
 from app.services import deid_engine, deid_sim, genai_sim
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
@@ -121,6 +122,8 @@ app.include_router(vlm.router, tags=["vlm"])
 app.include_router(augment.router, tags=["augment"])
 # control(관제)은 관제 계약 경로(/api/data-set/v2/...)를 그대로 노출하므로 prefix 없이 등록한다.
 app.include_router(control.router, tags=["control"])
+# control_account(관제 계정 세션 창구)도 관제 계약 경로(/api/account/auth/...)를 그대로 노출한다.
+app.include_router(control_account.router, tags=["control-account"])
 
 
 @app.get("/health")

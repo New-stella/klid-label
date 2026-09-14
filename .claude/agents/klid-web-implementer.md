@@ -797,6 +797,18 @@ HTTP 호출 전에 빠져나오게).
 「지정하면 그 요소」만 단언하면 **기본값이 조용히 바뀌는 회귀가 통과한다** — 기본 경로가 종전 요소를
 잡는다는 시험을 짝으로 둔다.
 
+### 워크트리에서 FE 시험을 돌리면 원인이 가려진 오류가 난다 — 먼저 의존성·셸을 의심하라 (2026-09-14)
+
+`.claude/worktrees/*` 워크트리는 **`frontend/node_modules` 가 비어 있다.** 그 상태에서 `npx vitest`·`npx tsc`·
+`npx eslint` 를 부르면 코드 결함처럼 보이는 엉뚱한 오류만 난다 — vitest 는 config 로드 실패(`Cannot find
+package 'vitest'`), `npx tsc` 는 「This is not the tsc command you are looking for」, `npx eslint` 는 eslint 10 을
+새로 받아 flat config 오류. ⇒ **lockfile sha 가 메인 체크아웃과 같은지 확인하고 `cp -Rc` 로 실제 디렉터리를
+복제**한 뒤 `./node_modules/.bin/*` 를 직접 부른다. 심볼릭 링크는 쓰지 않는다 — `node_modules/` 패턴이
+디렉터리에만 걸려 링크가 untracked 로 드러난다.
+곁들여 두 함정: ①이 환경 셸은 **zsh** 라 `cmd | tail; echo ${PIPESTATUS[0]}` 가 **빈 값**을 찍어 성공처럼
+읽힌다(zsh 는 소문자 `pipestatus`) — 종료코드는 파이프 없이 리다이렉트로 판정 ②워크트리 격리 검사가 **복합
+셸·heredoc 을 거부**한다 — 단일 명령으로 부르고, 긴 스크립트는 파일로 쓴 뒤 실행.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], screens_covered: [SCREEN-0NN], summary: ...}

@@ -164,6 +164,13 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
   **회귀는 전건 초록**이었다. ⇒ 새 연동 주소 키를 열 때는 **소비하는 쪽 배선까지** 확인하라
   (경계 밖이면 **고치지 말고 보고**).
 
+- **워크트리(`.claude/worktrees/*`)에서 시험을 돌릴 때의 실행 함정 (2026-09-14)** — 격리 검사가 **복합 셸
+  (`cd && export && … ; tail`)과 heredoc 을 거부**한다. ⇒ 환경변수를 접두로 붙인 **단일 명령**
+  `JAVA_HOME=/opt/homebrew/opt/openjdk@17 backend/gradlew -p backend cleanTest test --tests '...'` 으로 부르고,
+  긴 스크립트는 파일로 쓴 뒤 `python3 <파일>` 로 실행한다. 이 셸은 **zsh** 라 `${PIPESTATUS[0]}` 가 비어
+  성공처럼 읽힌다 — 종료코드는 파이프 없이 판정. FE 시험을 곁들이면 워크트리에 `frontend/node_modules` 가
+  없다는 점도 먼저 확인(lockfile 대조 후 `cp -Rc` 복제).
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

@@ -38,6 +38,18 @@ import java.time.Duration;
  * 「거절」은 <b>오류가 아니라 결과값</b>으로 흘려 서킷 집계에서 빠진다 — 관제가 멀쩡히 판정한 결과가
  * 서킷을 열면 정상 사용자의 연장까지 막힌다.
  *
+ * <h3>주소 — 관제 계정 창구 설정만 (2026-09-14 확정)</h3>
+ * <p>호출 대상은 {@code authoring.control-account.url} 하나다(빈 {@code controlAccountWebClient}).
+ * 관제 통지 수신처 주소로 <b>폴백하지 않는다</b> — 관제는 계정 창구와 데이터셋 창구를 서로 다른 WAS 에 둔다.
+ * 주소가 비었거나 형식이 틀리면 전송 가드가 관제를 부르지 않고 {@link NonRetryableExternalException} 을 내며,
+ * 이 클라이언트는 그것을 <b>일시 장애</b>(갱신) / <b>미확인</b>(로그아웃)으로 끝낸다. 그 예외는 두 서킷의
+ * {@code ignore-exceptions} 에 등록돼 <b>서킷 실패로 세지 않는다</b>(결정적 설정 상태이지 관제 장애가 아니다).
+ *
+ * <h3>서킷 — 갱신·로그아웃이 따로다 (2026-09-14 확정)</h3>
+ * <p>갱신은 {@code controlAccount}, 로그아웃은 {@code controlAccountLogout} 인스턴스를 쓴다. 한 서킷을
+ * 나눠 쓰면 갱신의 누적 일시 장애가 서킷을 열어 <b>로그아웃 중계까지 막혀 관제 서버 세션이 닫히지 않는다</b>
+ * (현장 실사고). 두 서킷 모두 관제 통지 서킷과도 별개다.
+ *
  * <h3>★ 자동 재시도 없음</h3>
  * <p>갱신은 refresh 토큰을 <b>교체</b>하는 비멱등 호출이다. 같은 요청을 다시 보내면 이중 교체가 되어 한쪽이
  * 무효 토큰을 쥐고 남는다. Resilience4j Retry 를 걸지 않고, 전송 계층 재전송도 빈에서 끈다
@@ -72,17 +84,23 @@ public class ControlAccountClient {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    /** 분류 문자열 — 전송 가드가 주소 미설정·부적합으로 전송을 막았다(주소·설정키 원문은 싣지 않는다). */
+    static final String CAUSE_ADDRESS_NOT_CONFIGURED = "address-not-configured";
+
     private final WebClient webClient;
-    private final CircuitBreaker circuitBreaker;
+    private final CircuitBreaker refreshCircuitBreaker;
+    private final CircuitBreaker logoutCircuitBreaker;
     private final Duration refreshTimeout;
     private final Duration logoutTimeout;
 
     public ControlAccountClient(@Qualifier("controlAccountWebClient") WebClient webClient,
-                                @Qualifier("controlAccountCircuitBreaker") CircuitBreaker circuitBreaker,
+                                @Qualifier("controlAccountCircuitBreaker") CircuitBreaker refreshCircuitBreaker,
+                                @Qualifier("controlAccountLogoutCircuitBreaker") CircuitBreaker logoutCircuitBreaker,
                                 @Value("${authoring.control-account.refresh-timeout-ms:3000}") long refreshTimeoutMs,
                                 @Value("${authoring.control-account.logout-timeout-ms:3000}") long logoutTimeoutMs) {
         this.webClient = webClient;
-        this.circuitBreaker = circuitBreaker;
+        this.refreshCircuitBreaker = refreshCircuitBreaker;
+        this.logoutCircuitBreaker = logoutCircuitBreaker;
         this.refreshTimeout = Duration.ofMillis(positiveOrDefault(refreshTimeoutMs));
         this.logoutTimeout = Duration.ofMillis(positiveOrDefault(logoutTimeoutMs));
     }
@@ -110,7 +128,7 @@ public class ControlAccountClient {
                             .defaultIfEmpty("")
                             .flatMap(body -> classifyRefresh(response.statusCode().value(), body)))
                     .timeout(refreshTimeout)
-                    .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
+                    .transformDeferred(CircuitBreakerOperator.of(refreshCircuitBreaker))
                     .block(refreshTimeout.plus(BLOCK_MARGIN));
             if (result == null) {
                 log.warn("[ControlAccount] refresh unavailable cause=empty-result");
@@ -141,7 +159,8 @@ public class ControlAccountClient {
                             .defaultIfEmpty("")
                             .flatMap(body -> classifyLogout(response.statusCode().value(), body)))
                     .timeout(logoutTimeout)
-                    .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
+                    // ★ 로그아웃 전용 서킷 — 갱신 서킷이 열려도 이 호출은 나간다.
+                    .transformDeferred(CircuitBreakerOperator.of(logoutCircuitBreaker))
                     .block(logoutTimeout.plus(BLOCK_MARGIN));
             return Boolean.TRUE.equals(confirmed);
         } catch (RuntimeException e) {
@@ -227,11 +246,17 @@ public class ControlAccountClient {
     /**
      * 실패 분류 문자열 — 예외 <b>메시지를 싣지 않는다</b>(연결 예외 메시지에는 주소가 실린다, CWE-209).
      * 우리가 만든 분류 예외만 그 사유를 쓴다.
+     *
+     * <p>{@link NonRetryableExternalException} 은 이 클라이언트 경로에서 <b>전송 가드만</b> 낸다(응답 분류는
+     * {@link UpstreamUnavailableException} 만 쓴다) — 주소 미설정·부적합이라 관제를 부르지 않았다는 뜻이다.
      */
     private static String describe(Throwable e) {
         Throwable t = Exceptions.unwrap(e);
         if (t instanceof UpstreamUnavailableException u) {
             return u.getMessage();
+        }
+        if (t instanceof NonRetryableExternalException) {
+            return CAUSE_ADDRESS_NOT_CONFIGURED;
         }
         Throwable cause = t.getCause() != null ? t.getCause() : t;
         return t.getClass().getSimpleName()

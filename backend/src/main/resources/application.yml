@@ -742,13 +742,20 @@ authoring:
       interval-ms: ${CONTROL_NOTIFY_RETRY_INTERVAL_MS:300000}
       initial-delay-ms: ${CONTROL_NOTIFY_RETRY_INITIAL_DELAY_MS:60000}
   # 관제 계정 세션 창구 중계(갱신·로그아웃) — @design INT-015 · API-246 · API-247.
-  #   주소는 위 control-notify.url 을 재사용한다(관리자가 연동 주소 설정에서 바꾼 값이 다음 호출부터
-  #   반영). ★ 통지 토글(enabled)·통지 토큰과는 무관하다 — 통지를 꺼 둔 배포에서도 세션 연장은 돼야 하고,
+  #   ★ 주소는 url(관제 계정 창구) <단독>이다 — 위 control-notify.url 로 폴백하지 않는다(2026-09-14 확정).
+  #     관제는 계정 창구(/api/account/)와 데이터셋 창구(/api/data-set/)를 서로 다른 WAS 에 두어, 주소 하나를
+  #     나눠 쓰면 WAS 에 직접 붙이는 순간 한쪽이 404 다. 넣을 값: 관제 웹서버 주소 또는 계정 창구를 가진 WAS 주소.
+  #   ★ 기본값은 비어 있다 — 관제 채널 배포본은 설치 때 반드시 설정한다. 비어 있으면 관제를 호출하지 않고
+  #     갱신은 일시 장애(503), 로그아웃은 관제 확인 없이(204) 끝나며 서킷 실패로 세지 않는다.
+  #     관리자가 연동 주소 설정에서 바꾼 값은 재기동 없이 다음 호출부터 반영된다.
+  #   ⚠ 구 서술 폐기 — "주소는 위 control-notify.url 을 재사용한다". 되살리지 말 것.
+  #   ★ 통지 토글(enabled)·통지 토큰과는 무관하다 — 통지를 꺼 둔 배포에서도 세션 연장은 돼야 하고,
   #   이 창구에는 통지용 서비스 토큰이 아니라 사용자의 토큰이 실린다.
   #   자동 재시도 없음 — 갱신은 refresh 토큰을 교체하는 비멱등 호출이라 재시도가 이중 교체를 부른다.
   #   타임아웃을 짧게 두는 이유: 브라우저가 로그아웃 응답을 받은 뒤에야 로그인 화면으로 가므로 이 값이 곧
   #   사용자가 기다리는 시간이다. 0 이하·파싱 불가면 기본값(3초)으로 되돌린다.
   control-account:
+    url: ${CONTROL_ACCOUNT_URL:}
     refresh-timeout-ms: ${CONTROL_ACCOUNT_REFRESH_TIMEOUT_MS:3000}
     logout-timeout-ms: ${CONTROL_ACCOUNT_LOGOUT_TIMEOUT_MS:3000}
   # 해상도 파생영상 생성(리스케일) 동시 실행 게이트(ResizeConcurrencyGate).
@@ -1020,11 +1027,23 @@ resilience4j:
         #   ControlNotifyService 의 자기치유 분기(409→updated / 404→completed)를 발동시킨다.
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
-      # 관제 계정 세션 창구(갱신·로그아웃) — 통지(controlNotify)와 장애를 격리한다(@design INT-015).
-      #   관제의 「거절」(HTTP 401 · error≠0)은 오류가 아니라 <결과값>이라 서킷에 집계되지 않는다 —
-      #   연결 실패·타임아웃·5xx·응답 형식 불일치만 failure 다. 주소 미설정은 결정적 실패라 제외한다.
+      # 관제 계정 세션 창구 <갱신> 중계 — 통지(controlNotify)와도, 로그아웃 중계(controlAccountLogout)와도
+      #   장애를 격리한다(@design INT-015). 관제의 「거절」(HTTP 401 · error≠0)은 오류가 아니라 <결과값>이라
+      #   서킷에 집계되지 않는다 — 연결 실패·타임아웃·5xx·응답 형식 불일치만 failure 다.
+      #   주소 미설정·부적합(전송 가드의 NonRetryableExternalException)은 결정적 설정 상태라 제외한다.
+      #   ⚠ 인스턴스명 controlAccount 를 개명하지 말 것 — 배포본의 속성 덮어쓰기가 조용히 무시된다.
       #   ⚠ retry 인스턴스는 일부러 두지 않는다(비멱등 — 위 authoring.control-account 주석).
       controlAccount:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # 관제 계정 세션 창구 <로그아웃> 중계 — 갱신 서킷이 열려도 로그아웃은 나가야 한다(2026-09-14 확정).
+      #   공유 서킷이 갱신 누적 실패로 열려 로그아웃 중계까지 막힌 현장 사고가 분리의 근거다.
+      #   수치·ignore-exceptions 는 controlAccount 와 같다.
+      controlAccountLogout:
         failure-rate-threshold: 50
         sliding-window-size: 10
         minimum-number-of-calls: 5

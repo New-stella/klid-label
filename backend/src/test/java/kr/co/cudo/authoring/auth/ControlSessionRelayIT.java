@@ -1,7 +1,11 @@
 package kr.co.cudo.authoring.auth;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.jsonwebtoken.Jwts;
 import kr.co.cudo.authoring.common.client.ControlNotifyClient;
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import okhttp3.mockwebserver.Dispatcher;
@@ -31,7 +35,9 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,9 +56,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li><b>통지 토글 off 에서도 동작하고 통지 토큰이 실리지 않는다</b> — 이 컨텍스트는 통지 클라이언트 빈이
  *       <b>없는</b>(토글 off) 형상이다. 통지 빈을 재사용하면 전송 직전 필터가 사용자 토큰을 서비스 토큰으로
  *       <b>덮어써</b> 여기서 실패한다(변이 실증).</li>
- *   <li><b>관리자가 바꾼 관제 주소가 다음 호출부터 쓰인다</b> — 관제 흉내 서버의 주소를 배포 설정이 아니라
- *       <b>연동 주소 설정 저장값</b>으로 넣는다. 배포 기본값(localhost:8090)에는 아무도 없으므로, 저장값을
- *       읽지 않으면 요청이 흉내 서버에 닿지 않는다.</li>
+ *   <li><b>관리자가 바꾼 관제 계정 창구 주소가 다음 호출부터 쓰인다</b> — 관제 흉내 서버의 주소를 배포 설정이
+ *       아니라 <b>연동 주소 설정 저장값</b>({@link ConfigKeys#CONTROL_ACCOUNT_URL})으로 넣는다. 배포 기본값은
+ *       비어 있으므로, 저장값을 읽지 않으면 요청이 흉내 서버에 닿지 않는다.</li>
+ *   <li><b>관제 통지 수신처 주소는 폴백이 아니다</b> — 계정 창구 저장값이 없고 통지 저장값만 흉내 서버를
+ *       가리키면 관제를 부르지 않고 갱신 503 · 로그아웃 204 로 끝나며 서킷 실패로 세지 않는다(2026-09-14).</li>
+ *   <li><b>갱신·로그아웃 서킷이 설정이 바인딩된 별개 인스턴스다</b> — 갱신 서킷이 열려도 로그아웃이 나간다.</li>
  *   <li><b>refresh 토큰으로 보호 창구 401 · access 토큰 200</b> — 두 인계 자리 모두.</li>
  * </ul>
  *
@@ -113,22 +122,36 @@ class ControlSessionRelayIT {
     @Value("${authoring.jwt.issuer}")
     private String issuer;
 
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @Autowired
+    @Qualifier("controlAccountCircuitBreaker")
+    private CircuitBreaker refreshCircuit;
+
+    @Autowired
+    @Qualifier("controlAccountLogoutCircuitBreaker")
+    private CircuitBreaker logoutCircuit;
+
     private JdbcTemplate jdbc;
 
-    /** 시험 전에 이미 있던 저장값 — 끝나면 그대로 되돌린다(없었으면 행을 지운다). */
-    private String priorOverride;
-    private boolean priorOverridePresent;
+    /** 시험이 건드리는 연동 주소 키 — 계정 창구와 통지 수신처 둘 다 끝나면 그대로 되돌린다. */
+    private static final List<String> RELAY_ADDRESS_KEYS =
+            List.of(ConfigKeys.CONTROL_ACCOUNT_URL, ConfigKeys.CONTROL_NOTIFY_URL);
+
+    /** 시험 전에 이미 있던 저장값(키 → 조회 결과, 빈 목록이면 행 없음). */
+    private final Map<String, List<String>> priorOverrides = new LinkedHashMap<>();
 
     @BeforeEach
     void pointControlAddressAtStub() throws InterruptedException {
         jdbc = new JdbcTemplate(controlDataSource);
-        List<String> prior = jdbc.queryForList(
-                "SELECT STNG_VALUE FROM LS_SYSTEM_CONFIG WHERE STNG_KEY = ?", String.class,
-                ConfigKeys.CONTROL_NOTIFY_URL);
-        priorOverridePresent = !prior.isEmpty();
-        priorOverride = priorOverridePresent ? prior.get(0) : null;
-        // 관리자가 연동 주소 설정에서 관제 주소를 바꾼 상태의 재현 — 배포 기본값에는 아무도 없다.
-        upsertOverride("http://" + control.getHostName() + ":" + control.getPort());
+        priorOverrides.clear();
+        for (String key : RELAY_ADDRESS_KEYS) {
+            priorOverrides.put(key, jdbc.queryForList(
+                    "SELECT STNG_VALUE FROM LS_SYSTEM_CONFIG WHERE STNG_KEY = ?", String.class, key));
+        }
+        // 관리자가 연동 주소 설정에서 관제 계정 창구 주소를 바꾼 상태의 재현 — 배포 기본값은 비어 있다.
+        upsertOverride(ConfigKeys.CONTROL_ACCOUNT_URL, stubAddress());
         while (control.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
             // 이전 시험의 잔여 요청을 비운다.
         }
@@ -136,20 +159,30 @@ class ControlSessionRelayIT {
 
     @AfterEach
     void restoreControlAddress() {
-        if (priorOverridePresent) {
-            upsertOverride(priorOverride);
-        } else {
-            jdbc.update("DELETE FROM LS_SYSTEM_CONFIG WHERE STNG_KEY = ?", ConfigKeys.CONTROL_NOTIFY_URL);
-            clearConfigCache();
-        }
+        priorOverrides.forEach((key, prior) -> {
+            if (prior.isEmpty()) {
+                deleteOverride(key);
+            } else {
+                upsertOverride(key, prior.get(0));
+            }
+        });
     }
 
-    private void upsertOverride(String value) {
+    private static String stubAddress() {
+        return "http://" + control.getHostName() + ":" + control.getPort();
+    }
+
+    private void upsertOverride(String key, String value) {
         jdbc.update("""
                 INSERT INTO LS_SYSTEM_CONFIG (STNG_KEY, STNG_VALUE, STNG_TYPE_CD, EXPLN, MDFR_ID)
                 VALUES (?, ?, 'STRING', '통합시험 시드', 'TEST')
                 ON CONFLICT (STNG_KEY) DO UPDATE SET STNG_VALUE = EXCLUDED.STNG_VALUE
-                """, ConfigKeys.CONTROL_NOTIFY_URL, value);
+                """, key, value);
+        clearConfigCache();
+    }
+
+    private void deleteOverride(String key) {
+        jdbc.update("DELETE FROM LS_SYSTEM_CONFIG WHERE STNG_KEY = ?", key);
         clearConfigCache();
     }
 
@@ -249,5 +282,77 @@ class ControlSessionRelayIT {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/v1/me").header("x-access-token", typedToken("access")))
                 .andExpect(status().isOk());
+    }
+
+    // ─────────────── ★ 관제 계정 창구 주소 분리 · 서킷 분리 (2026-09-14 · AC-1105 · AC-1106) ───────────────
+
+    @Test
+    @DisplayName("★계정_창구_주소가_비고_통지_주소만_관제를_가리키면_관제를_부르지_않고_갱신_503_로그아웃_204_서킷_실패_미집계")
+    void notifyAddressIsNotAFallback() throws Exception {
+        // 전제 — 계정 창구 배포 기본값은 비어 있다(application.yml `${CONTROL_ACCOUNT_URL:}`).
+        assertThat(context.getEnvironment().getProperty("authoring.control-account.url")).isNullOrEmpty();
+        deleteOverride(ConfigKeys.CONTROL_ACCOUNT_URL);
+        upsertOverride(ConfigKeys.CONTROL_NOTIFY_URL, stubAddress());
+        refreshCircuit.reset();
+        logoutCircuit.reset();
+
+        mockMvc.perform(post("/v1/auth/control-tokens")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"R-IN\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode").value("CONTROL_SESSION_UNAVAILABLE"));
+        mockMvc.perform(delete("/v1/auth/control-session").header("Authorization", "Bearer " + typedToken("access")))
+                .andExpect(status().isNoContent());
+
+        assertThat(control.takeRequest(500, TimeUnit.MILLISECONDS))
+                .as("통지 수신처로 폴백하면 흉내 서버가 요청을 받는다").isNull();
+        for (CircuitBreaker cb : List.of(refreshCircuit, logoutCircuit)) {
+            assertThat(cb.getMetrics().getNumberOfFailedCalls()).as(cb.getName()).isZero();
+            assertThat(cb.getMetrics().getNumberOfBufferedCalls())
+                    .as("주소 미설정은 결정적 설정 상태라 집계에서 빠진다 — " + cb.getName()).isZero();
+        }
+    }
+
+    @Test
+    @DisplayName("★갱신_서킷이_열려_있어도_로그아웃_중계는_관제로_나간다")
+    void logoutRelayIgnoresOpenRefreshCircuit() throws Exception {
+        refreshCircuit.transitionToOpenState();
+        try {
+            mockMvc.perform(post("/v1/auth/control-tokens")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"refreshToken\":\"R-IN\"}"))
+                    .andExpect(status().isServiceUnavailable());
+            assertThat(control.takeRequest(300, TimeUnit.MILLISECONDS)).as("열린 갱신 서킷은 갱신만 막는다").isNull();
+
+            String access = typedToken("access");
+            mockMvc.perform(delete("/v1/auth/control-session").header("Authorization", "Bearer " + access))
+                    .andExpect(status().isNoContent());
+
+            RecordedRequest req = control.takeRequest(3, TimeUnit.SECONDS);
+            assertThat(req).as("갱신 누적 실패가 로그아웃까지 막으면 관제 서버 세션이 닫히지 않는다").isNotNull();
+            assertThat(req.getPath()).isEqualTo("/api/account/auth/logout");
+            assertThat(req.getHeader("x-access-token")).isEqualTo(access);
+        } finally {
+            refreshCircuit.reset();
+        }
+    }
+
+    @Test
+    @DisplayName("★갱신·로그아웃_서킷은_yml_설정이_바인딩된_별개_인스턴스이고_주소_미설정_예외를_집계에서_뺀다")
+    void relayCircuitsAreSeparateAndIgnoreUnusableAddress() {
+        assertThat(refreshCircuit.getName()).isEqualTo("controlAccount");
+        assertThat(logoutCircuit.getName()).isEqualTo("controlAccountLogout");
+        assertThat(logoutCircuit).isNotSameAs(refreshCircuit);
+        assertThat(circuitBreakerRegistry.circuitBreaker("controlAccountLogout")).isSameAs(logoutCircuit);
+
+        NonRetryableExternalException unusable =
+                new NonRetryableExternalException("관제 계정 창구 연동 주소가 설정되지 않아 요청을 보내지 않았습니다.");
+        for (CircuitBreaker cb : List.of(refreshCircuit, logoutCircuit)) {
+            CircuitBreakerConfig cfg = cb.getCircuitBreakerConfig();
+            // 라이브러리 기본값(100/100)이 아니라 application.yml 인스턴스 값이 바인딩됐는지 값으로 본다.
+            assertThat(cfg.getSlidingWindowSize()).as(cb.getName()).isEqualTo(10);
+            assertThat(cfg.getMinimumNumberOfCalls()).as(cb.getName()).isEqualTo(5);
+            assertThat(cfg.getIgnoreExceptionPredicate().test(unusable)).as(cb.getName()).isTrue();
+        }
     }
 }

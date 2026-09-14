@@ -259,6 +259,17 @@ class Settings(BaseSettings):
         ),
     )
 
+    # ── 관제 계정 세션 창구 목(INT-015) — POST /api/account/auth/refresh|logout ─────────
+    control_jwt_secret: str = Field(
+        default="",
+        description=(
+            "관제 계정 창구 목의 갱신 창구가 새 토큰을 서명할 HMAC 비밀키. "
+            "★ 저작도구 BE 의 JWT_SECRET 과 <같은 값>이어야 한다 — 로컬 저작도구가 새 access 토큰을 "
+            "인증에 그대로 쓰기 때문이다. 목은 이 값을 스스로 만들지 않는다(compose 가 같은 변수를 넘긴다). "
+            "비어 있으면 갱신 창구는 503 으로 끝나고(저작도구에는 일시 장애) 로그아웃 창구는 그대로 동작한다"
+        ),
+    )
+
     # CORS — 콤마 구분 문자열 또는 리스트 모두 허용
     cors_origins: str = Field(
         default="*",
