@@ -55,6 +55,7 @@ import {
 } from '@/features/review/components/ReviewSidePanelTabs';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
+import { claimViewOf, numericUserId } from '@/features/review/reviewClaim';
 import {
   useApproveReview,
   useStartReview,
@@ -67,6 +68,7 @@ import {
 import { ISSUE_STATUS, ISSUE_TYPE } from '@/features/review/types';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
@@ -141,6 +143,9 @@ export function ReviewPage() {
   const pendingIssues = useReviewSelectionStore((s) => s.pendingIssues);
 
   const pushToast = useUiStore((s) => s.pushToast);
+  // 점유 표시가 「내 것」인지 가르는 데만 쓴다 — 관제 토큰은 `sub` 가 문자열이라 숫자로 못 읽을
+  // 수 있고, 그때는 이름만 보인다(안전 성질은 이 값에 걸려 있지 않다 — `reviewClaim` 주석 참조).
+  const myUserId = numericUserId(useAuthStore((s) => s.claims?.sub));
   const { data: review, isLoading, error } = useReview(reviewId);
   const { data: frameList, isLoading: framesLoading } = useReviewFrames(
     review?.videoId,
@@ -195,8 +200,30 @@ export function ReviewPage() {
     [frameList],
   );
 
-  const { mutate: doStart } = useStartReview({
-    onSuccess: () => setDidStart(true),
+  /**
+   * 검수 시작이 거절된 사유 — **서버가 보낸 문장 그대로**. 헤더에 머무는 안내로 보인다.
+   * 성공하면 비운다(거절이 해소됐는데 안내가 남으면 거짓말이 된다).
+   */
+  const [claimConflict, setClaimConflict] = useState<string | null>(null);
+
+  const { mutate: doStart, isPending: starting } = useStartReview({
+    onSuccess: () => {
+      setDidStart(true);
+      setClaimConflict(null);
+    },
+    onError: (err) => {
+      // ★남이 점유 중이면 409 다(API-013). 그 사실을 알리지 않으면 검수자는 「왜 내 이름이 안
+      //   뜨지」를 알 길이 없고, 그대로 작업하다 일괄 검수완료 대상에도 담기지 않는다.
+      //
+      // ⚠ 같은 409 에 사유가 셋이다 — 남의 점유 / 동시 시작 경합 / 받아들일 수 없는 상태.
+      //   그래서 **서버가 보낸 문장을 그대로** 싣는다(남의 점유 문구에는 점유자 이름이 들어 있다).
+      //   사유 코드로 우리 문장을 지어내면 결론은 맞고 사유는 거짓인 안내가 된다.
+      //
+      // 재시도하지 않도록 `didStart` 를 세운다 — 세우지 않으면 아래 자동 호출 effect 가 응답이
+      // 올 때마다 다시 돌아 409 토스트가 되풀이된다.
+      setDidStart(true);
+      setClaimConflict(extractBeMessage(err, '검수를 시작하지 못했습니다.'));
+    },
   });
 
   const { mutate: doApprove, isPending: approving } = useApproveReview({
@@ -223,11 +250,36 @@ export function ReviewPage() {
   });
 
   // 검수 화면 진입 시 자동으로 startReview 호출 (REVIEW_PENDING → REVIEWING)
+  //
+  // ⚠ **재검수 건(승인 + 재검토 필요)은 여기에 들지 않는다** — 그 영상은 이 화면에 들어오는
+  //    것만으로 잡히지 않고 사람이 「검수 시작」을 눌러야 잡힌다(SCREEN-019). 자동으로 잡으면
+  //    승인 결과를 들여다보기만 하려던 사람이 그 영상을 묶어 버린다.
   useEffect(() => {
     if (review && review.status === 'REVIEW_PENDING' && !didStart) {
       doStart(review.id);
     }
   }, [review, didStart, doStart]);
+
+  /** 지금 이 영상을 누가 잡고 있는가 — 표시 전용(판정은 `reviewClaim` 단일 지점). */
+  const claimView = useMemo(
+    () => (review ? claimViewOf(review, myUserId) : undefined),
+    [review, myUserId],
+  );
+
+  /**
+   * 「검수 시작」 버튼을 보일 것인가.
+   *
+   * 재검수 건(승인 + 재검토 필요)에서 보인다 — 잡아야 검수 목록의 일괄 검수완료 대상에 담기는데,
+   * 그 길이 화면에 드러나지 않으면 쓸 수 없다. 검수대기는 진입 시 자동으로 잡히므로 두지 않는다.
+   *
+   * ★**이미 내가 잡고 있어도 감추지 않는다**(SCREEN-019) — 다시 누르면 거절되지 않고 잡은 시각만
+   *   뒤로 밀려, 오래 들여다보는 동안 유예로 풀리는 것을 막는다.
+   */
+  const canClaim = review?.status === 'COMPLETED' && review.needsRecheck === true;
+
+  const handleStartReviewClick = useCallback(() => {
+    if (review) doStart(review.id);
+  }, [doStart, review]);
 
   // Phase 5 — frames 로드 완료 시 currentFrameIdx 가 범위 밖이면 0 으로 reset.
   const frames = frameList?.frames;
@@ -380,6 +432,14 @@ export function ReviewPage() {
           submittedAt={review.submittedAt}
           status={review.status}
           needsRecheck={review.needsRecheck}
+          claim={claimView}
+          reviewStartedAt={review.reviewStartedAt}
+          claimConflictMessage={claimConflict}
+          lastApproverName={review.lastApproverName}
+          lastApproverRole={review.lastApproverRole}
+          lastApprovedAt={review.lastApprovedAt}
+          onStartReview={canClaim ? handleStartReviewClick : undefined}
+          isStarting={starting}
           isApproving={approving}
           onClose={handleClose}
           onApprove={handleApproveClick}

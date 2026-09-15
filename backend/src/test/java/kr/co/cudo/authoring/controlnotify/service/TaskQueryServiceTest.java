@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.common.security.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -194,7 +195,7 @@ class TaskQueryServiceTest {
         stubSummaryCounts();
         when(taskEventLogRepository.findFirstByRawDataIdAndEventTypeCdOrderByOcrnDtDescEventSeqDesc(
                 100L, LsTaskEventLog.EVENT_APPROVE))
-                .thenReturn(Optional.of(LsTaskEventLog.approve(100L, 7L)));
+                .thenReturn(Optional.of(LsTaskEventLog.approve(100L, 7L, Role.REVIEWER)));
         when(userRepository.findByUserNo(7L)).thenReturn(Optional.empty());
 
         // when
@@ -551,7 +552,7 @@ class TaskQueryServiceTest {
     private void seedApprover(Long userNo, String userNm) {
         when(taskEventLogRepository.findFirstByRawDataIdAndEventTypeCdOrderByOcrnDtDescEventSeqDesc(
                 100L, LsTaskEventLog.EVENT_APPROVE))
-                .thenReturn(Optional.of(LsTaskEventLog.approve(100L, userNo)));
+                .thenReturn(Optional.of(LsTaskEventLog.approve(100L, userNo, Role.REVIEWER)));
         LsAcntUser user = newInstance(LsAcntUser.class);
         setField(user, "userNo", userNo);
         setField(user, "userNm", userNm);

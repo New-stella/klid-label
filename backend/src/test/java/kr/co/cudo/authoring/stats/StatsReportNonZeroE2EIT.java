@@ -262,8 +262,18 @@ class StatsReportNonZeroE2EIT {
         assignmentRepository.save(LsTaskAssignment.createLabeler(rawSn, userNo, userNo));
     }
 
+    /**
+     * <b>옛</b> 검수자 배정 행을 재현한다 — 새로 만드는 경로는 없어졌지만(ADR-067) 이미 적재된 행이
+     * 통계 집계를 흔들지 않는지는 계속 확인해야 하므로, 제거된 팩토리 대신 빌더로 직접 세운다.
+     */
     private void reviewer(Long rawSn, long userNo) {
-        assignmentRepository.save(LsTaskAssignment.createReviewer(rawSn, userNo, userNo));
+        assignmentRepository.save(LsTaskAssignment.builder()
+                .userNo(userNo)
+                .rawDataId(rawSn)
+                .taskTypeCd(LsTaskAssignment.TASK_REVIEWER)
+                .regUserNo(userNo)
+                .regDt(LocalDateTime.now())
+                .build());
     }
 
     /** 그 영상의 첫 프레임에 자동/수동 라벨을 붙인다 — autoLabelRate 분자/분모. */

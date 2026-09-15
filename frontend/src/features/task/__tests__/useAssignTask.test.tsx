@@ -48,7 +48,7 @@ describe('useAssignTask', () => {
     });
     const { result } = renderHook(() => useAssignTask(), { wrapper: wrapper(qc) });
 
-    result.current.mutate({ workerId: 9, rawDataIds: [1], reviewerId: 1 });
+    result.current.mutate({ workerId: 9, rawDataIds: [1] });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -75,7 +75,7 @@ describe('useAssignTask', () => {
     const { result } = renderHook(() => useAssignTask(), { wrapper: wrapper(qc) });
 
     // when
-    result.current.mutate({ workerId: 9, rawDataIds: [1], reviewerId: 1 });
+    result.current.mutate({ workerId: 9, rawDataIds: [1] });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     // then

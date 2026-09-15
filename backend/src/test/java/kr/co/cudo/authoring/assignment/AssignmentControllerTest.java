@@ -85,6 +85,34 @@ class AssignmentControllerTest {
     }
 
     /**
+     * <b>하위호환</b> — 검수자 항목을 없앤 뒤에도(ADR-067) 옛 호출자가 그것을 그대로 보내면
+     * <b>무시하고 성공</b>한다. 400 으로 거부하면 옵션 항목이었던 것 때문에 기존 호출만 깨진다.
+     *
+     * <p>요청 본문을 DTO 로 만들지 않고 <b>생 JSON</b>으로 쓴다 — DTO 에는 그 필드가 이미 없어서
+     * 직렬화로는 옛 호출자를 재현할 수 없고, 재현하지 못하면 이 가드는 아무것도 지키지 못한다.
+     */
+    @Test
+    @DisplayName("옛_호출자가_검수자_항목을_보내도_무시하고_201이며_검수자_배정_행도_안_생긴다")
+    void legacyReviewerIdIsIgnoredNotRejected() throws Exception {
+        String legacyBody = """
+                {"workerId":100,"rawDataIds":[1000],"reviewerId":1}
+                """;
+
+        mockMvc.perform(post("/v1/assignments")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(legacyBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                // 응답에서도 검수자 축이 사라졌다(필드 자체가 없다).
+                .andExpect(jsonPath("$.data.items[0].reviewerId").doesNotExist());
+
+        assertThat(authrtRepository.findAll())
+                .as("검수자 배정 행은 새로 생기지 않는다")
+                .allSatisfy(a -> assertThat(a.getTaskTypeCd()).isEqualTo(LsTaskAssignment.TASK_LABELER));
+    }
+
+    /**
      * 재배정 API 가 <b>이력을 남긴다</b>는 불변식. 구 {@code LS_TASK_ASSIGN_HISTORY} 이중 쓰기가 V4 로
      * 제거돼 단독 적재처인 {@code LS_TASK_EVNT_LOG} 로 단언을 이관했다(검증 유실 없음). 여기서는
      * 리포지토리를 직접 읽지 않고 <b>이력 조회 API 응답</b>으로 확인한다 — 실제 소비자가 그 경로이고,

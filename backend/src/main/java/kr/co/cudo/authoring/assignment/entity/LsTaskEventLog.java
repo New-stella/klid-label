@@ -6,12 +6,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import kr.co.cudo.authoring.common.security.Role;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * 작업(영상) 단위 이벤트 누적 로그 — SCR-TASK-003 작업 이력 화면용.
@@ -24,6 +27,7 @@ import java.time.LocalDateTime;
  * <ul>
  *   <li>{@link #EVENT_ASSIGN}     : REVIEWER 가 WORKER 에게 최초 배정 — subject=배정된 작업자</li>
  *   <li>{@link #EVENT_REASSIGN}   : REVIEWER 가 다른 WORKER 로 재배정 — subject=새 작업자, prev=이전 작업자</li>
+ *   <li>{@link #EVENT_START_REVIEW} : 검수 시작 — actor=검수를 시작한 사람. <b>그 영상의 점유를 세운다</b></li>
  *   <li>{@link #EVENT_SUBMIT}     : WORKER 가 라벨링 완료 후 검수 제출 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_CANCEL_SUBMIT} : WORKER 가 검수 시작 전 제출을 취소 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_APPROVE}    : REVIEWER 승인 — actor=검수자</li>
@@ -39,6 +43,13 @@ import java.time.LocalDateTime;
  * 이유는 이 축이 <b>영상(rawSn) 스코프 + actor + 사유</b>를 이미 갖춘 유일한 이력이기 때문이며
  * (라벨 이력 {@code LS_DATA_LBL_HSTRY} 는 {@code SRC_SN NOT NULL} 인 프레임 스코프라 영상 축 행을 담을
  * 수 없다), 화면 타임라인에는 알 수 없는 코드가 아니라 전용 문구로 표시된다({@code HistoryDrawer}).
+ *
+ * <p><b>검수 점유도 이 원장이 표현한다</b> — 전용 컬럼이나 별도 표를 두지 않고 {@link #EVENT_START_REVIEW}
+ * 한 종류로 「지금 누가 그 영상을 보고 있는가」를 담는다. 판정 규칙과 유예의 소유자는
+ * {@code assignment.domain.ReviewClaim} 이며 이 엔티티는 사실만 적재한다.
+ *
+ * @design ADR-067
+ * @design ERD-014
  */
 @Entity
 @Table(name = "LS_TASK_EVNT_LOG")
@@ -48,6 +59,20 @@ public class LsTaskEventLog {
 
     public static final String EVENT_ASSIGN = "ASSIGN";
     public static final String EVENT_REASSIGN = "REASSIGN";
+    /**
+     * <b>검수 시작</b> — 그 영상의 점유를 세운다 (12자).
+     *
+     * <p>점유를 위해 컬럼이나 표를 새로 만들지 않는다. 이 원장이 이미 영상·행위자·발생일시를 갖고
+     * 있고 승인·반려도 같은 원장에 쌓이므로, 「그 뒤에 종결 이벤트가 있으면 점유가 아니다」가 자연히
+     * 성립한다. 값 제약({@code CHECK})이 없는 컬럼이라 이 종류를 더하는 데 마이그레이션이 필요 없으며,
+     * 표준도메인 폭 {@code VARCHAR(20)} 안에 들어간다.
+     *
+     * <p>판정 규칙(뒤에 승인·반려가 없을 것 + 유예 안일 것)은 {@code ReviewClaim} 이 단독으로 소유한다 —
+     * 여기에 옮겨 적지 않는다.
+     *
+     * @design ADR-067
+     */
+    public static final String EVENT_START_REVIEW = "START_REVIEW";
     public static final String EVENT_SUBMIT = "SUBMIT";
     public static final String EVENT_CANCEL_SUBMIT = "CANCEL_SUBMIT";
     public static final String EVENT_APPROVE = "APPROVE";
@@ -101,10 +126,50 @@ public class LsTaskEventLog {
     @Column(name = "OCRN_DT", nullable = false)
     private LocalDateTime ocrnDt;
 
+    /**
+     * <b>그 행위를 한 시점의 행위자 역할</b> (V38 신설, nullable).
+     *
+     * <p>조회 시점에 그 사람의 <b>현재</b> 역할을 다시 읽는 방식을 쓰지 않는다 — 그러면 역할이 바뀌는
+     * 순간 과거 행위의 역할까지 따라 바뀐다. 같은 저장소의 {@code LsIssueComment.AUTHOR_ROLE_CD} 가
+     * 같은 이유로 작성 시점 역할을 박아 두는 선례다.
+     *
+     * <p><b>계층으로 승격된 값이 아니라 행위자의 실제 역할</b>이다 — 관리자가 승인하면
+     * {@link Role#ADMIN} 이 남아야 한다. {@link Role#REVIEWER} 로 내려 적으면 「관리자가 승인한 건」을
+     * 사후에 가려낼 수 없어 이 컬럼을 둔 이유가 통째로 사라진다.
+     *
+     * <p><b>비어 있을 수 있다.</b> ①이 컬럼이 생기기 전에 쌓인 이력 ②역할을 남기지 않는 종류(배정·
+     * 재배정·프레임 폐기 등 — 이번 범위가 아니다). 비었다고 결함이 아니며 <b>소급해 채우지 않는다</b>.
+     *
+     * @design ERD-014
+     * @design API-116
+     */
+    @Column(name = "ACTOR_ROLE_CD", length = 20)
+    private String actorRoleCd;
+
+    /**
+     * 이 컬럼이 담을 수 있는 역할 — {@code V38} 의 {@code CHECK} 제약과 <b>같은 집합</b>이다.
+     *
+     * <p>셋인 이유: 이 원장은 승인·반려(검수자·관리자)뿐 아니라 <b>제출</b>(작업자)도 담는다.
+     * 「검수 이력이니 검수 역할만」으로 좁히면 제출 축이 제약 위반으로 실패한다. 반대로
+     * {@link Role#PORTAL_USER} 는 채널이 달라 이 원장에 들어오지 않는다.
+     */
+    private static final Set<Role> AUDITABLE_ROLES = EnumSet.of(Role.ADMIN, Role.REVIEWER, Role.WORKER);
+
+    /**
+     * 행위자 역할 → 저장값. 값역 밖(또는 미배정)이면 <b>비운다</b>.
+     *
+     * <p>DB {@code CHECK} 를 그대로 맞으면 감사 기록 하나 때문에 승인·반려 본체가 500 으로 실패한다.
+     * 이 컬럼은 부가 정보이므로 비우고 넘어간다 — 값역 밖 역할({@link Role#PORTAL_USER})이 이 원장에
+     * 도달하는 경로는 현재 없고, 도달하더라도 본체를 깨뜨리는 것보다 비는 편이 낫다.
+     */
+    private static String roleCodeOf(Role actorRole) {
+        return (actorRole != null && AUDITABLE_ROLES.contains(actorRole)) ? actorRole.name() : null;
+    }
+
     @Builder(access = AccessLevel.PRIVATE)
     private LsTaskEventLog(Long rawDataId, String eventTypeCd, Long actorUserNo,
                            Long subjectUserNo, Long prevUserNo, String rsn,
-                           LocalDateTime ocrnDt) {
+                           LocalDateTime ocrnDt, String actorRoleCd) {
         this.rawDataId = rawDataId;
         this.eventTypeCd = eventTypeCd;
         this.actorUserNo = actorUserNo;
@@ -112,6 +177,7 @@ public class LsTaskEventLog {
         this.prevUserNo = prevUserNo;
         this.rsn = rsn;
         this.ocrnDt = ocrnDt;
+        this.actorRoleCd = actorRoleCd;
     }
 
     public static LsTaskEventLog assign(Long rawDataId, Long actorUserNo, Long subjectWorkerNo) {
@@ -156,11 +222,41 @@ public class LsTaskEventLog {
                 .build();
     }
 
-    public static LsTaskEventLog approve(Long rawDataId, Long reviewerUserNo) {
+    /**
+     * <b>검수 시작</b> — 그 영상의 점유를 세운다.
+     *
+     * <p>같은 사람이 다시 열면 이 이벤트를 <b>다시 남겨</b> 점유 시각을 갱신한다(보던 중에 만료돼
+     * 남에게 넘어가는 것을 막는다). 최초 시작 시각은 앞선 행에 그대로 남으므로 잃지 않는다.
+     *
+     * <p>점유를 <b>푸는</b> 이벤트는 만들지 않는다 — 승인·반려가 이미 자기 이벤트를 남기고, 자리를
+     * 뜬 경우는 유예가 지나면 저절로 풀린다({@code ReviewClaim}).
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할. 관리자가 시작했으면 {@link Role#ADMIN} 이다
+     * @design ADR-067
+     */
+    public static LsTaskEventLog startReview(Long rawDataId, Long actorUserNo, Role actorRole) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_START_REVIEW)
+                .actorUserNo(actorUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * 검수 승인.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할 — 관리자가 승인하면 {@link Role#ADMIN} 이 남는다.
+     *                  계층으로 승격된 값({@link Role#REVIEWER})을 적지 말 것
+     * @design ERD-014
+     */
+    public static LsTaskEventLog approve(Long rawDataId, Long reviewerUserNo, Role actorRole) {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_APPROVE)
                 .actorUserNo(reviewerUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
                 .ocrnDt(LocalDateTime.now())
                 .build();
     }
@@ -173,11 +269,12 @@ public class LsTaskEventLog {
      * 이벤트 코드를 만들지 않고 기존 메커니즘을 재사용한다(사유 컬럼은 반려가 이미 사용 중).
      * PII/토큰은 담지 않는다(고정 문구 + 행위자 번호만 — CWE-359).
      */
-    public static LsTaskEventLog approveWithoutLabel(Long rawDataId, Long reviewerUserNo) {
+    public static LsTaskEventLog approveWithoutLabel(Long rawDataId, Long reviewerUserNo, Role actorRole) {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_APPROVE)
                 .actorUserNo(reviewerUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
                 .rsn(RSN_NO_LABEL_CONFIRMED)
                 .ocrnDt(LocalDateTime.now())
                 .build();
@@ -186,11 +283,18 @@ public class LsTaskEventLog {
     /** 라벨 0건 승인 감사 사유 고정 문구(검색·집계 키로 쓰이므로 변경 시 조회 쿼리 동반 수정). */
     public static final String RSN_NO_LABEL_CONFIRMED = "라벨 없음 확인 승인(negative sample)";
 
-    public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String rsn) {
+    /**
+     * 검수 반려.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할 — 관리자가 반려하면 {@link Role#ADMIN} 이 남는다
+     * @design ERD-014
+     */
+    public static LsTaskEventLog reject(Long rawDataId, Long reviewerUserNo, String rsn, Role actorRole) {
         return LsTaskEventLog.builder()
                 .rawDataId(rawDataId)
                 .eventTypeCd(EVENT_REJECT)
                 .actorUserNo(reviewerUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
                 .rsn(rsn)
                 .ocrnDt(LocalDateTime.now())
                 .build();

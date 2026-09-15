@@ -20,6 +20,13 @@ import java.time.LocalDateTime;
  *   <li>APPROVED  = "COMPLETED"</li>
  *   <li>REJECTED  = "REJECTED"</li>
  * </ul>
+ *
+ * <p><b>검수자 축이 없다</b> — 검수자를 영상에 배정하는 절차를 두지 않으므로(ADR-067) 구
+ * {@code reviewerId}/{@code reviewerName} 필드를 없앴다. 작업 목록의 검수자 열이 이 값을 조달받고
+ * 있었다. 되살리지 말 것.
+ *
+ * @design API-073
+ * @design ADR-067
  */
 public record TaskBoardItemResponse(
         Long videoId,
@@ -35,8 +42,6 @@ public record TaskBoardItemResponse(
         String workerName,
         LocalDateTime assignedAt,
         Long firstSrcSn,
-        Long reviewerId,
-        String reviewerName,
         // 증강/해상도 파생 영상 여부 — LS_DATA_RAW.ORGNL_RAW_SN != null (R3). 원본이면 false.
         boolean augmented,
         // 증강 종류(정규화 WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) — 원본/파싱실패 시 null.

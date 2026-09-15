@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.review;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -17,6 +18,7 @@ import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.meta.service.MetaService;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
+import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
@@ -29,6 +31,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -96,29 +99,38 @@ class ReviewRoleHierarchyTest {
     private ReviewQueryRepository reviewQueryRepository;
     private LsTaskAssignmentRepository authrtRepository;
     private LsTaskEventLogRepository taskEventLogRepository;
+    private IssueRepository issueRepository;
+    private LsDataLblRepository labelRepository;
+    private VersionService versionService;
     private ReviewService reviewService;
 
     @BeforeEach
     void setUp() {
         reviewRepository = mock(ReviewRepository.class);
         reviewQueryRepository = mock(ReviewQueryRepository.class);
-        IssueRepository issueRepository = mock(IssueRepository.class);
+        issueRepository = mock(IssueRepository.class);
         authrtRepository = mock(LsTaskAssignmentRepository.class);
         taskEventLogRepository = mock(LsTaskEventLogRepository.class);
         ReviewStateMachine stateMachine = mock(ReviewStateMachine.class);
         LsDataSrcRepository srcRepository = mock(LsDataSrcRepository.class);
-        LsDataLblRepository labelRepository = mock(LsDataLblRepository.class);
+        labelRepository = mock(LsDataLblRepository.class);
         VideoRepository videoRepository = mock(VideoRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
+        versionService = mock(VersionService.class);
 
         reviewService = new ReviewService(
                 reviewRepository, reviewQueryRepository, issueRepository, authrtRepository,
                 taskEventLogRepository, stateMachine, srcRepository, labelRepository, videoRepository,
                 new UserNameResolver(userRepository), new ObjectMapper(),
-                mock(ApplicationEventPublisher.class), mock(VersionService.class),
+                mock(ApplicationEventPublisher.class), versionService,
                 mock(DatasetVideoMetaSnapshotService.class), mock(EvntAnnoReviewService.class),
                 mock(MetaService.class), mock(LabelAccessGuard.class),
-                mock(ControlNotifyDebounceStore.class));
+                mock(ControlNotifyDebounceStore.class),
+                // ADR-067 — 검수 점유 조회 단일 창구. 위 이벤트 로그 목이 빈 결과를 돌려주므로
+                // 「아무도 점유하지 않음」 상태다(이 시험의 관심사는 점유가 아니다).
+                new kr.co.cudo.authoring.assignment.service.ReviewClaimSupport(taskEventLogRepository, 30),
+                // 일괄 승인 건수 상한 — 단건 경로를 쓰는 이 시험에서는 읽히지 않는다.
+                new kr.co.cudo.authoring.review.service.ReviewBatchApprovePolicy(20));
 
         // enrichOne 의 N+1 회피 lookup — 이 시험의 관심사가 아니라 빈 결과로 둔다.
         lenient().when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
@@ -138,6 +150,9 @@ class ReviewRoleHierarchyTest {
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
         lenient().when(stts.getRawDataId()).thenReturn(VIDEO_ID);
         lenient().when(stts.getDataSttsCd()).thenReturn(sttsCd);
+        // 실엔티티의 기본값은 「비식별화 완료」다(Y). 목의 기본값(false)을 그대로 두면 승인이
+        //   역할과 무관하게 412 로 막혀, 계층 시험이 엉뚱한 이유로 실패한다.
+        lenient().when(stts.isDeidentCompleted()).thenReturn(true);
         lenient().when(reviewRepository.findByRawDataId(VIDEO_ID)).thenReturn(Optional.of(stts));
         return stts;
     }
@@ -191,6 +206,96 @@ class ReviewRoleHierarchyTest {
         assertThatThrownBy(() -> reviewService.getDetail(VIDEO_ID, PORTAL))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    // ---------------------------------------------------- 검수 시작·승인·반려 (검수자 이상)
+
+    /**
+     * ADR-067 라운드 보강 — 그 전까지 이 클래스는 목록·상세·제출 축만 덮었다. 검수 시작·승인·반려는
+     * <b>관리자가 실제로 수행하는 일</b>인데 계층 회귀 가드가 없었다.
+     *
+     * <p>「거부되지 않는다」만 보면 경로가 도달 불가여도 통과하므로, <b>상태가 실제로 전이되고 이력이
+     * 쌓였는지</b>까지 함께 고정한다.
+     */
+    @Test
+    @DisplayName("관리자는_배정이_없어도_검수를_시작한다_계층")
+    void adminStartsReview() {
+        LsRawDataStatus stts = stubStatus(LsRawDataStatus.STTS_PENDING);
+
+        reviewService.startReview(VIDEO_ID, ADMIN);
+
+        verify(stts).transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
+        // 점유를 세우는 「검수 시작」 이력이 쌓인다.
+        verify(taskEventLogRepository).save(any());
+        // 검수자 분기에서 끝났음을 고정 — 작업자 전용 배정 검사에 흘러들지 않는다.
+        verify(authrtRepository, never())
+                .existsByUserNoAndTaskTypeCdAndRawDataId(anyLong(), anyString(), anyLong());
+    }
+
+    @Test
+    @DisplayName("포털회원은_검수시작에서_여전히_거부된다_계층이_새지_않는다")
+    void portalUserStillForbiddenOnStartReview() {
+        assertThatThrownBy(() -> reviewService.startReview(VIDEO_ID, PORTAL))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("작업자는_검수시작·승인·반려에서_여전히_거부된다_계층이_새지_않는다")
+    void workerStillForbiddenOnReviewActions() {
+        stubStatus(LsRawDataStatus.STTS_IN_REVIEW);
+
+        assertThatThrownBy(() -> reviewService.startReview(VIDEO_ID, WORKER))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> reviewService.approve(VIDEO_ID, null, WORKER))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> reviewService.reject(VIDEO_ID,
+                new kr.co.cudo.authoring.review.dto.RejectRequest("사유"), WORKER))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("관리자가_승인하면_이력에_ADMIN이_남는다_계층으로_승격된_REVIEWER가_아니다")
+    void adminApprovalIsRecordedAsAdmin() {
+        LsRawDataStatus stts = stubStatus(LsRawDataStatus.STTS_IN_REVIEW);
+        when(labelRepository.existsAnyByRawSn(anyLong())).thenReturn(true);
+        when(versionService.commitApproved(anyLong(), any()))
+                .thenReturn(new VersionService.CommitResult(1, 0));
+
+        reviewService.approve(VIDEO_ID, null, ADMIN);
+
+        verify(stts).transitionTo(LsRawDataStatus.STTS_APPROVED);
+        ArgumentCaptor<LsTaskEventLog> captor = ArgumentCaptor.forClass(LsTaskEventLog.class);
+        verify(taskEventLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventTypeCd()).isEqualTo(LsTaskEventLog.EVENT_APPROVE);
+        // ★ADMIN.satisfies(REVIEWER) 가 참이라고 REVIEWER 를 적으면 「관리자가 승인한 건」을
+        //   사후에 가려낼 수 없어 이 컬럼을 둔 이유가 통째로 사라진다.
+        assertThat(captor.getValue().getActorRoleCd()).isEqualTo(Role.ADMIN.name());
+    }
+
+    @Test
+    @DisplayName("관리자가_반려하면_이력에_ADMIN이_남고_이슈의_작성자와_어긋나지_않는다")
+    void adminRejectionIsRecordedAsAdmin() {
+        LsRawDataStatus stts = stubStatus(LsRawDataStatus.STTS_IN_REVIEW);
+        when(issueRepository.findByDataRawSnOrderByRegDtDesc(anyLong()))
+                .thenReturn(Collections.emptyList());
+
+        reviewService.reject(VIDEO_ID,
+                new kr.co.cudo.authoring.review.dto.RejectRequest("다시 확인이 필요합니다."), ADMIN);
+
+        verify(stts).transitionTo(LsRawDataStatus.STTS_REJECTED);
+        ArgumentCaptor<LsTaskEventLog> events = ArgumentCaptor.forClass(LsTaskEventLog.class);
+        verify(taskEventLogRepository).save(events.capture());
+        assertThat(events.getValue().getActorRoleCd()).isEqualTo(Role.ADMIN.name());
+
+        // 반려는 이슈도 함께 쓴다 — 두 곳의 행위자가 같은 사람을 가리켜야 한다.
+        ArgumentCaptor<LsDataIssue> issues = ArgumentCaptor.forClass(LsDataIssue.class);
+        verify(issueRepository).save(issues.capture());
+        assertThat(issues.getValue().getReportedUserNo()).isEqualTo(ADMIN.sub());
+        assertThat(String.valueOf(events.getValue().getActorUserNo())).isEqualTo(ADMIN.sub());
     }
 
     // ---------------------------------------------------- ★ 작업자 전용 자리 (보존)

@@ -3,6 +3,13 @@
 // UI/UX §4-9 / §5.3 정합:
 // - 상태 전이: REVIEW_PENDING → REVIEWING → COMPLETED / REJECTED → IN_PROGRESS(재작업)
 // - 이슈는 프레임 단위로 누적 (캔버스 좌표 마커 사용 X)
+//
+// ★점유(「지금 누가 검수 중인가」)·최근 승인자(역할 포함)·일괄 승인 자격은 **응답에 실려 오는
+// 값**이다. 화면이 상태·시각으로 다시 계산하지 않는다(판정 단일 지점은 `reviewClaim`).
+//
+// [@design ADR-067] [@design API-008] [@design API-009] [@design API-250]
+
+import type { PageResponse } from '@/lib/api/types';
 
 export type ReviewStatus = 'REVIEW_PENDING' | 'REVIEWING' | 'COMPLETED' | 'REJECTED';
 
@@ -15,7 +22,6 @@ export interface Review {
   submittedAt: string;
   labelCount: number;
   status: ReviewStatus;
-  reviewerId?: number;
   // Phase 1 enrich — BE 가 EVNT_TYPE_CD 를 직접 응답 (null 가능)
   eventName?: string | null;
   eventTypeCd?: string | null;
@@ -25,6 +31,92 @@ export interface Review {
    * 축이 아니라 **표시 전용**이다(목록에 새 축을 만들지 않는다).
    */
   needsRecheck: boolean;
+
+  // ── 검수 점유 — 「지금 누가 이 영상을 보고 있나」 ────────────────────
+  //
+  // 점유는 저장된 값이 아니라 **조회 시점 파생**이다(작업 이력의 최신 「검수 시작」 + 유예).
+  // 유예가 지나 저절로 풀렸으면 BE 가 세 값을 모두 `null` 로 내려보낸다 — 화면은 만료를
+  // 스스로 계산하지 않는다(시계가 갈리면 화면과 서버가 서로 다른 말을 한다).
+  //
+  // ★점유는 **표시**이지 필터가 아니다. 이 축으로 목록을 거르거나 정렬 헤더를 만들지 말 것
+  // (검수 목록은 대기 전체를 보여준다 — `SCREEN-018`).
+  /** 지금 점유 중인 사람의 사번. 점유 없음·만료면 `null`. */
+  reviewingUserId?: number | null;
+  /** 지금 점유 중인 사람의 표시 이름. 점유 없음·만료면 `null`. */
+  reviewingUserName?: string | null;
+  /** 점유가 선 시각(최초 검수 시작). 점유 없음·만료면 `null`. */
+  reviewStartedAt?: string | null;
+
+  // ── 최근 승인자 — 「누가 언제 어떤 역할로 승인했나」 ──────────────────
+  //
+  // ★`lastApproverRole` 은 **승인한 그 시점에 기록된 역할**이라 그 사람의 지금 역할과 다를 수
+  // 있고 그것이 의도다(관리자가 승인한 건은 영영 관리자로 남는다). 조회 시점에 다시 해석하지
+  // 말 것 — 역할이 바뀌면 과거 행위의 역할까지 따라 바뀐다.
+  // 옛 이력은 역할만 비어 있을 수 있다(백필하지 않았다) — 그때는 **빈 괄호를 남기지 않는다**.
+  /** 마지막 승인자 사번. 승인 이력이 없으면 `null`. */
+  lastApproverId?: number | null;
+  /** 마지막 승인자 표시 이름. 승인 이력이 없으면 `null`. */
+  lastApproverName?: string | null;
+  /** 승인 **시점**의 역할(`ADMIN`/`REVIEWER`). 옛 기록은 `null`. */
+  lastApproverRole?: string | null;
+  /** 마지막 승인 시각. 승인 이력이 없으면 `null`. */
+  lastApprovedAt?: string | null;
+
+  /**
+   * 일괄 검수완료 대상으로 담을 수 있는가 — **BE 가 판정한 값**이다.
+   *
+   * ★화면이 점유·상태로 이 값을 다시 계산하지 말 것. 자격은 「유효 점유의 주인이 나」 +
+   * 「단건 승인이 허용하는 상태」 두 조건인데, 뒤쪽은 재검수 건(승인 상태 그대로)까지 포함해
+   * 화면이 아는 값만으로는 재현되지 않는다. 재현하려 들면 두 번째 진실원이 생긴다.
+   */
+  bulkApprovable?: boolean;
+}
+
+/**
+ * `GET /v1/reviews` 응답 — 기존 페이지에 **일괄 승인 건수 상한 하나**가 얹힌 형태.
+ *
+ * ★상한은 항목마다가 아니라 **응답 한 번에 하나**다(요청 전체에 걸리는 값이라 영상마다 다르지
+ * 않고, 행이 0건인 페이지에서도 화면이 상한을 알아야 한다).
+ *
+ * ★화면은 이 숫자를 **스스로 갖지 않는다** — 배포 설정값이라 하드코딩하면 설정을 바꿔도 화면만
+ * 옛 숫자로 막는다. 화면의 제한은 「눌러서 거부당한 뒤 안내받는」 동선을 없애는 편의이고
+ * **실제 강제는 일괄 승인 창구가 그대로 한다**.
+ */
+export interface ReviewListResponse extends PageResponse<Review> {
+  bulkApproveLimit?: number;
+}
+
+/** `POST /v1/reviews/batch/approve` 요청 — 승인할 영상 식별자 목록(1건 이상). */
+export interface BatchApproveRequest {
+  videoIds: number[];
+}
+
+/**
+ * 일괄 승인 건별 결과.
+ *
+ * ★사유는 {@link errorCode} 로 가른다 — **메시지 문자열로 분기하지 말 것**. 문구는 바뀔 수 있고
+ * 그때 분기가 조용히 어긋난다.
+ */
+export interface BatchApproveResultItem {
+  videoId: number;
+  success: boolean;
+  /** 실패 사유 코드(성공이면 `null`). */
+  errorCode?: string | null;
+  /** 사람이 읽는 실패 사유(성공이면 `null`). */
+  reason?: string | null;
+}
+
+/**
+ * 일괄 승인 응답.
+ *
+ * ★**한 건도 성공하지 못해도 200** 이다 — 요청 자체는 받아들여졌고 판정은 결과 목록으로 한다.
+ * 전체 실패를 오류 화면으로 바꾸지 말 것(`SCREEN-018` 결과 창).
+ * 요청 전체가 거부되는 경우(빈 목록·상한 초과)만 400 으로 나간다.
+ */
+export interface BatchApproveResponse {
+  successCount: number;
+  failureCount: number;
+  results: BatchApproveResultItem[];
 }
 
 export interface ReviewIssue {
