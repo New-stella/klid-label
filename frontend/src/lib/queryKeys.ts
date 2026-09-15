@@ -190,6 +190,17 @@ export const PORTAL_KEYS = {
    * 받아 오고, 편집 중 프레임을 옮기면 다른 자리의 값처럼 보인다).
    */
   eventAnnotation: (rawSn: number) => [...PORTAL_KEYS.all, 'event-annotation', rawSn] as const,
+  /**
+   * 포털 데이터셋 소재 조달 상태(INT-014) — **데이터셋 단위**다.
+   *
+   * 데이터셋 식별자는 **조건 축**이라 키에 넣는다 — 넣지 않으면 다른 데이터셋으로 진입해도 앞
+   * 데이터셋의 상태가 그대로 보여, 「준비 완료」가 엉뚱한 소재를 가리킨다.
+   *
+   * ⚠ 착수(POST) 응답과 상태 조회(GET) 응답이 같은 모양이라 착수 결과를 이 자리에 그대로 앉힌다.
+   *   두 축에 키를 나누면 착수 직후 화면이 낡은 조회값을 계속 본다.
+   */
+  datasetMaterials: (datasetId: number) =>
+    [...PORTAL_KEYS.all, 'dataset-materials', datasetId] as const,
 };
 
 export const SYSCONFIG_KEYS = {

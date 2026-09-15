@@ -104,6 +104,13 @@ const PortalUploadMarkingPage = /* @__PURE__ */ lazyWithRetry(() =>
 const PortalAugmentPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalAugmentPage').then((m) => ({ default: m.PortalAugmentPage })),
 );
+// 포털 데이터셋 소재 조달 화면 — 포털 데이터셋 상세의 「저작도구로 열기」가 떨어뜨리는 자리다.
+// [@design INT-014] [@design INT-013]
+const PortalDatasetMaterialsPage = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/pages/portal/PortalDatasetMaterialsPage').then((m) => ({
+    default: m.PortalDatasetMaterialsPage,
+  })),
+);
 // 폐기된 업로드 자산 라벨링 주소를 통합 라벨링 화면으로 넘기는 갈아타기 lazy 로드.
 // 화면이 아니라 **이미 나가 있는 주소**를 위한 호환 조각이다(어디서도 그리로 보내지 않는다).
 const PortalUploadLabelingRedirect = /* @__PURE__ */ lazyWithRetry(() =>
@@ -731,6 +738,18 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
             //   대신 이 문자열과 진입 주소 조립기가 어긋나지 않는지를 회귀 가드가 확인한다.
             path: 'uploads/:uldSn/marking',
             element: <PortalRoute>{withSuspense(<PortalUploadMarkingPage />)}</PortalRoute>,
+          },
+          {
+            // 데이터셋 소재 조달 — **포털이 우리를 여기로 보낸다.** 포털 데이터셋 상세의
+            // 「저작도구로 열기」가 `{기준 경로}/portal/datasets/{데이터셋 숫자 식별자}` 로 떨어뜨리며,
+            // 이 자리가 비면 그 진입이 포털 채널 안내 화면으로 흘러 사용자가 막힌다.
+            // ⚠ **질의 문자열이 아니라 경로 변수**다 — 포털이 질의 문자열을 시도했다가 우리
+            //   라우터에 걸리지 않아 홈으로 흐르는 실패를 겪고 바꿨다. 되돌리지 말 것.
+            // ⚠ 경로를 상수로 빼 오지 않는다 — 이 파일은 **두 채널 산출물의 공통 입구**라, 포털
+            //   전용 모듈을 여기서 import 하면 죽은 가지에 있어도 모듈 순서가 밀려 관제 산출물의
+            //   압축 결과가 바뀐다(형제 경로들이 같은 이유로 문자열이다).
+            path: 'datasets/:datasetId',
+            element: <PortalRoute>{withSuspense(<PortalDatasetMaterialsPage />)}</PortalRoute>,
           },
           {
             // 폐기된 목적지 — 통합 라벨링 화면(`label/:id`)으로 갈아탄다. 목록·메뉴·탭 어디서도

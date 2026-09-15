@@ -207,6 +207,76 @@ public class WebClientConfig {
     static final String CONTROL_NOTIFY_TOKEN_HEADER = "x-access-token";
 
     /**
+     * 포털 소재 조회 조달의 사전 공유 키 헤더명 — <b>{@code x-api-key}</b>.
+     *
+     * <p>⚠ <b>같은 이름의 인바운드 키와 축이 반대다.</b> 정리 삭제 트리거 수신 축의 키는 <b>우리가
+     * 발급해 포털에 준 값</b>이고, 이 헤더에 싣는 값은 <b>포털이 발급해 우리에게 준 값</b>이다.
+     * 헤더 이름이 같다고 값을 공유하지 말 것 — 연동 축 하나에 키 하나다.
+     */
+    static final String PORTAL_MATERIALS_API_KEY_HEADER = "x-api-key";
+
+    /**
+     * 포털 <b>소재 조회</b> 조달용 WebClient — 우리가 포털 내부 창구를 부르는 축.
+     *
+     * <h3>★ 대역을 차단하지 않는다 (2026-08-10 구속)</h3>
+     * <p>포털 내부 창구는 <b>내부망 주소</b>다. 사설·루프백·링크로컬 어느 대역도 막지 않으며 검증은
+     * <b>스킴({@code http}/{@code https})과 URL 형식</b>뿐이다 — 그래서 {@code VlmUrlPolicy} 같은
+     * 정책을 걸지 않고 {@link ExternalEndpointAddress#formatOnly} 만 태운다. 대역 차단을 되살리면
+     * <b>정상 연동이 전부 막힌다.</b>
+     *
+     * <h3>★ 운영 설정 화면의 주소 5종에 넣지 않는다</h3>
+     * <p>{@link IntegrationEndpoint} 는 관리자 설정 화면에서 주소를 바꾸는 연동의 목록이고,
+     * <b>그 화면은 포털 채널에 노출되지 않는다</b>. 그래서 이 축은 그 enum 에 넣지 않으며
+     * URL 재작성 필터도 달지 않는다 — 주소는 배포 설정이 정본이다.
+     *
+     * <h3>★ 주소가 어떤 상태여도 기동한다</h3>
+     * <p>미설정·파싱 불가면 <b>빈 base</b> 로 낮춘다. 빈 base 는 상대 URI 가 되어 {@code loopback:80}
+     * 으로 실제 TCP 연결이 나가므로 {@link #requireHost} 가 전송 자체를 막는다.
+     * {@code PortalMaterialsClient} 가 앞단에서 한 번 더 닫지만(구성 여부 판정), 그 판정이 미래에
+     * 느슨해져도 요청이 새어 나가지 않도록 <b>전송 계층에도 겹쳐 둔다</b>.
+     *
+     * @design INT-014
+     */
+    @Bean(name = "portalMaterialsWebClient")
+    public WebClient portalMaterialsWebClient(
+            @Value("${authoring.portal.materials.base-url:}") String baseUrl,
+            @Value("${authoring.portal.materials.api-key:}") String apiKey) {
+        ExternalEndpointAddress address = ExternalEndpointAddress
+                .formatOnly("authoring.portal.materials.base-url", baseUrl);
+        String base = address.baseUrl();
+        WebClient.Builder builder = WebClient.builder()
+                .baseUrl(base)
+                .filter(requireHost());
+        if (apiKey != null && !apiKey.isBlank()) {
+            // 값은 설정에서만 온다(CWE-798). 로그에 남기지 않으며 헤더명은 마스킹 패턴이 이미 덮는다.
+            builder.defaultHeader(PORTAL_MATERIALS_API_KEY_HEADER, apiKey.trim());
+        }
+        return builder.build();
+    }
+
+    /**
+     * 최종 URL 에 호스트가 없으면 전송하지 않는다 — 빈 base 가 {@code loopback:80} 으로 새는 것을 막는다.
+     *
+     * <p>{@code IntegrationEndpointTransportGuards} 의 같은 가드를 쓰지 않는 이유는 그것이
+     * {@link IntegrationEndpoint} 값을 요구하기 때문이다. 이 축은 설정 화면 대상이 아니라 그 enum 에
+     * 들어가지 않는다. 메시지에 <b>주소를 싣지 않는다</b>(CWE-209).
+     */
+    private static ExchangeFilterFunction requireHost() {
+        return (request, next) -> {
+            java.net.URI url = request.url();
+            String host = url == null ? null : url.getHost();
+            if (host != null && !host.isBlank()) {
+                return next.exchange(request);
+            }
+            log.error("[PortalMaterials] 조달 주소가 설정되지 않아 요청을 보내지 않았습니다. "
+                    + "설정키=authoring.portal.materials.base-url");
+            return reactor.core.publisher.Mono.error(
+                    new kr.co.cudo.authoring.common.client.NonRetryableExternalException(
+                            "포털 소재 조달 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+        };
+    }
+
+    /**
      * Phase 2 — 관제서버 outbound 통지 클라이언트용 WebClient.
      *
      * <p>CWE-918 SSRF: base-url 은 application.yml 설정값만 사용. 사용자 입력 X.
