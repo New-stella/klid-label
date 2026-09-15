@@ -24,13 +24,21 @@
  * 요청이 나가는 자리는 <b>그 확인 창의 확인 버튼 하나뿐</b>이다(회귀 가드가 이 지점을 고정한다).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ChevronLeft, Scissors, X } from 'lucide-react';
+import { useHref, useNavigate, useParams } from 'react-router-dom';
+import { Button, Link } from 'krds-react';
+import { ChevronLeft, Scissors } from 'lucide-react';
 
-import { PortalAlert } from '@/components/portal/ui/PortalAlert';
-import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
-import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
-import { PORTAL_SURFACE, portalButton } from '@/components/portal/ui/portalControl';
+import {
+  Alert,
+  EmptyState,
+  ResultCount,
+  StepHeading,
+  Toaster,
+  useToasts,
+} from '@portal/components/custom';
+import { MarkPointList } from '@portal/pages/workspace/authoring/MarkPointList';
+import { VideoStage } from '@portal/pages/workspace/authoring/VideoStage';
+import '@portal/pages/workspace/authoring/AuthoringMarkingView.css';
 import { markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { markingFrameIndex, resolveMarkingFps } from '@/features/marking/markingFps';
 import { useStreamPlaybackRetry } from '@/features/marking/hooks/useStreamPlaybackRetry';
@@ -67,9 +75,6 @@ import { PortalUploadStatus, PortalUploadType } from '@/features/portal/uploads/
 import { toDeployedApiUrl } from '@/lib/api/deployBasePath';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
-import { cn } from '@/lib/cn';
-import { KRDS_FOCUS } from '@/lib/focusRing';
-import { useUiStore } from '@/stores/useUiStore';
 
 /**
  * 추출 장수 상한 — <b>화면은 모른다.</b>
@@ -91,23 +96,25 @@ const EXTRACT_FRAME_CAP: number | null = null;
  *   사유만 알리고 세워 두면 스스로 돌아갈 길을 찾아야 한다. 목록으로 가는 문을 함께 둔다.
  */
 function MarkingBlockedNotice({ reason, testId }: { reason: string; testId: string }) {
+  const navigate = useNavigate();
   return (
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
-      <PortalEmptyState
+    // 머리 줄·편집기 없이 안내 하나만 선다(포털 화면 「마킹할 수 없음」과 같은 짜임).
+    <section className="klid-authoring-block" aria-label="업로드 영상 마킹">
+      <EmptyState
         icon={Scissors}
         title="이 영상은 지금 마킹할 수 없습니다"
-        description={
+        desc={
           <span role="alert" data-testid={testId}>
             {reason}
           </span>
         }
         action={
-          <Link to={UPLOADS_PATH} className={portalButton('secondary')}>
+          <Button variant="secondary" size="medium" onClick={() => navigate(UPLOADS_PATH)}>
             내 업로드로 돌아가기
-          </Link>
+          </Button>
         }
       />
-    </div>
+    </section>
   );
 }
 
@@ -123,7 +130,14 @@ export function PortalUploadMarkingPage() {
   const { uldSn: uldSnParam } = useParams<{ uldSn: string }>();
   const parsed = uldSnParam ? Number(uldSnParam) : NaN;
   const uldSn = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  const pushToast = useUiStore((s) => s.pushToast);
+  const navigate = useNavigate();
+  const uploadsHref = useHref(UPLOADS_PATH);
+  /*
+   * 잠깐 뜨는 알림 — 포털 알림(`Toaster`)으로 이 화면이 직접 띄운다. 앱 전역 알림 자리는 관제 모양이라
+   * 포털 채널에서는 쓰지 않는다(포털 화면 「저장 완료 알림」 등과 같은 자리 · 같은 모양).
+   */
+  const toasts = useToasts();
+  const pushToast = toasts.push;
 
   const playerRef = useRef<PortalMarkingStageHandle>(null);
   const [mode, setMode] = useState<PortalMarkingMode>(PortalMarkingMode.AUTO);
@@ -189,12 +203,12 @@ export function PortalUploadMarkingPage() {
       setManualMarks([]);
       setSelectedIndex(null);
       pushToast({
-        variant: 'success',
+        tone: 'success',
         message: `마킹을 저장했습니다. 프레임 ${result.markCount}장을 뽑기 시작합니다.`,
       });
       if (result.truncated) {
         pushToast({
-          variant: 'warning',
+          tone: 'warning',
           message: `고른 지점 ${result.requestedMarkCount}건 가운데 ${result.markCount}건만 쓰였습니다(추출 장수 상한).`,
         });
       }
@@ -202,7 +216,7 @@ export function PortalUploadMarkingPage() {
     onError: (err) => {
       setConfirmOpen(false);
       pushToast({
-        variant: 'error',
+        tone: 'danger',
         message: extractBeMessage(err, '마킹을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
       });
     },
@@ -265,14 +279,14 @@ export function PortalUploadMarkingPage() {
     if (locked || saveMutation.isPending) return;
     if (!isAuto && manualMarks.length === 0) {
       pushToast({
-        variant: 'warning',
+        tone: 'warning',
         message: '재생하며 지점을 1건 이상 찍어 주세요.',
       });
       return;
     }
     if (isAuto && totalFrames <= 0) {
       pushToast({
-        variant: 'warning',
+        tone: 'warning',
         message:
           '영상 길이를 아직 확인하지 못해 자동 마킹을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.',
       });
@@ -365,194 +379,175 @@ export function PortalUploadMarkingPage() {
   const streamFailed =
     streamExhausted || (streamQuery.isError && !isFileNotReady(streamQuery.error));
 
+  /*
+   * 목록 조각은 지점을 프레임 번호로 받는다 — 번호 ↔ 목록 순번 · 표시 시각을 여기서 잇는다.
+   * 순번으로 다루는 흐름(고르기 · 지우기)은 그대로 두고 번호에서 순번을 되찾아 넘긴다.
+   */
+  const markFrames = displayMarks.map((m) => m.frameIndex);
+  const markOf = (frame: number) => displayMarks.find((m) => m.frameIndex === frame);
+  const selectedFrame = selectedIndex !== null ? (displayMarks[selectedIndex]?.frameIndex ?? null) : null;
+
   return (
     // [@design SCREEN-045]
-    // ★<b>한 화면에 담는 것을 기준으로 짠다.</b> 넓은 폭에서는 두 열로 나누어 왼쪽에 재생 무대,
-    //   오른쪽에 설정·완료·지점 목록을 두고, 좁은 폭에서는 같은 차례로 한 열에 쌓는다.
-    //   ⚠ 세로로만 쌓으면 무대(영상+눈금+조작)만으로 화면이 차서 <b>완료 명령이 화면 밖으로
-    //     밀려난다</b> — 되돌릴 수 없는 조작을 눈으로 확인하며 누를 수 없게 된다.
-    // ★<b>셸의 페이지 아래 여백을 되돌려 받는다</b> — 이 화면은 한 화면에 담는 몰입 편집 화면이라
-    //   페이지 끝의 세로 리듬이 쓰이지 않는다. 그 자리를 그대로 두면 <b>영상이 그만큼 작아진다.</b>
-    //   ⚠ 셸을 고치지 않는 이유: 그 여백은 포털의 다른 화면들이 쓰는 값이고, 그쪽은 목록이라
-    //     끝에 숨 쉴 자리가 필요하다. 예외가 필요한 것은 <b>이 화면 하나</b>다.
-    <div className="mx-auto -mb-page-section flex w-full max-w-wrap flex-col gap-in-component">
-      <section aria-labelledby="portal-marking-head" className="flex flex-col gap-in-component">
-        <PortalSectionHead
-          id="portal-marking-head"
-          title="업로드 영상 마킹"
-          /* 이 화면이 무엇을 하는 자리인지 한 줄 — 「마킹」이라는 낱말만으로는 프레임 추출
-             지점을 정하는 일이라는 것이 드러나지 않는다. */
-          lead="프레임을 어느 지점에서 뽑을지 정합니다. 완료하면 그 지점으로 추출이 시작됩니다."
-          /* 어느 자산을 마킹하는지 — 사용자 파일명은 텍스트 노드로만 렌더한다(자동 escape). */
-          count={detail?.orgnlFileNm ?? undefined}
-          /* 돌아갈 길 — 이 화면은 목록의 한 행에서 들어오는 자리라, 나가는 문이 없으면 브라우저
-             뒤로가기 말고는 방법이 없다. ★제목 줄 오른쪽에 얹는다: 위에 따로 한 줄을 두면 그
-             줄만큼 영상이 작아진다. 이 화면에서 세로 한 줄은 영상 높이와 맞바꾸는 자원이다. */
-          action={
-            <Link
-              to={UPLOADS_PATH}
-              className={cn(
-                'inline-flex items-center gap-tight rounded-pill px-2 py-1',
-                'text-body-sm text-gray-600 transition-colors hover:text-gray-900',
-                KRDS_FOCUS,
-              )}
-            >
-              <ChevronLeft className="size-4" aria-hidden />내 업로드
-            </Link>
-          }
-        />
+    // 짜임은 포털 화면(KLID_Portal `AuthoringMarkingView`)과 같다 — 제목 → (잠김·일부만 쓰임 안내 띠) →
+    // 왼쪽 넓은 재생기 · 오른쪽 좁은 설정 기둥(설정 카드 · 지점 목록 카드). 간격·폭은 포털 짜임 CSS 가 갖는다.
+    <section className="klid-authoring-block" aria-labelledby="marking-title">
+      {/* 머리 — 이름 옆에 무엇에 대한 마킹인지(파일명 — 텍스트 노드로만 렌더), 오른쪽 끝에 돌아가는 길.
+          이 화면은 목록의 한 행에서 들어오는 자리라 나가는 문이 없으면 뒤로가기 말고는 방법이 없다 */}
+      <StepHeading
+        size="md"
+        id="marking-title"
+        title="업로드 영상 마킹"
+        note={detail?.orgnlFileNm ?? undefined}
+        desc="프레임을 어느 지점에서 뽑을지 정합니다. 완료하면 그 지점으로 추출이 시작됩니다."
+        aside={
+          <Button size="small" variant="text" onClick={() => navigate(UPLOADS_PATH)}>
+            <ChevronLeft aria-hidden />내 업로드
+          </Button>
+        }
+      />
 
-        {/* 두 열 — 넓은 폭에서만 갈라진다. `items-start` 라야 오른쪽 열이 왼쪽 무대 높이만큼
-            늘어나지 않는다(늘어나면 목록 카드가 빈 채로 길어진다). */}
-        <div className="flex flex-col gap-in-component xl:flex-row xl:items-start">
-          {/* 왼쪽 — 재생 무대. `min-w-0` 가 없으면 영상이 열을 밀어 오른쪽이 눌린다. */}
-          <div className="min-w-0 flex-1">
-            {videoSrc ? (
-              <PortalMarkingStage
-                ref={playerRef}
-                src={videoSrc}
-                marks={displayMarks}
-                durationSec={timelineDurationSec}
-                fps={fps}
-                selectedIndex={selectedIndex}
-                onSelectMark={selectMark}
-                onSrcError={handleStreamError}
-                onSrcRecovered={handlePlaybackRecovered}
-                onDurationChange={setPlayerDurationSec}
-              />
+      {/* 완료가 잠긴 자산 — 사유와 회복 경로를 함께 알린다. 기다린다고 풀리는 것이 아니다.
+          제목 바로 아래, 재생기·설정 기둥보다 먼저 읽힌다(포털 화면의 자리) */}
+      {lock !== null && (
+        <div data-testid="marking-locked-notice">
+          <Alert
+            tone="primary"
+            live="none"
+            title="다시 마킹하려면 이 자산을 지우고 다시 올려야 합니다."
+          >
+            {lock === 'SAVED' ? (
+              <>
+                이미 마킹을 저장한 영상입니다.{' '}
+                <Link
+                  href={uploadsHref}
+                  size="small"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(UPLOADS_PATH);
+                  }}
+                >
+                  내 업로드
+                </Link>
+                에서 이 자산을 지우고 다시 올리면 새로 마킹할 수 있습니다.
+              </>
             ) : (
-              <div
-                className={cn(
-                  PORTAL_SURFACE,
-                  'flex aspect-video w-full items-center justify-center bg-gray-900 text-body-md text-gray-300',
-                )}
-              >
-                {streamFailed ? '영상을 재생할 수 없습니다.' : '영상을 불러오는 중…'}
-              </div>
+              '이미 마킹을 저장해 지금 프레임을 뽑고 있습니다. 추출이 진행 중인 동안에는 이 자산을 지울 수 없으니, 추출이 끝난 뒤에 지우고 다시 올려 주세요.'
             )}
-          </div>
+          </Alert>
+        </div>
+      )}
 
-          {/* 오른쪽 — 설정·완료·지점 목록. 폭을 고정해 무대가 남는 폭을 전부 갖게 한다. */}
-          <div className="flex w-full flex-col gap-in-component xl:w-80 xl:shrink-0">
-            <PortalMarkingToolbar
-              mode={mode}
-              onModeChange={setMode}
-              intervalFrames={intervalFrames}
-              onIntervalChange={setIntervalFrames}
-              intervalSec={intervalSeconds(intervalFrames, detail?.fps)}
-              cap={cap}
-              markCount={manualMarks.length}
-              lock={lock}
-              submitting={saveMutation.isPending}
-              onClear={() => {
-                setManualMarks([]);
-                setSelectedIndex(null);
-              }}
-              onSubmit={handleRequestComplete}
+      {/* 저장 직후 절단 사실 — 토스트는 사라지므로 이 자리에 남긴다. 상한을 미리 알 수 없어
+          예고하지 못한 경우에도 사실이 유실되지 않게 하는 자리다. */}
+      {saveResult?.truncated && (
+        <div data-testid="marking-truncated-result">
+          <Alert tone="danger" title="고른 지점이 추출 장수 상한을 넘어 일부만 쓰였습니다.">
+            요청한 {saveResult.requestedMarkCount}건 가운데 {saveResult.markCount}건으로 프레임을
+            뽑습니다.
+          </Alert>
+        </div>
+      )}
+
+      <div className="klid-marking">
+        {/* ── 재생기 ── 주소를 받기 전 · 재생할 수 없을 때는 영상 자리 판만 선다(눈금 · 재생 조작은 누를 대상이 없다) */}
+        {videoSrc ? (
+          <PortalMarkingStage
+            ref={playerRef}
+            src={videoSrc}
+            marks={displayMarks}
+            durationSec={timelineDurationSec}
+            fps={fps}
+            selectedIndex={selectedIndex}
+            onSelectMark={selectMark}
+            onSrcError={handleStreamError}
+            onSrcRecovered={handlePlaybackRecovered}
+            onDurationChange={setPlayerDurationSec}
+          />
+        ) : (
+          <section className="klid-section-card klid-marking-player" aria-label="영상 재생">
+            <VideoStage
+              status={streamFailed ? 'unavailable' : 'loading'}
+              message={streamFailed ? '영상을 재생할 수 없습니다.' : '영상을 불러오는 중…'}
             />
+          </section>
+        )}
 
-            {/* 저장 직후 절단 사실 — 토스트는 사라지므로 이 자리에 남긴다. 상한을 미리 알 수 없어
-            예고하지 못한 경우에도 사실이 유실되지 않게 하는 자리다. */}
-            {saveResult?.truncated && (
-              <PortalAlert
-                tone="error"
-                live
-                title="고른 지점이 추출 장수 상한을 넘어 일부만 쓰였습니다."
-                data-testid="marking-truncated-result"
-                description={
-                  <>
-                    요청한 {saveResult.requestedMarkCount}건 가운데 {saveResult.markCount}건으로
-                    프레임을 뽑습니다.
-                  </>
-                }
-              />
-            )}
+        {/* ── 설정 기둥 ── */}
+        <div className="klid-marking-side">
+          <PortalMarkingToolbar
+            mode={mode}
+            onModeChange={setMode}
+            intervalFrames={intervalFrames}
+            onIntervalChange={setIntervalFrames}
+            intervalSec={intervalSeconds(intervalFrames, detail?.fps)}
+            cap={cap}
+            markCount={manualMarks.length}
+            lock={lock}
+            submitting={saveMutation.isPending}
+            onClear={() => {
+              setManualMarks([]);
+              setSelectedIndex(null);
+            }}
+            onSubmit={handleRequestComplete}
+          />
 
-            {/* 현재 마킹 목록 — 0건이어도 자리를 감추지 않는다. 감추면 「그런 기능이 없다」와
-            「아직 찍지 않았다」를 구분할 수 없다. */}
-            <div className={cn(PORTAL_SURFACE, 'flex flex-col gap-in-component p-in-component')}>
-              <div className="flex flex-wrap items-baseline justify-between gap-inline">
-                <h3 className="text-title-sm text-gray-900">
-                  {locked ? '저장된 마킹' : '현재 마킹'}
-                </h3>
-                <span className="text-caption tabular-nums text-gray-500">
-                  {displayMarks.length}건
-                </span>
-              </div>
-
-              {autoPreview.renderSampled && !locked && isAuto && (
-                <p className="text-body-sm text-gray-600">
-                  지점이 많아 목록에는 일부만 그립니다. 실제로 뽑히는 장수는 위 안내를 보세요.
-                </p>
-              )}
-
-              {displayMarks.length === 0 ? (
-                <PortalEmptyState
+          {/* 현재 마킹 목록 — 0건이어도 자리를 감추지 않는다. 감추면 「그런 기능이 없다」와
+              「아직 찍지 않았다」를 구분할 수 없다. */}
+          <section className="klid-section-card klid-marking-card" aria-labelledby="marking-list-title">
+            <StepHeading
+              size="sm"
+              id="marking-list-title"
+              title={locked ? '저장된 마킹' : '현재 마킹'}
+              desc={
+                autoPreview.renderSampled && !locked && isAuto
+                  ? '지점이 많아 목록에는 일부만 그립니다. 실제로 뽑히는 장수는 위 안내를 보세요.'
+                  : undefined
+              }
+              aside={<ResultCount total={displayMarks.length} />}
+            />
+            {/* 알약을 누르면 그 지점으로 옮긴다. 개별 삭제(×)는 수동 방식에서만 — 자동 지점은 간격이 정하고,
+                저장된 마킹은 확인용이라 손댈 수 없다. 목록은 제 자리 안에서만 굴러 아래 완료 명령을 밀어내지 않는다 */}
+            <MarkPointList
+              label={locked ? '저장된 마킹 지점' : '현재 마킹 지점'}
+              points={markFrames}
+              pointLabel={(f) => {
+                const stamp = markOf(f)?.timestamp;
+                return `F${f}${stamp ? ` (${stamp})` : ''}`;
+              }}
+              selected={selectedFrame}
+              onSelect={(f) => {
+                const index = markFrames.indexOf(f);
+                if (index >= 0) selectMark(index);
+              }}
+              onRemove={
+                !locked && !isAuto
+                  ? (f) => {
+                      const index = markFrames.indexOf(f);
+                      if (index >= 0) removeMarkAt(index);
+                    }
+                  : undefined
+              }
+              removeLabel={(f) => {
+                const mark = markOf(f);
+                return `마킹 삭제 ${mark ? markAriaLabel(mark) : `F${f}`}`;
+              }}
+              empty={
+                <EmptyState
+                  size="sm"
                   icon={Scissors}
                   title="아직 지점이 없습니다"
-                  description={
+                  desc={
                     isAuto
                       ? '자동 방식은 간격(프레임)만 정하면 되며 지점을 따로 찍지 않습니다.'
                       : '영상을 재생하다 원하는 순간에 Space 를 눌러 지점을 찍어 주세요.'
                   }
                 />
-              ) : (
-                /* 지점은 알약으로 흩는다 — 수가 많고 길이가 짧아 줄바꿈이 자연스럽고, 하나씩 따로
-               읽힌다(표로 세우면 한 건에 한 줄을 써 화면을 다 먹는다). */
-                /* ★목록만 자기 자리 안에서 스크롤한다 — 지점이 늘어도 아래의 완료 명령이 화면
-               밖으로 밀려나지 않게. 높이를 넉넉히 두어 대부분의 경우 스크롤이 생기지 않는다. */
-                <ul className="flex max-h-64 flex-wrap gap-inline overflow-y-auto">
-                  {displayMarks.map((mark, i) => {
-                    const selected = selectedIndex === i;
-                    return (
-                      <li
-                        key={mark.frameIndex}
-                        className={cn(
-                          'inline-flex items-stretch overflow-hidden rounded-pill border transition-colors',
-                          selected
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 bg-gray-50',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => selectMark(i)}
-                          aria-pressed={selected}
-                          className={cn(
-                            'px-in-component py-1.5 text-caption tabular-nums transition-colors',
-                            KRDS_FOCUS,
-                            selected ? 'text-primary-700' : 'text-gray-700 hover:text-gray-900',
-                          )}
-                        >
-                          F{mark.frameIndex} {mark.timestamp && `(${mark.timestamp})`}
-                        </button>
-                        {/* 개별 삭제는 수동 방식에서만 — 자동 지점은 간격이 정하고, 저장된 마킹은
-                        확인용이라 손댈 수 없다. */}
-                        {!locked && !isAuto && (
-                          <button
-                            type="button"
-                            onClick={() => removeMarkAt(i)}
-                            aria-label={`마킹 삭제 ${markAriaLabel(mark)}`}
-                            /* ⚠ 500 단으로 내리지 말 것 — 고른 지점의 알약은 바탕이 옅은 주색
-                               면이라 500 단은 4.01:1 로 본문 대비에 미달한다(가드가 잡는다). */
-                            className={cn(
-                              'flex items-center px-2 text-gray-600 transition-colors',
-                              'hover:bg-danger-50 hover:text-danger-600',
-                              KRDS_FOCUS,
-                            )}
-                          >
-                            <X className="size-3.5" aria-hidden />
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </div>
+              }
+            />
+          </section>
         </div>
-      </section>
+      </div>
 
       <MarkingCompleteConfirmDialog
         open={confirmOpen}
@@ -564,6 +559,8 @@ export function PortalUploadMarkingPage() {
         onConfirm={handleConfirmedSave}
         onCancel={() => setConfirmOpen(false)}
       />
-    </div>
+
+      <Toaster items={toasts.items} onDismiss={toasts.dismiss} />
+    </section>
   );
 }
