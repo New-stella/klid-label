@@ -88,7 +88,7 @@ export function PortalMarkingToolbar({
   const activeHint = MODES.find((m) => m.value === mode)?.hint ?? '';
 
   return (
-    <div className={cn(PORTAL_SURFACE, 'flex flex-col gap-block p-in-component')}>
+    <div className={cn(PORTAL_SURFACE, 'flex flex-col gap-block-gap p-in-component')}>
       {/* ① 방식 — 트랙 안에서 고른 쪽만 흰 알약으로 떠오른다(무대의 배속 조작과 같은 형태라
              «하나를 고르는 자리» 라는 것이 화면 전체에서 같은 뜻으로 읽힌다). */}
       <div className="flex flex-wrap items-center gap-in-component">

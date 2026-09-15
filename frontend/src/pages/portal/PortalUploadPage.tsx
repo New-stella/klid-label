@@ -213,7 +213,7 @@ export function PortalUploadPage() {
           description="자동 라벨링·검수·버전 관리를 거치지 않고, 다른 학습데이터와도 섞이지 않습니다. 영상은 마킹을 마쳐야 그 지점으로 프레임을 뽑고, 준비가 끝나야 라벨링할 수 있습니다."
         />
 
-        <div className="flex flex-col gap-block">
+        <div className="flex flex-col gap-block-gap">
           {videoFile === null ? (
             /*
               고르기 전 — 파선 받침. 파선은 «아직 내용이 놓이지 않은 자리» 를 뜻하는 확정 관례다.
