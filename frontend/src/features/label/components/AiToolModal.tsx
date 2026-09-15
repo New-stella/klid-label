@@ -28,6 +28,7 @@ import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
 import { Radio } from '@/components/common/Radio';
+import { PortalRadio } from '@/components/portal/ui/PortalRadio';
 import { cn } from '@/lib/cn';
 
 import type { DetectShapeType } from '../api';
@@ -114,6 +115,12 @@ export interface AiToolModalProps {
   disabled?: boolean;
   /** 실행 버튼 구성. 기본값 `detectOrTrack` — 기존 호출부 무회귀. */
   runMode?: AiToolRunMode;
+  /**
+   * 포털 채널에서 렌더되는가 — 호출부가 `portalMode` 에서 그대로 넘긴다(이 컴포넌트는 채널을 판정하지 않는다).
+   * true 면 형태 라디오를 포털 라디오로 그린다: 포털 Host 스타일이 네이티브 라디오를 숨겨 관제 공통
+   * 라디오로는 동그라미가 사라진다. 기본값 false — 관제 렌더 무변경.
+   */
+  portalMode?: boolean;
 }
 
 export function AiToolModal({
@@ -129,8 +136,11 @@ export function AiToolModal({
   defaultSimplifyTolerance,
   disabled = false,
   runMode = 'detectOrTrack',
+  portalMode = false,
 }: AiToolModalProps) {
   const detectOnly = runMode === 'detectOnly';
+  // 형태 라디오 — 포털이면 보이는 동그라미를 직접 그리는 포털 부품(props 동일).
+  const ShapeRadio = portalMode ? PortalRadio : Radio;
   const [shape, setShape] = useState<DetectShapeType>('BBOX');
   // 선택은 라벨 마스터 PK(labelId) 기준 — 매핑된 라벨만 선택 대상이 된다.
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -246,14 +256,14 @@ export function AiToolModal({
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
         <div className="flex gap-4">
-          <Radio
+          <ShapeRadio
             id="ai-tool-shape-bbox"
             name="ai-tool-shape"
             label={<span className={SHAPE_LABEL_CLASS}>박스</span>}
             checked={shape === 'BBOX'}
             onChange={() => setShape('BBOX')}
           />
-          <Radio
+          <ShapeRadio
             id="ai-tool-shape-polygon"
             name="ai-tool-shape"
             label={<span className={SHAPE_LABEL_CLASS}>폴리곤</span>}

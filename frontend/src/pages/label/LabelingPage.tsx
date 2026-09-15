@@ -1941,6 +1941,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         onClose={() => setAutolabelModalOpen(false)}
         onConfirm={runAiTool}
         runMode={portalMode ? 'detectOnly' : 'detectOrTrack'}
+        portalMode={portalMode}
         canTrack={nextSrcSns.length > 0}
         candidates={detectCandidates}
         candidatesLoading={detectCandidatesLoading}
@@ -2304,6 +2305,8 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
+                  // 포털이면 속성 라디오를 포털 라디오로 그린다(Host 스타일이 네이티브 라디오를 숨긴다).
+                  portalMode={portalMode}
                   // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
                   imageWidth={frameNaturalSize?.width}
                   imageHeight={frameNaturalSize?.height}
