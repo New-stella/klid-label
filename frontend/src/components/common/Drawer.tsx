@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
+import { getPortalOverlayRoot } from '@/lib/portalOverlayRoot';
 
 export interface DrawerProps {
   open: boolean;
@@ -166,5 +167,7 @@ export function Drawer({
     </div>
   );
 
-  return createPortal(node, document.body);
+  // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리 범위
+  // 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+  return createPortal(node, getPortalOverlayRoot());
 }

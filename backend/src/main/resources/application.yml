@@ -355,6 +355,40 @@ authoring:
     #     한 축이 유출돼도 다른 축으로 번지지 않게 한다(포털 명시 요청).
     #   ⚠ 최상위 portal.* (업로드·데이터마트 보존)과는 다른 축이다. 합치지 말 것.
     cleanup-api-key: ${PORTAL_CLEANUP_API_KEY:}
+    # ★ 포털 <소재 조회> 조달 — 방향이 위와 «반대»다 (@design INT-014).
+    #   위 cleanup 은 「포털이 우리를 부른다」이고, 여기는 「우리가 포털을 부른다」.
+    #
+    #   ⚠⚠ 키의 발급 주체가 반대다 — cleanup 키는 <우리가 발급해 포털에 주고>,
+    #     이 키는 <포털이 발급해 우리에게 준다>. 같은 값을 돌려쓰지 말 것(연동 축마다 별도 키).
+    #     ⚠ 2026-09-10 실측 — 포털 dev 는 현재 관제지원 시스템간 키를 세 축에 재사용 중이며
+    #       포털 스스로 「잠정값. 저작도구가 전용 키를 회신하면 교체한다」로 적어 두었다.
+    #       우리 쪽에서 두 키를 <설정으로 갈라 두는 것>은 그와 무관하게 유지한다 — 값이 같아지는 것과
+    #       자리가 하나가 되는 것은 다르다. 자리를 합치면 나중에 갈라야 할 때 호출부를 다시 뒤져야 한다.
+    #
+    #   ⚠ 둘 중 하나라도 비면 조달이 <닫힌다>(fail-closed). 기동은 정상이며 그 창구만 안 열린다 —
+    #     이 연동을 쓰지 않는 관제 채널 배포본까지 죽이지 않기 위해서다.
+    #
+    #   ⚠ base-url 에 <대역 차단을 걸지 않는다> (CLAUDE.md 2026-08-10 구속) — 포털 내부 WAS 는
+    #     내부망 주소다. 검증은 스킴(http/https)과 URL 형식뿐이다.
+    #   ⚠ 관리자 설정 화면에서 바꾸는 연동 주소 목록(IntegrationEndpoint 5종)에 <넣지 않는다> —
+    #     그 화면은 포털 채널에 비노출이라, 넣으면 정작 쓰는 쪽에선 보이지 않고 관제 배포본에만 뜬다.
+    materials:
+      # ★★ 봉쇄의 «기준점» — 응답이 주장한 저장소 루트를 여기에 비춰 본다 (INT-014 v15 규칙 1).
+      #   ⚠ 이것이 없으면 경로 봉쇄가 봉쇄가 아니다 — 기준점을 봉쇄 대상과 «같은 응답»에서 가져오면
+      #     상대가 루트를 '/' 로, 소재 경로를 아무 파일로 주는 것을 막지 못한다(실측 확인).
+      #   ⚠ 비면 조달이 «닫힌다»(fail-closed). 기동은 살고 그 창구만 안 열린다.
+      #   쉼표로 여럿. 절대경로로 적는다.
+      repo-root-allowlist: ${PORTAL_MATERIALS_REPO_ROOT_ALLOWLIST:}
+      base-url: ${PORTAL_MATERIALS_BASE_URL:}
+      api-key: ${PORTAL_MATERIALS_API_KEY:}
+      # 조달 요청 타임아웃. 경로 목록만 받고 파일 바이트는 싣지 않아 짧아도 된다.
+      timeout-seconds: ${PORTAL_MATERIALS_TIMEOUT_SECONDS:10}
+      # 해제 안전 상한 — 자원 고갈 방어(zip bomb · CWE-409/770).
+      #   ⚠ 설계 근거가 있는 사양값이 «아니다». 방어용 안전값이며 사양이 정해지면 교체한다.
+      #   ⚠ 총량은 압축본이 «선언한» 크기가 아니라 «실제로 쓴» 바이트로 센다 — 선언값은 조작할 수 있다.
+      #   초과하면 해제를 중단하고 작업 중 자리를 지운다(반쯤 풀린 결과를 공개하지 않는다).
+      max-entries: ${PORTAL_MATERIALS_MAX_ENTRIES:200000}
+      max-total-bytes: ${PORTAL_MATERIALS_MAX_TOTAL_BYTES:21474836480}
   jwt:
     # 서명 알고리즘은 설정값이 아니라 코드 상수다 — 발급은 Jwts.SIG.HS256, 검증은 SecretKeyResolver 의
     #   HMAC 키(Keys.hmacShaKeyFor)로 고정. alg 를 설정으로 뽑으면 alg=none/약한 알고리즘 주입 표면이 생긴다(CWE-347).
@@ -1016,6 +1050,16 @@ resilience4j:
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
           - kr.co.cudo.authoring.common.client.RateLimitedExternalException
+      # 포털 소재 조회 조달 (@design INT-014) — 우리가 포털을 부르는 축
+      portalMaterials:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+        # 401(키 불일치)·404(없는 데이터셋)는 결정적 응답이라 서킷 failure 로 집계하지 않는다.
+        #   없는 데이터셋을 여러 번 조회했다고 서킷이 열리면, 그 구간의 <정상 조달>이 함께 막힌다.
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       # Phase 2 — 관제서버 outbound 통지
       controlNotify:
         failure-rate-threshold: 50
@@ -1097,6 +1141,13 @@ resilience4j:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   retry:
     instances:
+      # 포털 소재 조회 조달 — 4xx 는 재시도하지 않는다(키 불일치·없는 데이터셋은 다시 물어도 같다).
+      portalMaterials:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       deid:
         max-attempts: 3
         wait-duration: 1s

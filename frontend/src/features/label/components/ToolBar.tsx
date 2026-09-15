@@ -51,6 +51,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
+import { getPortalOverlayRoot } from '@/lib/portalOverlayRoot';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
@@ -633,7 +634,9 @@ export function ToolBar({
               <ShortcutCheatSheetContent portalMode={portalMode} />
             </div>
           </div>,
-          document.body,
+          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
+          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+          getPortalOverlayRoot(),
         )}
 
       {/* Tooltip — 스크롤 상자(overflow) 밖에서 그려야 잘리지 않으므로 body 로 portal 한다.
@@ -651,7 +654,9 @@ export function ToolBar({
               <span className="ml-2 text-gray-500">{tooltip.shortcut}</span>
             </div>
           </div>,
-          document.body,
+          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
+          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+          getPortalOverlayRoot(),
         )}
     </div>
   );

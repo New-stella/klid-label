@@ -23,6 +23,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { PORTAL_EMBED_ANCHOR_CLASS } from '@/lib/portalEmbedAnchor';
+
 const SRC_ROOT = path.resolve(__dirname, '../..');
 const GLOBAL_CSS = readFileSync(path.join(SRC_ROOT, 'styles', 'global.css'), 'utf-8');
 const REMOTE_ENTRY = readFileSync(path.join(SRC_ROOT, 'remote', 'AuthoringRemote.tsx'), 'utf-8');
@@ -49,9 +51,16 @@ describe('포털 스타일 격리 — 구성 고정', () => {
       expect(CSS_COMPACT).not.toContain("utilities.css'layer(utilities)");
     });
 
-    it('★ preflight 는 레이어 «안»에 남긴다 — 밖으로 빼면 Host UI 를 망가뜨린다', () => {
-      // 우리 리셋이 레이어 밖으로 나가면 포털의 헤더·좌측 메뉴«까지» 덮어쓴다.
-      // 우리가 이겨야 하는 것은 «우리가 클래스를 붙인 요소»뿐이다.
+    it('★ preflight 는 레이어 «안»에 남긴다 — 밖으로 빼면 우선순위 축에서도 Host 를 이긴다', () => {
+      // 우리가 이겨야 하는 것은 «우리가 클래스를 붙인 요소»뿐이다. 리셋까지 레이어 밖으로
+      // 나가면 그 범위를 넘어 우선순위 싸움을 걸게 된다.
+      //
+      // ⚠ **폐기된 근거(2026-09-15 반증)**: 이 케이스는 한때 *"리셋이 레이어 밖으로 나가면
+      //   포털 헤더·좌측 메뉴까지 덮어쓴다"* 라고 적어 「레이어 «안»이면 Host 가 안전하다」를
+      //   전제했다. 틀렸다 — 계층은 «같은 속성»을 두고 맞붙을 때만 작동하고, Host 가 선언하지
+      //   않은 속성은 레이어 안의 우리 규칙이 그대로 먹는다(실제로 Host UI 가 깨졌다).
+      //   **격리는 선택자 범위로만 얻어진다** — 그 축의 가드는 `portalBaseLayerScoping` 이다.
+      //   이 케이스는 «우선순위» 축만 지킨다. 두 축을 섞지 말 것.
       expect(CSS_COMPACT).toContain("@import'tailwindcss/preflight.css'layer(base);");
     });
 
@@ -67,10 +76,14 @@ describe('포털 스타일 격리 — 구성 고정', () => {
     });
 
     it('★ 그 규칙은 레이어 «밖»이다 — 레이어 안이면 Host 선언에 진다', () => {
-      const idx = GLOBAL_CSS.indexOf('.klid-portal-embed');
+      // ⚠ 주석을 걷어낸 사본에서 «규칙 자체»(`{` 가 뒤따르는 자리)를 찾는다. 원문에서 클래스
+      //   «이름»을 찾으면 레이어 «안»의 설명 주석이 먼저 걸려, 규칙이 레이어 안으로 옮겨가도
+      //   가드가 그 사실을 못 본다.
+      const cssNoComments = stripComments(GLOBAL_CSS);
+      const idx = cssNoComments.indexOf('.klid-portal-embed {');
       expect(idx).toBeGreaterThan(-1);
       // 앞쪽에 «닫히지 않은» @layer 블록이 없어야 한다.
-      const before = GLOBAL_CSS.slice(0, idx);
+      const before = cssNoComments.slice(0, idx);
       const opened = (before.match(/@layer[^;{]*\{/g) ?? []).length;
       const closed = (before.match(/\}/g) ?? []).length;
       expect(closed).toBeGreaterThanOrEqual(opened);
@@ -79,7 +92,13 @@ describe('포털 스타일 격리 — 구성 고정', () => {
 
   describe('③ 앵커는 «우리가 소유한» 요소여야 한다', () => {
     it('Remote 진입점이 앵커 클래스를 붙인다', () => {
-      expect(REMOTE_ENTRY).toContain('klid-portal-embed');
+      // ⚠ 주석을 걷어낸 사본을 본다 — 원문을 보면 「이 요소에 붙인다」고 «적어 둔 설명»이
+      //   걸려, 실제 JSX 에서 클래스가 빠져도 통과한다.
+      expect(REMOTE_CODE).toContain('PORTAL_EMBED_ANCHOR_CLASS');
+      expect(REMOTE_CODE).toContain("from '@/lib/portalEmbedAnchor'");
+      // 그 상수의 «값»이 CSS 가 아는 이름과 같다 — 갈리면 격리가 조용히 풀린다.
+      expect(PORTAL_EMBED_ANCHOR_CLASS).toBe('klid-portal-embed');
+      expect(CSS_COMPACT).toContain(`.${PORTAL_EMBED_ANCHOR_CLASS}{--spacing:4px;}`);
     });
 
     it('★ Host 가 만든 요소 이름에 기대지 않는다', () => {
