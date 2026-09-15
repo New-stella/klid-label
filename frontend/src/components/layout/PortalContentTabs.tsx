@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
+import { portalShellAlign } from '@/lib/portalShellLayout';
 
 /**
  * 포털 채널 본문 상단 이동 탭 — 셸 사양의 `portal-content-tabs` 영역.
@@ -40,7 +41,9 @@ import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
  *
  * 나머지 규격: 높이 48 고정 · 최소너비 64 · 좌우 패딩 4 · 15px · 비활성 slate-500 ·
  * hover 는 색만(slate-800) · 활성 글자 primary-600 · 활성 밑줄 primary-500 · 배경 항상 투명 ·
- * 최대폭 1200 + 좌우 거터 24(본문과 같은 정렬선).
+ * 가로 정렬선은 본문과 «같은 한 곳»(`@/lib/portalShellLayout`)에서 받는다 — 독립 앱은
+ * 최대폭 1200 + 좌우 거터 24, 임베드는 Host 슬롯 안쪽 폭을 그대로 채운다(그쪽이 이미 자기
+ * 여백을 갖고 있어 한 번 더 세우면 겹친다).
  *
  * ⚠ **높이 48 은 구 44 보다 크다** — 터치 표적이 넓어지는 방향이라 접근성 후퇴가 아니다.
  *   (반대 방향, 즉 44 아래로 내리는 축은 별도 판단 대상이다.)
@@ -66,7 +69,7 @@ export function PortalContentTabs() {
   return (
     // ★바 전체에 구분선을 두지 않는다 — 이 채널의 line 탭은 **활성 항목의 밑줄만** 갖는다.
     //   바 밑줄과 활성 밑줄이 겹치면 활성 표시가 바의 일부로 읽혀 어느 자리인지 흐려진다.
-    <nav aria-label="포털 이동 탭" className="mx-auto w-full max-w-wrap px-4 md:px-column">
+    <nav aria-label="포털 이동 탭" className={portalShellAlign()}>
       {/* 항목 간격 8(=inline) · 좁은 폭에서는 가로로 흐른다 */}
       <ul className="flex items-center gap-inline overflow-x-auto">
         {PORTAL_CONTENT_TABS.map((tab) => {

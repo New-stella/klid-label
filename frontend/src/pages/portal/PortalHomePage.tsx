@@ -201,7 +201,7 @@ export function PortalHomePage() {
   const isEmpty = !isLoading && works.length === 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+    <div className="flex w-full flex-col gap-column">
       <section aria-labelledby="portal-my-works" className="flex flex-col gap-in-component">
         <PortalSectionHead
           id="portal-my-works"

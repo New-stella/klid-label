@@ -182,7 +182,7 @@ export function PortalUploadPage() {
   const rangeTo = page * PAGE_SIZE + uploads.length;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-card-gap tracking-body">
+    <div className="flex w-full flex-col gap-card-gap tracking-body">
       {/*
         포털 채널 셸에는 좌측 주 메뉴가 없고 화면 깊이가 얕다 — 빵부스러기를 두지 않는다.
         목록 성격 화면이라 '뒤로가기' 조작도 두지 않는다.

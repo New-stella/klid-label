@@ -10,6 +10,7 @@ import { PortalContentTabs } from '@/components/layout/PortalContentTabs';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
+import { portalShellAlign } from '@/lib/portalShellLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 // ★하단 푸터는 두지 않는다 (2026-08-18 사용자 확정 — 사양 SHELL-001·SHELL-002 `footer.enabled=false`).
@@ -44,15 +45,22 @@ import { useAuthStore } from '@/stores/useAuthStore';
 //     · 본문 자간 -0.5px 를 뿌리에 한 번
 //     · 콘텐츠 최대폭 1200 + 좌우 거터 24 — **탭과 본문이 같은 정렬선을 공유한다**
 //     · 세로 리듬 — 탭줄 다음 32, 페이지 아래 80
-//   ⚠ 각 화면이 자기 최대폭(`max-w-5xl` 등)을 따로 들고 있는 자리가 남아 있다 — 그쪽이
-//     좁으면 셸이 준 정렬선보다 안쪽에서 시작해 탭과 본문 시작선이 여전히 어긋난다.
-//     화면 축 정리(별도 라운드)에서 걷어낸다.
+//   ★★**가로 정렬선은 채널마다 갈린다**(2026-09-15) — 임베드에서는 Host 슬롯이 이미 자기
+//     여백을 갖고 있어 위 「최대폭 1200 + 거터 24」를 한 번 더 세우면 여백이 두 벌로 겹친다.
+//     판정과 클래스 문자열의 단일 진실원은 `@/lib/portalShellLayout` 이다 — 이 파일도 탭도
+//     그 함수에서 받아 간다(두 곳이 따로 들면 시작선이 어긋난다).
+//   ⚠ 각 화면이 자기 최대폭을 따로 들고 있던 자리는 2026-09-15 에 걷어냈다 — 셸이 이미
+//     정렬선을 세우므로 화면 뿌리는 `w-full` 만 갖는다. 화면에 `max-w-*` 를 다시 두지 말 것.
+//     ★특히 **rem 기반 `max-w-*` 는 임베드에서 조용히 줄어든다** — Host 문서의 루트 글꼴이
+//     10px(62.5%)이라 `max-w-6xl`(72rem)이 1152 가 아니라 **720px** 로 해석된다(실측). 그것이
+//     업로드 화면만 좁게 가운데로 몰려 보이던 원인이었다. 폭이 필요하면 px 리터럴 토큰
+//     (`max-w-wrap`)을 쓴다.
 //
 // [@design DS-002]
 
 export function PortalLayout() {
   const claims = useAuthStore((s) => s.claims);
-  const hideHeader = isPortalEmbedChannel();
+  const embedded = isPortalEmbedChannel();
 
   return (
     // 페이지 바탕은 DS-002 캔버스 토큰(#f4f6fa) — slate 스케일 밖의 도메인 토큰이라 별도 키다.
@@ -61,8 +69,18 @@ export function PortalLayout() {
     //   (KRDS 웜 그레이)을 물고 있고 그 파일은 정적이라 채널로 갈리지 않는다. 명시하지 않으면
     //   포털 산출물의 글자색만 웜톤으로 남아 **다른 축의 값이 조용히 섞인다**.
     //   DS-002 색 사다리: 제목 900 / **본문 800** / 표 셀 700 / 설명 600 / 메타·라벨 500.
-    <div className="flex min-h-screen flex-col bg-canvas text-gray-800 tracking-body">
-      {!hideHeader && (
+    <div
+      className={cn(
+        'flex flex-col text-gray-800 tracking-body',
+        embedded
+          ? // 임베드 — Host 카드(흰 바탕) 위에 얹히므로 «바탕을 흰색으로 맞춘다».
+            // 높이도 세우지 않는다(`min-h-screen` 은 카드 안에서 화면 한 장을 강제해
+            // 내용이 짧을 때 빈 띠를 만든다) — 높이는 내용이 정한다.
+            'bg-white'
+          : 'min-h-screen bg-canvas',
+      )}
+    >
+      {!embedded && (
         <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6">
           <Link
             to="/portal"
@@ -85,13 +103,13 @@ export function PortalLayout() {
         {/* 본문 상단 이동 탭 — Host 가 좌측 주 메뉴를 소유하므로 목적지 이동은 여기서 한다.
             목적지 목록은 이 파일이 갖지 않는다(`@/lib/portalNav` 가 단일 진실원).
             몰입 편집 화면에서는 컴포넌트가 스스로 아무것도 그리지 않는다. [@design SHELL-002]
-            ★탭은 자기 최대폭·거터를 스스로 갖는다 — 아래 본문과 **같은 정렬선**을 공유해야
-            좌측 시작선이 어긋나지 않는다(그래서 본문 래퍼 안에 넣지 않는다). */}
+            ★탭은 아래 본문과 **같은 정렬선**(`portalShellAlign()`)을 스스로 받는다 — 그래야
+            좌측 시작선이 어긋나지 않는다(그래서 본문 래퍼 «안»에 넣지 않는다). */}
         <PortalContentTabs />
-        {/* 콘텐츠 최대폭 1200 + 좌우 거터. 세로 리듬은 위 32(탭줄 다음) · 아래 80.
-            ⚠ 거터는 좁은 폭에서 16 으로 줄인다 — DS-002 의 24 는 데스크톱 값이고, 모바일까지
-            24 를 밀면 좁은 화면에서 본문 폭이 그만큼 깎인다(구 `px-4 md:px-6` 동작 유지). */}
-        <div className="mx-auto w-full max-w-wrap px-4 pb-page-section pt-section md:px-column">
+        {/* 가로 정렬선은 `portalShellAlign()` 이 채널에 맞춰 준다(위 ★★ 참조) — 독립 앱은
+            최대폭 1200 + 거터 24(좁은 폭에서는 16), 임베드는 슬롯 안쪽 폭을 그대로 채운다.
+            여기서 더하는 것은 세로 리듬뿐 — 위 32(탭줄 다음) · 아래 80. */}
+        <div className={cn(portalShellAlign(), 'pb-page-section pt-section')}>
           <Outlet />
         </div>
       </main>

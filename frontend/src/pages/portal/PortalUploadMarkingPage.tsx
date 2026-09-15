@@ -92,7 +92,7 @@ const EXTRACT_FRAME_CAP: number | null = null;
  */
 function MarkingBlockedNotice({ reason, testId }: { reason: string; testId: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+    <div className="flex w-full flex-col gap-column">
       <PortalEmptyState
         icon={Scissors}
         title="이 영상은 지금 마킹할 수 없습니다"
@@ -375,7 +375,7 @@ export function PortalUploadMarkingPage() {
     //   페이지 끝의 세로 리듬이 쓰이지 않는다. 그 자리를 그대로 두면 <b>영상이 그만큼 작아진다.</b>
     //   ⚠ 셸을 고치지 않는 이유: 그 여백은 포털의 다른 화면들이 쓰는 값이고, 그쪽은 목록이라
     //     끝에 숨 쉴 자리가 필요하다. 예외가 필요한 것은 <b>이 화면 하나</b>다.
-    <div className="mx-auto -mb-page-section flex w-full max-w-wrap flex-col gap-in-component">
+    <div className="-mb-page-section flex w-full flex-col gap-in-component">
       <section aria-labelledby="portal-marking-head" className="flex flex-col gap-in-component">
         <PortalSectionHead
           id="portal-marking-head"

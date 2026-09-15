@@ -253,4 +253,99 @@ describe('PortalLayout', () => {
     // 이동 탭은 본문 안의 가로 탭이라 이 가드에 걸리지 않는다(같은 `nav` 요소지만 이름이 다르다).
     expect(screen.getByRole('navigation', { name: '포털 이동 탭' })).toBeInTheDocument();
   });
+
+  /*
+   * ★임베드에서 셸이 «자기 여백·최대폭을 세우지 않는다» (2026-09-15 사용자 확정 · 개발망 실측).
+   *
+   * Host 슬롯(`.klid-authoring-slot`)이 이미 좌우 24px 여백을 갖고, 그 슬롯 자체가 Host 페이지
+   * 폭 안에서 좁혀져 있다. 여기서 우리가 「최대폭 1200 + 거터 24」를 한 번 더 세우면 여백이
+   * 두 벌로 겹쳐 좌우 각 54.5px 을 더 잃는다(실측). 그래서 임베드에서는 슬롯 안쪽 폭을 그대로
+   * 채운다. **독립 앱(관제 채널)에서는 그대로 세운다** — 그쪽은 우리가 문서를 소유한다.
+   *
+   * ⚠ 이 가드가 지키는 핵심은 값 하나하나가 아니라 **탭과 본문이 같은 정렬선을 쓴다**는 것이다.
+   *   두 곳이 각자 클래스를 들면 한쪽만 고쳐질 때 시작선이 조용히 어긋난다.
+   */
+  describe('빌드 채널에 따른 가로 정렬선', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    /** 셸 본문 래퍼 — 탭(`nav`) 바로 다음 형제. */
+    function shellBoxes() {
+      const nav = screen.getByRole('navigation', { name: '포털 이동 탭' });
+      const content = nav.nextElementSibling as HTMLElement | null;
+      expect(content).not.toBeNull();
+      return { nav, content: content as HTMLElement };
+    }
+
+    it('portal_채널이면_좌우거터도_최대폭도_두지_않는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      renderLayoutAt('/portal/uploads');
+      const { nav, content } = shellBoxes();
+
+      for (const el of [nav, content]) {
+        expect(el.className).not.toMatch(/\bmax-w-/);
+        expect(el.className).not.toMatch(/\bpx-/);
+        expect(el.className).not.toMatch(/\bmx-auto\b/);
+        expect(el.className).toMatch(/\bw-full\b/);
+      }
+      // 세로 리듬은 그대로 — 가로 축만 바뀐다.
+      expect(content.className).toMatch(/\bpt-section\b/);
+      expect(content.className).toMatch(/\bpb-page-section\b/);
+    });
+
+    it('control_채널이면_최대폭_1200과_좌우거터를_그대로_세운다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
+
+      renderLayoutAt('/portal/uploads');
+      const { nav, content } = shellBoxes();
+
+      for (const el of [nav, content]) {
+        expect(el.className).toMatch(/\bmax-w-wrap\b/);
+        expect(el.className).toMatch(/\bmx-auto\b/);
+        expect(el.className).toMatch(/\bpx-4\b/);
+        expect(el.className).toMatch(/\bmd:px-column\b/);
+      }
+    });
+
+    it.each(['portal', 'control'])('%s_채널에서_탭과_본문이_같은_정렬선을_쓴다', (channel) => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', channel);
+
+      renderLayoutAt('/portal/uploads');
+      const { nav, content } = shellBoxes();
+
+      // 본문 래퍼는 정렬선 + 세로 리듬이므로, 세로 리듬을 뺀 나머지가 탭과 같아야 한다.
+      const align = (cls: string) =>
+        cls
+          .split(/\s+/)
+          .filter((c) => c !== '' && !/^(pt|pb)-/.test(c))
+          .sort()
+          .join(' ');
+      expect(align(content.className)).toBe(align(nav.className));
+    });
+
+    it('portal_채널이면_뿌리가_흰_바탕이고_화면_한_장_높이를_강제하지_않는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      const { container } = renderLayout();
+      const root = container.firstElementChild as HTMLElement;
+
+      // Host 카드가 흰 바탕이라 우리 영역도 흰색으로 맞춘다(안 맞추면 회색 판이 한 겹 얹힌다).
+      expect(root.className).toMatch(/\bbg-white\b/);
+      expect(root.className).not.toMatch(/\bbg-canvas\b/);
+      // 카드 «안»에서 100vh 를 강제하면 내용이 짧을 때 빈 띠가 생긴다.
+      expect(root.className).not.toMatch(/\bmin-h-screen\b/);
+    });
+
+    it('control_채널이면_캔버스_바탕과_화면_높이를_그대로_둔다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
+
+      const { container } = renderLayout();
+      const root = container.firstElementChild as HTMLElement;
+
+      expect(root.className).toMatch(/\bbg-canvas\b/);
+      expect(root.className).toMatch(/\bmin-h-screen\b/);
+    });
+  });
 });

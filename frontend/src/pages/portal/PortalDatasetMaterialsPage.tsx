@@ -140,7 +140,7 @@ export function PortalDatasetMaterialsPage() {
   // 모른 채 다른 화면에 떨어지면 잘못된 링크라는 사실 자체가 드러나지 않는다.
   if (datasetId === undefined) {
     return (
-      <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+      <div className="flex w-full flex-col gap-column">
         <PortalEmptyState
           icon={CircleAlert}
           title="이 주소로는 소재를 찾을 수 없습니다."
@@ -160,7 +160,7 @@ export function PortalDatasetMaterialsPage() {
   const notice = isFailed ? materialsFailureNotice(status.failureReason) : undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+    <div className="flex w-full flex-col gap-column">
       <section aria-labelledby="portal-materials" className="flex flex-col gap-in-component">
         <PortalSectionHead
           id="portal-materials"
