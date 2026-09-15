@@ -10,10 +10,12 @@
  * ⚠ <b>질의 문자열이 아니라 경로 변수</b>다. 포털이 질의 문자열을 시도했다가 우리 라우터에 걸리지
  *   않아 홈으로 흐르는 실패를 겪고 바꿨다 — 되돌리지 말 것.
  *
- * <h3>★ 이번 범위는 「소재가 준비됐다」까지다</h3>
- * 해제본을 원장에 적재해 라벨링으로 잇는 것은 <b>다음 단계</b>이고 아직 없다. 그래서 준비 완료
- * 뒤에 <b>가짜 링크를 만들지 않는다</b> — 눌러 봐야 아무 데도 닿지 않는 자리를 두면 회복 경로를
- * 잘못 안내한다. 대신 「여기까지가 지금 할 수 있는 전부」라고 화면이 정직하게 말한다.
+ * <h3>★ 준비 완료 뒤에는 영상을 골라 라벨링으로 들어간다 [@design SCREEN-047]</h3>
+ * 흐름: 포털 학습데이터 상세 → 이 화면(소재 가져오기) → **데이터셋 영상 목록** → 라벨링 → 저장.
+ * 영상과 프레임은 소재 준비 뒤 원장에 먼저 등록되고, 라벨은 사용자가 **저장했을 때만** 쌓인다
+ * (2026-09-15 사용자 확정). 영상 목록 구역은 준비 완료일 때만 연다 — 그 전에 부르면 서버가 409 로
+ * 거부한다. ⚠ 구 동작 「준비 완료 뒤 “지금은 여기까지입니다” 안내」는 이 구역으로 대체됐다.
+ * ⚠ 영상 등록 단계의 서버 구현은 다음 단계다 — 창구 계약(`API-253`)만 먼저 섰다.
  *
  * <h3>★ 파일 경로를 보여 주지 않는다</h3>
  * 응답에 조달처 절대경로도 저장소 루트도 없다(의도 — CWE-209). 화면이 그 자리를 만들거나 경로를
@@ -29,6 +31,7 @@
  * 자기 페이지 제목(`h1`)을 두지 않는 형제 화면들과 달리 <b>이 화면은 이동 탭의 목적지가 아니라</b>
  * 바깥에서 곧바로 떨어지는 자리라, 지금 무엇을 하는 중인지 말하는 구역 제목을 둔다.
  *
+ * @design SCREEN-047
  * @design INT-014
  * @design INT-013
  * @design ADR-012
@@ -47,6 +50,7 @@ import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
 import { PortalFactChip } from '@/components/portal/ui/PortalRecordRow';
 import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
 import { portalButton } from '@/components/portal/ui/portalControl';
+import { DatasetVideoSection } from '@/features/portal/materials/components/DatasetVideoSection';
 import { formatMaterialsBytes } from '@/features/portal/materials/formatBytes';
 import { materialsFailureNotice } from '@/features/portal/materials/failureReason';
 import { useDatasetMaterials } from '@/features/portal/materials/hooks/useDatasetMaterials';
@@ -293,14 +297,6 @@ export function PortalDatasetMaterialsPage() {
                   가져온 내용의 요약은 확인할 수 없지만, 소재는 준비돼 있습니다.
                 </p>
               )}
-
-              {/* ★ 다음 동선이 아직 없다. 없는 것을 있다고 말하지 않는다. */}
-              <PortalAlert
-                tone="info"
-                title="지금은 여기까지입니다."
-                description="가져온 소재로 작업을 시작하는 단계는 아직 제공되지 않습니다. 준비가 되면 이 화면에서 이어집니다."
-                data-testid="materials-no-next-step"
-              />
             </div>
           </PortalCard>
         )}
@@ -362,6 +358,9 @@ export function PortalDatasetMaterialsPage() {
             아이콘을 붙이지 않는다 — 문장이 이미 뜻을 다 말해 글리프가 정보를 더하지 않는다. */}
         <p className="text-caption text-gray-600">가져온 소재는 저작도구 작업영역에 보관됩니다.</p>
       </section>
+
+      {/* 준비 완료일 때만 연다 — 그 전에 목록을 부르면 서버가 409 로 거부한다. */}
+      {status?.state === PortalMaterialsState.READY && <DatasetVideoSection datasetId={datasetId} />}
     </div>
   );
 }

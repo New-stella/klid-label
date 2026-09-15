@@ -25,7 +25,7 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { PortalMaterialsStatus } from './types';
+import type { PortalDatasetVideoPage, PortalMaterialsStatus } from './types';
 
 /** 조달 상태 조회. */
 export function getDatasetMaterials(datasetId: number): Promise<PortalMaterialsStatus> {
@@ -42,5 +42,20 @@ export function getDatasetMaterials(datasetId: number): Promise<PortalMaterialsS
 export function startDatasetMaterials(datasetId: number): Promise<PortalMaterialsStatus> {
   return apiClient
     .post<PortalMaterialsStatus>(`/portal/datasets/${datasetId}/materials`)
+    .then((r) => r.data);
+}
+
+/**
+ * 데이터셋 영상 목록 — 소재가 준비된 뒤 영상을 골라 라벨링으로 들어가는 목록. @design API-253
+ *
+ * ⚠ 소재가 준비되지 않았으면 서버가 409 로 거부한다. 화면은 상태 조회로 준비 완료를 확인한 뒤에만
+ *   이 창구를 부른다.
+ */
+export function getDatasetVideos(
+  datasetId: number,
+  params: { page: number; size: number },
+): Promise<PortalDatasetVideoPage> {
+  return apiClient
+    .get<PortalDatasetVideoPage>(`/portal/datasets/${datasetId}/videos`, { params })
     .then((r) => r.data);
 }

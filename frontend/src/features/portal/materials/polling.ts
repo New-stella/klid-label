@@ -18,7 +18,7 @@
  * @design INT-014
  */
 
-import { PortalMaterialsState } from './types';
+import { PortalDatasetVideoRegistrationState, PortalMaterialsState } from './types';
 
 /** 폴링 간격(ms). */
 export const MATERIALS_POLL_MS = 5_000;
@@ -44,6 +44,21 @@ export function materialsPollIntervalFor(
   elapsedMs: number,
 ): number | false {
   if (state !== PortalMaterialsState.IN_PROGRESS) return false;
+  if (elapsedMs >= MATERIALS_POLL_BUDGET_MS) return false;
+  return MATERIALS_POLL_MS;
+}
+
+/**
+ * 데이터셋 영상 **등록** 폴링의 판정 — 조달 폴링과 같은 간격·예산을 쓴다. @design API-253
+ *
+ * 등록이 진행 중일 때만 묻는다. 끝났거나 실패했거나 모르는 값이면 멈춘다 — 모르는 값을 진행 중으로
+ * 읽어 계속 묻지 않는다(화면이 그 값을 따로 알린다).
+ */
+export function datasetVideosPollIntervalFor(
+  registrationState: string | undefined,
+  elapsedMs: number,
+): number | false {
+  if (registrationState !== PortalDatasetVideoRegistrationState.IN_PROGRESS) return false;
   if (elapsedMs >= MATERIALS_POLL_BUDGET_MS) return false;
   return MATERIALS_POLL_MS;
 }
