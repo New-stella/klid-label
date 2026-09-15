@@ -27,6 +27,7 @@ import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { RadioGroup } from '@/components/common/RadioGroup';
+import { PortalRadioGroup } from '@/components/portal/ui/PortalRadioGroup';
 
 import { useAutoTrack } from '../hooks/useAutoTrack';
 import type { AutoTrackResponse } from '../api/autoTrack';
@@ -99,6 +100,9 @@ export function AutoTrackPanel({
   focusTargetRef,
 }: AutoTrackPanelProps) {
   const [mode, setMode] = useState<AutoTrackApplyMode>(DEFAULT_APPLY_MODE);
+  // 적용 방식 라디오 — 포털이면 보이는 동그라미를 직접 그리는 포털 부품(props 동일).
+  // 포털 Host 스타일이 네이티브 라디오를 숨겨 관제 공통 라디오 그룹으로는 동그라미가 사라진다.
+  const ApplyModeRadioGroup = portal ? PortalRadioGroup : RadioGroup;
   const [review, setReview] = useState<AutoTrackReview | null>(null);
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
   // 안내는 여러 줄이 함께 뜰 수 있다(반영 요약 · 마스터 미연결 제외 · 구간 절단).
@@ -248,7 +252,7 @@ export function AutoTrackPanel({
 
       {/* 적용 방식 — 기본값은 검토 후 수락이며 실행 후 다시 기본값으로 돌아간다. */}
       <div className="mb-2">
-        <RadioGroup
+        <ApplyModeRadioGroup
           name="auto-track-apply-mode"
           aria-label="트랙 결과 적용 방식"
           value={mode}
