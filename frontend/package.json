@@ -13,6 +13,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "test": "vitest run",
     "test:watch": "vitest --watch",
+    "storybook": "VITE_BUILD_CHANNEL=portal storybook dev -p 6010 --no-open",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install --with-deps chromium",
@@ -46,6 +47,7 @@
   "devDependencies": {
     "@module-federation/vite": "^1.21.5",
     "@playwright/test": "^1.59.1",
+    "@storybook/react-vite": "^10.5.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.4.0",
@@ -69,6 +71,7 @@
     "openapi-typescript": "^6.7.0",
     "postcss": "^8.4.0",
     "prettier": "^3.2.0",
+    "storybook": "^10.5.3",
     "tailwindcss": "^4.3.3",
     "tailwindcss-v3-compat": "npm:tailwindcss@^3.4.19",
     "typescript": "^5.4.0",
