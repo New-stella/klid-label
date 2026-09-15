@@ -470,7 +470,7 @@ export function ToolBar({
         aria-busy={s.busy}
         data-testid={s.testId}
         className={cn(
-          'flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border px-2 text-left text-body-md font-medium transition-colors',
+          'flex min-h-[40px] w-full items-center gap-2 rounded-md border px-2 text-left text-body-md font-medium transition-colors',
           s.isActive
             ? 'border-primary-200 bg-primary-50 text-primary-700'
             : 'border-transparent text-gray-900 hover:bg-gray-50',
@@ -509,7 +509,7 @@ export function ToolBar({
     // 토글(그리드·영역 확대)은 눌림 상태를 색으로도 알린다 — 아이콘만으로는 켜짐/꺼짐이 안 읽힌다.
     const toggledOn = s.pressed === true;
     return (
-      <div key={key} className="flex min-h-[2.25rem] items-center justify-between gap-2 px-2">
+      <div key={key} className="flex min-h-[36px] items-center justify-between gap-2 px-2">
         <span className="truncate text-body-md text-gray-900">
           {(item.kind === 'action' ? item.shortLabel : undefined) ?? item.label}
         </span>
@@ -603,7 +603,7 @@ export function ToolBar({
           onBlur={closeHelp}
           // 시안 `.shortcut-trigger` — 점선 테두리 + 항목명. 아이콘만 두면 이 자리가 무슨 기능인지
           // 호버해 봐야 알 수 있다(사양은 "맨 아래 고정 위치에 단축키 안내를 둔다").
-          className="flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border border-dashed border-gray-300 bg-white px-2 text-body-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+          className="flex min-h-[40px] w-full items-center gap-2 rounded-md border border-dashed border-gray-300 bg-white px-2 text-body-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
         >
           <Keyboard size={16} aria-hidden="true" className="shrink-0" />
           <span className="truncate">단축키 안내</span>
@@ -626,7 +626,7 @@ export function ToolBar({
               data-testid="label-toolbar-shortcut-panel-box"
               // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
               // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
-              className="w-[44rem] max-w-[calc(100vw-5rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
+              className="w-[704px] max-w-[calc(100vw-80px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
               // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
               style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
             >

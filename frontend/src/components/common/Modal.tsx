@@ -170,7 +170,7 @@ export function Modal({
           // 모서리는 시안 `.lightbox-box` 의 `--radius-lg`(8px) = borderRadius 토큰 `lg`.
           // 토큰은 sm/md/lg/full 4단뿐이라 그 위 단은 Tailwind 기본값(12px)으로 폴백한다 —
           // 음영과 같은 성질의 조용한 이탈이라 함께 토큰 안으로 되돌렸다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
+          'relative flex max-h-[calc(100vh-32px)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
           className,
         )}

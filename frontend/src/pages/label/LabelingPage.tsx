@@ -2228,7 +2228,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }
                 : {})}
             >
-              <div className="flex min-h-[10rem] flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-[160px] flex-1 flex-col overflow-hidden">
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
                     `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
                 <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
@@ -2263,7 +2263,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   disabled={isEditBlocked || isLocked}
                 />
               )}
-              <div className="flex min-h-[12rem] flex-1 flex-col overflow-hidden border-t border-gray-200">
+              <div className="flex min-h-[192px] flex-1 flex-col overflow-hidden border-t border-gray-200">
                 <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   속성
                 </div>

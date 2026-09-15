@@ -198,7 +198,7 @@ export function LabelAttrDefPanel({
         ) : isLoading ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} height="2.5rem" />
+              <Skeleton key={i} height="40px" />
             ))}
           </div>
         ) : rows.length === 0 ? (
@@ -231,7 +231,7 @@ export function LabelAttrDefPanel({
                   >
                     <td className="px-3 py-2 font-medium text-gray-900">{a.name}</td>
                     <td className="px-3 py-2 text-gray-600">{INPUT_TYPE_LABEL[a.inputType]}</td>
-                    <td className="max-w-[16rem] truncate px-3 py-2 text-gray-600">
+                    <td className="max-w-[256px] truncate px-3 py-2 text-gray-600">
                       {hasChoices(a.inputType) ? parseValues(a.valuesJson).join(', ') || '—' : '—'}
                     </td>
                     <td className="px-3 py-2 text-gray-600">{a.defaultVal || '—'}</td>

@@ -32,7 +32,7 @@ export interface AnnotationWindowStripProps {
 }
 
 const SHELL_CLASS =
-  'fixed left-1/2 top-16 z-50 w-[min(1120px,calc(100vw-4rem))] -translate-x-1/2 rounded-lg border border-primary-500 bg-white p-3 shadow-lg';
+  'fixed left-1/2 top-16 z-50 w-[min(1120px,calc(100vw-64px))] -translate-x-1/2 rounded-lg border border-primary-500 bg-white p-3 shadow-lg';
 
 export function AnnotationWindowStrip({
   variant,

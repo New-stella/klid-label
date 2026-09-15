@@ -264,7 +264,7 @@ export function PortalHomePage() {
               *   그 사유를 지우면 왜 못 누르는지 알 길이 사라지므로 폭으로 받아 준다.
               */}
             <table
-              className="w-full min-w-[52rem] table-fixed text-body-md"
+              className="w-full min-w-[832px] table-fixed text-body-md"
               data-testid="portal-work-table"
             >
               <caption className="sr-only">
@@ -272,9 +272,9 @@ export function PortalHomePage() {
               </caption>
               <colgroup>
                 <col />
-                <col className="w-[9.5rem]" />
-                <col className="w-[10.5rem]" />
-                <col className="w-[21rem]" />
+                <col className="w-[152px]" />
+                <col className="w-[168px]" />
+                <col className="w-[336px]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-200 bg-secondary-50">
