@@ -162,6 +162,15 @@ describe('LabelingPage 우측 패널 3탭 재구성', () => {
     await waitFor(() => expect(screen.getByTestId('right-tab-meta')).toBeInTheDocument());
     await user.click(screen.getByTestId('right-tab-meta'));
 
+    // ★기본은 <b>감춤</b>이다(2026-09-15 사용자 확정). 「보인다」만 단언하면 기본값이 조용히
+    //   뒤집혀도 통과하므로 감춘 상태와 편 상태를 둘 다 센다.
+    await screen.findByTestId('annotation-summary-card');
+    expect(screen.queryByTestId('annotation-summary-hint')).toBeNull();
+
+    const toggle = screen.getByTestId('meta-help-toggle');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(toggle);
+
     const hint = await screen.findByTestId('annotation-summary-hint');
     // ★라벨링 변형 — 창이 읽기 전용이 아니고 버튼 문구도 다르므로 두 번째 문장이 검수와 갈린다.
     //   한 문장으로 합치면 한쪽 화면에서 거짓이 된다.

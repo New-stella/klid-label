@@ -109,11 +109,18 @@ export function VideoTechnicalMetaPanel({ srcSn }: VideoTechnicalMetaPanelProps)
 
   return (
     <MetaSection title={VIDEO_TECHNICAL_META_TITLE}>
-      <dl className="space-y-1" aria-label={VIDEO_TECHNICAL_META_TITLE} data-testid="video-technical-meta">
+      {/* 시안 `.tech-kv-key`(`.t-caption` 14px + `var(--n-5)` #6D7882) / `.tech-kv-val`(15px +
+          `var(--n-8)` #33363D). 구 구현은 둘 다 17px 이라 이 참고 구역이 본문만큼 크게 보였다.
+          ⚠ 시안은 이 구역만 값 박스를 두지 않고 2열 격자로 촘촘히 둔다 — 참고 표시라 자리를
+            덜 쓰는 것이 의도다. 그래서 여기에는 `MetaReadonlyField` 를 쓰지 않는다. */}
+      <dl className="space-y-2" aria-label={VIDEO_TECHNICAL_META_TITLE} data-testid="video-technical-meta">
         {rows.map((row) => (
-          <div key={row.key} className="grid grid-cols-[88px_1fr] gap-x-2 text-body-md">
-            <dt className="text-gray-500">{row.label}</dt>
-            <dd className="break-words text-gray-900" data-testid={`video-technical-${row.key}`}>
+          <div key={row.key} className="grid grid-cols-[88px_1fr] gap-x-2">
+            <dt className="text-caption text-gray-500">{row.label}</dt>
+            <dd
+              className="break-words text-body-sm text-gray-800"
+              data-testid={`video-technical-${row.key}`}
+            >
               {row.value}
             </dd>
           </div>

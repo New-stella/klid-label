@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import type { AnnotationWindowState } from '../hooks/useAnnotationWindow';
 
 import { ANNOTATION_WINDOW_TITLE, SUMMARY_CARD } from './annotationWording';
+import { useMetaHelpVisible } from './metaHelp';
 
 export interface TimeseriesAnnotationSummaryCardProps {
   /** editable=라벨링, readOnly=검수(검토 상태 행 없음). */
@@ -26,7 +27,6 @@ export interface TimeseriesAnnotationSummaryCardProps {
   /** 이벤트 분류 이름. 없으면 코드만 보인다. */
   eventTypeName?: string | null;
   descriptionFirstLine?: string | null;
-  unfilledItems?: string[];
   /** 이벤트 어노테이션 검토 상태 — editable 에서만 보인다. */
   reviewStatus?: ReactNode;
   /** 닫혀 있으면 열고, 열려 있으면 앞으로 가져오고, 접혀 있으면 펼친다. */
@@ -63,11 +63,11 @@ export function TimeseriesAnnotationSummaryCard({
   eventTypeCd,
   eventTypeName,
   descriptionFirstLine,
-  unfilledItems = [],
   reviewStatus,
   onOpenWindow,
 }: TimeseriesAnnotationSummaryCardProps) {
   const stateLabel = stateLabelOf(windowState);
+  const helpVisible = useMetaHelpVisible();
   const hasCode = typeof eventTypeCd === 'string' && eventTypeCd.trim() !== '';
   return (
     <section
@@ -90,12 +90,19 @@ export function TimeseriesAnnotationSummaryCard({
           </span>
         )}
       </div>
-      <p className="mb-1 text-caption text-gray-500">{SUMMARY_CARD.description}</p>
-      {/* ★보조 설명 — 왜 이 자리에 요약만 있는지 알린다. 사양은 「설명 아래」로 못박는다
+      {/* ★두 설명 문장은 <b>도움말을 켰을 때만</b> 보인다(기본 감춤 — 2026-09-15 사용자 확정).
+          좁은 메타 탭에서 이 둘이 네다섯 줄을 차지해 정작 보여야 할 값을 아래로 밀어냈다.
+          문장 자체는 그대로다 — 지운 것이 아니라 도움말 뒤로 옮긴 것이다.
+          ★보조 설명은 왜 이 자리에 요약만 있는지 알린다. 사양은 「설명 아래」로 못박는다
           (시안은 버튼 아래에 두지만 사양이 정본이다 — 보고 대상으로 남겼다). */}
-      <p className="mb-2 text-caption text-gray-600" data-testid="annotation-summary-hint">
-        {mode === 'editable' ? SUMMARY_CARD.hint.editable : SUMMARY_CARD.hint.readOnly}
-      </p>
+      {helpVisible && (
+        <>
+          <p className="mb-1 text-caption text-gray-500">{SUMMARY_CARD.description}</p>
+          <p className="mb-2 text-caption text-gray-600" data-testid="annotation-summary-hint">
+            {mode === 'editable' ? SUMMARY_CARD.hint.editable : SUMMARY_CARD.hint.readOnly}
+          </p>
+        </>
+      )}
 
       <Row label={SUMMARY_CARD.eventClassLabel}>
         {hasCode ? (
@@ -123,13 +130,10 @@ export function TimeseriesAnnotationSummaryCard({
         )}
       </Row>
 
-      {unfilledItems.length > 0 && (
-        <Row label={SUMMARY_CARD.unfilledLabel}>
-          <span className="text-warning-700" data-testid="annotation-summary-unfilled">
-            {unfilledItems.join(' · ')}
-          </span>
-        </Row>
-      )}
+      {/* ⚠ [폐기] 구 구현의 「아직 채우지 않은 항목」 행 — 2026-09-15 사용자 확정으로 <b>없앴다</b>.
+          근거: 무엇이 비었는지는 창을 열면 그 자리에서 바로 보이는데, 이 행이 좁은 탭에서 값을
+          아래로 밀어냈다. 판정 함수({@code annotationSummary.unfilledItems})는 그대로 두었다 —
+          그 함수는 순수 함수이고 자체 시험을 가지며, 되살릴 자리가 생기면 다시 쓴다. */}
 
       {mode === 'editable' && reviewStatus !== undefined && reviewStatus !== null && (
         <Row label={SUMMARY_CARD.reviewStatusLabel}>

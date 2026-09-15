@@ -16,7 +16,21 @@ import { Textarea } from '@/components/common/Textarea';
 
 import { useFrameDescription, useUpdateFrameDescription } from '../hooks/useFrameDescription';
 
-import { MetaCharCount, MetaReadonlyField, MetaSection } from './MetaSection';
+import { MetaCharCount, MetaReadonlyField, MetaSection, NOT_FILLED_TEXT } from './MetaSection';
+
+/**
+ * 검수 화면의 라벨·보조 설명 — 화면정의서 SCREEN-019 의 「프레임 설명 검토」 note 원문.
+ *
+ * ★이 구역만 <b>제목 아래 설명 줄을 두지 않는다</b> — 대신 <b>값 아래</b> 보조 설명 한 줄을 두며,
+ * 그 줄도 다른 구역의 설명문과 <b>같은 도움말 토글</b>을 탄다(사양 SCREEN-019 가 자리와 노출
+ * 조건을 함께 규정한다). 게이트는 {@code MetaReadonlyField} 한 곳이 소유한다.
+ *
+ * ⚠ [폐기] 구 주석 — *"그 줄은 도움말과 무관하게 항상 보인다 … 검수 판단의 근거이기 때문이다"*.
+ *   그것은 사양이 아니라 구현이 게이트를 빠뜨린 상태를 설명으로 굳힌 문장이었고, 신규 시험까지
+ *   그 상태를 단언해 <b>비정합이 사양처럼 고정</b>돼 있었다. 되살리지 말 것.
+ */
+const READONLY_LABEL = '현재 프레임 설명';
+const READONLY_HELP = '학습데이터 산출물의 이미지 설명 조달원입니다.';
 
 export interface FrameDescriptionPanelProps {
   srcSn: number | undefined;
@@ -64,8 +78,15 @@ export function FrameDescriptionPanel({
     return (
       <MetaSection title="프레임 설명 검토">
         <div data-testid="frame-description-readonly">
-          {/* BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다. */}
-          <MetaReadonlyField label="설명" value={data?.description ?? null} />
+          {/* BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
+              ⚠ 구 라벨은 「설명」이었다 — 구역 제목이 이미 「프레임 설명 검토」라 그 안에서
+                「설명」만 적으면 무엇의 설명인지가 라벨 자체로는 서지 않는다. */}
+          <MetaReadonlyField
+            label={READONLY_LABEL}
+            value={data?.description ?? null}
+            help={READONLY_HELP}
+            emptyText={NOT_FILLED_TEXT}
+          />
         </div>
       </MetaSection>
     );

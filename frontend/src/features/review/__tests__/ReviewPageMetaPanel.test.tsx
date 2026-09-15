@@ -369,12 +369,23 @@ describe('ReviewPage 영상 분석 설명 · 이벤트 어노테이션(읽기 �
 
     await renderReviewPage();
 
+    // ★기본은 <b>감춤</b>이다(2026-09-15 사용자 확정) — 좁은 메타 탭에서 설명 두 문장이 값을
+    //   아래로 밀어냈다. 「보인다」만 단언하면 기본값이 조용히 뒤집혀도 통과하므로 양방향을 둘 다 센다.
+    await screen.findByTestId('annotation-summary-card');
+    expect(screen.queryByTestId('annotation-summary-hint')).toBeNull();
+
+    // when — 패널 머리의 도움말 토글 하나가 메타 탭 설명문을 한꺼번에 편다.
+    const toggle = screen.getByTestId('meta-help-toggle');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+
     const hint = await screen.findByTestId('annotation-summary-hint');
     // ★검수 변형 — 창이 읽기 전용이고 버튼 문구가 「크게 보기」라 두 번째 문장이 라벨링과 갈린다.
     expect(hint.textContent).toBe(
       '좁은 탭에서 읽기 어려워 여기에는 간추린 값만 둡니다. 전문은 「크게 보기」로 여는 읽기 전용 창에서 확인합니다.',
     );
     expect(hint).not.toHaveTextContent('보고 고칩니다');
+    expect(screen.getByTestId('meta-help-toggle')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('★이_영상에_없는_프레임_번호는_이동하지_않고_안내만_한다', async () => {

@@ -27,7 +27,27 @@ import type { PrivacyMetaSource, YnFlag } from '../api/videoPrivacyMeta';
 import { useVideoPrivacyMeta, useUpdateVideoPrivacyMeta } from '../hooks/useVideoPrivacyMeta';
 import { isUserDeterminedMetaValue } from '../utils/metaPromotion';
 
-import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
+import {
+  joinPrivacyValues,
+  MetaReadonlyField,
+  MetaSection,
+  NOT_FILLED_TEXT,
+  PRIVACY_GROUPED_LABEL,
+  ynLabel,
+} from './MetaSection';
+
+/**
+ * 구역 제목 아래 설명 한 줄 — 화면정의서 SCREEN-019 의 「개인정보 판정 검토 (영상 축)」 note 원문.
+ *
+ * ⚠ 구 구현은 <b>제3의 문구</b>였다 — 「… 프레임별 판정은 아래 프레임 개인정보에서 확인하세요.」는
+ * 시안에도 사양에도 없고, 게다가 프레임 축 패널의 실제 자리를 「아래」라고 단정한다. 되살리지 말 것.
+ */
+const READONLY_DESCRIPTION =
+  '영상 전체 기준의 판정입니다. 프레임 축 판정과 입도가 달라 두 값이 달라도 모순이 아닙니다.';
+
+/** 라벨링(편집) 쪽 설명 — 반영 범위 안내라 문장이 길다. 도움말을 켰을 때만 보인다. */
+const EDITABLE_DESCRIPTION =
+  '영상 전체 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 영상은 비식별 처리 전이라 판정하지 않습니다. 프레임별로 다르면 아래 프레임 개인정보에서 따로 지정하세요.';
 
 export interface VideoPrivacyMetaPanelProps {
   rawSn: number | undefined;
@@ -137,27 +157,26 @@ export function VideoPrivacyMetaPanel({
     // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
     //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="개인정보 판정 검토 (영상 축)">
-        <div className="space-y-1.5" data-testid="video-privacy-meta-readonly">
-          {FIELDS.map((f) => (
-            <MetaReadonlyField
-              key={f.key}
-              label={f.label}
-              // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
-              value={ynLabel(data?.[f.key] ?? null)}
-              hint={sources[f.key] === 'DERIVED' ? '기본값' : undefined}
-            />
-          ))}
+      <MetaSection title="개인정보 판정 검토 (영상 축)" description={READONLY_DESCRIPTION}>
+        {/* ★읽기 전용은 세 값을 <b>한 줄</b>로 묶는다 — 사양 SCREEN-019 가 라벨 「익명 · 가명 ·
+            개인정보 포함」에 값을 같은 차례로 이어 붙이라고 정한다. 구 구현은 세 줄이라 값 박스가
+            셋 서고 좁은 탭에서 자리를 세 배로 썼다. 편집 쪽(라벨링)은 체크박스라 그대로 세 줄이다.
+            ⚠ 구 구현이 값 옆에 붙이던 「기본값」 표기는 이 한 줄 형식에 담을 자리가 없어 빠졌다 —
+              지어내 끼워 넣지 않았다(출처는 라벨링 화면에서 본다). 보고 대상으로 남긴다. */}
+        <div data-testid="video-privacy-meta-readonly">
+          <MetaReadonlyField
+            label={PRIVACY_GROUPED_LABEL}
+            // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
+            value={joinPrivacyValues(FIELDS.map((f) => ynLabel(data?.[f.key] ?? null)))}
+            emptyText={NOT_FILLED_TEXT}
+          />
         </div>
-        <p className="text-[11px] leading-snug text-gray-500">
-          영상 전체 기준의 판정입니다. 프레임별 판정은 아래 프레임 개인정보에서 확인하세요.
-        </p>
       </MetaSection>
     );
   }
 
   return (
-    <MetaSection title="개인정보(영상)">
+    <MetaSection title="개인정보(영상)" description={EDITABLE_DESCRIPTION}>
       <div className="space-y-1.5">
         {FIELDS.map((f) => (
           <Field key={f.key} orientation="horizontal">
@@ -169,16 +188,12 @@ export function VideoPrivacyMetaPanel({
             />
             <FieldLabel>{f.label}</FieldLabel>
             {sources[f.key] === 'DERIVED' && (
-              <span className="text-[10px] text-gray-500">기본값</span>
+              // 10px 잔글씨를 디자인 체계 최소 단계(caption 14px)로 올린다.
+              <span className="text-caption text-gray-500">기본값</span>
             )}
           </Field>
         ))}
       </div>
-
-      <p className="text-[11px] leading-snug text-gray-500">
-        영상 전체 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 영상은 비식별
-        처리 전이라 판정하지 않습니다. 프레임별로 다르면 아래 프레임 개인정보에서 따로 지정하세요.
-      </p>
 
       {update.isError && (
         <p className="text-caption text-danger" role="alert">

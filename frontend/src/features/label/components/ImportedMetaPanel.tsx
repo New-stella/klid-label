@@ -25,7 +25,18 @@
 import { useMeta } from '@/features/auto/hooks/useMeta';
 import { importedMetaLabel } from '@/features/auto/metaKeys';
 
-import { MetaSection } from './MetaSection';
+import { MetaReadonlyField, MetaSection } from './MetaSection';
+
+/**
+ * 검수 화면의 구역 제목·설명 — 화면정의서 SCREEN-019 의 「이관 원문 정보 검토 (참고)」 note 원문.
+ * 제목의 「(참고)」는 <b>검수 화면에만</b> 있다 — 라벨링 사양(SCREEN-005)은 그 표기를 두지 않는다.
+ */
+const READONLY_TITLE = '이관 원문 정보 검토 (참고)';
+const READONLY_DESCRIPTION =
+  '외부에서 이관된 영상에서만 보입니다. 사람이 읽는 이름으로 표시하며 읽기 전용입니다.';
+
+/** 라벨링(편집 화면)의 설명 — 사양이 문구를 정하지 않아 기존 문장을 그대로 쓴다. */
+const EDITABLE_DESCRIPTION = '외부에서 이관해 온 원문 정보입니다. 참고용이며 수정할 수 없습니다.';
 
 export interface ImportedMetaPanelProps {
   /** 현재 프레임 SRC_SN — 메타 조회 키(영상 단위 K/V 를 프레임 경로로 조회한다). */
@@ -41,8 +52,6 @@ export interface ImportedMetaPanelProps {
   readOnly?: boolean;
 }
 
-const LABEL_CLASS = 'block text-[11px] text-gray-500';
-const VALUE_CLASS = 'whitespace-pre-wrap break-words text-body-md text-gray-700';
 
 /**
  * 이관 원문 정보 패널.
@@ -64,21 +73,22 @@ export function ImportedMetaPanel({ srcSn, readOnly = false }: ImportedMetaPanel
   // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
   //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
   return (
-    <MetaSection title={readOnly ? '이관 원문 정보 검토' : '이관 원문 정보'}>
-      <div className="space-y-2" data-testid="imported-meta-panel">
-        <p className="text-[11px] leading-snug text-gray-500">
-          외부에서 이관해 온 원문 정보입니다. 참고용이며 수정할 수 없습니다.
-        </p>
+    <MetaSection
+      title={readOnly ? READONLY_TITLE : '이관 원문 정보'}
+      description={readOnly ? READONLY_DESCRIPTION : EDITABLE_DESCRIPTION}
+    >
+      <div className="space-y-4" data-testid="imported-meta-panel">
         {items.map((item) => (
-          <div
+          // ★형제 패널과 <b>같은 읽기 전용 행</b>을 쓴다 — 구 구현은 자기만의 테두리 상자 +
+          //   11px 라벨이라 같은 탭 안에서 혼자 다른 모양이었다. 값 박스·라벨 크기가 한 곳
+          //   ({@code MetaReadonlyField})에서 정해져야 다음에 또 갈리지 않는다.
+          <MetaReadonlyField
             key={item.metaSn}
-            className="rounded border border-gray-200 p-2"
-            data-testid={`imported-meta-row-${item.metaSn}`}
-          >
-            <span className={LABEL_CLASS}>{importedMetaLabel(item.metaKey)}</span>
-            {/* 값은 BE 원문 그대로 표시한다 — 단위 변환·포맷팅은 하지 않는다. */}
-            <p className={VALUE_CLASS}>{item.metaVal}</p>
-          </div>
+            testId={`imported-meta-row-${item.metaSn}`}
+            label={importedMetaLabel(item.metaKey)}
+            // 값은 BE 원문 그대로 표시한다 — 단위 변환·포맷팅은 하지 않는다.
+            value={item.metaVal}
+          />
         ))}
       </div>
     </MetaSection>

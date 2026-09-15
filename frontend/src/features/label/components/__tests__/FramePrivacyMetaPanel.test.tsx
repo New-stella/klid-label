@@ -26,6 +26,7 @@ vi.mock('../../hooks/useFramePrivacyMeta', () => ({
 }));
 
 import { FramePrivacyMetaPanel } from '../FramePrivacyMetaPanel';
+import { MetaHelpProvider } from '../metaHelp';
 
 function prefill(overrides: Record<string, unknown> = {}) {
   mockUseFramePrivacyMeta.mockReturnValue({
@@ -149,9 +150,18 @@ describe('FramePrivacyMetaPanel', () => {
     expect(screen.getByLabelText('가명여부')).not.toBeChecked();
   });
 
-  it('수동값_반영범위_안내문구_표시', () => {
-    // given / when
-    renderWithProviders(<FramePrivacyMetaPanel srcSn={5} />);
+  it('수동값_반영범위_안내문구는_도움말을_켜야_보인다', () => {
+    // ⚠ 2026-09-15 전제 변경 — 구역 설명문이 되어 메타 탭 도움말 뒤로 들어갔다(기본 감춤).
+    //   영상 축 패널과 <b>같은 규칙</b>이다 — 한쪽만 바꾸면 같은 탭에서 두 구역이 다르게 동작한다.
+    const { unmount } = renderWithProviders(<FramePrivacyMetaPanel srcSn={5} />);
+    expect(screen.queryByText(/비식별 학습데이터에 반영/)).toBeNull();
+    unmount();
+
+    renderWithProviders(
+      <MetaHelpProvider visible>
+        <FramePrivacyMetaPanel srcSn={5} />
+      </MetaHelpProvider>,
+    );
 
     // then — "비식별에 반영 / 원천은 판정 안 함" 안내(2026-08-03 정책 반전).
     //        구 문구("원본 학습데이터에 반영")는 이제 정확히 거짓이라 폐기.

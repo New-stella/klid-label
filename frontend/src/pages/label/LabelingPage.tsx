@@ -66,6 +66,8 @@ import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyM
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
 import { VideoTechnicalMetaPanel } from '@/features/label/components/VideoTechnicalMetaPanel';
 import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
+import { MetaHelpProvider, MetaHelpToggleButton } from '@/features/label/components/metaHelp';
+import { useMetaHelpPreference } from '@/features/label/components/metaHelpPreference';
 import { PortalWorkMetaTab } from '@/features/portal/work/components/PortalWorkMetaTab';
 import {
   isPortalUnavailableError,
@@ -722,6 +724,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     annotationDataOn ? data?.videoId : undefined,
     annotationDataOn ? data?.srcSn : undefined,
   );
+  // 메타 탭 도움말 — 설명문을 한꺼번에 여닫는다. ★기본은 감춤이며 창의 도움말과 <b>별개 키</b>다
+  //   (기본값이 서로 반대라 한 키를 공유하면 의도하지 않은 상태로 넘어간다 — `metaHelpPreference`).
+  const [metaHelpVisible, toggleMetaHelp] = useMetaHelpPreference();
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
@@ -2148,7 +2153,13 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                  */
                 <PortalWorkMetaTab srcSn={data?.srcSn} rawSn={data?.videoId} />
               ) : (
-                <>
+                <MetaHelpProvider visible={metaHelpVisible}>
+              {/* 도움말 토글 — 메타 탭 머리에 하나만 두고 전 구역의 설명문을 한꺼번에 여닫는다.
+                  ★기본은 감춤이다(창의 도움말과 반대 — 근거는 `metaHelpPreference`).
+                  검수 화면(ReviewMetaPanel)과 같은 부품·같은 자리다. */}
+              <div className="flex items-center justify-end border-b border-gray-100 px-4 py-2">
+                <MetaHelpToggleButton visible={metaHelpVisible} onToggle={toggleMetaHelp} />
+              </div>
               {/* 촬영환경(날씨·시간대·계절) — 영상(rawSn) 단위, 내부 채널만. */}
               <EnvironmentMetaPanel rawSn={data?.videoId} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
@@ -2177,7 +2188,6 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   annotationSummary.eventTypeCd,
                 )}
                 descriptionFirstLine={annotationSummary.descriptionFirstLine}
-                unfilledItems={annotationSummary.unfilledItems}
                 reviewStatus={reviewStatusLabel(annotationSummary.reviewStatus)}
                 onOpenWindow={annotationWindow.openOrFocus}
               />
@@ -2190,7 +2200,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   한쪽만 다듬어져 같은 값이 서로 다른 이름·단위로 보인다. 네 항목이 하나도 없는
                   영상에서는 스스로 렌더하지 않는다. */}
               <VideoTechnicalMetaPanel srcSn={data?.srcSn} />
-                </>
+                </MetaHelpProvider>
               )}
             </div>
           ) : (

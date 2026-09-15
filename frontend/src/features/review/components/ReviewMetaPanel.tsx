@@ -29,8 +29,11 @@
 // a11y: 각 섹션에 aria-label, 라벨-값 구조. 읽기 전용이라 편집 인터랙션 요소가 없다.
 // UI 문구: 기술 모델명 미노출. 이 자리에서는 「영상 분석 설명」이라고 쓴다(「시계열」 아님).
 
+import { Alert } from '@/components/common/Alert';
 import { useEventAnnotation } from '@/features/label/hooks/useEventAnnotation';
 import { useMeta } from '@/features/auto/hooks/useMeta';
+import { MetaHelpProvider, MetaHelpToggleButton } from '@/features/label/components/metaHelp';
+import { useMetaHelpPreference } from '@/features/label/components/metaHelpPreference';
 import { eventTypeNameOf } from '@/features/label/annotationSummary';
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
@@ -93,8 +96,9 @@ export function ReviewMetaPanel({
   allVrfcEvntTypes,
 }: ReviewMetaPanelProps) {
   const { data: ea } = useEventAnnotation(rawSn);
-  const { data: meta } = useMeta(srcSn);
+  const { data: meta, isError: metaError } = useMeta(srcSn);
   const summary = useAnnotationSummary(rawSn, srcSn);
+  const [helpVisible, toggleHelp] = useMetaHelpPreference();
 
   const payload = ea?.payload;
   const hasEventClass = !!payload && (payload.event_class ?? '').trim() !== '';
@@ -131,10 +135,27 @@ export function ReviewMetaPanel({
       aria-label="메타 정보"
       data-testid="review-meta-panel"
     >
-      <h2 className="px-3 pt-3 pb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-        메타 정보
-      </h2>
+      {/* 패널 머리 — 제목 + 도움말 토글 하나. ★토글을 구역마다 두지 않고 여기 하나만 두어
+          전 구역의 설명문을 한꺼번에 여닫는다(근거는 {@code metaHelp.tsx}). */}
+      <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-2">
+        <h2 className="text-title-sm text-gray-900">메타 정보</h2>
+        <MetaHelpToggleButton visible={helpVisible} onToggle={toggleHelp} />
+      </div>
 
+      {/* ★메타 조회가 <b>실패</b>했을 때는 아래 빈 상태 안내를 쓰지 않는다 — 두 상태는 다르고,
+          실패를 「표시할 값이 없습니다」로 말하면 화면이 거짓말을 한다(사양 SCREEN-019 가 두
+          안내를 한 문구로 합치지 말라고 못박는다). 자리는 빈 상태 안내와 같은 범위다 — 앞의 네
+          패널은 각자 자기 훅으로 조회하므로 이 실패에 영향받지 않는다. */}
+      {metaError && (
+        <Alert
+          variant="error"
+          className="m-3"
+          data-testid="review-meta-error"
+          title="메타 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."
+        />
+      )}
+
+      <MetaHelpProvider visible={helpVisible}>
       {/* ★1~4 — 작업자 화면의 패널을 읽기 전용으로 재사용한다(검수 전용 표현을 만들지 않는다).
           순서는 사양 고정: 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보.
           ⚠ 이 넷은 각자 자기 훅으로 조회하므로 아래 빈 상태 판정이 세는 대상이 아니다. */}
@@ -152,14 +173,15 @@ export function ReviewMetaPanel({
         eventTypeCd={summary.eventTypeCd}
         eventTypeName={eventTypeNameOf(allVrfcEvntTypes, summary.eventTypeCd)}
         descriptionFirstLine={summary.descriptionFirstLine}
-        unfilledItems={summary.unfilledItems}
         onOpenWindow={onOpenWindow}
       />
 
       {/* ★빈 상태 안내 — 자리와 문구가 모두 «요약 카드가 가리키는 두 축 + 아래 두 섹션»으로
           한정된다. 위의 네 패널보다 앞에 두거나 범위를 밝히지 않는 문구를 쓰면, 그 패널들이 값을
           그리는 동안 "메타 정보가 없다"고 말하게 되어 안내와 값이 한 화면에 함께 뜬다. */}
-      {isEmpty && (
+      {/* ★조회 실패일 때는 위의 실패 안내가 대신한다 — 「값이 없다」와 「못 불러왔다」를 같은
+          문구로 합치지 않는다(합치면 새로고침하면 되는 상황을 값 없음으로 읽게 된다). */}
+      {isEmpty && !metaError && (
         <p
           className="px-1 py-4 text-center text-caption text-gray-500"
           data-testid="review-meta-empty"
@@ -175,6 +197,7 @@ export function ReviewMetaPanel({
           구 렌더는 서버 K/V 를 날것으로 늘어놓아 내부 저장 키가 라벨로 보이고 길이가 밀리초로
           보였다 — 되돌리지 말 것. */}
       <VideoTechnicalMetaPanel srcSn={srcSn} />
+      </MetaHelpProvider>
     </section>
   );
 }
