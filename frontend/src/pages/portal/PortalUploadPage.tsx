@@ -18,11 +18,12 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Download, Inbox, Trash2, Upload, X } from 'lucide-react';
+import { CircleAlert, Download, FileBraces, Inbox, Trash2, Upload, X } from 'lucide-react';
 
 import { Pagination } from '@/components/common/Pagination';
 import { PortalAlert } from '@/components/portal/ui/PortalAlert';
 import { PortalCard } from '@/components/portal/ui/PortalCard';
+import { PortalIconButton } from '@/components/portal/ui/PortalIconButton';
 import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
 import {
@@ -67,6 +68,11 @@ const PAGE_SIZE = 20;
 /** 포털 영상 허용 확장자(BE 와 동일: mp4/mov/avi). accept 1차 가드 — 최종 검증은 서버. */
 const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi';
 const UPLOAD_HINT = 'mp4 · mov · avi / 최대 5GB / 연결이 끊겨도 이어서 올립니다';
+/** 내려받기 버튼이 잠겼을 때의 설명 — 한 자산에서 한 번에 하나만 받는다. */
+const DOWNLOAD_LOCKED_TIP = '다른 내려받기가 끝난 뒤에 받을 수 있습니다';
+/** 삭제 버튼이 잠겼을 때의 설명 — 추출 중 자산은 서버도 409 로 거부한다. */
+const DELETE_LOCKED_TIP =
+  '프레임을 뽑는 중에는 지울 수 없습니다. 준비가 끝나거나 실패로 마무리되면 지울 수 있습니다.';
 
 /**
  * 파일 크기 표기 — 영상은 최대 5GB 라 GB 단계까지 올린다.
@@ -483,34 +489,32 @@ export function PortalUploadPage() {
 
                         {/*
                           내려받기 둘은 **아이콘만** 둔다 — 한 줄이 조작을 다섯까지 담아 전부 글자로
-                          두면 조작 덩어리가 본문을 밀어낸다. 두 버튼 모두 '내려받기'라 같은 아이콘을
-                          쓰고 **구분은 접근 이름이 한다**(아이콘 한 벌 관례).
+                          두면 조작 덩어리가 본문을 밀어낸다. 대신 **모양을 가르고**(라벨 JSON = 중괄호
+                          문서 · 원본 = 내려받기) 마우스를 올리면 짧은 설명이 뜬다[SCREEN-033].
                           ⚠ 줄이 여럿이라 접근 이름에 파일명을 붙인다 — 이름 없이 두면 같은 이름의
                             버튼이 자산 수만큼 생겨 어느 자산인지 가릴 수 없다.
                         */}
                         {isReady && (
                           <>
-                            <button
-                              type="button"
+                            <PortalIconButton
                               onClick={() => exportLabels(u)}
                               disabled={busy !== undefined}
                               aria-label={`${u.orgnlFileNm} 내보내기(JSON)`}
-                              className={portalButtonSm('ghost', 'px-2')}
+                              tooltip={busy !== undefined ? DOWNLOAD_LOCKED_TIP : '라벨 JSON 내보내기'}
                             >
-                              <Download className="size-4" strokeWidth={2} aria-hidden />
-                            </button>
-                            <button
-                              type="button"
+                              <FileBraces className="size-4" strokeWidth={2} aria-hidden />
+                            </PortalIconButton>
+                            <PortalIconButton
                               onClick={() => downloadFile(u)}
                               disabled={busy !== undefined}
                               aria-label={`${u.orgnlFileNm} 원본 다운로드`}
                               /* 진행 사실은 보조기술에도 전달한다. 원본은 최대 5GB 라 오래
                                  걸릴 수 있어 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
                               aria-busy={busy === 'file' || undefined}
-                              className={portalButtonSm('ghost', 'px-2')}
+                              tooltip={busy !== undefined ? DOWNLOAD_LOCKED_TIP : '원본 파일 내려받기'}
                             >
                               <Download className="size-4" strokeWidth={2} aria-hidden />
-                            </button>
+                            </PortalIconButton>
                             {/*
                               취소는 **원본을 내려받는 동안에만** 나타나고 상호 비활성 대상에서
                               제외된다 — 취소는 눌러야 동작한다.
@@ -518,14 +522,13 @@ export function PortalUploadPage() {
                                 커서 아래에서 버튼이 갈려 «한 번 더» 누르려던 손이 취소를 누른다.
                             */}
                             {busy === 'file' && (
-                              <button
-                                type="button"
+                              <PortalIconButton
                                 onClick={() => cancelFileDownload(u.uldSn)}
                                 aria-label={`${u.orgnlFileNm} 원본 다운로드 취소`}
-                                className={portalButtonSm('ghost', 'px-2')}
+                                tooltip="내려받기 취소"
                               >
                                 <X className="size-4" strokeWidth={2} aria-hidden />
-                              </button>
+                              </PortalIconButton>
                             )}
                           </>
                         )}
@@ -542,32 +545,19 @@ export function PortalUploadPage() {
                         )}
 
                         {/*
-                          비활성 버튼은 마우스 이벤트를 받지 않으므로 **감싸는 요소**가 사유를
-                          나른다. 문구는 마크업에 실려 있어(`role="note"`) 속성이 지워져도
-                          스크린리더가 읽는다.
+                          잠겼을 때는 설명이 **왜 못 지우는지**를 말한다. 비활성 버튼은 마우스
+                          이벤트를 받지 않으므로 감싸는 요소가 설명을 띄운다(`PortalIconButton`).
+                          문구는 마크업에 실려 있어 스크린리더도 읽는다.
                         */}
-                        <span className="group relative inline-flex">
-                          <button
-                            type="button"
-                            onClick={() => void onDelete(u)}
-                            disabled={deleteUpload.isPending || isProcessing}
-                            aria-label={`${u.orgnlFileNm} 삭제`}
-                            aria-describedby={isProcessing ? `del-tip-${u.uldSn}` : undefined}
-                            className={portalButtonSm('ghost', 'px-2')}
-                          >
-                            <Trash2 className="size-4" strokeWidth={2} aria-hidden />
-                          </button>
-                          {isProcessing && (
-                            <span
-                              id={`del-tip-${u.uldSn}`}
-                              role="note"
-                              className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-56 rounded-input border border-gray-200 bg-white p-2 text-caption text-gray-700 opacity-0 shadow-dropdown transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                            >
-                              프레임을 뽑는 중에는 지울 수 없습니다. 준비가 끝나거나 실패로
-                              마무리되면 지울 수 있습니다.
-                            </span>
-                          )}
-                        </span>
+                        <PortalIconButton
+                          onClick={() => void onDelete(u)}
+                          disabled={deleteUpload.isPending || isProcessing}
+                          aria-label={`${u.orgnlFileNm} 삭제`}
+                          tone="danger"
+                          tooltip={isProcessing ? DELETE_LOCKED_TIP : '삭제'}
+                        >
+                          <Trash2 className="size-4" strokeWidth={2} aria-hidden />
+                        </PortalIconButton>
                       </>
                     }
                   />

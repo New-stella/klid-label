@@ -30,7 +30,7 @@
 //   서버가 토큰 주체로 강제한다(CWE-639).
 
 import { useRef, useState } from 'react';
-import { Download, Inbox, X } from 'lucide-react';
+import { Download, FileBraces, Inbox, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { Pagination } from '@/components/common/Pagination';
@@ -96,6 +96,16 @@ const NO_ENTRY_REASON = '지금은 이어서 작업할 수 없습니다.';
 
 /** 내려받을 저작물이 없는 행의 사유 문구. */
 const NO_DOWNLOAD_REASON = '아직 저장한 작업이 없어 내려받을 것이 없습니다.';
+
+/**
+ * 내려받기 버튼 문구 — **받는 형식을 밝힌다**[SCREEN-028].
+ * 같은 자리의 버튼이 출처마다 다른 파일을 내려주므로(데이터마트 = 프레임 이미지·문서·비식별 영상 ZIP,
+ * 업로드 = 라벨 JSON 한 파일) 문구가 같으면 누르기 전에는 무엇을 받는지 알 수 없다.
+ */
+const DOWNLOAD_LABEL: Record<PortalWorkAssetSource, string> = {
+  DATAMART: 'ZIP 내려받기',
+  PORTAL_UPLOAD: 'JSON 내려받기',
+};
 
 /**
  * 주소의 page 값(0부터)을 읽는다. 사용자가 주소를 직접 고칠 수 있으므로 음수·소수·비수치는
@@ -412,7 +422,7 @@ export function PortalHomePage() {
                             <button
                               type="button"
                               data-testid={`portal-work-download-${work.rawSn}`}
-                              aria-label={`${work.videoName} 작업 데이터 내려받기`}
+                              aria-label={`${work.videoName} ${DOWNLOAD_LABEL[work.assetSource]}`}
                               /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은
                                  보조기술에 읽히지 않는다. 이 요청은 GB 급일 수 있어 진행 중이라는
                                  사실만은 전달해야 한다. */
@@ -422,8 +432,13 @@ export function PortalHomePage() {
                               onClick={() => onDownload(work)}
                               className={portalButtonSm('secondary')}
                             >
-                              <Download className="size-3.5" strokeWidth={2} aria-hidden />
-                              {downloading ? '내려받는 중…' : '내려받기'}
+                              {/* 아이콘도 형식을 따른다 — 라벨 JSON 은 업로드 목록과 같은 중괄호 문서 모양. */}
+                              {work.assetSource === 'PORTAL_UPLOAD' ? (
+                                <FileBraces className="size-3.5" strokeWidth={2} aria-hidden />
+                              ) : (
+                                <Download className="size-3.5" strokeWidth={2} aria-hidden />
+                              )}
+                              {downloading ? '내려받는 중…' : DOWNLOAD_LABEL[work.assetSource]}
                             </button>
                           </span>
 
