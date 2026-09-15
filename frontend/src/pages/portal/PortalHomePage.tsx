@@ -36,7 +36,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Pagination } from '@/components/common/Pagination';
 import { PortalAlert } from '@/components/portal/ui/PortalAlert';
 import { PortalBadge } from '@/components/portal/ui/PortalBadge';
-import { PortalCard } from '@/components/portal/ui/PortalCard';
 import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
 import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
 import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
@@ -253,7 +252,11 @@ export function PortalHomePage() {
             description="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다."
           />
         ) : (
-          <PortalCard ariaLabel="내 저장 작업 목록" bodyClassName="overflow-x-auto p-0">
+          /*
+           * ★카드로 한 번 더 감싸지 않는다[SCREEN-028] — 포털이 이미 흰 카드를 그리므로 우리 카드를
+           *   얹으면 상자가 두 겹이 된다. 열 제목 띠가 목록의 시작을 알린다.
+           */
+          <div className="overflow-x-auto">
             {/*
               * ★**열 폭을 표에 맡기지 않는다.** 자동 배분에 두면 브라우저가 「가장 잘 접히는 열」을
               *   최소 폭까지 눌러 그 칸만 여러 줄로 흘러내린다(형제 화면 증강 목록에서 실제로
@@ -461,7 +464,7 @@ export function PortalHomePage() {
                 })}
               </tbody>
             </table>
-          </PortalCard>
+          </div>
         )}
 
         {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
