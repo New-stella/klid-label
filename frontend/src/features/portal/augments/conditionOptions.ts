@@ -59,6 +59,8 @@ export type PortalAugmentSeverityCode = (typeof PORTAL_AUGMENT_CONDITION_CODES.s
  * 컴포넌트는 이 표를 순회할 뿐 목록을 복제하지 않는다. 복제하면 코드가 늘 때 한쪽만 고쳐져
  * 화면과 전송값이 갈라진다. 전송값은 언제나 코드다.
  */
+// ★ 우리말 이름표는 포털 생성형 AI 와 같게 둔다(황혼 · 도심 · 주거지역 · 시골 · 숲) — 포털 화면 검토 결정(2026-09-14).
+//   가리키는 코드는 그대로다.
 export const PORTAL_AUGMENT_CONDITION_FIELDS: {
   [K in PortalAugmentConditionKey]: {
     label: string;
@@ -69,7 +71,7 @@ export const PORTAL_AUGMENT_CONDITION_FIELDS: {
   time: {
     label: '시간대',
     codes: PORTAL_AUGMENT_CONDITION_CODES.time,
-    codeLabel: { DAWN: '새벽', DAY: '낮', DUSK: '해질녘', NIGHT: '밤' },
+    codeLabel: { DAWN: '새벽', DAY: '낮', DUSK: '황혼', NIGHT: '밤' },
   },
   season: {
     label: '계절',
@@ -95,11 +97,11 @@ export const PORTAL_AUGMENT_CONDITION_FIELDS: {
       ROAD: '도로',
       UNDERPASS: '지하차도',
       RIVER: '하천',
-      URBAN: '도시',
-      RESIDENTIAL: '주거지',
-      RURAL: '농촌',
+      URBAN: '도심',
+      RESIDENTIAL: '주거지역',
+      RURAL: '시골',
       MOUNTAIN: '산지',
-      FOREST: '산림',
+      FOREST: '숲',
     },
   },
   severity: {
