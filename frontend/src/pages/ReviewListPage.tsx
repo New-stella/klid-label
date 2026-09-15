@@ -1,19 +1,31 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowUpDown, ChevronDown, ChevronRight, ChevronUp, RefreshCw } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
 import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { BulkApproveBar } from '@/features/review/components/BulkApproveBar';
+import { BulkApproveConfirmModal } from '@/features/review/components/BulkApproveConfirmModal';
+import { BulkApproveResultModal } from '@/features/review/components/BulkApproveResultModal';
 import { ReviewKpiCards } from '@/features/review/components/ReviewKpiCards';
 import { ReviewListFilters } from '@/features/review/components/ReviewListFilters';
+import { useBatchApproveReviews } from '@/features/review/hooks/useBatchApproveReviews';
 import { useReviewList } from '@/features/review/hooks/useReviewList';
 import { useReviewSummary } from '@/features/review/hooks/useReviewSummary';
+import {
+  claimLabel,
+  claimViewOf,
+  isSelectable,
+  numericUserId,
+  unselectableReason,
+} from '@/features/review/reviewClaim';
 import {
   DEFAULT_REVIEW_FILTERS,
   DEFAULT_REVIEW_SORT,
@@ -29,12 +41,15 @@ import {
   type ReviewSortDirection,
   type ReviewSortEntry,
 } from '@/features/review/reviewListParams';
-import type { Review, ReviewStatus } from '@/features/review/types';
+import type { BatchApproveResponse, Review, ReviewStatus } from '@/features/review/types';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
 import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
+import { ROLE_LABEL } from '@/lib/roleDisplay';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 /**
  * 현재 URL 이 정규화 결과와 **완전히 같은가** — 키 개수까지 본다.
@@ -55,6 +70,7 @@ function isSameSearch(
  * UI/UX §4-9 정합:
  * - KPI 4종 (검수요청 / 검수중 / 승인 / 반려) — **서버 집계 전체 기준** + 클릭 필터(재클릭 해제)
  * - 검색·상태 필터 (영상명·작업자명) — **서버 필터**
+ * - 점유 표시(「검수 중」)·최근 승인자·체크박스 + 일괄 검수완료 — [@design ADR-067]
  * - DataTable 컬럼: 작업자/제출일/라벨 수 + [검수시작 >] / [이어서 검수] / [결과보기 >]
  *
  * ★ 필터·정렬 축 (Phase 5):
@@ -183,6 +199,114 @@ export function ReviewListPage() {
   // ★ 서버가 이미 거른 결과를 그대로 그린다 — 클라이언트 재필터 금지.
   const rows = useMemo(() => data?.content ?? [], [data]);
 
+  // ── 일괄 검수완료 ────────────────────────────────────────────────
+  //
+  // 고를 수 있는 것은 **내가 잡고 있는 영상뿐**이며 그 판정은 서버가 행마다 내려준
+  // `bulkApprovable` 하나로 한다(`reviewClaim.isSelectable`). 화면이 점유·상태로 다시 계산하지
+  // 않는다 — 자격의 상태 축이 재검수 건(승인 상태 그대로)까지 포함해 화면 값만으로는 재현되지
+  // 않고, 재현하려 들면 두 번째 진실원이 생긴다.
+  const pushToast = useUiStore((s) => s.pushToast);
+  const myUserId = useMemo(() => numericUserId(claims?.sub), [claims?.sub]);
+
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [batchResult, setBatchResult] = useState<BatchApproveResponse | null>(null);
+
+  /**
+   * 실제로 보낼 대상 — **지금 화면에 있고 고를 수 있는 행**과의 교집합이다.
+   *
+   * ★상태만 믿고 보내지 않는 이유: 승인 뒤 재조회로 행이 목록에서 빠지거나 남이 먼저 집어가
+   * `bulkApprovable` 이 꺼질 수 있는데, 그때 옛 선택이 남아 있으면 **화면에 보이지 않는 영상을
+   * 보내게 된다**(무엇을 보내는지 확인할 수 없는 상태 — `SCREEN-018`).
+   */
+  const selectedRows = useMemo(
+    () => rows.filter((r) => isSelectable(r) && selectedVideoIds.has(r.videoId)),
+    [rows, selectedVideoIds],
+  );
+
+  /** 이번 페이지에서 고를 수 있는 행 — 머리행 전체선택의 대상 집합. */
+  const selectableRows = useMemo(() => rows.filter(isSelectable), [rows]);
+
+  const allSelectableChecked =
+    selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+  const someSelectableChecked = selectedRows.length > 0 && !allSelectableChecked;
+
+  // 조회 조건·페이지가 바뀌면 고른 것을 푼다(SCREEN-018) — 보이지 않는 행이 대상에 남지 않게.
+  useEffect(() => {
+    setSelectedVideoIds(new Set());
+  }, [filters.q, filters.status, sort.column, sort.direction, page]);
+
+  const toggleRow = useCallback((videoId: number) => {
+    setSelectedVideoIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId);
+      else next.add(videoId);
+      return next;
+    });
+  }, []);
+
+  /** 머리행 전체선택 — **고를 수 있는 행만** 고르고 고를 수 없는 행은 건너뛴다. */
+  const toggleAllSelectable = useCallback(() => {
+    setSelectedVideoIds((prev) => {
+      const selectableIds = selectableRows.map((r) => r.videoId);
+      const everySelected =
+        selectableIds.length > 0 && selectableIds.every((id) => prev.has(id));
+      if (everySelected) return new Set();
+      return new Set(selectableIds);
+    });
+  }, [selectableRows]);
+
+  const clearSelection = useCallback(() => setSelectedVideoIds(new Set()), []);
+
+  const { mutate: runBatchApprove, isPending: batchPending } = useBatchApproveReviews({
+    onSuccess: (res) => {
+      setConfirmOpen(false);
+      // ★전건 실패여도 결과 창으로 알린다 — 요청 자체는 받아들여졌다(API-250).
+      setBatchResult(res);
+    },
+    onError: (err) => {
+      // 여기로 오는 것은 요청 **자체**가 거부된 경우다(빈 목록·상한 초과 400, 인증·인가).
+      setConfirmOpen(false);
+      pushToast({
+        variant: 'error',
+        message: extractBeMessage(err, '일괄 검수완료 요청을 보내지 못했습니다.'),
+      });
+    },
+  });
+
+  const handleConfirmBatchApprove = useCallback(() => {
+    if (selectedRows.length === 0) return;
+    runBatchApprove({ videoIds: selectedRows.map((r) => r.videoId) });
+  }, [runBatchApprove, selectedRows]);
+
+  /** 결과 창을 닫는다 — 처리된 건의 상태·점유 표시를 새로 받는다. */
+  const handleCloseBatchResult = useCallback(() => {
+    setBatchResult(null);
+    clearSelection();
+    void refetch();
+    void refetchSummary();
+  }, [clearSelection, refetch, refetchSummary]);
+
+  /** 실패한 건만 다시 고른 상태로 목록에 돌아간다. */
+  const handleRetryFailed = useCallback(
+    (videoIds: number[]) => {
+      setBatchResult(null);
+      setSelectedVideoIds(new Set(videoIds));
+      void refetch();
+      void refetchSummary();
+    },
+    [refetch, refetchSummary],
+  );
+
+  /** 결과 창이 식별자만 받으므로 이름은 현재 목록에서 잇는다. */
+  const videoNameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    rows.forEach((r) => {
+      map[r.videoId] = r.cctvName;
+    });
+    return map;
+  }, [rows]);
+
   // ── 핸들러 ───────────────────────────────────────────────────────
   const handleSearchChange = useCallback(
     (q: string) => writeSearchParams({ filters: { ...filters, q } }),
@@ -240,14 +364,20 @@ export function ReviewListPage() {
    * 스크린리더·음성제어에는 "검수 시작" 으로 읽히면 사용자가 보이는 대로 말해도 버튼이 눌리지 않는다.
    * 진행 방향 표식(셰브론 아이콘)은 장식이라 `aria-hidden` 으로 분리해 이름에서 제외한다.
    */
-  const actionLabel = (status: ReviewStatus) => {
-    if (status === 'REVIEW_PENDING') return '검수시작';
-    if (status === 'REVIEWING') return '이어서 검수';
+  const actionLabel = (r: Review) => {
+    if (r.status === 'REVIEW_PENDING') return '검수시작';
+    if (r.status === 'REVIEWING') return '이어서 검수';
+    // ★재검수 건을 「결과보기」로 두지 않는다(SCREEN-018). 그 영상도 **검수 시작을 눌러야**
+    //   그 사람이 영상을 잡고 일괄 검수완료 대상에 담을 수 있는데, 결과보기로 두면 그 길이
+    //   화면에 드러나지 않는다(재검수 건은 승인 상태 그대로라 상태 배지로는 구분되지 않는다).
+    if (r.status === 'COMPLETED' && r.needsRecheck) return '재검수 시작';
     return '결과보기';
   };
 
-  const actionVariant = (status: ReviewStatus): 'primary' | 'secondary' => {
-    if (status === 'REVIEW_PENDING') return 'primary';
+  const actionVariant = (r: Review): 'primary' | 'secondary' => {
+    if (r.status === 'REVIEW_PENDING') return 'primary';
+    // 재검수도 「해야 할 일」이라 검수 시작과 같은 무게로 둔다.
+    if (r.status === 'COMPLETED' && r.needsRecheck) return 'primary';
     // 검수중 / 완료(승인·반려) 모두 secondary로 통일 — 동일 위치의 다른 버튼과 시각 일관성 확보
     return 'secondary';
   };
@@ -261,6 +391,40 @@ export function ReviewListPage() {
   // status 는 BE allowlist 에는 있어도 **사용자에게 의미 없는 축이라 정렬 헤더를 두지 않는다** — 아래 참조.
   const columns = useMemo<ColumnDef<Review, unknown>[]>(
     () => [
+      {
+        id: 'select',
+        // 머리행 전체선택 — 이번 페이지에서 **고를 수 있는 행만** 고르고 나머지는 건너뛴다.
+        // 일부만 골라져 있으면 중간 상태(`aria-checked="mixed"`)로 보인다.
+        header: () => (
+          <Checkbox
+            aria-label="현재 페이지 전체 선택"
+            checked={
+              allSelectableChecked ? true : someSelectableChecked ? 'indeterminate' : false
+            }
+            disabled={selectableRows.length === 0}
+            onCheckedChange={toggleAllSelectable}
+            data-testid="review-select-all"
+          />
+        ),
+        cell: ({ row }) => {
+          const r = row.original;
+          const selectable = isSelectable(r);
+          const reason = unselectableReason(r, myUserId);
+          return (
+            <div className="flex min-w-[120px] items-center gap-2">
+              <Checkbox
+                aria-label={`${r.cctvName} 선택`}
+                checked={selectedVideoIds.has(r.videoId) && selectable}
+                disabled={!selectable}
+                onCheckedChange={() => toggleRow(r.videoId)}
+                data-testid={`review-select-${r.videoId}`}
+              />
+              {/* 체크칸만 꺼 두면 왜 안 되는지 알 길이 없다 — 사유를 함께 세운다(SCREEN-018). */}
+              {reason && <span className="text-caption text-gray-500">{reason}</span>}
+            </div>
+          );
+        },
+      },
       {
         id: 'cctvName',
         header: '영상명',
@@ -276,11 +440,18 @@ export function ReviewListPage() {
       {
         id: 'eventName',
         header: '이벤트',
+        // 빈 값 표기(`-`)를 쓰는 칸이 이 행에 셋(이벤트·검수 중·최근 승인)이라 행 단위로는
+        // 서로 구분되지 않는다 — 어느 칸의 폴백인지 집을 수 있게 식별자를 단다.
         cell: ({ row }) =>
           row.original.eventName ? (
             <EventTypeBadge eventType={row.original.eventName} />
           ) : (
-            <span className="text-caption text-gray-400">-</span>
+            <span
+              className="text-caption text-gray-400"
+              data-testid={`review-event-${row.original.videoId}`}
+            >
+              -
+            </span>
           ),
       },
       { id: 'workerName', header: '작업자', cell: ({ row }) => row.original.workerName },
@@ -340,18 +511,64 @@ export function ReviewListPage() {
         ),
       },
       {
+        id: 'reviewing',
+        header: '검수 중',
+        // ★표시 전용이다 — 이 축으로 목록을 거르거나 정렬 헤더를 두지 않는다(SCREEN-018).
+        //   검수 목록은 대기 **전체**를 보여주며 「내가 검수 중인 것만 보기」를 만들지 않는다.
+        cell: ({ row }) => {
+          const label = claimLabel(claimViewOf(row.original, myUserId));
+          // 아무도 잡지 않았거나 유예가 지나 풀렸으면 칸을 비운다(만료 판정은 서버가 한다).
+          if (!label) return <span className="text-caption text-gray-400">-</span>;
+          return (
+            <span
+              className="whitespace-nowrap text-caption text-gray-700"
+              data-testid={`review-claim-${row.original.videoId}`}
+            >
+              {label}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'lastApproval',
+        header: '최근 승인',
+        // ★역할은 **승인한 그 시점에 기록된 값**이라 그 사람의 지금 역할과 다를 수 있고 그것이
+        //   의도다. 역할만 비어 있는 옛 기록은 **빈 괄호를 남기지 않고** 이름과 시각만 보인다.
+        cell: ({ row }) => {
+          const r = row.original;
+          if (!r.lastApprovedAt && !r.lastApproverName) {
+            return <span className="text-caption text-gray-400">-</span>;
+          }
+          const name = r.lastApproverName?.trim();
+          const role = r.lastApproverRole?.trim();
+          // 표시명은 역할 표시 축의 **단일 진실원**을 쓴다 — 표를 복제하면 화면마다 갈린다.
+          const who = name ? (role ? `${name}(${ROLE_LABEL[role] ?? role})` : name) : null;
+          const at = r.lastApprovedAt
+            ? new Date(r.lastApprovedAt).toLocaleString('ko-KR')
+            : null;
+          return (
+            <span
+              className="whitespace-nowrap text-caption text-gray-700"
+              data-testid={`review-last-approval-${r.videoId}`}
+            >
+              {[who, at].filter(Boolean).join(' · ')}
+            </span>
+          );
+        },
+      },
+      {
         id: 'actions',
         header: '액션',
         cell: ({ row }) => {
           const r = row.original;
           return (
             <Button
-              variant={actionVariant(r.status)}
+              variant={actionVariant(r)}
               size="sm"
               onClick={() => navigate(`/review/${r.id}`)}
-              aria-label={`${actionLabel(r.status)} ${r.cctvName}`}
+              aria-label={`${actionLabel(r)} ${r.cctvName}`}
             >
-              {actionLabel(r.status)}
+              {actionLabel(r)}
               {/* 간격은 Button 의 flex gap 이 준다 — 공백 문자를 넣지 않는다.
                   진행 방향 표식은 장식이라 aria-hidden(버튼 이름은 위 aria-label 이 정한다). */}
               {r.status !== 'REVIEWING' && <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
@@ -360,7 +577,19 @@ export function ReviewListPage() {
         },
       },
     ],
-    [handleSubmittedAtSortClick, navigate, sort.column, sort.direction],
+    [
+      allSelectableChecked,
+      handleSubmittedAtSortClick,
+      myUserId,
+      navigate,
+      selectableRows.length,
+      selectedVideoIds,
+      someSelectableChecked,
+      sort.column,
+      sort.direction,
+      toggleAllSelectable,
+      toggleRow,
+    ],
   );
 
   return (
@@ -411,6 +640,14 @@ export function ReviewListPage() {
         /* 필터·정렬 전환 왕복 동안 표는 **이전 결과**다(keepPreviousData) — 그 사실을 알린다.
            이 표시가 없으면 배지·KPI 선택은 새 필터인데 행은 옛 필터인 화면을 사실로 오인한다. */
         <div aria-busy={isRefreshing} className="flex flex-col gap-2">
+          {/* 일괄 검수완료 실행줄 — 표 바로 위. 한 건도 고르지 않았으면 그려지지 않는다. */}
+          <BulkApproveBar
+            selectedCount={selectedRows.length}
+            limit={data?.bulkApproveLimit}
+            onRequestApprove={() => setConfirmOpen(true)}
+            onClearSelection={clearSelection}
+            isPending={batchPending}
+          />
           {isRefreshing && (
             <p
               data-testid="review-refreshing"
@@ -444,6 +681,24 @@ export function ReviewListPage() {
           />
         </div>
       )}
+
+      {/* 되돌릴 수 없는 처리라 곧바로 보내지 않고 대상 목록을 보여주는 확인 창을 거친다. */}
+      <BulkApproveConfirmModal
+        open={confirmOpen}
+        targets={selectedRows.map((r) => ({ videoId: r.videoId, cctvName: r.cctvName }))}
+        onConfirm={handleConfirmBatchApprove}
+        onCancel={() => setConfirmOpen(false)}
+        isPending={batchPending}
+      />
+
+      {/* 부분 실패를 허용하는 창구라 성공·실패를 함께 보인다 — 전건 실패도 오류 화면이 아니다. */}
+      <BulkApproveResultModal
+        open={batchResult !== null}
+        result={batchResult}
+        videoNameById={videoNameById}
+        onRetryFailed={handleRetryFailed}
+        onClose={handleCloseBatchResult}
+      />
     </section>
   );
 }

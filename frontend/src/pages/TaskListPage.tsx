@@ -216,10 +216,8 @@ export function TaskListPage() {
     { role: Role.WORKER, size: 100 },
     { enabled: isReviewer },
   );
-  const { data: reviewersPage } = useUsers(
-    { role: Role.REVIEWER, size: 100 },
-    { enabled: isReviewer },
-  );
+  // ★검수자 후보를 조회하지 않는다(ADR-067) — 검수는 배정 없이 전체 대기열에서 집어가므로
+  //   목록에 검수자 열이 없고 배정 요청에도 검수자 항목이 없다. 되살리지 말 것.
 
   // useMemo 로 감싸 참조를 안정화한다 — 아래 파생 useMemo 들의 deps 가 매 렌더 바뀌지 않게.
   const tasks = useMemo(() => tasksPage?.content ?? [], [tasksPage]);
@@ -236,15 +234,6 @@ export function TaskListPage() {
       })),
     [workersPage],
   );
-
-  // 검수자 ID → 이름 매핑 (TaskBoardItem.reviewerName 이 비어있을 때 보조 폴백)
-  const reviewerMap = useMemo(() => {
-    const map: Record<number, string> = {};
-    (reviewersPage?.content ?? []).forEach((r) => {
-      map[r.id] = r.name;
-    });
-    return map;
-  }, [reviewersPage]);
 
   // 이벤트 유형 옵션 — 역할별 서버 조회 결과(현재 페이지에 없는 코드도 고를 수 있다).
   // - REVIEWER: /v1/tasks/board/event-types
@@ -295,8 +284,6 @@ export function TaskListPage() {
             cctvName,
             workerId: it.workerId as number,
             workerName: it.workerName ?? '',
-            reviewerId: it.reviewerId ?? undefined,
-            reviewerName: it.reviewerName ?? undefined,
             status: (it.status === 'UNASSIGNED'
               ? 'PENDING'
               : it.status) as AssignmentStatus,
@@ -615,7 +602,6 @@ export function TaskListPage() {
         onToggleRow={toggleRow}
         onToggleAllPaged={toggleAllPaged}
         actionsDisabled={hasListError}
-        reviewerMap={reviewerMap}
         onAssign={handleAssignRow}
         onHistory={handleHistoryRow}
         onOpenLabel={(srcSn) => navigate(`/label/${srcSn}`)}

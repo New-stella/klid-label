@@ -48,8 +48,6 @@ function boardRow(o: BoardRowOverrides = {}) {
     workerName: null,
     assignedAt: null,
     firstSrcSn: null,
-    reviewerId: null,
-    reviewerName: null,
   };
 }
 

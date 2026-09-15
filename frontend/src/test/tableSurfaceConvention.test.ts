@@ -168,6 +168,12 @@ const TABLES: TableCase[] = [
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
   {
+    // 대화상자 안의 표지만 **시각 헤더를 가진 데이터 표**라 규약 대상이다(제외 선례인
+    // `ShortcutCheatSheet` 는 `sr-only` 헤더라 읽힐 열 구조가 아예 없다는 것이 사유였다).
+    label: 'BulkApproveResultModal(검수 일괄 완료 결과 — 처리되지 않은 영상)',
+    file: 'src/features/review/components/BulkApproveResultModal.tsx',
+  },
+  {
     // ⚠ 형제 화면(증강·업로드)은 2026-09-08 에 표에서 **행 카드**로 바뀌어 이 목록에서 빠졌다.
     //   이 화면만 표로 남는다 — 네 열이 전부 짧은 값이라 폭이 모자라지 않고, 시안(SD-024)이
     //   표로 확정했다. 형태는 담는 내용이 정한다.
