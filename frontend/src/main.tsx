@@ -6,6 +6,8 @@ import ReactDOM from 'react-dom/client';
 import './styles/bootstrap';
 
 import { AuthoringApp } from './AuthoringApp';
+import { IS_PORTAL_CHANNEL_BUILD } from './lib/buildChannel';
+import { PORTAL_EMBED_ANCHOR_CLASS } from './lib/portalEmbedAnchor';
 
 // 전역 동적 import 실패 가드 — 주로 프로덕션 modulepreload 용이지만 재배포로 stale 해진
 // 청크 대비 belt-and-suspenders. (dev 의 1차 방어는 라우터의 lazyWithRetry.)
@@ -29,10 +31,31 @@ window.addEventListener('vite:preloadError', (event) => {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root element not found');
 
+// [@design INT-013]
+// ★포털 채널을 **Host 없이 단독으로 띄울 때도 마운트 앵커를 세운다** (2026-09-15 개발망 실측).
+//
+// 포털 채널 산출물은 전역 리셋(preflight·우리 base 규칙)을 `.klid-portal-embed` 앵커 안으로
+// 좁혀 내보낸다(`postcss/scope-portal-base-layer.js`). 그 앵커는 원래 Remote 진입점
+// (`remote/AuthoringRemote.tsx`)만 렌더했기 때문에, 이 단독 진입점으로 포털 채널을 띄우면
+// **리셋이 어디에도 걸리지 않았다** — 탭에 목록 점과 밑줄이 붙고, 버튼에 브라우저 기본
+// 테두리가 생기고, 제목·문단에 기본 여백이 들어갔다.
+// ⇒ Remote 와 **같은 앵커**로 감싼다. 관제 채널은 리셋이 전역이라 감싸지 않는다(산출 시점에 접힌다).
+//
+// ⚠ Host 슬롯의 여백을 여기서 흉내 내지 않는다(사용자 확정) — 우리 셸은 임베드에서 좌우 여백이
+//   0 이고(`lib/portalShellLayout`) 여백은 Host 가 준다. 그래서 단독 화면에서는 본문이 창
+//   가장자리에 붙는 것이 정상이다.
 function mount(): void {
+  // 이 진입점은 문서를 소유하므로 브라우저 기본 `body` 여백(8px)을 여기서 지운다 — 포털 채널은
+  // `body{margin:0}` 리셋도 앵커로 좁혀져 나가 문서 몸통에 닿지 않는다(Host 안에서는 Host 가 지운다).
+  if (IS_PORTAL_CHANNEL_BUILD) document.body.style.margin = '0';
+  const app = <AuthoringApp />;
   ReactDOM.createRoot(rootEl as HTMLElement).render(
     <React.StrictMode>
-      <AuthoringApp />
+      {IS_PORTAL_CHANNEL_BUILD ? (
+        <div className={`${PORTAL_EMBED_ANCHOR_CLASS} h-full`}>{app}</div>
+      ) : (
+        app
+      )}
     </React.StrictMode>,
   );
 }

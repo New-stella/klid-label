@@ -28,6 +28,7 @@ import { PORTAL_EMBED_ANCHOR_CLASS } from '@/lib/portalEmbedAnchor';
 const SRC_ROOT = path.resolve(__dirname, '../..');
 const GLOBAL_CSS = readFileSync(path.join(SRC_ROOT, 'styles', 'global.css'), 'utf-8');
 const REMOTE_ENTRY = readFileSync(path.join(SRC_ROOT, 'remote', 'AuthoringRemote.tsx'), 'utf-8');
+const MAIN_ENTRY = readFileSync(path.join(SRC_ROOT, 'main.tsx'), 'utf-8');
 
 /**
  * 주석을 걷어낸 사본 — 검사 대상은 «실제 규칙»이지 설명문이 아니다.
@@ -41,6 +42,7 @@ const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 /** 주석·공백을 걷어낸 사본 — 서식(줄바꿈·들여쓰기) 변경에 가드가 깨지지 않게 한다. */
 const CSS_COMPACT = stripComments(GLOBAL_CSS).replace(/\s+/g, '');
 const REMOTE_CODE = REMOTE_ENTRY.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+const MAIN_CODE = MAIN_ENTRY.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('포털 스타일 격리 — 구성 고정', () => {
   describe('① 유틸리티는 레이어 «밖»에 있어야 한다', () => {
@@ -97,6 +99,14 @@ describe('포털 스타일 격리 — 구성 고정', () => {
   });
 
   describe('③ 앵커는 «우리가 소유한» 요소여야 한다', () => {
+    it('★ 단독 진입점도 포털 채널이면 같은 앵커로 감싼다', () => {
+      // 리셋이 앵커 안으로 좁혀져 나가므로, Host 없이 포털 채널을 띄우는 단독 진입점이 앵커를
+      // 렌더하지 않으면 리셋이 어디에도 걸리지 않는다 — 탭에 목록 점·밑줄, 버튼에 기본 테두리가
+      // 생긴다(2026-09-15 개발 서버 실측). 관제 채널은 리셋이 전역이라 감싸지 않는다.
+      expect(MAIN_CODE).toContain('PORTAL_EMBED_ANCHOR_CLASS');
+      expect(MAIN_CODE).toMatch(/IS_PORTAL_CHANNEL_BUILD \?/);
+    });
+
     it('Remote 진입점이 앵커 클래스를 붙인다', () => {
       // ⚠ 주석을 걷어낸 사본을 본다 — 원문을 보면 「이 요소에 붙인다」고 «적어 둔 설명»이
       //   걸려, 실제 JSX 에서 클래스가 빠져도 통과한다.
