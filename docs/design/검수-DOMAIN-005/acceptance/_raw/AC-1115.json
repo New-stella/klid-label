@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "AC-1115",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-023 관리자 검수 — 검수 시작·승인·반려를 그대로 수행하고 이력에 관리자로 남는다 (happy)",
+    "slug": "uc-023-관리자-검수-검수-시작승인반려를-그대로-수행하고-이력에-관리자로-남는다-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "세 행위가 모두 받아들여진다 — 검수자 권한을 계층으로 물려받기 때문이다",
+          "각 이력에 행위자와 함께 그 행위를 한 시점의 역할이 남고 관리자로 기록된다",
+          "그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로다",
+          "역할 칸이 생기기 전에 쌓인 이력은 역할이 비어 있을 수 있으며 지어내 채우지 않는다"
+        ],
+        "when": [
+          "검수 시작·승인·반려를 차례로 수행한다"
+        ],
+        "given": [
+          "관리자 역할을 가진 사람이 검수 목록을 보고 있다"
+        ]
+      },
+      "statement": "관리자는 검수자 권한을 계층으로 물려받으므로 검수 시작·승인·반려를 모두 수행한다. 별도 계정을 두거나 역할을 바꿔 들어갈 필요가 없다. 그 행위 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남으며, 관리자가 한 행위는 관리자로 남는다. 조회 시점에 현재 역할을 다시 읽는 방식이 아니라서 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로다. 역할 칸이 생기기 전에 쌓인 이력은 역할을 복원할 수 없어 비어 있을 수 있으며 지어내 채우지 않는다.",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-067",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "관리자가 계층으로 물려받은 검수자 권한으로 검수 전 과정을 수행하고 이력에 관리자로 남는다는 것을 검증하는 수용기준 신설."
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-005"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-023"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 관리자가 계층으로 물려받은 검수자 권한으로 검수 전 과정을 수행하고 이력에 관리자로 남는다는 것을 검증하는 수용기준 신설.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T06:03:53.704Z",
+    "created_at": "2026-09-15T06:03:53.704Z"
+  }
+}

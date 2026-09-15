@@ -1,0 +1,209 @@
+{
+  "item": {
+    "id": "API-248",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "포털 데이터셋 소재 조달 착수",
+    "slug": "포털-데이터셋-소재-조달-착수",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/datasets/{datasetId}/materials",
+      "tags": [
+        "portal",
+        "portal-materials"
+      ],
+      "method": "POST",
+      "summary": "데이터셋의 배포 압축본을 저작도구 작업영역으로 복사·해제하도록 착수한다. 접수까지만 답하며(202) 진행은 상태 조회로 본다.",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "202": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "datasetId",
+                  "state"
+                ],
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "NOT_PROVISIONED",
+                      "IN_PROGRESS",
+                      "READY",
+                      "FAILED"
+                    ],
+                    "type": "string",
+                    "example": "IN_PROGRESS",
+                    "description": "조달 진행 상태. NOT_PROVISIONED=조달한 적 없거나 실패 기록이 상한에 밀려 사라졌다 · IN_PROGRESS=이 배포본에서 진행 중 · READY=해제본이 공개돼 있다 · FAILED=직전 조달이 실패했다. ⚠ 화면은 모르는 값이 와도 빈 칸이 되지 않게 폴백 자리를 둔다(값역이 넓어질 수 있다)."
+                  },
+                  "datasetId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "example": 1024,
+                    "description": "요청한 데이터셋 숫자 식별자를 그대로 돌려준다."
+                  },
+                  "materials": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "데이터셋 코드. ⚠ 비어 올 수 있다(예전 데이터) — 비었다고 실패로 다루지 않는다."
+                      },
+                      "variant": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "소재 구분. ⚠ 비어 올 수 있다."
+                      },
+                      "version": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "데이터셋 버전."
+                      },
+                      "entryCount": {
+                        "type": "integer",
+                        "example": 4820,
+                        "description": "압축 해제 항목 수."
+                      },
+                      "totalBytes": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 5368709120,
+                        "description": "압축 해제 총 바이트. 선언된 크기가 아니라 실제로 쓴 바이트다."
+                      },
+                      "videoCount": {
+                        "type": "integer",
+                        "example": 3,
+                        "description": "함께 조회된 데이터셋 영상 수. 이번 범위에서 내려받지는 않는다."
+                      },
+                      "provisionedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "해제본을 공개한 시각."
+                      }
+                    },
+                    "description": "상태가 READY 일 때의 해제본 요약. ⚠ READY 인데도 null 일 수 있다(요약을 읽지 못한 경우) — 준비 완료 판정은 그대로다. ★ 경로 필드는 없다."
+                  },
+                  "failureReason": {
+                    "enum": [
+                      "NOT_CONFIGURED",
+                      "FETCH_REJECTED",
+                      "FETCH_FAILED",
+                      "NO_DEPLOYMENT_ZIP",
+                      "MATERIAL_PATH_REJECTED",
+                      "UNPACK_REJECTED",
+                      "IO_ERROR"
+                    ],
+                    "type": "string",
+                    "example": "FETCH_FAILED",
+                    "nullable": true,
+                    "description": "상태가 FAILED 일 때만 채워진다. ★ 사유를 문자열 메시지에서 파싱하지 않게 값으로 보존한다(문구가 바뀌면 조용히 오분류된다). ⚠ 어느 값도 경로·키·외부 응답 원문을 담지 않는다. NOT_CONFIGURED=연동 주소나 키 미설정 · FETCH_REJECTED=포털이 거부(4xx) · FETCH_FAILED=포털 조회 실패(5xx·시간초과·네트워크) · NO_DEPLOYMENT_ZIP=응답에 배포 압축본이 없다 · MATERIAL_PATH_REJECTED=경로 봉쇄에 걸려 열지 않았다 · UNPACK_REJECTED=해제를 거부했다(경로 탈출·항목 수·총량 상한·손상) · IO_ERROR=복사·해제 중 입출력 실패."
+                  }
+                },
+                "description": "조달 상태. ★ 착수와 상태 조회가 같은 모양을 돌려준다 — 화면은 착수 응답을 그대로 조회 캐시에 앉혀 쓸 수 있다."
+              },
+              "message": {
+                "type": "string",
+                "example": "조달 요청을 접수했습니다.",
+                "nullable": true,
+                "description": "사람에게 보일 수 있는 안내 문장. 화면은 거부 응답의 이 문장을 그대로 보여 준다."
+              },
+              "success": {
+                "type": "boolean",
+                "example": true,
+                "description": "처리 성공 여부."
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "오류 분류 코드. 성공이면 비어 있다."
+              }
+            },
+            "description": "표준 응답 봉투. 조달 상태를 data 에 싣는다."
+          },
+          "description": "접수했다. ★ 새로 시작했건 이미 준비됐건 진행 중이건 언제나 이 코드이며, 구분은 본문의 상태 값이 싣는다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "description": "데이터셋 식별자가 양수가 아니다. 화면은 그 값으로 이 창구를 부르기 전에 스스로 걸러낸다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "description": "인증되지 않았다(토큰 부재·서명 불일치·만료).",
+          "content_type": "application/json"
+        },
+        "403": {
+          "description": "포털 채널·포털 회원 축이 아니다. ⚠ 객체 수준 인가는 이 코드의 사유가 아직 아니다 — 열린 항목이다(본문 참조).",
+          "content_type": "application/json"
+        },
+        "503": {
+          "description": "지금은 받을 수 없다 — 조달 작업 대기열이 포화돼 접수하지 못했다. 선점은 되돌리므로 잠시 뒤 다시 착수할 수 있고, 서버가 함께 준 안내 문장을 화면이 그대로 보여 준다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "notes": "이 창구는 구현이 먼저 서 있었고 설계 산출물이 없어 추적이 끊겨 있었다(구현 기록 시도가 추적 불가로 거부됐다 — 기존 근거가 전부 비추적 타입이었기 때문이다). 그 자리를 메우는 등재이다. 내용은 구현 실물을 열어 읽어 적었고 없는 값은 지어내지 않았다. 포털이 자기 소재 조회 창구를 부르는 번호는 포털 프로젝트의 번호이고 우리 번호 공간과 겹쳐 같은 번호가 서로 다른 것을 가리키므로, 그 창구는 번호가 아니라 경로와 역할로만 식별했다(연동점의 식별자 표기 규칙을 그대로 따랐다). 구현 상태는 implemented 로 적었다 — 창구와 화면이 실재하고 이 등재가 그것을 따라온 것이기 때문이다.",
+        "status": "new",
+        "decided_by": "ADR-012",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "신규 — 포털 데이터셋 소재 조달 착수 창구. 설계 그래프에 창구 산출물이 없어 구현과 설계가 이어지지 않던 자리를 채운다."
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "datasetId",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "example": 1024,
+          "required": true,
+          "description": "조달할 데이터셋의 숫자 식별자. 포털이 진입 주소의 경로 변수에 실어 보낸 값이며, 양수가 아니면 거부한다(경로 세그먼트가 되는 값이라 음수·0 을 그대로 두면 이상한 이름의 자리가 생긴다)."
+        }
+      ],
+      "description": "## 방향을 먼저 못박는다\n이 창구는 「사람」이 부르는 자리다 — 포털 화면에서 저작도구 자리로 넘어온 사용자가 그 화면을 열면 프론트가 이 창구를 부르고, 그 요청을 받은 우리 서버가 포털의 소재 조회 창구를 부른다. 조달의 계약면과 우리 쪽 규칙은 [[INT-014]] 가 소유하며 여기에 복제하지 않는다. 진입 경로(주소의 경로 변수에 데이터셋 숫자 식별자가 실려 온다)는 [[INT-013]] 의 임베딩 진입 규약과 한 축이다.\n\n## ★ 인가 축을 혼동하지 말 것\n포털 채널 토큰과 포털 회원 역할을 함께 요구하는 「사람」 축이다. 포털 「서버」가 사전 공유 키로 부르는 서버간 접두와는 방향도 인증 수단도 다르며, 그쪽 필터·매처·키를 여기서 재사용하지 않는다.\n\n## ★ 언제나 202 — 상태 구분은 응답 코드가 아니라 본문이 싣는다\n배포 압축본이 기가바이트급이라 요청 안에서 복사·해제를 끝내면 시간이 초과된다. 그래서 착수는 선점하고 일을 맡기는 데까지이고, 진행은 상태 조회로 본다.\n\n## ★ 멱등 — 같은 대상은 새로 시작하지 않는다\n이미 준비 완료면 다시 풀지 않는다(사용자가 그 해제본을 물고 작업하는 중일 수 있다). 이미 진행 중이면 그 상태를 답한다. 판정 순서는 준비 완료 → 진행 중이다 — 뒤집으면 방금 끝난 건이 잠깐 진행 중으로 보인다.\n\n## ★ 응답에 내부 경로를 싣지 않는다\n조달처가 준 절대경로도 저장소 루트도 우리 작업영역 경로도 응답에 담지 않는다 — 계약상의 금지이며 그 자리를 나중에 만들지도 않는다. 담는 것은 상태 · 사유 분류 · 개수와 크기뿐이다. 실패 사유도 분류 값이지 외부 응답 원문이나 키가 아니다.\n\n## ★ 원장 표가 없다 — 상태의 진실원이 축마다 갈린다\n「준비 완료」는 파일 시스템(공개된 해제본의 존재)이 정하고, 「진행 중」과 「실패 사유」는 그 배포본의 메모리가 갖는다. 그 귀결은 계약의 일부다 — 서버가 다시 뜨면 뒤의 둘은 사라지고 조달한 적 없음으로 보인다. 이것은 오류가 아니라 다시 착수하면 되는 정상 상태다(고아 잠금으로 영영 막히는 것보다 낫다는 선택이다). 실패 기록은 보존 상한이 있어 오래된 것부터 버려지며, 버려진 기록은 「기록 없음」으로 보이고 다시 착수할 수 있다.\n\n## 대기열이 차면 접수하지 않는다\n맡길 자리가 없으면 선점을 되돌리고 503 으로 거절한다. 선점을 남긴 채 거절하면 그 데이터셋은 아무도 일하지 않는데 「진행 중」으로 굳어 재기동 전까지 조달할 수 없다.\n\n## 경로 봉쇄는 이 창구가 여는 일의 전제다\n조달처가 준 절대경로를 그대로 열지 않으며, 응답이 주장한 저장소 루트가 배포 설정의 허용 루트 목록 하위일 때만 열며, 허용 목록이 비면 이 창구는 닫힌다(fail-closed). 검증과 기준은 [[INT-014]] 가 소유하고 검증 기준은 [[AC-1107]] 이 붙잡는다.\n\n## ⚠ 열린 항목 — 객체 수준 인가가 없다\n로그인한 포털 회원이면 「어떤 데이터셋 숫자 식별자로도」 착수가 된다. 포털에 위임되지도 않는다 — 조달 호출이 사용자 신원이 아니라 시스템 사전 공유 키로 나가므로 포털이 사용자별 자격을 집행할 수단이 원천적으로 없다. 즉 이 판정의 주인이 어느 쪽에도 없다. ★ 다음 「적재」 라운드에서 해제본이 화면 소재가 되는 순간 이 공백은 「타 회원 학습데이터 열람」으로 승격한다. 해소 방향은 둘이다 — ① 조달 호출을 사용자 주체 축으로 전환한다 ② 포털이 진입 시 서명된 자격 증표를 실어 우리가 검증한다. ⚠ 어느 쪽으로도 정해지지 않았으며 추정으로 잇는 규칙을 만들지 말 것.",
+      "operation_id": "startPortalDatasetMaterials",
+      "attached_files": [],
+      "calls_external": [
+        "INT-014"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": [
+        "AC-1107"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "ADR-012의 3개 필드 변경 — based_on",
+    "change_summary": "쓰기 손상 교정 2차 — 응답 블록의 글자 손상 세 곳을 고친다. 202 응답 data 설명의 「앞혀」를 「앉혀」로, 해제본 요약 코드 필드의 「옵 데이터」를 「옛 데이터」로, 400 응답의 「걱러낸다」를 「걸러낸다」로 바로잡았다. 셋 다 읽히는 다른 한글이라 통독으로 걸리지 않는 종류다. 값역·예시·필수 표시·주장은 하나도 바뀌지 않았다(문구 교정만).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T01:43:55.095Z",
+    "created_at": "2026-09-15T01:27:27.962Z"
+  }
+}

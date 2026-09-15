@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "AC-1111",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-023 점유 유예 만료 — 저절로 풀리고 다른 검수자가 이어받는다 (edge)",
+    "slug": "uc-023-점유-유예-만료-저절로-풀리고-다른-검수자가-이어받는다-edge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "거절되지 않고 받아들여져 그 사람이 새 점유자가 된다",
+          "이미 검수 진행 상태이므로 상태 전이는 일어나지 않는다",
+          "승인 시점의 동시성 보호는 그대로 남아 점유가 그것을 대체하지 않는다"
+        ],
+        "when": [
+          "다른 검수자가 같은 영상의 검수 시작을 누른다"
+        ],
+        "given": [
+          "어떤 검수자가 그 영상의 검수를 시작한 뒤 자리를 떴다",
+          "발생시각에 유예를 더한 시각이 지났다"
+        ]
+      },
+      "statement": "점유자가 자리를 뜬 채 유예가 지나면 점유가 저절로 풀린다 — 푸는 동작을 따로 두지 않는다. 그 뒤 다른 검수자가 검수 시작을 누르면 상태 전이 없이 그 사람이 새 점유자가 된다. 이미 검수 진행 상태라 전이할 것이 없기 때문이다. 유예는 배포 설정값이고 기본값은 30분이다. 점유는 잠금이 아니다 — 만료가 있어 영구 잠금이 되지 않고 승인 시점의 동시성 보호가 실제 방어로 그대로 남는다. 두 축은 서로를 대체하지 않으므로 점유가 생겼다는 이유로 승인 시점 보호를 없애지 않는다.",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-067",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "유예가 지나면 점유가 저절로 풀리고 다른 검수자가 상태 전이 없이 이어받는다는 것을 검증하는 수용기준 신설."
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-005"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-023"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 유예가 지나면 점유가 저절로 풀리고 다른 검수자가 상태 전이 없이 이어받는다는 것을 검증하는 수용기준 신설.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T06:03:52.900Z",
+    "created_at": "2026-09-15T06:03:52.900Z"
+  }
+}

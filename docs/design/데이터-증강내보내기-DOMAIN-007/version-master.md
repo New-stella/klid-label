@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-09-14T07:37:28.497Z |
+| Last sync | 2026-09-15T13:24:05.133Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 111 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-007 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 22건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 23건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 47건
-  ℹ️  api_endpoint: 이번 키트 13건 / 스코프 밖 212건
+  ℹ️  api_endpoint: 이번 키트 13건 / 스코프 밖 221건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 24건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 32건 (그중 domain_id 없음 10건)
-  ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 36건
+  ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 37건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 31건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 88건 (그중 domain_id 없음 9건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 102건 (그중 domain_id 없음 10건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 17건 / 스코프 밖 42건 (그중 domain_id 없음 6건)
+  ℹ️  adr: 이번 키트 17건 / 스코프 밖 44건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 12건 (그중 domain_id 없음 11건)
 ```
 
@@ -68,7 +68,7 @@
 | [[ADR-058]] | adr | 10 | UNCHANGED |
 | [[ADR-059]] | adr | 1 | UNCHANGED |
 | [[ADR-061]] | adr | 1 | UNCHANGED |
-| [[ADR-062]] | adr | 7 | UNCHANGED |
+| [[ADR-062]] | adr | 8 | UNCHANGED |
 | [[ADR-066]] | adr | 3 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
 | [[API-059]] | api_endpoint | 9 | UNCHANGED |
@@ -77,7 +77,7 @@
 | [[API-062]] | api_endpoint | 10 | UNCHANGED |
 | [[API-063]] | api_endpoint | 10 | UNCHANGED |
 | [[API-092]] | api_endpoint | 10 | UNCHANGED |
-| [[API-165]] | api_endpoint | 7 | UNCHANGED |
+| [[API-165]] | api_endpoint | 8 | UNCHANGED |
 | [[API-175]] | api_endpoint | 2 | UNCHANGED |
 | [[API-179]] | api_endpoint | 9 | UNCHANGED |
 | [[API-188]] | api_endpoint | 3 | UNCHANGED |
@@ -96,20 +96,20 @@
 | [[EXTSYS-004]] | external_system | 11 | UNCHANGED |
 | [[FEAT-001]] | feature | 9 | UNCHANGED |
 | [[FEAT-004]] | feature | 11 | UNCHANGED |
-| [[INT-006]] | integration_point | 15 | UNCHANGED |
+| [[INT-006]] | integration_point | 20 | UNCHANGED |
 | [[INT-008]] | integration_point | 16 | UNCHANGED |
 | [[INTSPEC-005]] | integration_spec | 3 | UNCHANGED |
-| [[INTSPEC-006]] | integration_spec | 3 | UNCHANGED |
-| [[NFR-008]] | nfr | 6 | UNCHANGED |
+| [[INTSPEC-006]] | integration_spec | 7 | UNCHANGED |
+| [[NFR-008]] | nfr | 7 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 4 | UNCHANGED |
-| [[NFR-011]] | nfr | 7 | UNCHANGED |
+| [[NFR-011]] | nfr | 8 | UNCHANGED |
 | [[NFR-012]] | nfr | 6 | UNCHANGED |
 | [[NFR-013]] | nfr | 14 | UNCHANGED |
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
-| [[NFR-017]] | nfr | 10 | UNCHANGED |
+| [[NFR-017]] | nfr | 11 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
 | [[NFR-020]] | nfr | 11 | UNCHANGED |
@@ -141,10 +141,10 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 14 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 15 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 5 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 17 | UNCHANGED |
+| [[ROLE-004]] | permission_role | 6 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 51 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 47 | UNCHANGED |
 | [[SD-028]] | screen_design | 9 | UNCHANGED |

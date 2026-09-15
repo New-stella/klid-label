@@ -58,11 +58,12 @@
         "modules": [],
         "records": [
           "IMPREC-425",
-          "IMPREC-426"
+          "IMPREC-426",
+          "IMPREC-454"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-09-08T06:18:13.547Z",
+        "last_updated": "2026-09-14T07:42:18.363Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -80,8 +81,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "연동 주소 칸에서 값 자체를 수정 저장하는 대상 열거에 관제 계정 창구(authoring.control-account.url)를 더했다(2026-09-14 확정 · ADR-046 v18 · UC-031 v21 · API-069 v13). 근거: 관제 채널 세션 중계(갱신·로그아웃)가 부르는 관제 주소를 관제 통지 수신처(authoring.control-notify.url)에서 갈라 별도 연동 주소로 두었다 — 관제가 계정 창구와 데이터셋 창구를 서로 다른 서버에 두어 주소 하나를 함께 쓰면 한쪽이 404 가 되고 운영 현장에서 세션 연장이 전부 실패했다. 반영 자리: ① statement 의 유효창 저장 대상 열거에 추가하고, 그 칸이 통지 수신처와 별개라 한쪽 저장이 다른 쪽 값을 바꾸지 않는다는 것 · 폴백 없음 · 배포 기본값이 비어 설정하지 않으면 관제 채널 세션 연장이 동작하지 않는다는 것을 바로 뒤에 이었다. ② scenario.then[4] 의 열거에 추가. ③ then 에 단언 둘을 덧붙였다 — 관제 계정 창구 칸도 다른 주소 칸과 같은 규칙(유효창 요구 403 · 스킴·형식 검증 400)으로 저장된다 / 관제 통지 수신처 칸과 별개라 한쪽 저장이 다른 쪽 값을 바꾸지 않는다. statement 의 2026-09-08 구 서술 폐기 문단은 그 시점 열거의 이력이라 고치지 않았다. AI 추론 서버·외부 시계열 분석 벤더의 장비 원장 축, 시스템 설정 카드 단언, verification_status·evidence·last_run 은 건드리지 않았다. 배열 원소 삭제 0 · status 무변경. 쓰기 직전 stale=true, stale_reason 「FEAT-005의 data.business_rules 변경이 derived_from로 2-hop 전파」 — 이번 축과 무관한 신호라 후속 확인 대상으로 보고한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-14T05:52:44.379Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-14T07:42:18.363Z",
     "created_at": "2026-08-31T02:21:19.988Z"
   }
 }

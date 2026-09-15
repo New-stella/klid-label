@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-045
 type: screen_spec
-version: 6
+version: 8
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-09T07:56:49.244Z
+synced_at: 2026-09-15T13:22:04.823Z
 status: CHANGED
-prev_version: 5
-content_hash: 967c18157620378369fa3975ad3feccf2b8572182b34c0c3d196f1655fbf4493
+prev_version: 6
+content_hash: 7e4cea0cd2d8700f98b55a7f5f8ffa9008a5eba73d3e2d3745ed764a5611281f
 stale: false
 raw: ./_raw/SCREEN-045.json
 links:
@@ -53,7 +53,7 @@ draft
 
 회복에는 기다림이 따른다 — 자산 삭제는 추출이 진행 중인 동안 거절되므로, 잘못 저장한 사용자는 추출이 끝난 뒤에야 지우고 다시 올릴 수 있다. 화면은 그 대기 구간에 지금 무엇을 기다리는지와 끝난 뒤 무엇을 할 수 있는지를 함께 알린다.
 
-미제공 — 외부 시계열 분석 서버로 나가는 위탁 연동, 검수, 버전 관리, 오토라벨링. 접근: 포털 회원.
+미제공 — 외부 시계열 분석 서버로 나가는 위탁 연동, 검수, 버전 관리. 마킹 완료 뒤 배치 오토라벨링 파이프라인은 이어지지 않는다. 이 화면에는 AI 보조가 없다 — AI 탐지 · AI 분할 · AI 자동 추적은 프레임 추출이 끝난 뒤 라벨링 화면(SCREEN-029)이 사용자 요청으로 온디맨드 제공한다. 접근: 포털 회원.
 
 ## sections
 

@@ -1,13 +1,13 @@
 ---
 logicraft_item: INTSPEC-003
 type: integration_spec
-version: 20
+version: 21
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T12:01:43.258Z
+synced_at: 2026-09-15T13:22:00.495Z
 status: CHANGED
-prev_version: 18
-content_hash: dd63696e5b58f9cd62c98c692d0c8985a9a1abcc06ecdcbbd690db169066f03c
+prev_version: 20
+content_hash: 37bab3e8d5d2487dd4bef0e862ffa3c2bb6d6df66d394c0cb1b571661bfd55fe
 stale: false
 raw: ./_raw/INTSPEC-003.json
 links:
@@ -281,7 +281,7 @@ KLID 연동 API v1.2.0(개정일 2026-09-07) + 벤더 가이드 회신에 맞춰
 | local | 목업 벤더 서버 |
 | dev | 목업 벤더 서버 |
 | stg | 실제 벤더 장비를 원장에 등록해야 한다 |
-| prd | 실제 벤더 장비를 원장에 등록해야 한다 — 콜백 허용 출처 설정이 선행돼야 한다 |
+| prd | 실제 벤더 장비를 원장에 등록해야 한다 — 콜백 허용 출처 기본 0.0.0.0/0 |
 
 ## 10. ★ 신고 구간 위탁 보류
 

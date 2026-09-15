@@ -1,0 +1,85 @@
+{
+  "item": {
+    "id": "UI-154",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: PortalRecordRow",
+    "slug": "display-portalrecordrow",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PortalRecordRow",
+      "tags": [
+        "portal",
+        "ds-002",
+        "list-row",
+        "card"
+      ],
+      "category": "display",
+      "description": "포털 채널 목록의 행 카드. 그림 없이 글자만 남는 목록의 한 줄이며 제목·표식·본문·사실값·조작을 한 표면에 담는다. 표를 쓰지 않는 이유는 폭이다 — 증강 목록 한 행이 요구하는 최소 폭이 본문 최대 폭을 넘어 어느 칸이든 반드시 접히거나 잘렸고, 실제로 생성 조건 칸이 최소 폭까지 눌려 한 글자씩 세로로 흘러내렸다. 행 카드는 줄바꿈이 손해가 아닌 구조라 그 부족분 자체가 사라진다. 어느 자리에도 말줄임을 두지 않으며 긴 값은 줄바꿈으로 전문을 보인다. 치수는 Host 포털 원본의 목록 행 실측값이다 — 흰 면, 경계 중립 200단, 라운드 16, 그림자 없음, 패딩 20, 안쪽 간격 세로 12 가로 20, 항목 사이 16, 마우스가 얹히면 주색 최옅단으로 짚는다.",
+      "code_snippet": "<PortalRecordList aria-label=\"증강 요청 목록\">{rows.map((r) => (<li key={r.id}><PortalRecordRow title={r.name} titleAside={<PortalBadge tone=\"success\">결과 도착</PortalBadge>} body={<span className=\"flex flex-wrap gap-tight\">{conds.map((c) => <PortalFactChip key={c.key} label={c.label} value={c.value} />)}</span>} meta={<span>요청 {r.requestedAt}</span>} actions={<button type=\"button\">결과 확인</button>} /></li>))}</PortalRecordList>",
+      "props_schema": [
+        {
+          "name": "title",
+          "type": "ReactNode",
+          "required": true,
+          "description": "이 줄이 무엇인지. 길면 자르지 않고 줄바꿈한다 — 잘리는 꼬리가 확장자라 거부 사유가 화면에서 사라진다."
+        },
+        {
+          "name": "titleAside",
+          "type": "ReactNode",
+          "required": false,
+          "description": "제목 오른쪽에 붙는 표식(상태 배지). 제목과 같은 줄에서 흐른다."
+        },
+        {
+          "name": "body",
+          "type": "ReactNode",
+          "required": false,
+          "description": "제목 아래 본문 — 조건 칩·부제·실패 사유처럼 폭을 먹는 것."
+        },
+        {
+          "name": "meta",
+          "type": "ReactNode",
+          "required": false,
+          "description": "오른쪽 사실값(일시·크기). 자리폭 고정이라 줄끼리 세로로 선다."
+        },
+        {
+          "name": "actions",
+          "type": "ReactNode",
+          "required": false,
+          "description": "오른쪽 조작. 사실값 아래에 선다."
+        },
+        {
+          "name": "selected",
+          "type": "boolean",
+          "default": false,
+          "required": false,
+          "description": "고른 줄. 색만으로 말하지 않으므로 호출부가 누름 상태를 함께 둔다."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "data-testid",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "usage_example": "포털 업로드 자산 목록(SCREEN-033)과 포털 증강 요청 현황(SCREEN-044)이 함께 쓴다. 두 목록 모두 값 길이가 제각각이고 한 항목이 조작을 여럿 담아 표로는 폭이 모자랐다. 형제 화면인 포털 내 작업 목록(SCREEN-028)은 네 열이 전부 짧은 값이라 표로 남는다 — 형태는 담는 내용이 정한다. 함께 쓰는 부품 둘: 목록 껍데기 PortalRecordList, 사실 한 조각을 담는 PortalFactChip.",
+      "attached_files": [],
+      "design_system_id": "DS-002",
+      "accessibility_notes": "목록은 ul/li 로 짜 보조기술이 항목 수를 먼저 알린다. 왼쪽 갈래 아이콘 타일과 상태를 알리는 좌측 색 띠를 두지 않는다 — 두 목록 다 갈래가 한 종류뿐이라 같은 그림이 모든 줄에 반복될 뿐이고, 색 띠가 나르던 정보는 상태 배지와 실패 사유가 이미 갖는다. 사실값 글자색은 중립 600단이다 — Host 원본은 500단이지만 이 줄의 hover 면 위에서 4.01:1 로 AA 미달이라 한 단 올렸다(상대에 제기할 대상). 말풍선(title 속성)을 보완책으로 쓰지 않는다 — 터치 환경에서 뜨지 않고 게시본 정리기가 그 속성을 지운다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: PortalRecordRow",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T08:04:46.887Z",
+    "created_at": "2026-09-08T08:04:46.887Z"
+  }
+}

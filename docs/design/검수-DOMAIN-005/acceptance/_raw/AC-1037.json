@@ -12,7 +12,7 @@
         {
           "type": "document",
           "result": "pass",
-          "reference": "화면 시나리오 — [라벨링 /label/{id} 메타 패널] 1) 부정확한 시계열 메타를 직접 수정 후 승인/반려",
+          "reference": "화면 시나리오 — [라벨링 /label/{id} 메타 탭] 1) 부정확한 영상 분석 설명을 요약 카드로 여는 창의 왼쪽 칸에서 직접 수정 후 승인/반려",
           "captured_at": "2026-08-31T03:00:00Z"
         }
       ],
@@ -27,7 +27,7 @@
           "검수자가 메타를 직접 수정한 뒤 승인하거나 반려한다"
         ],
         "when": [
-          "검수자가 패널에서 메타를 수정하거나 반려한다"
+          "검수자가 창에서 메타를 수정하거나 반려한다"
         ],
         "given": [
           "적재된 시계열 메타가 부정확하다"
@@ -50,19 +50,19 @@
       },
       "derived_domain_ids": [],
       "verification_method": "manual_test",
-      "verification_status": "passing",
+      "verification_status": "unverified",
       "derived_from_use_cases": [
         "UC-022"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "change_summary": "검증 상태를 통과에서 미검증으로 내렸다 — 이 수용기준이 가리키는 자리가 메타 탭 요약 카드로 여는 창으로 바뀌어, 마지막 수행(2026-08-31)은 바뀌기 전 화면에 대한 것이다. 지난 수행 이력과 근거는 그대로 두고 상태만 내린다. 본문은 이번 라운드에서 이미 정합해 건드리지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:45.569Z",
+    "last_updated_at": "2026-09-14T11:05:33.904Z",
     "created_at": "2026-08-31T02:15:28.434Z"
   }
 }

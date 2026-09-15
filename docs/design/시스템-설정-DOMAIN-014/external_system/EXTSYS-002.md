@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-002
 type: external_system
-version: 18
+version: 20
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T04:11:54.281Z
+synced_at: 2026-09-15T13:21:51.150Z
 status: CHANGED
-prev_version: 17
-content_hash: 1b28d7b0e4f7940aca4ab4cc05d10f88ba7dc644449b96bad7c9c47579b3b0bf
+prev_version: 18
+content_hash: 545ce3b64105e3582ba15510eee5cd27c640cb44a408b7a4e74ff24be87fde45
 stale: false
 raw: ./_raw/EXTSYS-002.json
 links:
@@ -58,7 +58,7 @@ high
 
 ## description
 
-영상의 시계열 메타(구간별 설명)를 생성하는 외부 VLM 서비스. **VLM 모델 본체·학습·프롬프트 관리는 외부 책임(범위 외)**이고, 저작도구는 ①위탁 호출(INT-002) ②결과 콜백 수신(INT-003) ③수신한 메타를 `LS_DATA_META` 에 적재하고 REVIEWER 가 라벨링 캔버스 화면(SCREEN-005) 우측 시계열 메타 패널에서 검토·수정하는 것까지를 담당한다.
+영상의 시계열 메타(상황 서술)를 생성하는 외부 VLM 서비스. **VLM 모델 본체·학습·프롬프트 관리는 외부 책임(범위 외)**이고, 저작도구는 ①위탁 호출(INT-002) ②결과 콜백 수신(INT-003) ③수신한 메타를 `LS_DATA_META` 에 적재하고 REVIEWER 가 라벨링 캔버스 화면(SCREEN-005) 메타 탭에서 여는 창에서 검토·수정하는 것까지를 담당한다.
 
 ## 벤더 계약
 **IntelliVIX / KLID 연동 API v1.2.0**(개정일 2026-09-07)이 근거 규격이다. ⚠ 규격서 파일명 접미가 `_pre` 라 사전배포판일 수 있다 — 개정이력에 승인자까지 적혀 확정본으로 보이나 **벤더 확답은 대기 중**이다.
@@ -109,7 +109,7 @@ high
 | local | 목업 벤더 서버 | |
 | dev | 목업 벤더 서버 | |
 | stg | 실제 벤더 장비를 원장에 등록해야 한다 | |
-| prd | 실제 벤더 장비를 원장에 등록해야 한다 | 콜백 허용 출처 설정이 선행돼야 한다 |
+| prd | 실제 벤더 장비를 원장에 등록해야 한다 | 콜백 허용 출처 기본 0.0.0.0/0 |
 ## 신뢰성
 - 타임아웃 기본 10s. 배치는 응답을 기다리지 않고 제출만 개시한다(구 45초 블로킹 폐기), Retry `vlmClient` 3/1s/×2(**4xx 재시도 제외**), CB 50%/10/5/open 30s
 - 멱등: 웹훅 멱등 원장(`request_id` 기준, `PROCESSED` 재수신 skip) + 비관적 락

@@ -3,7 +3,7 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-014",
   "decided_by": "llm",
-  "decided_at": "2026-09-05T00:44:58Z",
+  "decided_at": "2026-09-15T22:22:42.022504+09:00",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 2026-08-21 갱신: 신규 AC-055 승격 — belongs_to_domain 은 DOMAIN-003 이나 이 도메인의 SCREEN-025 가 covered_by, DFEAT-045 가 verifies 로 참조하므로 이 도메인 구현자가 반드시 본다. 미판정이던 SCREEN-008(영상 처리 현황 화면, DOMAIN-003 소속)도 승격 — 이 도메인 API-068 을 consumes 하는 상호 참조이고, AC-055 가 요구하는 '전체 건너뛰기 켜짐 상태의 운영 화면 상시 노출' 지점이 이 화면이라 설정 구현자가 표시 위치를 알아야 한다. · 이번 승격: 이 도메인 소속으로 신규 등록된 인수기준(도메인 지정 + 유스케이스/비기능요구 링크 보유) | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: INTSPEC-003 — INTSPEC-003 은 이 키트 본문이 이미 참조하는데 ITEM 이 없어 끊겨 있었고, 그래프 앵커 INT-002 가 이 키트에 있다 | 2026-08-28 승격: 관리자 페이지 분리 라운드(PR #158)에서 신설·이동된 화면·수용기준·API·도해를 pin 에 올렸다. | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-1022",
@@ -21,6 +21,7 @@
     "AC-1092",
     "ADR-006",
     "ADR-007",
+    "ADR-013",
     "ADR-039",
     "ADR-046",
     "ADR-051",
@@ -47,6 +48,7 @@
     "API-228",
     "API-229",
     "API-230",
+    "API-256",
     "CDIAG-012",
     "CDIAG-025",
     "CDIAG-033",
@@ -56,13 +58,18 @@
     "ERD-016",
     "ERD-033",
     "EXTSYS-002",
+    "FEAT-005",
     "FEAT-007",
     "FEAT-009",
     "INT-002",
+    "INT-003",
     "INT-004",
     "INT-005",
+    "INT-006",
     "INT-007",
+    "INT-015",
     "INTSPEC-003",
+    "INTSPEC-006",
     "NAV-001",
     "NFR-008",
     "NFR-009",
@@ -135,9 +142,7 @@
     "UC-006",
     "UC-013",
     "UC-030",
-    "UC-031",
-    "FEAT-005",
-    "INT-015"
+    "UC-031"
   ],
   "pending": [
     "MOD-002",
@@ -162,24 +167,10 @@
     "IMPREC-424",
     "IMPREC-425",
     "IMPREC-426",
-    "IMPREC-434"
+    "IMPREC-434",
+    "SETT-001"
   ],
-  "last_sync_at": "2026-09-14T07:37:41.452Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 2(핵심타입) / 기각 10(제외타입) / 보류 0(미분류·배포형상) | 2026-09-05 2차 판정: 승격 2(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 18(제외타입) / 보류 0 | 2026-09-08 판정: 승격 0 / 기각 18 / 보류 0. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다 | 2026-09-14 판정(비식별 출처유형 제외·관제 세션 연장 라운드): 승격 1 / 기각 19 / 보류 0. 기각 중 제외 타입 19건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·CTX). | 2026-09-14 2차 판정(관제 계정 창구 주소 분리 라운드 · PR #218): 승격 1 / 기각 23 / 보류 0. 기각 중 제외 타입 23건.",
-  "note_promoted": [
-    {
-      "at": "2026-09-14",
-      "ids": [
-        "FEAT-005"
-      ],
-      "reason": "pin 보유 UC-031 이 realizes, DFEAT-042 의 설정 출처유형 제외가 시스템 설정 축이다"
-    },
-    {
-      "at": "2026-09-14",
-      "ids": [
-        "INT-015"
-      ],
-      "reason": "pin 보유 SEQ-025(belongs_to_domain=DOMAIN-014)가 references — 관제 계정 창구 주소(authoring.control-account.url)가 연동 서버 주소 설정 축(ADR-046 v18)에 편입됐다"
-    }
-  ]
+  "last_sync_at": "2026-09-15T13:24:06.113Z",
+  "note_pruned": "제외 타입 23건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 1건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다): SETT-001",
+  "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 5건 승격: ADR-013, API-256, INT-003, INT-006, INTSPEC-006."
 }

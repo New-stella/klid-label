@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="main.css">
+<html lang="ko">
+<head><link rel="stylesheet" href="main.css"><link rel="stylesheet" href="design.css" />
 <meta charset="utf-8" />
 <title>SCREEN-019 검수 상세 화면 — 디자인</title>
 </head>
@@ -269,48 +269,83 @@
         <section class="rv-panel-section">
           <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
             <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
-            이벤트 어노테이션 검토
+            촬영환경 검토
           </button>
-          <p class="meta-panel-help t-caption">이벤트 유형·시작/종료 시각 등 이벤트 어노테이션 내용을 검토합니다.</p>
+          <p class="meta-panel-help t-caption">작업자가 라벨링 화면에서 입력한 영상 단위 값입니다. 학습데이터 산출물의 촬영환경 조달원입니다.</p>
           <div class="meta-field">
-            <label class="meta-label t-label" for="rv-evnt-type">이벤트 유형</label>
-            <select id="rv-evnt-type" class="meta-select t-body-sm">
-              <option selected>침입</option>
-              <option>쓰러짐</option>
-              <option>폭력</option>
-            </select>
+            <span class="meta-label t-label">날씨</span>
+            <p class="meta-readonly-value t-body-sm">미입력</p>
           </div>
-          <div class="meta-row-2">
-            <div class="meta-field" style="margin-bottom:0">
-              <label class="meta-label t-label" for="rv-evnt-start">시작 시각</label>
-              <input id="rv-evnt-start" class="meta-input t-body-sm" type="text" value="00:00:12" />
-            </div>
-            <div class="meta-field" style="margin-bottom:0">
-              <label class="meta-label t-label" for="rv-evnt-end">종료 시각</label>
-              <input id="rv-evnt-end" class="meta-input t-body-sm" type="text" value="00:00:47" />
-            </div>
+          <div class="meta-field">
+            <span class="meta-label t-label">시간대</span>
+            <p class="meta-readonly-value t-body-sm">미입력</p>
+          </div>
+          <div class="meta-field">
+            <span class="meta-label t-label">계절</span>
+            <p class="meta-readonly-value t-body-sm">미입력</p>
           </div>
         </section>
 
         <section class="rv-panel-section">
           <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
             <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
-            시계열 메타 검토
+            개인정보 판정 검토 (영상 축)
           </button>
-          <p class="meta-panel-help t-caption">외부 시계열 분석 결과(서술 전문)을 프레임 단위로 검토합니다. 이 화면에서는 읽기 전용으로 확인하며, 서술 전문 수정은 라벨링 화면의 메타 패널이 담당합니다.</p>
-
+          <p class="meta-panel-help t-caption">영상 전체 기준의 판정입니다. 프레임 축 판정과 입도가 달라 두 값이 달라도 모순이 아닙니다.</p>
           <div class="meta-field">
-            <label class="meta-label t-label" for="rv-vlm-desc">서술 전문 (읽기 전용)</label>
-            <textarea id="rv-vlm-desc" class="meta-textarea t-body-sm" readonly aria-readonly="true">주차 구역 경계를 따라 성인 남성 1인이 보행 중이며, 인근에 정차된 차량 2대가 확인됨. 조도는 양호하고 특이 행동은 관측되지 않음.</textarea>
-            <p class="meta-help t-caption">라벨링 화면에서 저장된 값입니다. 검수 승인 시점에 동결됩니다.</p>
+            <span class="meta-label t-label">익명 · 가명 · 개인정보 포함</span>
+            <p class="meta-readonly-value t-body-sm">예 · 아니오 · 아니오</p>
           </div>
+        </section>
 
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            프레임 설명 검토
+          </button>
           <div class="meta-field">
-            <span class="meta-label t-label">이전 구간별 시계열 정보 (읽기 전용)</span>
-            <div class="meta-legacy-list" aria-label="이전 구간별 시계열 정보">
-              <div class="meta-legacy-row t-caption"><span class="meta-legacy-range">0–8s</span><span>차량 진입 없음, 정적인 주차 구역 관측.</span></div>
-              <div class="meta-legacy-row t-caption"><span class="meta-legacy-range">8–16s</span><span>보행자 1인 진입, 경계 접근 관측.</span></div>
-            </div>
+            <span class="meta-label t-label">현재 프레임 설명</span>
+            <p class="meta-readonly-value t-body-sm">아직 채우지 않았습니다</p>
+            <p class="meta-help t-caption">학습데이터 산출물의 이미지 설명 조달원입니다.</p>
+          </div>
+        </section>
+
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            개인정보 판정 검토 (프레임 축)
+          </button>
+          <p class="meta-panel-help t-caption">이 프레임 기준의 판정입니다. 영상 축 판정과 별개 축입니다.</p>
+          <div class="meta-field">
+            <span class="meta-label t-label">익명 · 가명 · 개인정보 포함</span>
+            <p class="meta-readonly-value t-body-sm">예 · 아니오 · 아니오</p>
+          </div>
+        </section>
+
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            영상 분석 설명 · 이벤트 어노테이션
+          </button>
+          <p class="meta-panel-help t-caption">외부 분석이 적은 영상 설명과, 학습데이터에 함께 저장되는 사건 판단 정보입니다.</p>
+          <p class="meta-help t-caption">좁은 탭에서 읽기 어려워 여기에는 간추린 값만 둡니다. 전문은 「크게 보기」로 여는 읽기 전용 창에서 확인합니다.</p>
+          <div class="tsum-card">
+            <dl class="tsum-row"><dt class="t-caption">이벤트 분류</dt><dd><span class="tsum-name">교통사고</span> <span class="tsum-code">car_accident</span></dd></dl>
+            <dl class="tsum-row"><dt class="t-caption">영상 분석 설명</dt><dd class="tsum-clamp">장소: 서울특별시 중구 남대문로 1가 (두정역 인근)</dd></dl>
+            <dl class="tsum-row"><dt class="t-caption">아직 채우지 않은 항목</dt><dd class="tsum-empty">답변 · 사고 2·3단계 · 근거</dd></dl>
+            <button type="button" class="btn btn-primary btn-sm tsum-open">크게 보기</button>
+          </div>
+        </section>
+
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            이관 원문 정보 검토 (참고)
+          </button>
+          <p class="meta-panel-help t-caption">외부에서 이관된 영상에서만 보입니다. 사람이 읽는 이름으로 표시하며 읽기 전용입니다.</p>
+          <div class="meta-field">
+            <span class="meta-label t-label">카메라 관리번호 · 데이터 출처</span>
+            <p class="meta-readonly-value t-body-sm">CCTV-023 · 관제 인입</p>
           </div>
         </section>
 
@@ -320,10 +355,10 @@
             영상 기술 정보 (읽기 전용)
           </button>
           <div class="tech-kv">
-            <div class="tech-kv-item"><span class="tech-kv-key t-caption">해상도</span><span class="tech-kv-val">1920×1080</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">해상도</span><span class="tech-kv-val">640×480</span></div>
             <div class="tech-kv-item"><span class="tech-kv-key t-caption">코덱</span><span class="tech-kv-val">H.264</span></div>
-            <div class="tech-kv-item"><span class="tech-kv-key t-caption">FPS</span><span class="tech-kv-val">30</span></div>
-            <div class="tech-kv-item"><span class="tech-kv-key t-caption">비트레이트</span><span class="tech-kv-val">8.0 Mbps</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">프레임률</span><span class="tech-kv-val">30.00 fps</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">길이</span><span class="tech-kv-val">2분 24.6초</span></div>
           </div>
         </section>
 
@@ -376,7 +411,7 @@
             <p class="issue-thread-body t-body-sm">차량 #2 트랙이 프레임 46 부근에서 끊기는데 재추적 대상인지 확인 부탁드립니다.</p>
             <div class="issue-comments"></div>
             <div class="issue-actions-row">
-              <button class="btn btn-primary btn-sm t-button">해소 처리</button>
+              <button class="btn btn-primary btn-sm t-button">해결 처리</button>
             </div>
             <p class="issue-conflict t-caption" role="status">
               <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
@@ -400,7 +435,7 @@
               <span class="badge issue-status-badge--resolved t-label">해결</span>
               <span class="issue-thread-author t-caption">박서연 (검수자)</span>
             </div>
-            <p class="issue-thread-body t-body-sm">이벤트 시작 시각이 실제보다 늦게 잡힌 것 같습니다 — 확인 후 수정 완료.</p>
+            <p class="issue-thread-body t-body-sm">근거로 적힌 프레임이 실제 장면과 달라 보입니다 — 확인 후 수정 완료.</p>
             <div class="issue-comments">
               <div class="issue-comment">
                 <div class="issue-comment-head">

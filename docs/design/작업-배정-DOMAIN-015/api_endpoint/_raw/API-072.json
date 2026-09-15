@@ -115,12 +115,6 @@
                           "nullable": true,
                           "description": "첫 프레임 SRC_SN"
                         },
-                        "reviewerId": {
-                          "type": "integer",
-                          "format": "int64",
-                          "nullable": true,
-                          "description": "REVIEWER 배정자 PK"
-                        },
                         "taskTypeCd": {
                           "type": "string",
                           "description": "작업 유형 코드"
@@ -138,11 +132,6 @@
                           "type": "string",
                           "nullable": true,
                           "description": "이벤트 유형 코드"
-                        },
-                        "reviewerName": {
-                          "type": "string",
-                          "nullable": true,
-                          "description": "REVIEWER 이름"
                         }
                       }
                     },
@@ -195,12 +184,10 @@
                   "regUserNo": 2001,
                   "assignedAt": "2026-01-15T09:30:00",
                   "firstSrcSn": 70001,
-                  "reviewerId": 2001,
                   "taskTypeCd": "LABELER",
                   "videoTitle": "CCTV-강남구-001",
                   "workerName": "홍길동",
-                  "eventTypeCd": "INTRUSION",
-                  "reviewerName": "김검수"
+                  "eventTypeCd": "INTRUSION"
                 }
               ],
               "totalPages": 1,
@@ -428,6 +415,7 @@
         }
       ],
       "description": "배정 목록을 페이징해 조회한다. 검수자는 전체 배정을, 작업자는 본인 배정만 조회한다 — workerId 는 REVIEWER 만 유효하다. WORKER 요청에서는 무시되고 본인 배정으로 범위가 고정된다(403 아님).\n\n[필터는 전체 기준] 검색어·워크플로 상태·이벤트유형 필터는 현재 페이지가 아니라 전체 데이터셋 기준으로 적용되며 totalElements 도 필터 결과 기준이다. 이벤트유형은 표시명이 같은 유형이 한 그룹이라 그룹 내 어느 코드를 보내도 그룹 전체가 조회된다.\n\n[정렬 키 allowlist — strict] regDt(기본 desc)·assignedAt·rawDataId·videoId·assignmentId·id 만 허용하고 밖의 키는 400 이다. assignedAt/videoId/id 는 응답 필드 이름 별칭이고 실제 엔티티 필드는 regDt/rawDataId/assignmentId 3개뿐이라 정렬 항목 개수 상한도 3이다. ★ 검수목록(GET /v1/reviews)은 반대로 lenient(200 폴백)이며 일관성을 이유로 통일하지 말 것(ADR-038).",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -437,7 +425,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:41.883Z"
+        "last_updated": "2026-08-29T01:23:41.883Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -445,12 +434,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:41.883Z",
+    "change_summary": "배정의 대상은 작업자뿐이라는 확정(ADR-067)을 계약면에 반영한다. 응답 항목의 검수자 식별자·이름을 없애고 예시에서도 뺐다. ★ 본문 서술은 건드리지 않았다 — 이 창구의 본문이 말하는 검수자는 「조회하는 사람」(인가 축)이지 「영상에 배정된 검수자」가 아니어서 확정 뒤에도 그대로 참이다. 요청 파라미터·필터·정렬·페이징·인가·응답 코드는 전부 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T04:39:36.649Z",
     "created_at": "2026-05-30T07:26:37.927Z"
   }
 }

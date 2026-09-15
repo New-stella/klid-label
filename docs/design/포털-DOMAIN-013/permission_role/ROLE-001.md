@@ -1,19 +1,20 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 14
+version: 15
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:38.921Z
+synced_at: 2026-09-15T13:22:04.660Z
 status: CHANGED
-prev_version: 13
-content_hash: ea92dc8cf2c3bb2cc3f96593d5937cc90c1ea5d4b4587d9326301e8033331146
+prev_version: 14
+content_hash: 4a54bf112c4fa0e8200752731e22efd417da6b52908627d65a1a787a04f6f427
 stale: true
 raw: ./_raw/ROLE-001.json
 links:
   based_on: ["[[ADR-055]]"]
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-003]]", "[[FEAT-004]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[FEAT-009]]", "[[SCREEN-008]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
   inherits_from_backward: ["[[ROLE-004]]"]
+  references_backward: ["[[ADR-067]]"]
   requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
 ---
 
@@ -64,6 +65,10 @@ ADMIN
 **작업 운영** — 작업자 배정 · 재배정 · 배정 이력 조회. 작업 목록과 통계를 배정 범위 제한 없이 전체 기준으로 조회한다(작업자는 본인 배정분으로 좁혀진다).
 
 **검수** — 검수 목록·상세에서 승인·반려. 승인 시점에 학습데이터 버전이 확정되고 완료 통지가 발행된다.
+
+**검수는 배정으로 정해지지 않는다** — 검수 목록은 검수 대기 전체를 이 역할을 가진 누구에게나 보여주고, 검수 시작·승인·반려의 자격은 역할이 정한다. 이 역할을 영상에 배정하는 절차를 두지 않으며 배정의 대상은 작업자뿐이다. 배정 여부를 검수 인가의 축으로 쓰지 않는다 — 배정되지 않은 영상도 이 역할이면 검수할 수 있고, 배정되었다는 사실이 남의 검수를 막지도 않는다. 이미 적재된 검수자 배정 기록은 판독을 위해 남아 있을 뿐 새로 만들지 않는다.
+
+**점유는 잠금이 아니다** — 검수를 시작하면 그 사람이 그 영상을 잠시 점유하고 유예가 지나면 저절로 풀린다. 점유는 같은 영상을 둘이 끝까지 보는 헛수고를 줄이는 표시이지 남의 검수를 막는 잠금이 아니다. 실제 방어는 승인 시점의 동시성 보호가 그대로 맡는다 — 두 축은 서로를 대체하지 않으므로 점유가 생겼다는 이유로 승인 시점 보호를 걷어내지 않는다.
 
 **파생** — 증강 요청, 그리고 증강 결과의 사용·폐기 결정.
 

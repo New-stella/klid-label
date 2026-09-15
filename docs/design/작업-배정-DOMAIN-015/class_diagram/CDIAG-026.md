@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-026
 type: class_diagram
-version: 1
+version: 2
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:45:15.128Z
-status: NEW
-prev_version: null
-content_hash: 94c0c6a97c30e58565edbb84610839d5a05de32814f7f3a443d9bf0e95256386
+synced_at: 2026-09-15T13:21:52.301Z
+status: CHANGED
+prev_version: 1
+content_hash: a905285c35c2aa2dd3ba40e0fa2f410bd747aa61d098de9def9489ff0808c0d8
 stale: false
 raw: ./_raw/CDIAG-026.json
 links:
@@ -41,7 +41,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수자가 영상을 작업자에게 배정한다
+- **description**: 검수자가 영상을 작업자에게 배정한다. 배정의 대상은 작업자뿐이며 검수자를 영상에 배정하지 않는다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 
@@ -83,7 +83,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 그 배정의 변경 이력을 조회한다
+- **description**: 그 배정이 가리키는 영상에 쌓인 작업 이력을 시간순으로 조회한다. 배정·재배정뿐 아니라 검수 시작·검수 제출·승인·반려가 같은 타임라인에 함께 실리며, 항목마다 그 행위를 한 시점의 행위자 역할이 함께 담긴다 — 역할을 남기기 전에 쌓인 이력은 비어 있을 수 있다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 

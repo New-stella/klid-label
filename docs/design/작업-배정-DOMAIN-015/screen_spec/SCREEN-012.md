@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 49
+version: 50
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:41.429Z
+synced_at: 2026-09-15T13:21:52.307Z
 status: CHANGED
-prev_version: 47
-content_hash: 828bef1a1f4266c7b68b4bda346e0020de3cfa7b154842855e0603c443eddbb7
-stale: false
+prev_version: 49
+content_hash: f246aba38ba64002d0e298d193d76cbea78676720982f537f9dacd1c54b1b30d
+stale: true
 raw: ./_raw/SCREEN-012.json
 links:
   based_on: ["[[ADR-001]]"]
@@ -375,7 +375,7 @@ _(empty)_
 
 - **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(증강 축 단일값(AUGMENT) 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다). 이미 만들어진 파생본에 남아 있는 WINTER/NIGHT/RAIN 값도 배지에 그대로 표시된다.
 - **type**: Table
-- **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/검수자/액션
+- **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/액션
 
 **columns**:
 
@@ -386,7 +386,6 @@ _(empty)_
 - 이벤트
 - 상태
 - 작업자
-- 검수자
 - 액션
 
 **options**:
@@ -518,7 +517,7 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 작업자는 본인 배정 작업을, 검수자는 처리 완료 영상과 배정 정보를 함께 조회한다. 컬럼: (검수자)선택 체크박스, 영상명+영상 ID, 이벤트(파생 영상은 파생 유형 배지 추가 표시), (검수자)촬영일시(서버 정렬 가능), 상태, 작업자, 검수자, 액션. ★일괄 선택 체크박스는 이미 배정된 행에서는 비활성화된다 — 일괄 배정은 미배정 행 전용이다. 액션 분기 — 검수자: 배정/재배정(완료 행 제외)+이력, 작업자: 라벨링 대상 프레임 유무에 따라 작업(라벨링 화면 이동) 또는 마킹(마킹 화면 이동) + 이력. 서버 페이징.
+- **description**: 작업자는 본인 배정 작업을, 검수자는 처리 완료 영상과 배정 정보를 함께 조회한다. 컬럼: (검수자)선택 체크박스, 영상명+영상 ID, 이벤트(파생 영상은 파생 유형 배지 추가 표시), (검수자)촬영일시(서버 정렬 가능), 상태, 작업자, 액션. ★일괄 선택 체크박스는 이미 배정된 행에서는 비활성화된다 — 일괄 배정은 미배정 행 전용이다. 액션 분기 — 검수자: 배정/재배정(완료 행 제외)+이력, 작업자: 라벨링 대상 프레임 유무에 따라 작업(라벨링 화면 이동) 또는 마킹(마킹 화면 이동) + 이력. 서버 페이징.
 
 **references_apis**:
 
@@ -570,22 +569,6 @@ _(empty)_
 
 #### [3]
 
-- **note**: 검수자 역할은 기본값=로그인 사용자, 작업자 역할은 읽기 전용. 검수자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다.
-- **type**: Select
-- **label**: 검수자
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **triggers_api**: API-001
-
-#### [4]
-
 - **type**: Button
 - **label**: 취소
 
@@ -599,7 +582,7 @@ _(empty)_
 
 - **variant**: outline
 
-#### [5]
+#### [4]
 
 - **note**: 신규 배정과 재배정은 서로 다른 API 를 호출한다 — 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071). 이 컴포넌트의 triggers_api 는 대표값(API-070)만 표기하며, 실제 호출 API 는 모드에 따라 다르다.
 - **type**: Button
@@ -616,7 +599,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-070
 
-#### [6]
+#### [5]
 
 - **note**: 재배정 모드에서 현재 배정된 작업자와 동일한 작업자를 다시 선택하면 저장 버튼이 비활성화되고 이 경고 문구가 노출된다.
 - **type**: Text
@@ -630,13 +613,12 @@ _(empty)_
 
 _(empty)_
 
-- **description**: assign/reassign/bulk 3모드. 영상 정보(단건/일괄 미리보기) + 작업자 select(필수) + 검수자 select(검수자 역할, 기본값=로그인 사용자) 또는 읽기 전용(작업자 역할). 작업자·검수자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다. 저장 시 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071)을 호출한다. 성공/실패 결과를 토스트로 안내한다.
+- **description**: assign/reassign/bulk 3모드. 영상 정보(단건/일괄 미리보기) + 작업자 select(필수)로 구성된다. 작업자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다. 저장 시 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071)을 호출한다. 성공/실패 결과를 토스트로 안내한다.
 
 **references_apis**:
 
 - API-070
 - API-071
-- API-001
 - API-002
 
 **references_features**:
@@ -667,7 +649,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 배정/검수 워크플로 이벤트(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT) 6종과 개인정보 선언 변경·초기화 감사 이벤트(PRIVACY_META_UPDATE/PRIVACY_META_RESET) 2종, 총 8종을 조회한다(API-116). 이벤트별로 좌측 점 색상이 다르게 표시된다.
+- **note**: 타임라인 한 줄은 일시 + 행위자 이름 + 행위 시점 역할 + 설명(반려 사유 포함)으로 이루어지며 이벤트별로 좌측 점 색상이 다르게 표시된다. 행위 시점 역할은 값이 비어 있을 수 있고 그때는 역할을 비워 보인다. 조회하는 이벤트 종류는 ASSIGN(배정)·REASSIGN(재배정)·START_REVIEW(검수 시작)·SUBMIT(검수 제출)·CANCEL_SUBMIT(제출 취소)·APPROVE(승인)·REJECT(반려)·PRIVACY_META_UPDATE(개인정보 선언 변경)·PRIVACY_META_RESET(선언 리셋)·FRAME_DISCARD(프레임 폐기)·FRAME_RESTORE(프레임 복원)·START_VERSION_APPLY(시작 버전 적용)이다(API-116). 종류를 개수로 적지 않는다 — 열거가 곧 목록이며 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다.
 - **type**: Timeline
 - **label**: 배정 이력
 
@@ -679,12 +661,16 @@ _(empty)_
 
 - ASSIGN
 - REASSIGN
+- START_REVIEW
 - SUBMIT
 - CANCEL_SUBMIT
 - APPROVE
 - REJECT
 - PRIVACY_META_UPDATE
 - PRIVACY_META_RESET
+- FRAME_DISCARD
+- FRAME_RESTORE
+- START_VERSION_APPLY
 
 - **triggers_api**: API-116
 
@@ -731,7 +717,13 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(제목+닫기) + 대상 작업(영상명) + 타임라인(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT 워크플로 이벤트 6종 + PRIVACY_META_UPDATE/PRIVACY_META_RESET 개인정보 선언 변경·초기화 감사 이벤트 2종, 총 8종, 이벤트별 dot 색상 + 일시 + 설명 + 반려 사유). 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
+**description**:
+
+우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(제목+닫기) + 대상 작업(영상명) + 타임라인. 타임라인 한 줄은 이벤트별 dot 색상 + 일시 + 행위자 이름 + 행위 시점 역할 + 설명 + 반려 사유로 이루어진다. 조회 대상 이벤트 종류는 ASSIGN(배정)·REASSIGN(재배정)·START_REVIEW(검수 시작)·SUBMIT(검수 제출)·CANCEL_SUBMIT(제출 취소)·APPROVE(승인)·REJECT(반려)·PRIVACY_META_UPDATE(개인정보 선언 변경)·PRIVACY_META_RESET(선언 리셋)·FRAME_DISCARD(프레임 폐기)·FRAME_RESTORE(프레임 복원)·START_VERSION_APPLY(시작 버전 적용)이며, 종류를 개수로 적지 않는다 — 열거가 곧 목록이라 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다.
+
+★행위 시점 역할은 그 행위를 한 때 기록된 값이라, 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로 보인다. 관리자가 승인한 이벤트는 관리자로 보이며 검수자로 낮춰 보이지 않는다. 역할 칸이 생기기 전에 쌓인 이력은 값이 비어 있을 수 있고, 그때 화면은 역할을 비워 보인다 — 지어낸 값으로 채우지 않는다.
+
+개인정보 선언 변경·초기화 이벤트는 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
 
 **references_apis**:
 
