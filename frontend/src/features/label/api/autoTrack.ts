@@ -1,6 +1,6 @@
 // 온디맨드 자동 추적 API 클라이언트.
 //
-// BE: POST /v1/frames/{srcSn}/yolo-track — 정렬된 프레임 시퀀스를 추론 서버 트래커로 프록시해
+// BE: POST /v1/frames/{srcSn}/yolo-track (포털 채널은 POST /v1/portal/frames/{srcSn}/yolo-track — 본문·응답 동일) — 정렬된 프레임 시퀀스를 추론 서버 트래커로 프록시해
 //     프레임별 객체 검출 + 트래커 객체 ID 를 받는다. **DB 저장은 하지 않는다**(화면이 결과를
 //     작업본에 올리고 확정은 라벨 저장으로 한다).
 //
@@ -12,8 +12,9 @@
 // 보안: srcSn 은 path(axios 자동 인코딩), 프레임 목록은 body. IDOR·본인 배정 검증·입력 상한은
 //       BE 책임이며 FE 상한은 그 상한을 넘겨 400 을 받는 왕복을 없애는 보조 방어다.
 //
-// @design API-123, SCREEN-005, UC-034
+// @design API-123, API-254, SCREEN-005, SCREEN-029, UC-034
 
+import { aiFramePath } from '@/lib/api/aiRoutes';
 import { apiClient } from '@/lib/api/client';
 
 import { aiWaitTimeoutMs } from '../aiBudget';
@@ -111,17 +112,19 @@ export interface AutoTrackResponse {
  *                   잘라 보낸다(호출측이 절단 사실을 안내한다).
  * @param signal     취소 신호. 화면이 취소하면 서버로 가는 요청 자체를 끊는다 — 화면 안에서만
  *                   폐기하면 서버는 프레임 순회를 끝까지 돌며 추론 자원을 물고 있는다.
+ * @param portal     포털 채널이면 포털 전용 창구를 부른다(경로 조립은 {@link aiFramePath} 한 곳).
  */
 export function requestAutoTrack(
   srcSn: number,
   nextSrcSns: readonly number[],
   signal?: AbortSignal,
   requestId?: string,
+  portal = false,
 ): Promise<AutoTrackResponse> {
   const frames = nextSrcSns.slice(0, AUTO_TRACK_MAX_NEXT_FRAMES);
   return apiClient
     .post<AutoTrackResponse>(
-      `/frames/${srcSn}/yolo-track`,
+      aiFramePath(portal, srcSn, 'yolo-track'),
       { srcSn, nextSrcSns: frames },
       {
         // ★ 종전에는 제한시간을 전혀 싣지 않아 공용 기본값(30초)이 걸려 있었다 — 서버가 프레임을
@@ -178,6 +181,11 @@ export interface AutoTrackRunOptions {
    * 전체 수는 시작 프레임을 포함한 시퀀스 길이다(서버가 시작 프레임도 같은 루프에서 훑는다).
    */
   onProgress?: (done: number, total: number) => void;
+  /**
+   * 포털 채널이면 포털 전용 창구로 보낸다. **이어 보내는 조각 전부**가 같은 창구로 가야 한다 —
+   * 첫 조각만 포털로 보내면 이어 보내기가 내부 창구에서 403 으로 끊긴다.
+   */
+  portal?: boolean;
 }
 
 /**
@@ -198,7 +206,7 @@ export async function requestAutoTrackAll(
   nextSrcSns: readonly number[],
   opts: AutoTrackRunOptions = {},
 ): Promise<AutoTrackResponse> {
-  const { signal, requestId, onProgress } = opts;
+  const { signal, requestId, onProgress, portal = false } = opts;
   const frames: AutoTrackFrame[] = [];
 
   let curSrcSn = srcSn;
@@ -216,7 +224,7 @@ export async function requestAutoTrackAll(
     }
     let res: AutoTrackResponse;
     try {
-      res = await requestAutoTrack(curSrcSn, curNext, signal, requestId);
+      res = await requestAutoTrack(curSrcSn, curNext, signal, requestId, portal);
     } catch (err) {
       // ★ 부분 실패 — 앞 조각에서 이미 받은 검출을 실어 던진다. 여기서 그냥 던지면 서버가 이미
       //   계산해 돌려준 최대 50프레임의 검출이 통째로 버려지고, 화면은 실패 안내만 띄운다.

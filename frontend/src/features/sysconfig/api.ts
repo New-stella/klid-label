@@ -9,6 +9,7 @@
 // body 는 BE DTO(ConfigUpdateRequest) 와 동일하게 `{value}` 만 보낸다.
 
 import { ADMIN_SESSION_HEADER, adminSessionHeaders } from '@/features/adminSession/api';
+import { aiDefaultsPath } from '@/lib/api/aiRoutes';
 import { apiClient } from '@/lib/api/client';
 
 import type { AiDefaults, ConfigItem, ConfigUpdateRequest } from './types';
@@ -26,9 +27,12 @@ export function getConfigs() {
  *
  * 관리 영역(`/manage/**`) 밖의 별도 경로다. `getConfigs()` 는 검수자 전용이라 작업자가 부르면
  * 403 이 쌓이고, 응답에 설정 전량과 마지막 수정자 계정 식별자가 함께 실린다.
+ *
+ * @param portal 포털 채널이면 `GET /v1/portal/ai-defaults`(포털 회원 · 응답 동일). 내부 창구는
+ *   포털 토큰이 닿지 않아 403 이다. 판정은 호출부(라벨링 화면의 portalMode)가 한다.
  */
-export function getAiDefaults() {
-  return apiClient.get<AiDefaults>('/ai-defaults').then((r) => r.data);
+export function getAiDefaults(portal = false) {
+  return apiClient.get<AiDefaults>(aiDefaultsPath(portal)).then((r) => r.data);
 }
 
 /**

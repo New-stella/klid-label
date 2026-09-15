@@ -64,7 +64,8 @@ public class AiCancelController {
             @PathVariable String requestId,
             @AuthenticationPrincipal TokenClaims actor) {
         // 소유자 판정은 등록소가 한다 — 여기서 다시 판정하면 규칙이 두 곳에 생긴다.
-        boolean cancelled = registry.cancel(requestId, actor == null ? null : actor.sub());
+        //   소유자 키는 채널 + subject 다 — 등록(인터셉터)과 같은 함수로 만든다.
+        boolean cancelled = registry.cancel(requestId, AiCallCancellationRegistry.ownerKey(actor));
         return ApiResponse.ok(new AiCancelResponse(cancelled));
     }
 }

@@ -809,6 +809,19 @@ package 'vitest'`), `npx tsc` 는 「This is not the tsc command you are looking
 읽힌다(zsh 는 소문자 `pipestatus`) — 종료코드는 파이프 없이 리다이렉트로 판정 ②워크트리 격리 검사가 **복합
 셸·heredoc 을 거부**한다 — 단일 명령으로 부르고, 긴 스크립트는 파일로 쓴 뒤 실행.
 
+### 위치 인자 함수에 끝 기본값 인자를 더하면 spy 단언이 전부 red (2026-09-15 · CO-20260915-포털-라벨링-AI보조-제공)
+
+**실측**: `requestAutolabel(…, portal = false)` 처럼 끝에 채널 인자를 더하고 훅이 항상 넘기자 `toHaveBeenCalledWith` 단언이
+`Received … + false` 차이로 실패했다(`useAutolabel.test` 3 · `useSam2Segment.test` 2 · `useBusyTaskCancelAndTimeout.test` 1).
+⇒ 호출부에서 인자를 조건부 생략하지 말고 **단언에 `false` 를 명시**해 내부 채널 경로를 오히려 고정한다.
+
+### 진입 버튼과 실행 버튼이 같은 표기면 접근성 이름이 겹친다 (2026-09-15)
+
+**실측**: SCREEN-029 좌측 도구바 「AI 자동 추적」(패널로 이동) + 자동 추적 패널 실행 버튼 「AI 자동 추적」 — 같은 접근성 이름의 버튼이
+한 화면에 둘이라 `getByRole` 도 보조기술도 구별하지 못한다.
+⇒ 진입 쪽 `aria-label` 을 **보이는 이름을 포함**해 가른다(「AI 자동 추적 패널로 이동」, WCAG 2.5.3). 조건부로 그리는 사유 문장을
+`aria-describedby` 로 잇는다면 **렌더 조건과 참조 조건을 한 변수로** 둔다(다르면 없는 id 를 가리킨다 — QA 지적 후 수정).
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], screens_covered: [SCREEN-0NN], summary: ...}

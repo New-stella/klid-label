@@ -391,3 +391,78 @@ describe('AiToolModal', () => {
     expect(text).toContain('경계 세밀함');
   });
 });
+
+// SCREEN-029 §AI 탐지 팝업 — 포털 채널은 실행 버튼이 하나다([탐지 실행]). 트랙 진입은 우측 「AI 자동 추적」
+// 패널이 유일한 자리라 팝업에 두지 않는다(중복 진입 제거). 내부 채널(SCREEN-005) 구성은 무변경.
+describe('AiToolModal — 단일 실행(detectOnly)', () => {
+  it('실행_버튼은_탐지_실행_하나이고_트랙_진입과_후속프레임_안내가_없다', () => {
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        candidates={CANDIDATES}
+        runMode="detectOnly"
+        canTrack={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: '탐지 실행' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '일반' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '트랙' })).toBeNull();
+    // canTrack=false 여도 추적 안내를 띄우지 않는다 — 이 팝업에 추적이 없다.
+    expect(screen.queryByText('후속 프레임이 없어 추적할 수 없습니다.')).toBeNull();
+    expect(
+      screen.getByText(
+        '형태와 대상 라벨을 선택한 뒤 실행하세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/실행 방식을 고르세요/)).toBeNull();
+  });
+
+  it('탐지_실행은_detect_모드로_확정한다', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={onConfirm} candidates={CANDIDATES} runMode="detectOnly" />,
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: '사람' }));
+    fireEvent.click(screen.getByRole('button', { name: '탐지 실행' }));
+    expect(onConfirm).toHaveBeenCalledWith('BBOX', ['person'], 'detect');
+  });
+
+  it('매핑된_라벨이_없으면_탐지_실행이_비활성이고_사유를_버튼에_잇는다', () => {
+    renderWithProviders(
+      <AiToolModal
+        open
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+        candidates={[CANDIDATES[1]]}
+        runMode="detectOnly"
+      />,
+    );
+    const run = screen.getByRole('button', { name: '탐지 실행' });
+    expect(run).toBeDisabled();
+    const reason = screen.getByText('AI 검출 클래스가 매핑된 라벨이 없어 실행할 수 없습니다.');
+    expect(run).toHaveAttribute('aria-describedby', reason.id);
+  });
+
+  it('다른_작업_진행_중이면_비활성이고_그_사유를_버튼에_잇는다', () => {
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} runMode="detectOnly" disabled />,
+    );
+    const run = screen.getByRole('button', { name: '탐지 실행' });
+    expect(run).toBeDisabled();
+    const reason = screen.getByText('다른 작업이 진행 중이라 지금은 실행할 수 없습니다.');
+    expect(run).toHaveAttribute('aria-describedby', reason.id);
+  });
+
+  it('기본_구성은_종전대로_일반_트랙_두_버튼이다', () => {
+    // 내부 채널 무변경 가드 — runMode 를 주지 않은 호출부.
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
+    expect(screen.getByRole('button', { name: '일반' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '트랙' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '탐지 실행' })).toBeNull();
+    expect(screen.getByText(/실행 방식을 고르세요/)).toBeInTheDocument();
+  });
+});

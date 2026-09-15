@@ -74,8 +74,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *       학습데이터의 정상 케이스라 <b>음수만으로 거부하지 않는다</b>(구 정책은 실데이터에서 프레임
  *       대부분을 400 으로 폐기했고, 같은 응답을 배치는 그대로 저장해 정책이 갈라져 있었다).</li>
  *   <li>mock 차단: ai-server mock 응답은 좌표를 반환하지 않고 빈 결과 + 안내 플래그만 반환(오염 방지).</li>
- *   <li>포털 차단: 컨트롤러 @PreAuthorize(REVIEWER/WORKER) + SecurityConfig 채널 격리(CHANNEL_INTERNAL)
- *       로 PORTAL 토큰은 진입 자체가 물리 차단(ADR-013).</li>
+ *   <li>채널 격리: 내부 창구는 컨트롤러 @PreAuthorize(REVIEWER/WORKER) + SecurityConfig 채널 격리
+ *       (CHANNEL_INTERNAL)로 PORTAL 토큰의 진입이 물리 차단된다. 포털 채널은 내부 창구를 열지 않고
+ *       <b>자기 창구</b>에서 {@link AiFrameAccess} 구현을 넘겨 추론 본체만 재사용한다. 위 IDOR·작업락·
+ *       신고 구간 항목은 <b>내부 채널 구현</b>({@code internalAccess})의 판정이다.</li>
  *   <li>SSRF: ai base-url 은 AiServerClient 내부 설정값. 경로 순회(CWE-22): FrameImageEncoder 가드.</li>
  * </ul>
  */
@@ -208,21 +210,45 @@ public class AutolabelOnlineService {
      */
     public AutolabelOutcome autolabel(Long srcSn, TokenClaims actor, List<String> classes, AutolabelShape shape,
                                       Double confThreshold, Double simplifyTolerance) {
+        return autolabelWithAccess(internalAccess(actor), srcSn, actor, classes, shape, confThreshold, simplifyTolerance);
+    }
+
+    /**
+     * 내부 채널 입력 경계 — 본인 배정 인가 · 신고 게이트 이미지 · 좌표 상한 · 차단 판정
+     * {@link #requireNotBlocked}(작업락 409 → 신고 상태 412). 요청마다 행위자에 묶어 만든다.
+     */
+    private AiFrameAccess internalAccess(TokenClaims actor) {
+        return new InternalAiFrameAccess(accessGuard, frameImageEncoder, frameBoundsResolver, actor,
+                this::requireNotBlocked);
+    }
+
+    /**
+     * 오토라벨 <b>추론 본체</b> — 채널 독립. 인가 · 입력 이미지 · 차단 판정은 {@code access} 가 공급한다
+     * ({@link AiFrameAccess}). 검출 클래스 서버측 재구성 · YOLO/SAM 호출 · bulkhead 429 · 취소 ·
+     * 좌표 정규화 · 폴리곤 상한/예산/부분실패 안내 · mock 차단 · 프레임 단위 동시 중복 차단(409)은
+     * 모든 채널이 <b>이 한 곳</b>을 공유한다(같은 ai-server 자원 · 같은 in-flight 집합).
+     *
+     * @design API-124
+     * @param access 채널 입력 경계(한 요청·한 행위자에 묶인 인스턴스)
+     * @param actor  감사 로그용 행위자(인가에는 쓰지 않는다 — 인가는 {@code access} 의 책임)
+     */
+    public AutolabelOutcome autolabelWithAccess(AiFrameAccess access, Long srcSn, TokenClaims actor, List<String> classes,
+                                      AutolabelShape shape, Double confThreshold, Double simplifyTolerance) {
         AutolabelShape effectiveShape = shape == null ? AutolabelShape.BBOX : shape;
-        // 1) IDOR 최우선 — 본인 배정 프레임 검증 후 프레임 획득(rawSn/경로 확보). (non-tx: 단순 스칼라 조회)
-        LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
+        // 1) 인가 최우선 — ai 호출 전에 프레임 접근을 판정하고 프레임을 획득(rawSn/경로 확보). (non-tx: 단순 스칼라 조회)
+        LsDataSrc src = access.authorize(srcSn);
         Long rawSn = src.getRawSn();
 
-        // 2) 작업락(#3) + 신고 구간 — 잠기거나 신고 구간이면 오토라벨 거부. (AI 호출 후 #4 재확인)
-        requireNotBlocked(rawSn);
+        // 2) 채널 차단 판정(내부: 작업락 #3 + 신고 구간) — 막히면 오토라벨 거부. (AI 호출 후 #4 재확인)
+        access.requireNotBlocked(rawSn);
 
         // 3) 동시 중복 트리거 차단(CWE-362) — 진행 중 재요청은 409.
         if (!inFlight.add(srcSn)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 오토라벨링이 진행 중인 프레임입니다.");
         }
         try {
-            // 원본 프레임 이미지를 1회 인코딩 — YOLO + (폴리곤 경로) SAM 이 공유(중복 인코딩 방지).
-            String imageB64 = frameImageEncoder.encodeFrame(src);
+            // 프레임 이미지를 1회 인코딩 — YOLO + (폴리곤 경로) SAM 이 공유(중복 인코딩 방지).
+            String imageB64 = access.encodeImage(src);
 
             // 4) 검출 대상 재구성(HIGH#1, 신뢰 경계) — FE 가 보낸 classes 를 신뢰하지 않고, 서버가
             //    '매핑된 라벨(DTCT_TYPE_CD) → COCO' 조회 결과로 검출 대상을 재구성한다. 미매핑/미지원 값은
@@ -230,7 +256,7 @@ public class AutolabelOnlineService {
             //    (매핑된 라벨만 실제 검출 — 미매핑 우회 차단).
             List<String> effectiveClasses = resolveDetectClasses(classes);
             if (effectiveClasses.isEmpty()) {
-                reCheckLock(rawSn);
+                reCheckLock(access, rawSn);
                 log.info("[Autolabel] no mapped detect classes srcSn={} rawSn={} requested={} actor={}",
                         srcSn, rawSn, classes == null ? 0 : classes.size(), actorId(actor));
                 return new AutolabelOutcome(new AutolabelResponse(srcSn, 0, List.of()), false,
@@ -257,11 +283,11 @@ public class AutolabelOnlineService {
             // 5) 좌표 정규화(C-ISSUE-41) — 배치와 <b>같은 공용 규칙</b>({@link DetectionBoxNormalizer}):
             //    경계 밖 좌표는 이미지 경계로 clamp, 형식 위반(개수·NaN/Infinity)만 all-or-nothing 400,
             //    clamp 후 퇴화한 박스는 그 검출만 스킵. 검출이 하나도 없으면 아래 6) 이 빈 결과로 마감한다.
-            detections = normalizeDetections(detections, src, srcSn);
+            detections = normalizeDetections(access, detections, src, srcSn);
 
             // 6) MED #3 — YOLO 박스 0개면 SAM 호출 스킵, 즉시 빈 결과 반환(폴리곤/박스 공통).
             if (detections.isEmpty()) {
-                reCheckLock(rawSn); // TOCTOU 재확인(#4) — 빈 결과라도 프라이버시 불변식 확인.
+                reCheckLock(access, rawSn); // TOCTOU 재확인(#4) — 빈 결과라도 프라이버시 불변식 확인.
                 log.info("[Autolabel] no detections srcSn={} rawSn={} shape={} actor={}",
                         srcSn, rawSn, effectiveShape, actorId(actor));
                 return new AutolabelOutcome(new AutolabelResponse(srcSn, 0, List.of()), false);
@@ -269,11 +295,11 @@ public class AutolabelOnlineService {
 
             // 7) 형태 분기.
             if (effectiveShape == AutolabelShape.POLYGON) {
-                return polygonAutolabel(srcSn, rawSn, imageB64, detections, actor, simplifyTolerance);
+                return polygonAutolabel(access, srcSn, rawSn, imageB64, detections, actor, simplifyTolerance);
             }
 
             // BBOX(기본) — TOCTOU 재확인(#4) 후 검출 좌표를 응답 아이템으로 매핑(미저장, lblSn=null).
-            reCheckLock(rawSn);
+            reCheckLock(access, rawSn);
             List<AutolabelResponse.Item> items = toItems(detections);
             log.info("[Autolabel] detected srcSn={} rawSn={} shape=BBOX count={} actor={}",
                     srcSn, rawSn, items.size(), actorId(actor));
@@ -294,7 +320,7 @@ public class AutolabelOnlineService {
      *   <li>배치 전/후 작업락 재확인(#2 TOCTOU) — 중간 신고 시 좌표 미반환·409.</li>
      * </ul>
      */
-    private AutolabelOutcome polygonAutolabel(Long srcSn, Long rawSn, String imageB64,
+    private AutolabelOutcome polygonAutolabel(AiFrameAccess access, Long srcSn, Long rawSn, String imageB64,
                                               List<YoloResponse.Detection> detections, TokenClaims actor,
                                               Double simplifyOverride) {
         int maxBoxes = readInt(ConfigKeys.AUTOLABEL_POLYGON_MAX_BOXES, DEFAULT_POLYGON_MAX_BOXES);
@@ -313,7 +339,7 @@ public class AutolabelOnlineService {
             // #2 TOCTOU(배치 중) — 중간에 이 영상에 비식별 신고가 나면 안전하게 중단한다. 폴리곤 경로는
             //    최초 1회 인코딩한 이미지를 박스마다 재전송하므로, 여기서 끊지 않으면 신고 이후에도 같은
             //    PII 픽셀이 ai-server 로 계속 나간다(좌표 미반환·409/412).
-            requireNotBlocked(rawSn);
+            access.requireNotBlocked(rawSn);
             long remainingNanos = deadlineNanos - System.nanoTime();
             if (remainingNanos <= 0) {
                 truncated = true; // 예산 소진 — 나머지 박스는 잘라 안내.
@@ -358,7 +384,7 @@ public class AutolabelOnlineService {
         }
 
         // #2 TOCTOU(배치 후, 응답 조립 직전) — 그사이 잠기면 좌표 미반환·409.
-        reCheckLock(rawSn);
+        reCheckLock(access, rawSn);
 
         String message = buildPolygonMessage(detected, items.size(), truncated, anyMock, skipped, items.isEmpty());
         log.info("[Autolabel] detected srcSn={} rawSn={} shape=POLYGON detected={} returned={} skipped={} actor={}",
@@ -395,9 +421,9 @@ public class AutolabelOnlineService {
         return sb.length() == 0 ? null : sb.toString();
     }
 
-    /** TOCTOU 재확인 헬퍼(#4) — 잠기거나 신고 구간이면 좌표 미반환. */
-    private void reCheckLock(Long rawSn) {
-        requireNotBlocked(rawSn);
+    /** TOCTOU 재확인 헬퍼(#4) — 채널 차단 판정(내부: 잠기거나 신고 구간)에 걸리면 좌표 미반환. */
+    private void reCheckLock(AiFrameAccess access, Long rawSn) {
+        access.requireNotBlocked(rawSn);
     }
 
     /**
@@ -572,13 +598,15 @@ public class AutolabelOnlineService {
      *
      * <p>clamp 기준은 프레임 <b>실측</b> 해상도다. 측정 실패(파생영상·NAS 일시 장애 등)면 상한만 생략하고
      * 하한(0) clamp 는 유지한다 — 여기서 막으면 정상 작업이 전면 차단된다({@link FrameBoundsResolver} 정책).
+     * 치수 공급은 채널 입력 경계({@link AiFrameAccess#resolveBounds})가 맡는다 — 추론 입력과 같은 파일을 잰다.
      */
-    private List<YoloResponse.Detection> normalizeDetections(List<YoloResponse.Detection> detections,
+    private List<YoloResponse.Detection> normalizeDetections(AiFrameAccess access,
+                                                             List<YoloResponse.Detection> detections,
                                                              LsDataSrc src, Long srcSn) {
         if (detections.isEmpty()) {
             return detections;
         }
-        int[] bounds = frameBoundsResolver.resolve(src).orElse(null);
+        int[] bounds = access.resolveBounds(src).orElse(null);
         List<YoloResponse.Detection> normalized = new ArrayList<>(detections.size());
         for (YoloResponse.Detection d : detections) {
             Optional<List<Double>> points;

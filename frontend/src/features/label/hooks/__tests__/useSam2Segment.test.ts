@@ -9,6 +9,16 @@ afterEach(() => {
 });
 
 describe('useSam2Segment', () => {
+  it('포털_채널이면_포털_분할_창구_인자를_넘긴다', async () => {
+    // SCREEN-029 · API-257 — 포털 채널도 AI 분할을 쓴다. 인자를 버리면 포털 요청이 내부 창구로 나가 403.
+    const spy = vi.spyOn(api, 'requestSam2Segment').mockResolvedValue({ polygon: [], score: 0 });
+    const { result } = renderHook(() => useSam2Segment(5001, true));
+    await act(async () => {
+      await result.current.segment({ points: [[10, 10]] });
+    });
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, expect.any(AbortSignal), expect.any(String), true);
+  });
+
   it('클릭시_포인트_프롬프트로_segment_요청', async () => {
     const spy = vi.spyOn(api, 'requestSam2Segment').mockResolvedValue({
       polygon: [
@@ -25,8 +35,9 @@ describe('useSam2Segment', () => {
       res.value = await result.current.segment({ points: [[10, 10]] });
     });
 
-    // 내부(INTERNAL) 경로 단일 호출 — 포털 채널 분기(구 3번째 인자 portalMode)는 폐기됐다.
-    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, expect.any(AbortSignal), expect.any(String));
+    // 내부(INTERNAL) 경로 — 마지막 인자 false = 내부 창구. (구 3번째 인자 portalMode 는 폐기됐고,
+    // 2026-09-15 에 포털 창구 분기가 다섯 번째 인자로 다시 생겼다 — 아래 포털 케이스 참조.)
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, expect.any(AbortSignal), expect.any(String), false);
     expect(res.value?.polygon).toHaveLength(3);
   });
 
@@ -46,7 +57,7 @@ describe('useSam2Segment', () => {
     });
 
     // 취소 신호를 함께 싣는다 — 취소가 화면 안에서만 끝나면 서버는 계속 돌며 자원을 물고 있는다.
-    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] }, expect.any(AbortSignal), expect.any(String));
+    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] }, expect.any(AbortSignal), expect.any(String), false);
   });
 
   it('진행중_재클릭_무시', async () => {

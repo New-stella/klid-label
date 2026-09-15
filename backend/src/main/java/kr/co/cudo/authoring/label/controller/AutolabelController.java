@@ -28,8 +28,9 @@ import org.springframework.web.bind.annotation.RestController;
  * 중복제거한 뒤 기존 라벨 저장 API(PUT /labels)로 확정한다. 배치 파이프라인 오토라벨은 본 API 와 무관하게
  * 기존대로 저장한다.
  *
- * <p>권한: REVIEWER/WORKER (본인 배정 프레임 검증 IDOR). PORTAL 채널은 역할 + 채널 격리로 물리 차단
- * (ADR-013 — 포털은 오토라벨 미제공).
+ * <p>권한: REVIEWER/WORKER (본인 배정 프레임 검증 IDOR). PORTAL 채널 토큰은 역할 + 채널 격리로 이 창구에
+ * 닿지 않는다 — 포털은 <b>자기 전용 창구</b>({@code PortalAiAssistController}, API-255)로 같은 추론 본체를 쓴다
+ * (ADR-013 v24, 2026-09-15). 이 창구를 포털에 열지 말 것.
  */
 @Tag(name = "Autolabel", description = "YOLO 오토라벨 수동 트리거 — REVIEWER/WORKER. 본인 배정 프레임 검증(IDOR).")
 @RestController

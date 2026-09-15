@@ -193,8 +193,15 @@ export interface LabelingPageProps {
  * SCR-LABEL-001 라벨링 캔버스 페이지 (라이트 풀스크린).
  *
  * ★내부(`/label/:id`)와 포털(`/portal/label/:id`) 두 라우트가 **같은 컴포넌트를 재사용**한다.
- *   포털 갈래에서 가려지는 것(AI 보조·트랙 편집·검수·버전관리·비식별 신고·프레임 폐기)은 전부
+ *   포털 갈래에서 가려지는 것(스켈레톤·선택 객체 AI 추적·트랙 편집·검수·버전관리·비식별 신고·
+ *   프레임 폐기)과 갈리는 것(AI 보조 창구 경로·도구바 묶음·AI 탐지 팝업 실행 버튼)은 전부
  *   `portalMode` 단일 축이 판정한다 — <b>두 번째 게이팅 축을 만들지 말 것</b>.
+ *   분기 축은 셋이다 — API 경로 / 노출 요소 / 이동 경로. AI 보조 창구 경로는 이 화면이 portalMode 를
+ *   훅·부품에 넘기고, 경로 조립은 `lib/api/aiRoutes` 한 곳이 한다.
+ * ⚠ [폐기] 구 서술 — *"포털 갈래에서 AI 보조가 가려진다"*. 2026-09-15 에 포털도 AI 탐지·AI 분할·
+ *   AI 자동 추적을 쓰게 됐다(SCREEN-029).
+ *
+ * @design SCREEN-005, SCREEN-029, API-255, API-257, API-254, API-256, API-258
  */
 export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   const { id } = useParams<{ id: string }>();
@@ -1090,7 +1097,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     pushToast({ variant: 'success', message: '작업본에 되돌렸습니다. 저장해야 확정됩니다.' });
   }, [revertTarget, currentFrame, isLocked, revertSaveEvent, pushToast]);
 
-  // Phase 4 — AI Tool 수동 트리거. 포털은 오토라벨 미제공(ADR-013 — 버튼 자체 미노출).
+  // Phase 4 — AI Tool 수동 트리거. 포털 채널도 쓴다 — 포털 전용 창구로 보낸다(portal 플래그).
   // 검출 결과는 BE 미저장(Phase 3 전환) → 재조회가 아니라 작업본에 병합한다. mock 응답은 자동적용 차단.
   //
   // 병합·안내는 onApply 로 넘겨 **진행 중(busy) 보호 구간 안에서** 수행한다. 바깥에서 병합하면
@@ -1120,6 +1127,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   );
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn, {
     onApply: applyAutolabelResult,
+    portal: portalMode,
   });
   // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
@@ -1136,11 +1144,11 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //   조회를 두 번 하지 않고 예산 발행까지 겸하는 훅을 쓴다 — 예산이 화면 상수로 남아 있으면
   //   서버가 재시도 예산을 바꿀 때 화면만 조용히 어긋나고, «화면이 더 짧은» 방향이면 정상 동작이
   //   «AI 실패» 로 보인다.
-  //   ★<b>포털 채널에서는 이 조회를 하지 않는다.</b> 그 채널에는 AI 도구가 없어 쓸 값이 없고,
-  //   포털 사용자는 검수자도 작업자도 아니라 이 창구가 <b>403</b> 이다 — 진입마다 실패 요청이
-  //   두 번씩 쌓인다. 위 주석이 「작업자 진입마다 403 이 쌓였다」고 적어 고친 그 결함이 채널
-  //   하나 옆에서 재발한 것이라, 같은 방식(호출을 막는다)으로 닫는다.
-  const { data: aiDefaults } = useAiWaitBudgetSync(!portalMode);
+  //   ★<b>포털 채널은 포털 전용 창구(`/v1/portal/ai-defaults`)로 조회한다</b> (2026-09-15).
+  //   내부 창구는 포털 토큰으로 403 이라 그대로 부르면 진입마다 실패가 쌓인다(작업자 403 이 쌓였던
+  //   결함과 같은 계열). ⚠ [폐기] 구 서술 — *"포털 채널에서는 이 조회를 하지 않는다 · 그 채널에는
+  //   AI 도구가 없다"*. 지금은 포털도 AI 보조를 쓰므로 조회를 막으면 대기 예산이 폴백으로 남는다.
+  const { data: aiDefaults } = useAiWaitBudgetSync(true, portalMode);
   const defaultConfThreshold =
     aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
   const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
@@ -1199,6 +1207,26 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     () => frames.slice(frameIdx + 1).map((f) => f.srcSn),
     [frames, frameIdx],
   );
+
+  // (포털) 좌측 도구바 「AI 자동 추적」 — 실행하지 않고 우측 「객체」 탭의 자동 추적 패널로 이동·포커스.
+  //   탭 전환은 렌더를 거쳐야 패널이 서므로, 요청 번호를 올려 두고 커밋 뒤 effect 에서 옮긴다.
+  const autoTrackFocusRef = useRef<HTMLDivElement>(null);
+  const [autoTrackFocusRequest, setAutoTrackFocusRequest] = useState(0);
+  const handleFocusAutoTrack = useCallback(() => {
+    setRightTab('objects');
+    setAutoTrackFocusRequest((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (autoTrackFocusRequest === 0) return;
+    const el = autoTrackFocusRef.current;
+    if (!el) return;
+    // jsdom 등 scrollIntoView 가 없는 환경에서도 포커스 이동은 이어간다.
+    el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, [autoTrackFocusRequest]);
+  // 도구바에서 미리 보일 비활성 사유 — 패널의 실행 조건과 같은 판정(뒤따르는 프레임 유무)을 쓴다.
+  const autoTrackUnavailableReason =
+    nextSrcSns.length === 0 ? '뒤따르는 프레임이 없어 AI 자동 추적을 쓸 수 없습니다.' : undefined;
 
   // R12 — 추적 성공분(tracked)을 srcSn 별로 분리해 반영한다(사일런트 데이터 유실 수정).
   //  - tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 과거 필터(=== data.srcSn)는 항상
@@ -1540,7 +1568,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         );
       },
     },
-    // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
+    // 포털 모드에서는 포털 미제공 도구(선택 객체 AI 추적·스켈레톤) 단축키 게이팅(툴바 숨김과 정합).
     //
     // 모달 열림 중 단축키 억제는 **여기서 나열하지 않는다**(NF-4②) — 훅이 열린 모달을 DOM
     // 단일 판정(hasOpenModalDialog)으로 직접 본다. 손으로 나열하던 방식은 새 모달(신고·삭제
@@ -1906,11 +1934,13 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         portalMode={portalMode}
       />
 
-      {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 확정 시 shape/classIds/mode 로 실행. */}
+      {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 실행). 확정 시 shape/classIds/mode 로 실행.
+          포털은 [탐지 실행] 하나 — 트랙 진입은 우측 「AI 자동 추적」 패널이 유일한 자리다(SCREEN-029). */}
       <AiToolModal
         open={autolabelModalOpen}
         onClose={() => setAutolabelModalOpen(false)}
         onConfirm={runAiTool}
+        runMode={portalMode ? 'detectOnly' : 'detectOrTrack'}
         canTrack={nextSrcSns.length > 0}
         candidates={detectCandidates}
         candidatesLoading={detectCandidatesLoading}
@@ -1942,6 +1972,8 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
           onToggleZoomArea={handleToggleZoomArea}
           showGrid={showGrid}
           onToggleGrid={handleToggleGrid}
+          onFocusAutoTrack={portalMode ? handleFocusAutoTrack : undefined}
+          autoTrackUnavailableReason={portalMode ? autoTrackUnavailableReason : undefined}
         />
 
         {/* 캔버스 열 — 상단 옵션바 + 캔버스 */}
@@ -2003,6 +2035,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 rotation={rotation}
                 showGrid={showGrid}
                 zoomAreaMode={zoomAreaMode}
+                portalMode={portalMode}
               />
             </Suspense>
           ) : (
@@ -2251,18 +2284,20 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 />
               </div>
               {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리(객체 목록 바로 아래)에 둔다.
-                  포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다.
+                  포털 채널도 노출한다(SCREEN-029 — 포털 전용 창구). 포털 좌측 도구바의 「AI 자동 추적」
+                  버튼이 이 패널 제목으로 포커스를 옮긴다(focusTargetRef — 포털에서만 지정).
+                  ⚠ [폐기] 구 서술 — *"포털은 오토라벨·추적 미제공이라 진입 자체를 두지 않는다"*.
                   ★목록 블록 **밖**에 둔다 — 안에 두면 `shrink-0` 인 이 패널이 목록의 높이를 먹어
                     객체 목록이 0px 로 사라진다(위 스크롤 계약 주석 참조). */}
-              {!portalMode && (
-                <AutoTrackPanel
-                  srcSn={data?.srcSn}
-                  frames={frames}
-                  nextSrcSns={nextSrcSns}
-                  onApply={handleAutoTrackApply}
-                  disabled={isEditBlocked || isLocked}
-                />
-              )}
+              <AutoTrackPanel
+                srcSn={data?.srcSn}
+                frames={frames}
+                nextSrcSns={nextSrcSns}
+                onApply={handleAutoTrackApply}
+                disabled={isEditBlocked || isLocked}
+                portal={portalMode}
+                focusTargetRef={portalMode ? autoTrackFocusRef : undefined}
+              />
               <div className="flex min-h-[192px] flex-1 flex-col overflow-hidden border-t border-gray-200">
                 <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   속성
@@ -2272,7 +2307,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
                   imageWidth={frameNaturalSize?.width}
                   imageHeight={frameNaturalSize?.height}
-                  // AI 추적은 내부(INTERNAL) 채널 전용이다(ADR-013 — 포털 미제공).
+                  // 선택 객체 AI 추적은 내부(INTERNAL) 채널 전용이다 — 포털은 AI 자동 추적 패널로 대신한다
+                  // (SCREEN-029 — 같은 목적의 중복 진입을 포털에 두지 않는다). AI 분할 정밀도(segment)는
+                  // 두 채널 모두 넘긴다.
                   // ★채널 분기를 **여기서 명시적으로** 건다 (2026-08-18). 구 코드는 분기 없이 항상
                   //   넘기고 패널이 `activeTool === TRACK` 으로 게이트하는 데 기대고 있었는데, 그
                   //   도구 모드 게이트가 사양 정합으로 제거되면서(선택 객체가 있으면 상시 노출)

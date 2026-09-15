@@ -10,7 +10,9 @@
 //   GET  /v1/portal/user-labels            → 본인 작업 라벨 조회 (rawSn)
 //   POST /v1/portal/user-labels            → 본인 작업 라벨 저장 (원본 미수정 — LS_PORTAL_USER_LABEL)
 //
-// ADR-013: 포털은 데이터마트 영상 선택·간편 라벨링 전용. 오토라벨링·업로드(TUS)·검수·버전관리 미제공.
+// ADR-013: 포털은 데이터마트 영상 선택·간편 라벨링 전용. 검수·버전관리 미제공.
+//   AI 보조(AI 탐지·AI 분할·AI 자동 추적)는 2026-09-15 부터 포털 전용 창구로 제공한다 — 그 경로 조립은
+//   `lib/api/aiRoutes` 한 곳이 하며 이 파일에 두지 않는다(라벨링 코어의 AI 호출 함수가 채널 인자로 가른다).
 
 import { apiClient } from '@/lib/api/client';
 import {
