@@ -532,9 +532,13 @@ describe('정적 CSS 잔재 — 포털 셸 뿌리가 본문 색·바탕을 명�
       path.join(repoRoot, 'src/components/layout/PortalLayout.tsx'),
       'utf-8',
     );
-    expect(src).toMatch(/className="flex min-h-screen flex-col [^"]*\bbg-canvas\b/);
-    expect(src).toMatch(/className="flex min-h-screen flex-col [^"]*\btext-gray-800\b/);
-    expect(src).toMatch(/className="flex min-h-screen flex-col [^"]*\btracking-body\b/);
+    // 글자색·자간은 채널과 무관하게 뿌리가 한 번 명시한다.
+    expect(src).toMatch(/'flex flex-col [^']*\btext-gray-800\b/);
+    expect(src).toMatch(/'flex flex-col [^']*\btracking-body\b/);
+    // 바탕은 «두 갈래 모두» 명시한다 — 한쪽이라도 비면 그 채널만 관제 축 회색을 물려받는다.
+    // 임베드는 Host 카드(흰 바탕)에 맞춘 흰색, 독립 앱은 DS-002 캔버스.
+    expect(src).toMatch(/\bbg-white\b/);
+    expect(src).toMatch(/\bmin-h-screen bg-canvas\b/);
   });
 
   it('그_세_토큰이_포털_채널에서_DS_002_값으로_해석된다', () => {

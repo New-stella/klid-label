@@ -75,6 +75,12 @@ describe('포털 스타일 격리 — 구성 고정', () => {
       expect(CSS_COMPACT).toContain('.klid-portal-embed{--spacing:4px;}');
     });
 
+    it('포털 앵커가 바탕을 Host 카드와 같은 흰색으로 칠한다', () => {
+      // 이 선언이 없으면 앵커로 좁혀진 `body` 리셋의 관제 축 회색(#f4f5f6)이 흰 Host 카드
+      // 위에 한 겹 얹힌다(2026-09-15 개발망 실측).
+      expect(CSS_COMPACT).toContain('.klid-portal-embed{background-color:#fff;}');
+    });
+
     it('★ 그 규칙은 레이어 «밖»이다 — 레이어 안이면 Host 선언에 진다', () => {
       // ⚠ 주석을 걷어낸 사본에서 «규칙 자체»(`{` 가 뒤따르는 자리)를 찾는다. 원문에서 클래스
       //   «이름»을 찾으면 레이어 «안»의 설명 주석이 먼저 걸려, 규칙이 레이어 안으로 옮겨가도

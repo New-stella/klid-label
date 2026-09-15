@@ -115,7 +115,7 @@ export function PortalAugmentPage() {
   const hasRows = !listQuery.isLoading && !listQuery.isError && rows.length > 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-wrap flex-col gap-column">
+    <div className="flex w-full flex-col gap-column">
       <section aria-labelledby="portal-augment-list" className="flex flex-col gap-in-component">
         <PortalSectionHead
           id="portal-augment-list"
