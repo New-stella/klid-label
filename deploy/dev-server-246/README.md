@@ -129,9 +129,17 @@ docker run -d --name klid-authoring-jboss --restart no --network klidnet \
   -v /data/klid/closed-net/klid-authoring/jboss-eap-8:/opt/jboss-eap-8 \
   -v /data/klid/storage:/app/storage \
   -p 38090:18080 --entrypoint /__cacert_entrypoint.sh \
-  eclipse-temurin:17-jdk /opt/jboss-eap-8/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
+  klid-jboss-runtime:latest /opt/jboss-eap-8/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
 docker network connect klid-net klid-authoring-jboss   # 2번째 네트워크
 ```
+
+⚠ **이미지는 `klid-jboss-runtime:latest` 다 — `eclipse-temurin:17-jdk` 로 되돌리지 말 것 (2026-09-15).**
+그 이미지는 `eclipse-temurin:17-jdk` 에 **`ffmpeg`·`curl` 만 얹은 것**이며 정의는 서버의
+`/data/klid/closed-net/klid-authoring/runtime-image/Dockerfile` 에 있다(도커 `klid-backend` 의
+`backend/Dockerfile` 런타임 스테이지와 같은 방식).
+**맨 `eclipse-temurin` 으로 재생성하면 `ffmpeg` 이 사라져** 시계열 위탁·콜백까지는 성공하고
+**프레임 추출에서 `Cannot run program "ffmpeg"` 로 멈춘다**(실측). 그 앞 단계가 다 성공해
+원인이 늦게 드러나는 형태다.
 
 ## 4. 프론트엔드(정적) 배포
 
@@ -248,8 +256,40 @@ nt ssh cudo_246 "curl -s -o /dev/null -w 'API=%{http_code}\n' http://localhost:8
 
 - **채널 인계 키는 `localStorage['klid-jwt-token']` 고정**(관제가 같은 키로 저장 — 확인됨).
   FE 는 channel 클레임 부재를 INTERNAL 로 수용한다(관제 토큰엔 channel 없음).
-- **공유 DB**: postgis-klid/klid 는 도커 klid-backend 와 공유. dev-seed(`@Profile(local)`)는
-  246 JBoss(dev)에서 안 돌지만, 도커 klid-backend 재시드가 9001 의 `user_nm` 을 되돌릴 수 있다
-  (`ON CONFLICT DO UPDATE`는 user_nm 갱신, user_id 는 미변경). 영구 고정하려면 `dev-seed.sql`
-  반영본으로 klid-backend 도 재빌드.
+- ⚠ **구 서술 폐기(2026-09-15)** — *"**공유 DB**: postgis-klid/klid 는 도커 klid-backend 와 공유"* 는
+  더 이상 사실이 아니다. **DB 를 갈랐다**(아래 §9). 도커 재시드가 JBoss 쪽 사용자 이름을 되돌리던
+  문제도 함께 사라졌다.
+- **통지(control-notify)는 기본 off** — 관제로 완료/수정 통지하려면 §3 env 설정 필요.
+
+## 9. 도커 백엔드 DB 분리 (2026-09-15)
+
+```
+JBoss  ──►  postgis-klid / klid          (사용자가 보는 화면의 백엔드)
+도커   ──►  postgis-klid / klid_docker   (구 개발 UI 스택 · 포털 소재 조달 시험용)
+```
+
+### 왜 갈랐나
+같은 DB·같은 스키마를 쓰면서 **둘 다 Quartz 클러스터 모드가 꺼져 있었다.** 그러면 Quartz 가
+두 앱을 구분하지 못한다(`qrtz_fired_triggers.instance_name` 이 양쪽 다 리터럴 `NON_CLUSTERED`).
+25분 실측에서 **관제 인입 폴링의 95%(18/19)가 8일 전 도커 코드에서** 돌고 있었다. 추가 질문
+위탁 창구도 도커는 구 규격(`describe-sub`), JBoss 는 현행(`custom`)이라 **같은 원장에 다른 계약의
+결과가 섞였다.** 분리 후 두 DB 가 각자 트리거를 갖고 각자 발화하는 것을 확인했다.
+
+### 무엇을 했나
+- `klid` 의 **`klid_at` 스키마만** `klid_docker` 로 복제(표 82 · 뷰 4 · 시퀀스 55 · 행수 전건 일치).
+  `public` 은 관제 소유이고 앱이 `currentSchema=klid_at` 로 접속해 도달 경로가 없다(42GB 중 11MB).
+- 도커 백엔드의 JDBC URL 을 `klid_docker` 로 변경 — **`/data/klid/docker-compose.override.yml`**(서버 로컬, git 미추적).
+- ⚠ **같은 파일에서 image 를 다이제스트로 고정했다.** 태그 `klid-backend:latest` 가 그 사이 더 새
+  빌드로 옮겨가 있어, 고정하지 않으면 **DB 만 가르려던 재생성이 코드까지 바꾼다.**
+  **도커 쪽 코드를 올릴 때는 그 고정을 먼저 지울 것.**
+- JBoss 설정은 **건드리지 않았다.**
+
+### 되돌리는 법 · 상세 기록
+서버의 **`/data/klid/backup/db-split-20260915/`** — `README.md`(경위·되돌리는 절차) ·
+override 원본 · env 전량 · 덤프 · 행수 대조 2종.
+
+### 남은 것
+- Flyway 는 설정을 건드리지 않았다. 도커 jar 는 V33 까지인데 사본 이력은 V37 이라 **future** 로
+  잡히고, 기본값이 경고만 내고 통과시킨다(2026-09-12 기동 로그에 같은 상황 실측).
+- ⚠ 두 DB 는 **분리 시점 이후로 갈라진다.** 한쪽에 넣은 자료는 다른 쪽에 없다.
 - **통지(control-notify)는 기본 off** — 관제로 완료/수정 통지하려면 §3 env 설정 필요.
