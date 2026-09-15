@@ -247,7 +247,7 @@ export function AiToolModal({
           data-testid="ai-tool-label-list"
           onScroll={updateLabelListScrollState}
           // 상한은 뷰포트 기준 — 고정 px 이면 낮은 해상도에서 모달이 화면을 넘긴다.
-          className="max-h-[min(16rem,34vh)] min-w-0 overflow-y-auto overscroll-contain"
+          className="max-h-[min(256px,34vh)] min-w-0 overflow-y-auto overscroll-contain"
         >
         {candidatesLoading ? (
           <p className="px-2 py-3 text-sub text-gray-500" aria-live="polite">
