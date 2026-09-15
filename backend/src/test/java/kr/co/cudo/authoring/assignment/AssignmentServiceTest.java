@@ -67,31 +67,36 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("assign_요청에_reviewerId가_있으면_응답_Item에도_reviewerId가_반영")
-    void assignReturnsReviewerIdInResponse() {
-        // given — workerId=100, reviewerId=1 (REVIEWER 시드) 함께 배정 요청.
-        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L), 1L);
+    @DisplayName("배정해도_검수자_배정_행이_새로_생기지_않는다")
+    void assignNeverCreatesReviewerRow() {
+        // given / when — 검수자 항목이 없는 요청(계약 축소 후의 유일한 형태).
+        assignmentService.assign(new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
 
-        // when
-        AssignmentResponse response = assignmentService.assign(req, reviewer());
-
-        // then — 응답 Item 의 reviewerId 가 요청값(1)으로 반영되어야 한다 (이전엔 항상 null 반환 버그).
-        assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).reviewerId()).isEqualTo(1L);
+        // then — 배정의 대상은 작업자뿐이다(ADR-067). 검수자 유형 행은 한 건도 생기지 않는다.
+        Long reviewerRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM LS_TASK_ALTMNT WHERE TASK_TYPE_CD = ?",
+                Long.class, LsTaskAssignment.TASK_REVIEWER);
+        assertThat(reviewerRows).isZero();
+        // 작업자 배정은 그대로 만들어진다(회귀 가드 — 검수자 축만 걷어냈다).
+        assertThat(authrtRepository.findAll())
+                .singleElement()
+                .satisfies(a -> {
+                    assertThat(a.getTaskTypeCd()).isEqualTo(LsTaskAssignment.TASK_LABELER);
+                    assertThat(a.getUserNo()).isEqualTo(100L);
+                });
     }
 
     @Test
-    @DisplayName("assign_요청에_reviewerId가_없으면_응답_Item의_reviewerId는_null")
-    void assignReturnsNullReviewerIdWhenNotRequested() {
-        // given — reviewerId 미지정.
-        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
+    @DisplayName("응답_항목에_검수자_축이_없다")
+    void assignResponseHasNoReviewerAxis() {
+        AssignmentResponse response =
+                assignmentService.assign(new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
 
-        // when
-        AssignmentResponse response = assignmentService.assign(req, reviewer());
-
-        // then
         assertThat(response.items()).hasSize(1);
-        assertThat(response.items().get(0).reviewerId()).isNull();
+        // 필드 자체가 사라졌으므로 직렬화 결과에 그 이름이 없다 — 되살리면 이 단언이 깨진다.
+        assertThat(AssignmentResponse.Item.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .doesNotContain("reviewerId", "reviewerName");
     }
 
     @Test
@@ -198,6 +203,39 @@ class AssignmentServiceTest {
         assertThat(only.prevUserName()).isNull();
         assertThat(only.reason()).isNull();
         assertThat(only.occurredAt()).isNotNull();
+        // 배정은 역할을 남기지 않는 종류다 — 비어 있는 것이 정상이며 지어낸 값으로 채우지 않는다.
+        assertThat(only.actorRoleCd()).isNull();
+    }
+
+    /**
+     * 「검수 시작」도 이 타임라인의 조회 대상이다(ADR-067) — 점유가 전용 표가 아니라 이 원장의
+     * 이벤트로 표현되므로 배정·제출·승인·반려와 같은 자리에 실린다. 아울러 <b>행위 시점 역할</b>이
+     * 항목에 함께 실리고, 관리자가 한 행위는 관리자로 남는지 고정한다.
+     */
+    @Test
+    @DisplayName("검수_시작도_이력에_실리고_행위_시점_역할이_함께_보인다")
+    void historyCarriesStartReviewAndActorRole() {
+        var created = assignmentService.assign(
+                new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
+        Long authrtSeq = created.items().get(0).authrtSeq();
+        Long rawDataId = created.items().get(0).rawDataId();
+
+        // 관리자가 검수를 시작하고 승인했다.
+        taskEventLogRepository.saveAndFlush(LsTaskEventLog.startReview(rawDataId, 1L, Role.ADMIN));
+        taskEventLogRepository.saveAndFlush(LsTaskEventLog.approve(rawDataId, 1L, Role.ADMIN));
+
+        List<AssignmentHistoryResponse> history = assignmentService.getHistory(authrtSeq, reviewer());
+
+        assertThat(history)
+                .extracting(AssignmentHistoryResponse::eventTypeCd)
+                .containsExactly(
+                        LsTaskEventLog.EVENT_ASSIGN,
+                        LsTaskEventLog.EVENT_START_REVIEW,
+                        LsTaskEventLog.EVENT_APPROVE);
+        assertThat(history)
+                .extracting(AssignmentHistoryResponse::actorRoleCd)
+                .as("옛 형태(배정)는 null, 새로 쌓인 두 건은 계층 승격값이 아닌 실제 역할 ADMIN")
+                .containsExactly(null, Role.ADMIN.name(), Role.ADMIN.name());
     }
 
     @Test

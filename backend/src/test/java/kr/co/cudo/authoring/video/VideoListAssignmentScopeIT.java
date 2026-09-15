@@ -131,8 +131,19 @@ class VideoListAssignmentScopeIT {
         assignmentRepository.save(LsTaskAssignment.createLabeler(video.getRawSn(), userNo, REVIEWER_NO));
     }
 
+    /**
+     * <b>옛</b> 검수자 배정 행을 재현한다 — 새로 만드는 경로는 없어졌지만(ADR-067) 이미 적재된 행은
+     * 그대로 남으므로, 그 행이 작업자 조회 범위를 넓히지 않는다는 회귀 가드는 계속 필요하다.
+     * 그래서 제거된 팩토리 대신 빌더로 직접 세운다.
+     */
     private void assignReviewer(LsDataRaw video, long userNo) {
-        assignmentRepository.save(LsTaskAssignment.createReviewer(video.getRawSn(), userNo, REVIEWER_NO));
+        assignmentRepository.save(LsTaskAssignment.builder()
+                .userNo(userNo)
+                .rawDataId(video.getRawSn())
+                .taskTypeCd(LsTaskAssignment.TASK_REVIEWER)
+                .regUserNo(REVIEWER_NO)
+                .regDt(java.time.LocalDateTime.now())
+                .build());
     }
 
     // ---------------------------------------------------------------- AC-1 · AC-2

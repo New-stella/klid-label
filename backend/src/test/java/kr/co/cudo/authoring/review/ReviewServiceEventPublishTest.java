@@ -85,7 +85,12 @@ class ReviewServiceEventPublishTest {
                 stateMachine, srcRepository, labelRepository, videoRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository),
                 objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
-                evntAnnoReviewService, metaService, accessGuard, controlNotifyDebounceStore);
+                evntAnnoReviewService, metaService, accessGuard, controlNotifyDebounceStore,
+                // ADR-067 — 검수 점유 조회 단일 창구. 위 이벤트 로그 목이 빈 결과를 돌려주므로
+                // 「아무도 점유하지 않음」 상태다(이 시험의 관심사는 점유가 아니다).
+                new kr.co.cudo.authoring.assignment.service.ReviewClaimSupport(taskEventLogRepository, 30),
+                // 일괄 승인 건수 상한 — 단건 경로를 쓰는 이 시험에서는 읽히지 않는다.
+                new kr.co.cudo.authoring.review.service.ReviewBatchApprovePolicy(20));
 
         // enrichOne 헬퍼에서 N+1 회피 lookup 들이 빈 결과를 반환하도록
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());
