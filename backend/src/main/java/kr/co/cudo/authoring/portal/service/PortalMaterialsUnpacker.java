@@ -91,7 +91,7 @@ public class PortalMaterialsUnpacker {
         try (InputStream in = Files.newInputStream(sourceRealPath, LinkOption.NOFOLLOW_LINKS);
              OutputStream out = Files.newOutputStream(localCopy,
                      StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            in.transferTo(out);
+            copyBounded(in, out);
         }
         Path contentDir = stagingDir.resolve(CONTENT_DIR);
         Files.createDirectory(contentDir);
@@ -99,6 +99,37 @@ public class PortalMaterialsUnpacker {
         // 사본은 해제가 끝나면 쓸모가 없다 — 압축본 크기만큼 두 번 차지할 이유가 없다.
         Files.deleteIfExists(localCopy);
         return result;
+    }
+
+    /**
+     * 원본을 사본으로 옮기되 <b>흘러간 바이트를 세어 상한에서 끊는다</b>.
+     *
+     * <h3>왜 {@code transferTo} 로는 안 되는가</h3>
+     * <p>그것은 끝까지 옮긴다. 해제 상한({@code maxTotalBytes})은 그 복사가 <b>끝난 뒤</b>에야
+     * 적용되므로, 조달처가 가리킨 소재가 거대하면 <b>방어선에 닿기 전에 작업영역 디스크가 찬다</b>
+     * (CWE-770). 경로 축은 막으면서 크기 축만 열어 두는 것은 같은 위협 모델 안에서의 비대칭이다.
+     *
+     * <h3>⚠ 선언 크기를 「먼저」 보지 않는다</h3>
+     * <p>응답의 파일 크기나 압축본이 선언한 크기로 <b>사전 차단을 앞에 덧대지 말 것.</b> 이 클래스가
+     * 바로 그 함정을 한 번 겪었다 — 선언값 사전 검사가 앞에 있으면 정상 입력에서 그것이 먼저 걸려
+     * <b>실제 바이트를 세는 이 방어선이 한 번도 실행되지 않고</b>, 그것을 지워도 시험이 죽지 않는다.
+     * 믿을 수 없는 값(상대가 말한 크기)이 믿을 수 있는 값(우리가 센 바이트)을 시험에서 가린다.
+     *
+     * @throws UnpackException 상한을 넘으면 {@link Reason#TOO_LARGE}. 호출부가 staging 을 지운다
+     */
+    private void copyBounded(InputStream in, OutputStream out) throws IOException {
+        byte[] buf = new byte[8192];
+        long copied = 0L;
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            copied += n;
+            if (copied > maxTotalBytes) {
+                // 넘긴 분까지 쓰지 않는다 — 쓰고 나서 재는 것과 다르다.
+                throw new UnpackException(Reason.TOO_LARGE,
+                        "조달처 소재의 크기가 허용 상한을 넘었습니다.");
+            }
+            out.write(buf, 0, n);
+        }
     }
 
     /** 사본을 대상 디렉터리로 푼다 — 이 메서드가 두 부류의 방어를 소유한다. */

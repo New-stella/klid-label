@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.portal.service;
 
 import kr.co.cudo.authoring.common.storage.AllowedRootMatcher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -9,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
@@ -54,6 +57,49 @@ import java.util.function.UnaryOperator;
 public class PortalMaterialsPathGuard {
 
     /**
+     * ★★ <b>봉쇄의 기준점 — 우리가 아는 값이다</b> (INT-014 v15 「우리 쪽 규칙 1」 개정).
+     *
+     * <p>개정 전에는 판정의 기준점(저장소 루트)을 <b>봉쇄 대상과 같은 응답</b>에서 가져왔다. 그래서
+     * 상대 응답을 조작할 수 있는 쪽에게는 <b>아무것도 막지 못했다</b> — 저장소 루트를 {@code /} 로,
+     * 소재 경로를 아무 시스템 파일로 주면 표기·실경로·정규 파일 판정을 <b>전부 통과</b>해 우리가
+     * 그 파일을 열어 작업영역으로 복사한다(독립 QA 2026-09-15 실측).
+     *
+     * <p>⚠ <b>비어 있으면 조달이 닫힌다</b>(fail-closed). 값이 없을 때 열리는 것이 아니라
+     * 닫히는 방향이며, 이 연동 축이 이미 여러 자리에서 쓰는 방향과 같다.
+     */
+    private final List<Path> allowedRepoRoots;
+
+    public PortalMaterialsPathGuard(
+            @Value("${authoring.portal.materials.repo-root-allowlist:}") String allowlist) {
+        this.allowedRepoRoots = parseRoots(allowlist);
+        if (this.allowedRepoRoots.isEmpty()) {
+            log.warn("[PortalMaterials] 허용 저장소 루트 목록이 비어 있습니다 — 소재 조달이 닫힙니다"
+                    + "(fail-closed). 설정키=authoring.portal.materials.repo-root-allowlist");
+        }
+    }
+
+    /** 쉼표로 가른 목록을 절대경로로 편다. 빈 조각은 버린다 — 후행 쉼표가 「전부 허용」이 되지 않게. */
+    private static List<Path> parseRoots(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        List<Path> roots = new ArrayList<>();
+        for (String piece : raw.split(",")) {
+            String t = piece.trim();
+            if (t.isEmpty()) {
+                continue;
+            }
+            try {
+                roots.add(Paths.get(t).toAbsolutePath().normalize());
+            } catch (RuntimeException e) {
+                // 해석할 수 없는 조각은 «버린다» — 목록에 넣으면 그 자리가 판정에서 무엇이 될지 모른다.
+                log.warn("[PortalMaterials] 허용 저장소 루트 항목을 해석할 수 없어 건너뜁니다.");
+            }
+        }
+        return List.copyOf(roots);
+    }
+
+    /**
      * fail-secure 실경로 해석기 — 해석할 수 없으면 {@code null} 이라 표기 판정이 통과하지 않는다.
      *
      * <p>{@link AllowedRootMatcher} 는 {@code null} 을 「그 시작점은 인정하지 않는다」로 다루므로,
@@ -89,6 +135,13 @@ public class PortalMaterialsPathGuard {
         } catch (RuntimeException e) {
             // 해석 불가 경로 = fail-secure. 원문을 로그에 남기지 않는다.
             return Check.of(Verdict.ESCAPED);
+        }
+        // ⓪ 기준점 단계 — 응답이 «주장한» 루트가 우리가 아는 허용 루트 하위인가.
+        //   ★ 이 단계가 없으면 아래 세 단계는 「상대가 말한 루트 안인가」만 보므로 봉쇄가 아니다.
+        //   ⚠ 목록이 비면 여기서 전건이 닫힌다(fail-closed) — 생성자가 그 상태를 기동 로그에 남긴다.
+        if (!AllowedRootMatcher.startsWithAnyRoot(root, allowedRepoRoots, FAIL_SECURE_REAL)) {
+            log.warn("[PortalMaterials] 응답이 주장한 저장소 루트가 허용 목록 밖입니다 — 열지 않습니다.");
+            return Check.of(Verdict.ROOT_NOT_ALLOWED);
         }
         // ① 표기 단계 — 규칙은 AllowedRootMatcher 가 소유한다(복제 금지). `..` 가 여기서 걸린다.
         if (!AllowedRootMatcher.startsWithRoot(resolved, root, FAIL_SECURE_REAL)) {
@@ -155,6 +208,14 @@ public class PortalMaterialsPathGuard {
         /** 실경로를 확정할 수 없다(권한·끊어진 링크·I/O 오류). */
         UNRESOLVABLE,
         /** 정규 파일이 아니다(디렉터리·특수 파일). */
-        NOT_REGULAR_FILE
+        NOT_REGULAR_FILE,
+        /**
+         * 응답이 주장한 저장소 루트가 <b>배포 설정의 허용 루트 목록 밖</b>이다.
+         *
+         * <p>{@link #ESCAPED} 와 <b>가르는 것이 의도다</b> — 그쪽은 「소재가 루트 밖」이고 이쪽은
+         * 「루트 자체를 믿을 수 없다」라 운영 조치가 다르다(전자는 상대 데이터 문제, 후자는
+         * 설정 누락이거나 응답 조작이다). 목록이 비어 있을 때도 이 판정이다.
+         */
+        ROOT_NOT_ALLOWED
     }
 }

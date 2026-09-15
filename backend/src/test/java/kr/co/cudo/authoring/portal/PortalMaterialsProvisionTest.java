@@ -70,7 +70,7 @@ class PortalMaterialsProvisionTest {
         state = new PortalMaterialsProvisionState();
         runner = new PortalMaterialsProvisionRunner(
                 client,
-                new PortalMaterialsPathGuard(),
+                new PortalMaterialsPathGuard(System.getProperty("java.io.tmpdir")),
                 new PortalMaterialsUnpacker(1000, 10L * 1024 * 1024),
                 workspace,
                 state);

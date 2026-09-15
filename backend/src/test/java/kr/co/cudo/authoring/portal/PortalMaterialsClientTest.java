@@ -220,4 +220,35 @@ class PortalMaterialsClientTest {
                 .setHeader("Content-Type", "application/json")
                 .setBody(body);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MED-2 (독립 QA 2026-09-15) — 전송계층 겹 가드가 «고정돼 있지 않았다».
+    //
+    // requireHost 는 「구성 판정이 나중에 느슨해져도 요청이 새지 않게」 둔 둘째 방어선인데,
+    // 기존 시험은 전부 그 «앞의» 구성 게이트(configured)에서 끊겨 필터까지 도달이 0 이었다.
+    // 즉 그 필터를 통째로 지워도 RED 가 나지 않는다 — 있다고 «주장될» 뿐 고정돼 있지 않다.
+    //
+    // ★ 이것은 이 라운드에서 두 번째로 만난 같은 구조다. 첫 번째는 해제기의 「선언 크기 사전
+    //   검사가 실제 바이트 계수를 가린 것」이었다. 공통 형태 — <앞의 검사가 뒤의 진짜 방어선을
+    //   시험에서 가린다>. 그래서 여기서는 구성 게이트를 «우회»해 빈을 직접 태운다.
+    //   ⚠ 구성 게이트를 통과시키는 방식으로 짜면 그 게이트가 다시 앞을 가려 무의미해진다.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★주소가_비면_전송계층이_막는다_구성게이트를_우회해도_바깥으로_나가지_않는다")
+    void requireHost_blocksTransport_evenWhenConfigGateBypassed() {
+        // given: 구성 판정을 거치지 않고 빈 base 로 만든 WebClient 를 «직접» 쓴다
+        WebClient bare = new WebClientConfig().portalMaterialsWebClient("", "key");
+
+        // when / then: 호스트가 없으므로 전송 전에 끊긴다
+        assertThatThrownBy(() -> bare.get().uri("/api/internal/v1/datasets/1/materials")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    // ⚠ 여기에 「막힌 요청이 loopback 으로 새지 않는다」 시험을 두었다가 «걷어냈다»(2026-09-15).
+    //   변이(호스트 판정을 항상 통과로)를 넣어도 그 시험은 green 이었다 — 유출은 localhost:80 으로
+    //   가는데 목서버는 임의 포트에 있어 «새어도 볼 수가 없다». 고정하는 것이 없으면서 안심만 주는
+    //   시험이라, 남겨 두면 다음 사람이 그 축이 지켜진다고 믿는다. 위 시험 하나가 실제 방어선이다.
+
 }

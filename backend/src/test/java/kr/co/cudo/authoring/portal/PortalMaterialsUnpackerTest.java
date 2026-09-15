@@ -156,6 +156,57 @@ class PortalMaterialsUnpackerTest {
     }
 
     /** 지정한 항목만 담은 압축본을 만든다(디렉터리 항목은 넣지 않는다 — 해제기가 만든다). */
+    // ─────────────────────────────────────────────────────────────────────────
+    // MED-1 (독립 QA 2026-09-15) — 해제 이전의 «원본 사본 복사»에 상한이 없었다.
+    //
+    // 해제 상한은 복사가 «끝난 뒤»에만 걸려, 조달처가 가리킨 소재가 거대하면 방어선에 닿기 전에
+    // 작업영역 디스크가 찬다(CWE-770). 같은 위협 모델(「조달처가 준 경로를 믿지 않는다」) 안에서
+    // 경로 축은 막고 크기 축은 열려 있던 비대칭이다.
+    //
+    // ⚠ 이 시험은 «압축본이 아닌» 큰 파일을 원본으로 준다 — 복사 단계에서 끊기는지 보려는 것이고,
+    //   zip 으로 주면 해제 단계까지 가서 무엇이 막았는지 갈리지 않는다.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★상한보다_큰_원본은_해제_이전_복사_단계에서_끊긴다")
+    void oversizedSource_isRejectedDuringCopy(@TempDir Path tmp) throws IOException {
+        // given: 상한 1KiB 인 해제기 · 그보다 큰 원본(압축본이 아니어도 된다 — 복사가 먼저다)
+        PortalMaterialsUnpacker tight = new PortalMaterialsUnpacker(1000, 1024L);
+        Path big = tmp.resolve("big.bin");
+        Files.write(big, "A".repeat(8192).getBytes(StandardCharsets.UTF_8));
+        Path staging = Files.createDirectory(tmp.resolve("staging"));
+
+        // when / then: 총량 초과로 끊긴다
+        assertThatThrownBy(() -> tight.copyAndUnpack(big, staging))
+                .isInstanceOf(PortalMaterialsUnpacker.UnpackException.class)
+                .extracting(e -> ((PortalMaterialsUnpacker.UnpackException) e).getReason())
+                .isEqualTo(PortalMaterialsUnpacker.Reason.TOO_LARGE);
+    }
+
+    @Test
+    @DisplayName("★끊긴_복사는_원본을_건드리지_않는다")
+    void oversizedSource_leavesOriginalIntact(@TempDir Path tmp) throws IOException {
+        // given
+        PortalMaterialsUnpacker tight = new PortalMaterialsUnpacker(1000, 1024L);
+        Path big = tmp.resolve("big.bin");
+        Files.write(big, "A".repeat(8192).getBytes(StandardCharsets.UTF_8));
+        long sizeBefore = Files.size(big);
+        long mtimeBefore = Files.getLastModifiedTime(big).toMillis();
+        Path staging = Files.createDirectory(tmp.resolve("staging"));
+
+        // when
+        try {
+            tight.copyAndUnpack(big, staging);
+        } catch (PortalMaterialsUnpacker.UnpackException expected) {
+            // 위 시험이 사유를 고정한다
+        }
+
+        // then: 조달처 원본은 크기·수정시각·내용이 그대로다
+        assertThat(Files.size(big)).isEqualTo(sizeBefore);
+        assertThat(Files.getLastModifiedTime(big).toMillis()).isEqualTo(mtimeBefore);
+        assertThat(Files.readString(big)).hasSize(8192);
+    }
+
     private static Path zip(Path target, Map<String, String> entries) throws IOException {
         try (OutputStream os = Files.newOutputStream(target);
              ZipOutputStream zos = new ZipOutputStream(os)) {

@@ -27,7 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PortalMaterialsPathGuardTest {
 
-    private final PortalMaterialsPathGuard guard = new PortalMaterialsPathGuard();
+    /**
+     * 기존 시험들은 {@code @TempDir} 아래에서 «루트 안/밖» 축을 본다. 그 축을 유지하려면 임시
+     * 디렉터리가 허용 루트여야 하므로 시스템 임시 경로를 준다 — ⓪ 기준점 단계가 그 축을 가리지 않게.
+     * ⚠ 기준점 단계 «자체»를 겨눈 시험은 아래 별도 블록이 따로 세운다(허용 목록을 좁혀서).
+     */
+    private final PortalMaterialsPathGuard guard =
+            new PortalMaterialsPathGuard(System.getProperty("java.io.tmpdir"));
 
     @Test
     @DisplayName("루트_하위의_정규파일은_통과하고_실경로를_돌려준다")
@@ -157,5 +163,74 @@ class PortalMaterialsPathGuardTest {
                 .isEqualTo(PortalMaterialsPathGuard.Verdict.BLANK);
         assertThat(guard.resolveWithinRoot(tmp.toString(), "  ").verdict())
                 .isEqualTo(PortalMaterialsPathGuard.Verdict.BLANK);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ⓪ 기준점 단계 (INT-014 v15 규칙 1 개정 · 독립 QA 2026-09-15 가 찾은 공백)
+    //
+    // 개정 전에는 판정의 기준점(저장소 루트)을 «봉쇄 대상과 같은 응답»에서 가져왔다.
+    // 그래서 아래 시험이 겨누는 입력이 세 단계를 «전부 통과»했다.
+    //
+    // ⚠ 회귀 가드의 축을 틀리지 말 것 — 대역 응답이 준 루트를 기준으로 삼는 시험은
+    //   「응답이 준 루트 안인가」만 증명해 «설계와 같은 공백»을 갖는다. 그래서 여기서는
+    //   허용 목록을 좁히고, 응답이 «다른» 루트를 주장하게 한다.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★★응답이_최상위를_저장소_루트로_주장해도_거부한다_기준점은_우리가_아는_값이다")
+    void responseClaimingRootSlash_isRejected(@TempDir Path tmp) throws IOException {
+        // given: 허용 루트는 tmp 뿐. 응답은 루트를 "/" 로 주장하고 «실재하는 정규 파일»을 가리킨다
+        //   (실재·정규파일이라 ①②③ 은 전부 통과한다 — ⓪ 만이 이것을 막는다)
+        PortalMaterialsPathGuard tight = new PortalMaterialsPathGuard(tmp.toString());
+        Path outside = Files.createFile(Files.createTempDirectory("elsewhere").resolve("x.bin"));
+
+        // when
+        PortalMaterialsPathGuard.Check check = tight.resolveWithinRoot("/", outside.toString());
+
+        // then
+        assertThat(check.verdict()).isEqualTo(PortalMaterialsPathGuard.Verdict.ROOT_NOT_ALLOWED);
+        assertThat(check.realPath()).isNull();
+    }
+
+    @Test
+    @DisplayName("★★응답이_우리_저장소를_루트로_주장해도_거부한다")
+    void responseClaimingOurOwnStorageAsRoot_isRejected(@TempDir Path tmp) throws IOException {
+        // given: 허용 루트는 tmp/repo 뿐인데 응답은 tmp 전체를 루트로 주장한다
+        Path allowed = Files.createDirectory(tmp.resolve("repo"));
+        Path ours = Files.createFile(Files.createDirectory(tmp.resolve("ours")).resolve("secret.bin"));
+        PortalMaterialsPathGuard tight = new PortalMaterialsPathGuard(allowed.toString());
+
+        // when
+        PortalMaterialsPathGuard.Check check = tight.resolveWithinRoot(tmp.toString(), ours.toString());
+
+        // then: 그 파일이 실재해도 «루트 주장» 단계에서 끊긴다
+        assertThat(check.verdict()).isEqualTo(PortalMaterialsPathGuard.Verdict.ROOT_NOT_ALLOWED);
+    }
+
+    @Test
+    @DisplayName("★허용_루트가_비면_전건_거부다_fail_closed")
+    void emptyAllowlist_closesEverything(@TempDir Path tmp) throws IOException {
+        // given: 목록이 비어 있다 — 그 자체로 조달이 닫힌다
+        PortalMaterialsPathGuard closed = new PortalMaterialsPathGuard("");
+        Path file = Files.createFile(tmp.resolve("ok.bin"));
+
+        // when: 정상적인 루트·경로를 주어도
+        PortalMaterialsPathGuard.Check check = closed.resolveWithinRoot(tmp.toString(), file.toString());
+
+        // then: 통과하지 않는다(열리는 방향이 아니라 닫히는 방향)
+        assertThat(check.verdict()).isEqualTo(PortalMaterialsPathGuard.Verdict.ROOT_NOT_ALLOWED);
+    }
+
+    @Test
+    @DisplayName("허용_목록의_후행_쉼표가_전부허용으로_뒤집히지_않는다")
+    void trailingComma_doesNotBecomeAllowAll(@TempDir Path tmp) throws IOException {
+        // given: 빈 조각이 섞인 목록
+        Path allowed = Files.createDirectory(tmp.resolve("repo"));
+        PortalMaterialsPathGuard g = new PortalMaterialsPathGuard(allowed + ", ,");
+        Path outside = Files.createFile(Files.createDirectory(tmp.resolve("other")).resolve("x.bin"));
+
+        // when / then: 빈 조각이 「무엇이든 허용」으로 읽히지 않는다
+        assertThat(g.resolveWithinRoot(tmp.toString(), outside.toString()).verdict())
+                .isEqualTo(PortalMaterialsPathGuard.Verdict.ROOT_NOT_ALLOWED);
     }
 }
