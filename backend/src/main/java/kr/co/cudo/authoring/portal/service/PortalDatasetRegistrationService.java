@@ -248,7 +248,11 @@ public class PortalDatasetRegistrationService {
                     persisted.frameCount(), persisted.labelCount());
             return true;
         } catch (DataIntegrityViolationException e) {
-            // 다른 노드·다른 회차가 먼저 등록했다 — 실패가 아니다.
+            // 다른 노드·다른 회차가 먼저 등록했을 때만 실패가 아니다. 클립 유일 제약 말고 다른 제약이 걸린
+            // 것이면 그 영상이 조용히 빠진 채 DONE 이 되므로, 행이 실제로 있는지 다시 보고 없으면 올린다.
+            if (videoRepository.findByVmsClipId(p.clipId()).isEmpty()) {
+                throw e;
+            }
             log.info("[PortalDataset] 이미 등록된 영상이라 건너뜁니다 datasetId={} videoKeyHash={}",
                     datasetId, hash(p.video().videoKey()));
             return false;
