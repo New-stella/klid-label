@@ -305,6 +305,7 @@ describe('DS-002 값 고정 — 모양·음영·간격', () => {
 
   it('간격_명명_사다리가_DS_002_값이다', () => {
     const spacing = themeOf('portal').spacing as Record<string, string>;
+    // 투영 키 `block-gap` ≠ DS-002 토큰명 `block` — 이유는 ds002.js 주석(Tailwind `inline-<간격>` 충돌).
     const LADDER: Record<string, string> = {
       tight: '4px',
       'label-gap': '6px',
@@ -312,7 +313,7 @@ describe('DS-002 값 고정 — 모양·음영·간격', () => {
       dense: '10px',
       'in-component': '12px',
       'card-gap': '16px',
-      block: '20px',
+      'block-gap': '20px',
       column: '24px',
       section: '32px',
       group: '48px',
@@ -321,6 +322,24 @@ describe('DS-002 값 고정 — 모양·음영·간격', () => {
     for (const [name, value] of Object.entries(LADDER)) {
       expect(spacing[name], `spacing.${name}`).toBe(value);
     }
+  });
+
+  /**
+   * ★Tailwind 4.3 은 `inline-<간격>`(inline-size)·`block-<간격>`(block-size) 함수형 유틸리티를 두고
+   *   값을 `--spacing-*` 에서 찾는다. 간격 키가 `block`·`flex`·`grid`·`table` 이면 정적 유틸리티
+   *   `inline-block`·`inline-flex`·`inline-grid`·`inline-table` 이 함수형과 겹쳐 **`inline-size` 규칙을
+   *   함께 생성**한다 — 포털 실측(2026-09-15)에서 `.inline-block{inline-size:20px}` 이 `width` 를 이겨
+   *   라디오가 타원, 트랙 색 막대가 20px 로 떴다. 관제 토큰에는 그 키가 없어 관제 빌드는 정상이었다.
+   */
+  it('간격_키에_Tailwind_inline_정적_유틸리티_접미가_없다', () => {
+    const keys = Object.keys(themeOf('portal').spacing as Record<string, string>);
+    const colliding = keys.filter((k) => ['block', 'flex', 'grid', 'table'].includes(k));
+    expect(
+      colliding,
+      `\`inline-<키>\` 정적 유틸리티와 겹치는 간격 키 — inline-size 규칙이 생성된다:\n${colliding.join(', ')}`,
+    ).toEqual([]);
+    // 양성 대조 — 개명된 키가 실제로 있고 값은 DS-002 그대로다(키 집합이 비어 통과하는 형태를 막는다).
+    expect((themeOf('portal').spacing as Record<string, string>)['block-gap']).toBe('20px');
   });
 
   it('콘텐츠_최대폭과_본문_자간이_DS_002_값이다', () => {
