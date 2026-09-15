@@ -151,13 +151,16 @@ const CanvasShell = lazy(() =>
 );
 
 // 캔버스 컨테이너에서 자동 측정해 ResponsiveCanvas로 전달
+// ★콜백 ref 로 요소를 state 에 담는다 — 이 화면은 조회 중·오류 화면을 먼저 그리고 캔버스 영역은
+//   그 뒤에야 생긴다. 객체 ref + 빈 의존성으로 첫 렌더에만 찾으면 그때는 요소가 없어 영영 붙지
+//   않고, 크기가 0 으로 남아 캔버스가 기본값(1280×720)으로 그려진다(포털 좁은 슬롯에서 프레임이
+//   잘려 보인 원인 — 2026-09-15 실측).
 function useContainerSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
+  const [el, setEl] = useState<T | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   // useLayoutEffect — 첫 페인트 전 동기 측정으로 캔버스 마운트 가드(`size.width > 0`) 통과 보장
   useLayoutEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const update = () => {
       const rect = el.getBoundingClientRect();
@@ -167,9 +170,9 @@ function useContainerSize<T extends HTMLElement>() {
     observer.observe(el);
     update();
     return () => observer.disconnect();
-  }, []);
+  }, [el]);
 
-  return [ref, size] as const;
+  return [setEl, size] as const;
 }
 
 export interface LabelingPageProps {
