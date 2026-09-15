@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 원시 영상 (LS_DATA_RAW). 관제서버로부터 수신한 라벨링 대상 영상 메타.
@@ -98,6 +99,46 @@ public class LsDataRaw {
      * @design ERD-028
      */
     public static final String SRC_TYPE_PORTAL_ULD = "PORTAL_ULD";
+
+    /**
+     * 출처유형 — <b>포털 데이터셋 소재에서 등록한 영상</b>(ADR-068). 관제·저작도구 생산물이 아니고
+     * 사용자 자산도 아니다 — 데이터셋에 들어온 포털 사용자가 함께 쓰는 소재라 소유자
+     * ({@code PORTAL_USER_NO})가 비어 있다. 판별 <b>축</b>을 새로 만든 것이 아니라 출처 축에 값 하나를
+     * 더한 것이다({@link #SRC_TYPE_PORTAL_ULD} 를 더한 방식과 같다).
+     *
+     * <p>⚠ 이 값은 {@link LsDataIngest#ALLOWED_SRC_TYPES}(적재면)·{@code UPLOAD_SRC_TYPES}(입력면)
+     * <b>어느 쪽에도 넣지 않는다</b> — 관제 인입 원장을 거치지 않고 내부 업로드 폼이 고를 수 있는 값도
+     * 아니다({@link #SRC_TYPE_IMPORTED}·{@link #SRC_TYPE_PORTAL_ULD} 와 같은 이유). 이 값을 채우는 곳은
+     * {@link #createPortalDataset} 하나뿐이다.
+     *
+     * <p>{@code gen_ai_yn} 은 {@code N} 이다({@link #genAiYnOf} 는 {@code GENERATED}·{@code AUGMENTED}
+     * 두 값만 본다).
+     *
+     * <p>★ <b>포털 채널 출처가 둘이 됐다.</b> 영상 원장을 읽으며 포털 채널을 가르는 자리는 두 값을 따로
+     * 열거하지 말고 {@link #PORTAL_CHANNEL_SRC_TYPES} 한 집합을 쓴다 — 한 값만 적으면 다른 값의 영상이
+     * 작업보드·배정·통계에 조용히 섞인다.
+     *
+     * <p>⚠ <b>보존기간 만료 자동 삭제의 대상이 아니다</b> — 그 삭제의 판별자는
+     * {@link #SRC_TYPE_PORTAL_ULD} + 소유자 보유 + 보존기간 경과이며, 이 출처는 소유자가 없다.
+     *
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static final String SRC_TYPE_PORTAL_DATASET = "PORTAL_DATASET";
+
+    /**
+     * <b>포털 채널 출처 집합</b> — 관제 채널 작업 범위에서 빼야 하는 출처 값의 단일 원천(ADR-058 · ADR-068).
+     *
+     * <p>본인 업로드({@link #SRC_TYPE_PORTAL_ULD})와 데이터셋 소재({@link #SRC_TYPE_PORTAL_DATASET})
+     * 둘이다. 가시 범위 술어({@code InternalWorkScope})가 이 집합으로 판정한다.
+     *
+     * <p>⚠ JPQL 조각은 애너테이션에 이어 붙이는 <b>컴파일 타임 상수</b>여야 해 이 집합을 쓸 수 없고
+     * 두 상수를 직접 이어 붙인다 — 그 조각이 이 집합의 원소를 빠짐없이 담는지는 시험이 대조한다.
+     *
+     * @design ADR-068
+     */
+    public static final List<String> PORTAL_CHANNEL_SRC_TYPES =
+            List.of(SRC_TYPE_PORTAL_ULD, SRC_TYPE_PORTAL_DATASET);
 
     public static final String STATUS_PENDING = "PENDING";
 
@@ -748,6 +789,113 @@ public class LsDataRaw {
         this.durationSec = (int) Math.round(durationSeconds);
         this.durationMs = Math.round(durationSeconds * 1000d);
         this.mdfcnDt = LocalDateTime.now();
+    }
+
+    // ------------------------------------------------------------------
+    // 포털 데이터셋 영상 (ADR-068) — 값 규약과 생성 통로
+    // ------------------------------------------------------------------
+
+    /**
+     * 포털 데이터셋 영상의 <b>클립 식별자 접두</b>. 최종 형태는
+     * {@code PORTAL_DATASET_{데이터셋 번호}_{영상 키}} 이며 조립은 {@link #portalDatasetClipId} 한 곳에서 한다.
+     *
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static final String PORTAL_DATASET_CLIP_ID_PREFIX = "PORTAL_DATASET_";
+
+    /**
+     * 포털 데이터셋 영상의 클립 식별자를 조립한다 — {@code PORTAL_DATASET_{datasetId}_{videoKey}}.
+     *
+     * <p>★ <b>이 값이 등록의 멱등 키다</b>(ADR-068). {@code UK_LS_DATA_RAW_VMS_CLIP} 가 같은 데이터셋·같은
+     * 영상의 재등록을 막으므로, 호출부는 이 값으로 먼저 조회해 있으면 건너뛰고 없으면
+     * {@link #createPortalDataset} 로 만든다. 그래서 조립 규칙을 호출부에 두지 않는다 — 두 곳이 서로 다른
+     * 모양을 만들면 조회는 못 찾고 INSERT 만 유일 제약에 걸린다.
+     *
+     * <p>파생영상 식별자({@link #derivativeClipId})와 달리 <b>넘쳐도 자르지 않고 거부</b>한다 — 자르면
+     * 서로 다른 영상 키가 같은 식별자로 접혀 멱등 키가 다른 영상을 가리키게 된다. 파생은 유일 접미(PK)가
+     * 유일성을 지키지만 여기는 영상 키 자체가 유일성의 근거다.
+     *
+     * @param datasetId 포털 데이터셋 번호
+     * @param videoKey  해제본 안 영상 폴더 이름 — 비어 있으면 거부한다
+     * @return 조립된 클립 식별자({@value #VMS_CLIP_ID_MAX}자 이하)
+     * @throws IllegalArgumentException 영상 키가 비었거나 조립 결과가 컬럼 상한을 넘을 때
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static String portalDatasetClipId(long datasetId, String videoKey) {
+        if (videoKey == null || videoKey.isBlank()) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 키는 비울 수 없습니다.");
+        }
+        String clipId = PORTAL_DATASET_CLIP_ID_PREFIX + datasetId + "_" + videoKey;
+        if (clipId.length() > VMS_CLIP_ID_MAX) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 식별자가 허용 길이를 넘습니다.");
+        }
+        return clipId;
+    }
+
+    /**
+     * <b>포털 데이터셋 영상</b> 적재 — 소재 해제본에서 등록하는 영상 1건(ADR-068). 값 규약을 이 한 곳에서 채운다.
+     *
+     * <ul>
+     *   <li><b>출처</b> — {@link #SRC_TYPE_PORTAL_DATASET}.</li>
+     *   <li><b>개인정보 유형</b> — {@link #PRVC_TYPE_UNKNOWN}(미상). ⚠ {@code ANONY} 를 쓰지 않는다 —
+     *       그건 「비식별이 불필요하다」는 <b>판정 결과</b>인데 우리는 그 판정을 한 적이 없다
+     *       ({@link #createPortalUpload} 와 같은 이유).</li>
+     *   <li><b>비식별 여부</b> — {@code 'Y'}. 배포본의 프레임 이미지가 비식별본이기 때문이다.
+     *       원본 이미지는 등록하지 않는다.</li>
+     *   <li><b>소유자</b>({@code PORTAL_USER_NO}) — 비운다. 데이터셋은 한 사용자의 자산이 아니라 그
+     *       데이터셋에 들어온 포털 사용자가 함께 쓰는 소재다. 그래서 보존기간 만료 자동 삭제(소유자 보유를
+     *       판별자로 요구한다)에도 걸리지 않는다.</li>
+     *   <li><b>원본 참조</b>({@code ORGNL_RAW_SN}) — 비운다. 파생이 아니다.</li>
+     *   <li><b>배치 단계</b>({@code DATA_STTS_CD}) — 빌더 기본값 {@code PENDING} 그대로 둔다. 외부 이관
+     *       적재({@link #createFromImport})와 같은 규약이다(ADR-048) — 배치는 원장 상태를 폴링하지 않고
+     *       <b>적재 이벤트</b>로 시작하므로, 이 경로가 적재 이벤트를 발행하지 않는 한 파이프라인이 집어
+     *       가지 않는다.</li>
+     * </ul>
+     *
+     * <p>⚠ <b>검수 승인 상태를 꾸며 넣지 않는다</b> — 이 팩토리는 검수 워크플로 상태 행을 만들지 않고,
+     * 호출부도 만들지 않는다. 만들면 관제 조회 뷰·통지·산출물 연동이 이 영상을 승인 영상으로 읽는다
+     * (ADR-068). 포털 작업 허용 근거는 승인이 아니라 출처({@link #isPortalDataset()})다.
+     *
+     * @param vmsClipId     {@link #portalDatasetClipId} 로 조립한 값 — 그 접두가 아니면 거부한다
+     *                      (관제 클립 식별자를 넘기면 인입 역참조와 멱등 키가 함께 어긋난다)
+     * @param rawFilePathNm 해제본 안 그 영상 폴더의 위치 — 영상 파일이 배포본에 없어 원천 위치를
+     *                      기록한다. 비울 수 없다(컬럼이 NOT NULL)
+     * @throws IllegalArgumentException 식별자 접두가 맞지 않거나 경로가 비었을 때
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static LsDataRaw createPortalDataset(String vmsClipId, String rawFilePathNm) {
+        if (vmsClipId == null || !vmsClipId.startsWith(PORTAL_DATASET_CLIP_ID_PREFIX)
+                || vmsClipId.length() == PORTAL_DATASET_CLIP_ID_PREFIX.length()
+                || vmsClipId.length() > VMS_CLIP_ID_MAX) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 식별자는 정해진 규칙으로 조립해야 합니다.");
+        }
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new IllegalArgumentException("포털 데이터셋 영상의 원천 위치는 비울 수 없습니다.");
+        }
+        LsDataRaw raw = LsDataRaw.builder()
+                .vmsClipId(vmsClipId)
+                .prvcTypeCd(PRVC_TYPE_UNKNOWN)
+                .rawFilePathNm(rawFilePathNm)
+                .srcType(SRC_TYPE_PORTAL_DATASET)
+                .build();
+        // 빌더 생성자는 비식별 여부를 'N'(미수행)으로 고정한다 — 배포본 이미지는 비식별본이라 덮는다.
+        raw.deIdntfYn = "Y";
+        return raw;
+    }
+
+    /**
+     * 이 영상이 <b>포털 데이터셋 영상</b>인가 — 판정의 단일 지점(ADR-068).
+     *
+     * <p>포털 작업 가능 판정(「검수 승인 또는 이 출처」)이 이 헬퍼를 쓴다. 판별자 상수를 호출부에서
+     * 다시 비교하지 않는다.
+     *
+     * @design ADR-068
+     */
+    public boolean isPortalDataset() {
+        return SRC_TYPE_PORTAL_DATASET.equals(this.srcType);
     }
 
     /**
