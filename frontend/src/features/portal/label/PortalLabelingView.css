@@ -1,0 +1,16 @@
+@charset "utf-8";
+/* 포털 라벨링 — 원본 캔버스(`CanvasShell`) 안에서 스스로 그리는 안내 셋을 가린다.
+   같은 안내를 포털 캔버스 안내 조각(`CanvasNotice`)으로 캔버스 칸 위에 다시 세운다
+   (회전 보기 · 영역 확대 · 그림 받는 중). 캔버스 코드는 관제판과 같이 쓰므로 고치지 않고
+   포털 편집기 안에서만 모양을 끈다 — 안내의 조건(회전각 · 영역 확대 · 받는 중)은 화면이 같은 값으로 판정한다 */
+.klid-labeling [data-testid='canvas-rotation-notice'],
+.klid-labeling [data-testid='canvas-zoom-area-notice'],
+.klid-labeling [data-testid='canvas-image-spinner'] {
+  display: none;
+}
+
+/* 캔버스 바탕 — 원본 캔버스는 제 바탕(옅은 회색 면)을 깔아, 포털 캔버스 칸(gray-10) 안에 한 톤 밝은 네모가
+   따로 떠 보인다. 칸 바탕이 비치게 캔버스 그릇의 바탕만 비운다(그림 · 도형은 그대로다) */
+.klid-labeling [data-testid='canvas-shell'] > div:first-child {
+  background-color: transparent;
+}

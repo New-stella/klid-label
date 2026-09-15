@@ -122,6 +122,7 @@ import {
   unresolvedFrameCount,
   type LoadedVersionDraft,
 } from '@/features/version/loadedVersionDraft';
+import { IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
@@ -142,6 +143,17 @@ import { useUiStore } from '@/stores/useUiStore';
 const CanvasShell = lazy(() =>
   import('@/features/label/canvas/CanvasShell').then((m) => ({ default: m.CanvasShell })),
 );
+
+// @design SCREEN-029 — 포털판 본문. 포털 저장소의 부품·스킨 CSS 를 끌어오므로 따로 불러온다 —
+//   정적으로 묶으면 관제판이 이 화면을 여는 순간 그 스킨이 관제 화면에도 실린다.
+//   산출 시점 상수로 가른다 — 관제 산출물에서는 이 지연 로드가 통째로 사라져 조각 파일도 만들어지지 않는다.
+const PortalLabelingView = IS_PORTAL_CHANNEL_BUILD
+  ? lazy(() =>
+      import('@/features/portal/label/PortalLabelingView').then((m) => ({
+        default: m.PortalLabelingView,
+      })),
+    )
+  : null;
 
 // 캔버스 컨테이너에서 자동 측정해 ResponsiveCanvas로 전달
 function useContainerSize<T extends HTMLElement>() {
@@ -1541,6 +1553,112 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     },
     [labelPicker],
   );
+
+  // @design SCREEN-029 — 포털판은 모든 훅이 끝난 이 자리에서 포털 모습의 본문으로 갈라 그린다.
+  //   흐름(데이터 · 저장 · 단축키 · 캔버스 · 확인 절차)은 위에서 계산한 값을 그대로 넘기고, 판정을 다시
+  //   세우지 않는다. 불러오는 중 · 접근 불가 · 조회 실패 · 자산 안내 같은 앞선 갈래도 뷰 안에서 같은
+  //   순서로 가른다. ⚠ 이 갈래를 훅 위로 올리지 말 것 — 채널에 따라 훅 순서가 바뀐다.
+  if (portalMode && PortalLabelingView) {
+    return (
+      <Suspense fallback={null}>
+        <PortalLabelingView
+          status={{
+            invalidId: !uploadSource && Number.isNaN(numericId),
+            uploadNotice,
+            isLoading,
+            error,
+            onBack: () => navigate(-1),
+          }}
+          header={{
+            title: uploadSource
+              ? (uploadLabelSource.assetName ?? undefined)
+              : data
+                ? `프레임 #${data.srcSn}`
+                : undefined,
+            dirty: dirtyCount > 0 || discardPending || loadedDraft !== null,
+            saving,
+            onClose: handleClose,
+          }}
+          frames={{
+            list: frames,
+            index: frameIdx,
+            current: currentFrame,
+            onRequestGoTo: requestJumpTo,
+            savedSrcSns,
+            discardedSrcSns,
+            uploadSource,
+          }}
+          edit={{
+            labels,
+            dirtyCount,
+            isEditBlocked,
+            isLocked,
+            isDiscarded,
+            discardPending,
+            onSave: handleSave,
+          }}
+          view={{
+            rotation,
+            onRotate: handleRotate,
+            zoomAreaMode,
+            onToggleZoomArea: handleToggleZoomArea,
+            showGrid,
+            onToggleGrid: handleToggleGrid,
+            onSelectTool: handleSelectTool,
+          }}
+          canvas={{
+            handleRef: canvasHandleRef,
+            onLabelAdd: addLabel,
+            onImageSize: handleImageSize,
+            onKeypointPlacingChange: setKeypointPlacingIndex,
+            immediateSegment: immediateDraw,
+            segmentSimplifyTolerance: segmentTolerance,
+            imageLoading,
+            imageError,
+            imageErrorHint: frameImageErrorHint,
+            frameNaturalSize,
+          }}
+          busy={{
+            kind: busyKind,
+            startedAt: busyStartedAt,
+            limitMs: busyLimitMs,
+            onCancel: cancelBusy,
+          }}
+          panel={{
+            tab: rightTab,
+            onTabChange: setRightTab,
+            srcSn: data?.srcSn,
+            rawSn: data?.videoId,
+          }}
+          labelPicker={labelPicker}
+          dialogs={{
+            close: {
+              open: closeConfirmOpen,
+              dirtyCount,
+              closing,
+              onSaveAndClose: handleConfirmSaveAndClose,
+              onDiscardAndClose: handleDiscardAndClose,
+              onStay: handleStayOnPage,
+            },
+            nav: {
+              open: navGuardTarget !== null,
+              dirtyCount,
+              saving: navGuardSaving,
+              onSaveAndMove: handleNavSaveAndMove,
+              onDiscardAndMove: handleNavDiscardAndMove,
+              onCancel: handleNavCancel,
+            },
+            conflict: {
+              open: saveConflictMessage !== null,
+              onReload: handleReloadAfterConflict,
+              onKeep: () => setSaveConflictMessage(null),
+            },
+            shortcuts: { open: cheatSheetOpen, onOpenChange: setCheatSheetOpen },
+          }}
+        />
+      </Suspense>
+    );
+  }
 
   // 잘못된 ID — 풀스크린 에러. 업로드 갈래는 `:id` 가 자산이라 안내 문구가 다르며,
   // 그 판정(형식·범위)은 아래 `uploadNotice` 한 곳이 갖는다.
