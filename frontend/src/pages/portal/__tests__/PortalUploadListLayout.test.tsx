@@ -139,14 +139,13 @@ describe('포털 업로드 목록 — 카드 구조', () => {
 describe('포털 업로드 목록 — 처리 중 행', () => {
   /*
    * ★ 비활성 버튼은 마우스 이벤트를 받지 않으므로 사유를 그 버튼에 걸 수 없다. 감싸는 요소가
-   *   문구를 나르고, 마크업에 실려 있어야(`role="note"`) 속성이 지워져도 보조기술이 읽는다.
+   *   설명을 띄우고, 마크업에 실려 있어야(`role="tooltip"` + `aria-describedby`) 보조기술이 읽는다.
    *   ⚠ 이 단언이 없으면 «비활성이니 굳이» 로 사유가 사라지고, 사용자는 왜 못 지우는지 모른다.
    */
   it('★삭제가_막힌_이유를_마크업에_남긴다', () => {
     mountWith([up({ uldSttsCd: 'PROCESSING', frmeCnt: null, expiresAt: null })]);
-    const row = screen.getByTestId('portal-upload-item-1');
-    const note = within(row).getByRole('note');
-    expect(note).toHaveTextContent(/프레임을 뽑는 중에는 지울 수 없습니다/);
+    const del = screen.getByRole('button', { name: 'crossroad-0812-1430.mp4 삭제' });
+    expect(del).toHaveAccessibleDescription(/프레임을 뽑는 중에는 지울 수 없습니다/);
   });
 
   it('처리_중_자산의_삭제는_비활성이다', () => {
@@ -158,9 +157,9 @@ describe('포털 업로드 목록 — 처리 중 행', () => {
 
   it('준비_완료_자산의_삭제는_사유_없이_눌린다', () => {
     mountWith([up()]);
-    const row = screen.getByTestId('portal-upload-item-1');
-    expect(within(row).queryByRole('note')).toBeNull();
-    expect(screen.getByRole('button', { name: /삭제$/ })).toBeEnabled();
+    const del = screen.getByRole('button', { name: /삭제$/ });
+    expect(del).toHaveAccessibleDescription('삭제');
+    expect(del).toBeEnabled();
   });
 });
 
