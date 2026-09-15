@@ -184,6 +184,48 @@ export function clearDevHostToken(): void {
 }
 
 /**
+ * 포털 iframe 안에서 떴는데 보관한 토큰이 없거나 만료됐으면 **개발용 토큰을 스스로 받아 둔다**.
+ *
+ * 토큰 보관소는 탭마다 따로라, 포털 화면에서 연 iframe 에는 로그인 화면에서 받아 둔 토큰이 없다.
+ * 그대로 두면 포털 안 저작도구 자리에 늘 「인증이 필요합니다」가 뜬다. 실제 Host 는 마운트할 때
+ * 제 토큰을 건네므로, 이것은 로컬에서 포털과 나란히 띄워 볼 때만 그 몫을 대신한다.
+ * 역할은 로그인 화면의 기본값(포털 사용자)이다.
+ *
+ * ⚠ 개발 단독 구동 + iframe 안일 때만 돈다. 실패하면 조용히 넘어가 원래 안내가 뜬다.
+ */
+export async function seedFramedDevToken(): Promise<void> {
+  if (!isDevStandaloneHostEnabled()) return;
+  if (typeof window === 'undefined' || window.self === window.top) return;
+  if (isHeldTokenAlive(readHeldToken())) return;
+  try {
+    const res = await fetch('/api/v1/dev/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'PORTAL_USER', channel: 'PORTAL' }),
+    });
+    if (!res.ok) return;
+    const body = (await res.json()) as { data?: { token?: unknown } };
+    const token = body.data?.token;
+    if (typeof token === 'string' && token.length > 0) writeHeldToken(token);
+  } catch {
+    // 서버가 꺼져 있으면 원래 안내(인증 필요)로 둔다
+  }
+}
+
+/** 보관한 토큰이 아직 살아 있는지 — 서명은 보지 않고 만료 시각만 읽는다(판정은 서버 몫) */
+function isHeldTokenAlive(token: string | null): boolean {
+  if (token === null) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: number;
+    };
+    return typeof payload.exp === 'number' && payload.exp > Math.floor(Date.now() / 1000) + 60;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 대역 창구를 등록하고, 보관해 둔 토큰이 있으면 **본체에 건넨다**.
  *
  * 새로고침하면 본체의 메모리는 비고 포털 채널은 저장소에서 복원하지 않으므로, 그대로 두면

@@ -54,9 +54,10 @@ function mount(): void {
 // 화면도 인증 안내를 한 번 깜빡인다.
 if (import.meta.env.DEV) {
   void import('./features/auth/devHostStub')
-    .then((devHost) => {
+    .then(async (devHost) => {
       // 이동이 시작됐으면 문서가 곧 교체된다 — 렌더하지 않는다.
       if (devHost.applyStandaloneMountRedirect()) return;
+      await devHost.seedFramedDevToken();
       devHost.installDevHostTokenHandoff();
       mount();
     })

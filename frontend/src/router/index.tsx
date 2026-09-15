@@ -6,7 +6,6 @@ import { AppErrorPage } from '@/components/common/AppErrorPage';
 import { ForbiddenPage } from '@/components/common/ForbiddenPage';
 import { Spinner } from '@/components/common/Spinner';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
 import { IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
@@ -81,6 +80,10 @@ const AugmentResultPage = /* @__PURE__ */ lazyWithRetry(() =>
   })),
 );
 
+// 포털 채널 틀 — 포털 저장소의 부품·토큰을 끌어다 쓴다. 관제 산출물에 스킨이 새지 않게 지연 로드한다.
+const PortalFrameLayout = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/components/layout/PortalFrameLayout').then((m) => ({ default: m.PortalFrameLayout })),
+);
 // Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
 const PortalHomePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
@@ -699,7 +702,7 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
       // PORTAL 채널 — 별도 PortalLayout (LNB 없음, 모바일 친화)
       {
         path: '/portal',
-        element: <PortalLayout />,
+        element: withSuspense(<PortalFrameLayout />),
         errorElement: <AppErrorPage status={500} />,
         children: [
           {
@@ -749,9 +752,9 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
     ]
   : [];
 
-// 라우트 트리 — 아래 `createBrowserRouter` 의 유일한 소비처다.
+// 라우트 트리 — 아래 `createBrowserRouter` 가 쓰고, 저작도구 화면 스토리북(6010)이 같은 트리를 기억 라우터로 태운다.
 // 별도 상수로 뽑은 것은 basename 옵션을 붙이면서 **배열 본문을 한 글자도 건드리지 않기** 위해서다.
-const routes: RouteObject[] = [
+export const routes: RouteObject[] = [
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
