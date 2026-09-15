@@ -106,12 +106,6 @@
                           "nullable": true,
                           "description": "첫 프레임 SRC_SN"
                         },
-                        "reviewerId": {
-                          "type": "integer",
-                          "format": "int64",
-                          "nullable": true,
-                          "description": "REVIEWER 배정자 PK"
-                        },
                         "taskTypeCd": {
                           "type": "string",
                           "description": "작업 유형 코드"
@@ -129,11 +123,6 @@
                           "type": "string",
                           "nullable": true,
                           "description": "이벤트 유형 코드"
-                        },
-                        "reviewerName": {
-                          "type": "string",
-                          "nullable": true,
-                          "description": "REVIEWER 이름"
                         }
                       }
                     },
@@ -175,12 +164,10 @@
                   "regUserNo": 2001,
                   "assignedAt": "2026-01-15T10:00:00",
                   "firstSrcSn": 70001,
-                  "reviewerId": 2001,
                   "taskTypeCd": "LABELER",
                   "videoTitle": "CCTV-강남구-001",
                   "workerName": "이영희",
-                  "eventTypeCd": "INTRUSION",
-                  "reviewerName": "김검수"
+                  "eventTypeCd": "INTRUSION"
                 }
               ]
             },
@@ -381,7 +368,7 @@
           "description": "배정 식별자"
         }
       ],
-      "description": "기존 배정을 재배정한다(작업 이벤트 로그에 재배정 이력 기록). REVIEWER 전용.",
+      "description": "기존 배정을 재배정한다(작업 이벤트 로그에 재배정 이력 기록). REVIEWER 전용.\n\n[배정의 대상은 작업자뿐] 재배정의 대상도 작업자다 — 검수자를 영상에 배정하는 절차를 두지 않으므로 응답 항목에 검수자 축이 없다(ADR-067). 요청 본문은 원래 작업자만 받았으므로 바뀌지 않는다.\n\n[재배정과 배정 해제는 다르다] 재배정은 담당을 바꾸고, 배정 해제(API-259)는 배정을 없앤다. 담당을 없애려면 재배정이 아니라 해제를 쓴다 — 지금까지는 해제 창구가 없어 재배정이 배정을 되돌리는 유일한 수단이었고, 그래서 담당을 없애는 대신 다른 사람에게 넘기는 것만 가능했다. 그 한계가 영상 제외(ADR-069)에서 드러나 같은 라운드에 해제 창구가 생겼다. 해제에는 이 창구와 다른 축의 거부 조건이 따로 있다 — 검수 대기·검수 중·승인 상태의 배정은 해제되지 않는다(배정이 그 워크플로의 전제다). 이 창구의 거부 조건(완료된 배정은 재배정할 수 없다)과 섞어 적지 않는다. ⚠ 낱말 주의 — 검수 축의 「점유 해제」는 또 다른 개념이다. 그것은 지금 누가 그 영상을 검수 중인지의 표시가 유예 시간이 지나 저절로 풀리는 것이고, 배정 해제는 작업자 배정을 푸는 것이다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -399,6 +386,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -408,7 +396,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:41.742Z"
+        "last_updated": "2026-08-29T01:23:41.742Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -416,12 +405,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:41.742Z",
+    "change_summary": "직전 버전에서 쓴 본문이 기대본과 한 글자도 다르지 않은지 확인하기 위한 바이트 대조다. 기대본에서 기계로 생성해 왕복 검증한 값을 그대로 다시 보냈으므로, 저장된 값이 기대본과 같으면 무변경으로 판정된다(다르면 이 호출이 정정한다). 사양 변경은 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T14:42:00.050Z",
     "created_at": "2026-05-30T07:26:32.498Z"
   }
 }

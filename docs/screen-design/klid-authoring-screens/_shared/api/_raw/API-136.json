@@ -56,6 +56,13 @@
                     "format": "int64",
                     "description": "미배정 — LABELER 배정 없음"
                   },
+                  "excludedCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "example": 3,
+                    "minimum": 0,
+                    "description": "제외 표시가 붙은 영상 건수. 버킷이 아니라 별개 축이라 total 과 5종 합계 어디에도 들어가지 않는다 — 제외분은 집계 자체에서 빠져 있다. 현재 페이지가 아니라 필터 결과 전체 기준이며, 같은 요청의 status/q/eventTypeCd/workerId 필터 범위 안에서 센다(필터를 무시한 전체가 아니다). 화면이 이 숫자를 눌러 제외분만 보는 목록으로 전환하므로 숫자와 누른 결과가 일치해야 하기 때문이다. 0건이어도 실린다 — 빠지면 화면이 「제외된 것이 없다」와 「제외 기능이 없다」를 구분해 보여 주지 못한다."
+                  },
                   "reviewPending": {
                     "type": "integer",
                     "format": "int64",
@@ -87,6 +94,7 @@
               "completed": 3,
               "inProgress": 21,
               "unassigned": 7,
+              "excludedCount": 3,
               "reviewPending": 9
             },
             "message": null,
@@ -274,7 +282,8 @@
           "description": "작업자(USER_NO) 필터 — 최신 배정 작업자 기준. 목록과 동일 적용."
         }
       ],
-      "description": "작업목록 KPI 카드용 워크플로 상태별 건수를 필터 결과 전체 기준으로 반환한다(현재 페이지가 아니다).\n\n[필터] 목록(GET /v1/tasks/board)과 동일하게 status/q/eventTypeCd/workerId 가 적용된다.\n\n[★ workStatus 무시] workStatus 는 전달돼도 무시한다 — KPI 카드 자체가 workStatus 선택지이므로 이미 좁혀진 집합 위에서 세면 항상 1개 카드만 값을 갖는다. 목록과 같은 쿼리스트링을 그대로 보내도 안전하다.\n\n[★ FE 연동 지침 — 미배정 카드] 미배정 카드 클릭 시 status=UNASSIGNED 가 아니라 workStatus=UNASSIGNED 를 보낸다. UNASSIGNED 는 두 축에서 서로 다른 집합을 뜻한다 — status=UNASSIGNED 는 배치 상태 필터를 끄고 미배정 전체를, workStatus=UNASSIGNED 는 현재 배치 상태 필터 안의 미배정만 반환한다. unassigned 버킷은 후자를 세므로 카드 클릭에서 status 를 바꾸면 카드 숫자와 목록 totalElements 가 어긋난다(예: 카드 3 ↔ 목록 13).\n\n[★ inProgress = PENDING] inProgress 는 BoardWorkStatus.IN_PROGRESS 가 아니라 PENDING(배정됨 · 검수 미제출)을 센다. 시스템은 IN_PROGRESS 라는 값을 아예 반환하지 않으며(워크플로 ASSIGNED → PENDING), 필드명은 화면 카드 라벨이 '작업중'이기 때문이다. 변경 전 FE 가 IN_PROGRESS 를 세고 있어 REVIEWER 시각에서 0 으로 고정되던 결함이 있었다.\n\n[불변식] total == unassigned + inProgress + reviewPending + completed + rejected. 화면 카드는 5종(전체/미배정/작업중/검수요청/반려)만 쓰지만 completed 를 빼면 카드 합과 총건수가 어긋나 '숫자가 틀렸다'는 오인을 부르므로 함께 반환한다.\n\n[스냅샷] 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다(대시보드성 KPI — 강한 정합성을 요구하지 않는다).",
+      "description": "작업목록 KPI 카드용 워크플로 상태별 건수를 필터 결과 전체 기준으로 반환한다(현재 페이지가 아니다).\n\n[필터] 목록(GET /v1/tasks/board)과 동일하게 status/q/eventTypeCd/workerId 가 적용된다.\n\n[★ 제외분 배제] 제외 표시가 붙은 영상은 이 집계에서 빠진다. 집계는 목록과 같은 조건 조립을 공유하므로, 목록이 제외분을 빼면 집계도 같이 줄어야 한다 — 조건이 갈리면 목록은 줄었는데 카드 숫자는 그대로인 어긋남이 생긴다.\n\n[★ 제외 판정을 두는 자리] 제외 판정은 조회 조건에만 붙이고 버킷 판정식은 건드리지 않는다. 그래야 아래 불변식이 유지된다 — 판정식에 제외를 섞으면 어느 버킷에도 들지 않는 행이 생겨 버킷 합이 총건수와 달라진다.\n\n[★ 제외됨 건수] 응답에 excludedCount 한 키가 더해져 제외 표시가 붙은 건수를 함께 싣는다. 필터 범위 안에서 센다(필터를 무시한 전체가 아니다) — 화면이 그 숫자를 눌러 제외분만 보는 목록으로 전환하므로 숫자와 누른 결과가 일치해야 한다. 0건이어도 실린다 — 빠지면 화면이 「제외된 것이 없다」와 「제외 기능이 없다」를 구분해 보여 주지 못한다. 기존 집계 키의 이름·타입·뜻은 그대로이고 키 하나가 느는 것이다. 이 이름은 영상 처리 현황·작업 목록·검수 목록 세 목록에서 같다.\n\n[★ workStatus 무시] workStatus 는 전달돼도 무시한다 — KPI 카드 자체가 workStatus 선택지이므로 이미 좁혀진 집합 위에서 세면 항상 1개 카드만 값을 갖는다. 목록과 같은 쿼리스트링을 그대로 보내도 안전하다.\n\n[★ FE 연동 지침 — 미배정 카드] 미배정 카드 클릭 시 status=UNASSIGNED 가 아니라 workStatus=UNASSIGNED 를 보낸다. UNASSIGNED 는 두 축에서 서로 다른 집합을 뜻한다 — status=UNASSIGNED 는 배치 상태 필터를 끄고 미배정 전체를, workStatus=UNASSIGNED 는 현재 배치 상태 필터 안의 미배정만 반환한다. unassigned 버킷은 후자를 세므로 카드 클릭에서 status 를 바꾸면 카드 숫자와 목록 totalElements 가 어긋난다(예: 카드 3 ↔ 목록 13).\n\n[★ inProgress = PENDING] inProgress 는 BoardWorkStatus.IN_PROGRESS 가 아니라 PENDING(배정됨 · 검수 미제출)을 센다. 시스템은 IN_PROGRESS 라는 값을 아예 반환하지 않으며(워크플로 ASSIGNED → PENDING), 필드명은 화면 카드 라벨이 '작업중'이기 때문이다. 변경 전 FE 가 IN_PROGRESS 를 세고 있어 REVIEWER 시각에서 0 으로 고정되던 결함이 있었다.\n\n[불변식] total == unassigned + inProgress + reviewPending + completed + rejected. 화면 카드는 5종(전체/미배정/작업중/검수요청/반려)만 쓰지만 completed 를 빼면 카드 합과 총건수가 어긋나 '숫자가 틀렸다'는 오인을 부르므로 함께 반환한다. excludedCount 는 이 합의 항이 아니다 — 제외분은 total 에서도 이미 빠져 있어 별개 축이다.\n\n[스냅샷] 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다(대시보드성 KPI — 강한 정합성을 요구하지 않는다).",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -284,7 +293,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:46.623Z"
+        "last_updated": "2026-08-29T01:23:46.623Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -292,12 +302,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:46.623Z",
+    "change_summary": "작업 목록 KPI 집계에서 제외 표시가 붙은 영상을 빼고, 「제외됨 건수」 응답 키 하나를 더한다. 집계가 목록과 같은 조건 조립을 공유한다는 사실을 본문에 못박았다 — 조건이 갈리면 목록은 줄었는데 카드 숫자는 그대로인 어긋남이 생긴다. 제외 판정을 두는 자리도 함께 적었다: 조회 조건에만 붙이고 버킷 판정식은 건드리지 않는다. 판정식에 제외를 섞으면 어느 버킷에도 들지 않는 행이 생겨 「버킷 합 = 전체 건수」 불변식이 깨지기 때문이며, 조회 조건에만 붙이면 그 불변식이 그대로 유지된다. 새 키는 필터 범위 안에서 세고(필터를 무시한 전체가 아니다) 0건이어도 실린다 — 화면이 그 숫자를 눌러 제외분 목록으로 전환하므로 숫자와 누른 결과가 일치해야 하고, 0건일 때 빠지면 「제외된 것이 없다」와 「제외 기능이 없다」가 구분되지 않는다. 이름은 영상 목록 창구가 이미 쓰는 것과 같아 세 목록에서 공통이다. 기존 집계 키의 이름·타입·뜻과 KPI 버킷 구성·인가·페이지 없음 성질은 하나도 바꾸지 않고 추가만 했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T14:36:02.761Z",
     "created_at": "2026-07-30T05:51:47.892Z"
   }
 }

@@ -1,20 +1,20 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 15
+version: 16
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-15T13:21:56.941Z
+synced_at: 2026-09-15T15:34:19.698Z
 status: CHANGED
-prev_version: 14
-content_hash: 4a54bf112c4fa0e8200752731e22efd417da6b52908627d65a1a787a04f6f427
+prev_version: 15
+content_hash: a222c85e42f6096ab299c65cc34e8250a1272af8f3d11d5c4e59b85512320eba
 stale: true
 raw: ./_raw/ROLE-001.json
 links:
   based_on: ["[[ADR-055]]"]
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-003]]", "[[FEAT-004]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[FEAT-009]]", "[[SCREEN-008]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
   inherits_from_backward: ["[[ROLE-004]]"]
-  references_backward: ["[[ADR-067]]"]
+  references_backward: ["[[ADR-067]]", "[[ADR-069]]"]
   requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
 ---
 
@@ -63,6 +63,12 @@ ADMIN
 **관리** — 라벨 마스터 관리 · 오토라벨 프리셋 관리 · 비식별 누락 신고 관리 · 이벤트유형 관리 · 배치·추론·정밀도·비식별 설정. 사용자 관리는 이 역할에 두지 않는다(관리자 역할이 소유한다).
 
 **작업 운영** — 작업자 배정 · 재배정 · 배정 이력 조회. 작업 목록과 통계를 배정 범위 제한 없이 전체 기준으로 조회한다(작업자는 본인 배정분으로 좁혀진다).
+
+**영상 제외·복원** — 영상을 목록에서 빼고(제외, 사유 필수) 다시 보이게 한다(복원, 사유 없음). 수행 화면은 영상 처리 현황 하나이고, 작업 목록과 검수 목록은 제외분이 빠진다는 사실과 그 건수를 보여 주는 열람까지다.
+
+**배정 해제** — 작업자 배정을 없앤다(사유 없음, 검수 단계에 든 배정은 거부). 작업 목록에서 재배정과 같은 자리에 선다.
+
+이 셋은 이 역할을 하한으로 열린다 — 작업자는 셋 다 할 수 없고, 관리자는 계층으로 물려받아 별도 부여 없이 그대로 수행한다.
 
 **검수** — 검수 목록·상세에서 승인·반려. 승인 시점에 학습데이터 버전이 확정되고 완료 통지가 발행된다.
 
@@ -292,7 +298,7 @@ ADMIN
 - view
 - update
 
-- **condition**: 작업 목록을 전체 기준으로 조회, 배정·재배정·배정 이력 조회
+- **condition**: 작업 목록을 전체 기준으로 조회, 배정·재배정·배정 이력 조회, 배정 해제
 - **target_id**: SCREEN-012
 - **target_kind**: screen_spec
 
@@ -303,7 +309,7 @@ ADMIN
 - view
 - update
 
-- **condition**: 영상 처리 현황 조회, 마킹 진입·작업자 배정·재배정
+- **condition**: 영상 처리 현황 조회, 마킹 진입·작업자 배정·재배정, 영상 제외·복원
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 

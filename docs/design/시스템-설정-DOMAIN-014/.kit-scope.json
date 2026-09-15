@@ -170,7 +170,7 @@
     "IMPREC-434",
     "SETT-001"
   ],
-  "last_sync_at": "2026-09-15T13:24:06.113Z",
+  "last_sync_at": "2026-09-15T15:36:12.681Z",
   "note_pruned": "제외 타입 23건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 1건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다): SETT-001",
   "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 5건 승격: ADR-013, API-256, INT-003, INT-006, INTSPEC-006."
 }

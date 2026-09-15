@@ -36,11 +36,14 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-466"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:27:02.375Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -58,8 +61,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "제목의 「상태 두 갈래」를 「상태 전이는 한 갈래뿐」으로 바꿨다. 본문은 직전 판에서 이미 판정 기준 꼴로 고쳤는데 제목만 개수를 세고 있어 한 기준 안에서 앞뒤가 어긋났다. 더 나쁜 것은 「갈래」라는 낱말이 두 뜻으로 쓰인 점이다 — 본문은 그것을 진입 경로의 뜻으로 쓰는데(그 밖의 갈래는 모두), 제목은 전이하는가 아닌가라는 결과가 두 종류라는 뜻으로 썼다. 그래서 목록 화면에서 제목만 보는 사람에게는 진입 경로가 둘이라는 말로 읽힌다. 실제로 이 제목을 읽은 두 사람이 서로 다른 뜻으로 해석했다. 본문이 낱말을 경로의 뜻으로 확정했으므로 제목을 거기에 맞췄고, 개수를 세지 않는 형태라 갈래가 늘어도 그대로 참이다. 본문·시나리오·검증 방법·상태·링크는 손대지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T11:29:33.366Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:02.375Z",
     "created_at": "2026-09-15T06:03:52.485Z"
   }
 }

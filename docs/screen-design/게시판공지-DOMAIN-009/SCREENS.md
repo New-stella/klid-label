@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-09-14T07:37:33.039Z (session 19) |
+| last sync | 2026-09-15T15:38:39.066Z (session 20) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록

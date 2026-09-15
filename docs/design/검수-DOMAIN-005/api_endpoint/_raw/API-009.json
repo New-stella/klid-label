@@ -320,11 +320,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-219"
+          "IMPREC-219",
+          "IMPREC-462"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:36.520Z",
+        "last_updated": "2026-09-15T13:26:38.616Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -339,8 +340,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "검수 상세 응답에 두 축을 더한다(기존 필드·타입·의미 불변, 추가만). ①지금 누가 검수 중인가 — 점유자의 사용자 번호·표시 이름과 검수 시작 시각(reviewingUserId·reviewingUserName·reviewStartedAt). 점유는 저장된 값이 아니라 작업 이력 원장에서 도출하는 파생 판정이라 판정 규칙을 본문에 적었다 — 그 영상의 최신 검수 시작 이벤트에 대해 그보다 뒤에 승인·반려 이벤트가 없고 발생시각에 유예를 더한 값이 지금보다 뒤면 그 행위자가 점유 중이며, 유예는 배포 설정값이다. 점유가 없거나 만료됐으면 세 값이 비어 있다. ②최근 승인 정보 — 마지막 승인자의 사용자 번호·표시 이름과 그 행위 시점의 역할, 승인 시각(lastApproverId·lastApproverName·lastApproverRole·lastApprovedAt). 역할은 행위 시점 값이라 관리자가 승인한 건은 관리자로 남으며, 볼 때마다 현재 역할을 다시 읽는 방식이 아니다. 역할을 남기지 않던 시기의 옛 기록은 사람과 시각은 있는데 역할만 비어 있을 수 있다. 아울러 검수자 쪽에 배정 검사를 넣지 않는다는 ADR-067 의 결론을 명시하고, 작업자 쪽의 본인 배정 검사는 남의 작업물 열람을 막는 별개 축이라 그대로 유지됨을 구분해 적는다. 점유는 표시이지 조회 자격이 아니어서 남이 점유 중이어도 상세는 열린다. 경로·메서드·파라미터·인증 요건·응답 코드 집합은 무변경이다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T04:32:51.116Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:26:38.616Z",
     "created_at": "2026-05-30T06:57:59.484Z"
   }
 }

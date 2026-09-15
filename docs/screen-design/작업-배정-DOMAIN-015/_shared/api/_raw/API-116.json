@@ -55,6 +55,17 @@
                       "nullable": true,
                       "description": "재배정 시 이전 작업자 번호"
                     },
+                    "actorRoleCd": {
+                      "enum": [
+                        "ADMIN",
+                        "REVIEWER",
+                        "WORKER"
+                      ],
+                      "type": "string",
+                      "example": "REVIEWER",
+                      "nullable": true,
+                      "description": "그 행위를 한 시점의 행위자 역할 코드. 조회 시점에 그 사람의 현재 역할을 다시 읽은 값이 아니라 행위 당시에 기록된 값이라, 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로 남는다. 계층으로 승격된 값이 아니라 행위자의 실제 역할이다 — 관리자가 승인한 이벤트는 ADMIN 으로 남는다. 역할 칸이 생기기 전에 쌓인 이벤트는 역할을 복원할 수 없어 null 이며 지어낸 값으로 채우지 않는다. 화면은 값이 없으면 역할을 비워 보인다."
+                    },
                     "actorUserNo": {
                       "type": "integer",
                       "format": "int64",
@@ -62,7 +73,7 @@
                     },
                     "eventTypeCd": {
                       "type": "string",
-                      "description": "이벤트 종류 — ASSIGN(배정)/REASSIGN(재배정)/SUBMIT(검수 제출)/CANCEL_SUBMIT(제출 취소)/APPROVE(승인)/REJECT(반려)/PRIVACY_META_UPDATE(영상 개인정보 선언 변경)/PRIVACY_META_RESET(비식별 신고로 인한 선언 리셋 — 2026-08-04 리셋 정책 폐기로 신규 발생 없음, 과거 행 판독용)/FRAME_DISCARD(프레임 폐기)/FRAME_RESTORE(프레임 복원)/START_VERSION_APPLY(시작 버전 적용) 총 11종. 이 API 는 타입으로 거르는 파라미터가 없다 — 항상 해당 영상의 전 종류 이벤트를 반환한다."
+                      "description": "이벤트 종류 — ASSIGN(배정)/REASSIGN(재배정)/START_REVIEW(검수 시작)/SUBMIT(검수 제출)/CANCEL_SUBMIT(제출 취소)/APPROVE(승인)/REJECT(반려)/PRIVACY_META_UPDATE(영상 개인정보 선언 변경)/PRIVACY_META_RESET(비식별 신고로 인한 선언 리셋 — 2026-08-04 리셋 정책 폐기로 신규 발생 없음, 과거 행 판독용)/FRAME_DISCARD(프레임 폐기)/FRAME_RESTORE(프레임 복원)/START_VERSION_APPLY(시작 버전 적용). 종류를 개수로 적지 않는다 — 열거가 곧 목록이며, 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다. 이 API 는 타입으로 거르는 파라미터가 없다 — 항상 해당 영상의 전 종류 이벤트를 반환한다."
                     },
                     "prevUserName": {
                       "type": "string",
@@ -111,6 +122,7 @@
                 "eventSeq": 1,
                 "occurredAt": "2026-06-15T09:00:00",
                 "prevUserNo": null,
+                "actorRoleCd": "REVIEWER",
                 "actorUserNo": 2001,
                 "eventTypeCd": "ASSIGN",
                 "prevUserName": null,
@@ -123,6 +135,7 @@
                 "eventSeq": 2,
                 "occurredAt": "2026-06-16T14:20:00",
                 "prevUserNo": 1001,
+                "actorRoleCd": "REVIEWER",
                 "actorUserNo": 2001,
                 "eventTypeCd": "REASSIGN",
                 "prevUserName": "홍길동",
@@ -273,7 +286,8 @@
           "description": "배정 PK"
         }
       ],
-      "description": "단일 배정의 통합 이벤트 이력(배정/재배정/검수 제출/승인/반려)을 시간 오름차순으로 반환한다. LS_TASK_EVNT_LOG 기반 통합 타임라인(SCR-TASK-003)이며, REVIEWER는 모든 배정 이력을, WORKER는 본인 배정 이력만 조회 가능하다(IDOR 방어 — 인증 필수 + 서비스 본인 검증). userNo/userName은 LS_ACNT_USER batch lookup 값만 노출한다.",
+      "description": "단일 배정의 통합 이벤트 이력(배정·재배정·검수 시작·검수 제출·승인·반려 등)을 시간 오름차순으로 반환한다. LS_TASK_EVNT_LOG 기반 통합 타임라인이며, REVIEWER는 모든 배정 이력을, WORKER는 본인 배정 이력만 조회 가능하다(IDOR 방어 — 인증 필수 + 서비스 본인 검증). userNo/userName은 사용자 원장에서 한 번에 조회한 값만 노출한다.\n\n[★검수 시작도 이 타임라인의 조회 대상이다] 검수 점유는 전용 컬럼이나 별도 표가 아니라 작업 이력 원장의 「검수 시작」 이벤트로 표현하므로(ADR-067), 그 이벤트가 배정·제출·승인·반려와 같은 타임라인에 함께 실린다. 이 창구는 이벤트 종류로 거르는 질의 항목을 두지 않아 값역이 넓어지면 새 종류도 그대로 실린다 — 그래서 조회 대상 이벤트 종류를 개수로 적지 않는다(열거가 곧 목록이며, 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다).\n\n[★행위 시점 역할(하위호환 추가)] 이력 항목마다 그 행위를 한 시점의 행위자 역할을 함께 싣는다. 조회 시점에 현재 역할을 다시 읽는 방식이 아니라서 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로 남는다 — 관리자가 승인한 이벤트는 관리자로 남고, 계층으로 승격된 값이 아니라 행위자의 실제 역할이다. 역할 칸이 생기기 전에 쌓인 이력은 역할을 복원할 수 없어 비어 있을 수 있으며 지어내 채우지 않는다 — 사람과 시각은 있는데 역할만 비어 있을 수 있고, 화면은 그때 역할을 비워 보인다. 기존 필드·타입·의미와 경로·질의 항목·응답 코드 집합·인증 요건은 변경하지 않았다 — 추가만 했다.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -283,7 +297,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:45.435Z"
+        "last_updated": "2026-08-29T01:23:45.435Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -291,12 +306,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:45.435Z",
+    "change_summary": "직전 회차에서 들어간 한글 손상 두 곳을 바로잡는다. 「열거가 곧 목록이며」로 써야 할 자리가 본문과 이벤트 종류 설명 두 곳 모두 「열거가 곳 목록이며」로 적혀 있었다 — 깨진 글자가 아니라 읽히는 다른 한글이라 통독으로 걸러지지 않고, 기계 검사(알려진 오타 문자열 + 희귀 음절 빈도 분석)로 잡았다. 아울러 본문의 띄어쓰기 한 곳(그 때 → 그때)을 함께 다듬었다. 사양 내용은 바뀌지 않았고 필드·타입·값역·경로·질의 항목·응답 코드 집합·인증 요건도 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T05:24:23.654Z",
     "created_at": "2026-07-07T07:32:30.290Z"
   }
 }

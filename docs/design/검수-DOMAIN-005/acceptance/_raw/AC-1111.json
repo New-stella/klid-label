@@ -35,11 +35,14 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-468"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:27:12.020Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -57,8 +60,8 @@
     "stale": true,
     "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
     "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 유예가 지나면 점유가 저절로 풀리고 다른 검수자가 상태 전이 없이 이어받는다는 것을 검증하는 수용기준 신설.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T06:03:52.900Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:12.020Z",
     "created_at": "2026-09-15T06:03:52.900Z"
   }
 }

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
-  "synced_at": "2026-09-15T13:24:17.054Z",
+  "synced_at": "2026-09-15T15:36:23.722Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -1017,8 +1017,8 @@
     "ROLE-001": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 15,
-      "content_hash": "4a54bf112c4fa0e8200752731e22efd417da6b52908627d65a1a787a04f6f427"
+      "version": 16,
+      "content_hash": "a222c85e42f6096ab299c65cc34e8250a1272af8f3d11d5c4e59b85512320eba"
     },
     "ROLE-002": {
       "type": "permission_role",

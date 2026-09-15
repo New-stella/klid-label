@@ -8,27 +8,27 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-09-14T07:37:25.311Z (session 19) |
+| last sync | 2026-09-15T15:41:37.419Z (session 20) |
 | 화면 수 | 2개 |
-| ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/검수-DOMAIN-005 |
+| ui_component 카탈로그 | populated 147건 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
-| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
+| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]], [[API-250]] | [[ROLE-001]] |
+| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]], [[API-043]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 144 |
+| ui_component | _shared/ui-catalog.md | 147 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 19 |
+| api_endpoint | _shared/api/ | 26 |
 | constant | _shared/constant/ | 0 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -56,12 +56,23 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 4건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 15건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-023 — SCREEN-018, SCREEN-019
-> - AC-1040 — SCREEN-018, SCREEN-019
-> - AC-1041 — SCREEN-018, SCREEN-019
-> - AC-1042 — SCREEN-018, SCREEN-019
+> - AC-1040 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1041 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1042 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1109 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1110 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1111 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1112 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1113 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1114 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1115 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1116 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1117 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1124 — SCREEN-018, SCREEN-018
+> - AC-1126 — SCREEN-018, SCREEN-018
 
 ## git 권장
 

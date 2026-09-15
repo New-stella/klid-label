@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-09-15T13:24:03.838Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 185 |
+| Last sync | 2026-09-15T15:36:10.656Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 208 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-003 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 77건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 83건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 12건 / 스코프 밖 37건
-  ℹ️  api_endpoint: 이번 키트 47건 / 스코프 밖 187건
-  ℹ️  erd: 이번 키트 3건 / 스코프 밖 22건
+  ℹ️  api_endpoint: 이번 키트 57건 / 스코프 밖 180건
+  ℹ️  erd: 이번 키트 4건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 6건 / 스코프 밖 30건 (그중 domain_id 없음 12건)
-  ℹ️  screen_spec: 이번 키트 11건 / 스코프 밖 28건
-  ℹ️  use_case: 이번 키트 6건 / 스코프 밖 29건
+  ℹ️  screen_spec: 이번 키트 13건 / 스코프 밖 26건
+  ℹ️  use_case: 이번 키트 8건 / 스코프 밖 28건
   ℹ️  domain_event: 이번 키트 3건 / 스코프 밖 9건
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 102건 (그중 domain_id 없음 8건)
+  ℹ️  acceptance: 이번 키트 13건 / 스코프 밖 102건 (그중 domain_id 없음 8건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 21건 / 스코프 밖 40건 (그중 domain_id 없음 7건)
+  ℹ️  adr: 이번 키트 22건 / 스코프 밖 40건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 12건 (그중 domain_id 없음 11건)
 ```
 
@@ -53,6 +53,13 @@
 | [[AC-1023]] | acceptance | 6 | UNCHANGED |
 | [[AC-1086]] | acceptance | 3 | UNCHANGED |
 | [[AC-1087]] | acceptance | 2 | UNCHANGED |
+| [[AC-1121]] | acceptance | 3 | UNCHANGED |
+| [[AC-1122]] | acceptance | 1 | UNCHANGED |
+| [[AC-1123]] | acceptance | 2 | UNCHANGED |
+| [[AC-1124]] | acceptance | 3 | UNCHANGED |
+| [[AC-1125]] | acceptance | 2 | UNCHANGED |
+| [[AC-1126]] | acceptance | 2 | UNCHANGED |
+| [[AC-1127]] | acceptance | 4 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-006]] | adr | 6 | UNCHANGED |
@@ -74,8 +81,10 @@
 | [[ADR-065]] | adr | 1 | UNCHANGED |
 | [[ADR-066]] | adr | 3 | UNCHANGED |
 | [[ADR-068]] | adr | 3 | UNCHANGED |
+| [[ADR-069]] | adr | 4 | UNCHANGED |
+| [[API-008]] | api_endpoint | 20 | UNCHANGED |
 | [[API-021]] | api_endpoint | 9 | UNCHANGED |
-| [[API-042]] | api_endpoint | 8 | UNCHANGED |
+| [[API-042]] | api_endpoint | 9 | UNCHANGED |
 | [[API-043]] | api_endpoint | 28 | UNCHANGED |
 | [[API-044]] | api_endpoint | 9 | UNCHANGED |
 | [[API-045]] | api_endpoint | 2 | UNCHANGED |
@@ -83,11 +92,16 @@
 | [[API-047]] | api_endpoint | 16 | UNCHANGED |
 | [[API-065]] | api_endpoint | 25 | UNCHANGED |
 | [[API-068]] | api_endpoint | 4 | UNCHANGED |
-| [[API-070]] | api_endpoint | 11 | UNCHANGED |
-| [[API-071]] | api_endpoint | 8 | UNCHANGED |
+| [[API-070]] | api_endpoint | 12 | UNCHANGED |
+| [[API-071]] | api_endpoint | 10 | UNCHANGED |
+| [[API-072]] | api_endpoint | 12 | UNCHANGED |
+| [[API-073]] | api_endpoint | 12 | UNCHANGED |
 | [[API-084]] | api_endpoint | 8 | UNCHANGED |
 | [[API-092]] | api_endpoint | 10 | UNCHANGED |
 | [[API-114]] | api_endpoint | 3 | UNCHANGED |
+| [[API-136]] | api_endpoint | 5 | UNCHANGED |
+| [[API-137]] | api_endpoint | 7 | UNCHANGED |
+| [[API-138]] | api_endpoint | 5 | UNCHANGED |
 | [[API-143]] | api_endpoint | 3 | UNCHANGED |
 | [[API-144]] | api_endpoint | 3 | UNCHANGED |
 | [[API-145]] | api_endpoint | 3 | UNCHANGED |
@@ -109,6 +123,7 @@
 | [[API-181]] | api_endpoint | 7 | UNCHANGED |
 | [[API-185]] | api_endpoint | 8 | UNCHANGED |
 | [[API-186]] | api_endpoint | 6 | UNCHANGED |
+| [[API-187]] | api_endpoint | 4 | UNCHANGED |
 | [[API-191]] | api_endpoint | 2 | UNCHANGED |
 | [[API-192]] | api_endpoint | 4 | UNCHANGED |
 | [[API-194]] | api_endpoint | 12 | UNCHANGED |
@@ -121,13 +136,16 @@
 | [[API-214]] | api_endpoint | 5 | UNCHANGED |
 | [[API-219]] | api_endpoint | 4 | UNCHANGED |
 | [[API-220]] | api_endpoint | 4 | UNCHANGED |
-| [[CDIAG-001]] | class_diagram | 6 | UNCHANGED |
+| [[API-259]] | api_endpoint | 2 | UNCHANGED |
+| [[API-260]] | api_endpoint | 2 | UNCHANGED |
+| [[API-261]] | api_endpoint | 2 | UNCHANGED |
+| [[CDIAG-001]] | class_diagram | 7 | UNCHANGED |
 | [[CDIAG-017]] | class_diagram | 2 | UNCHANGED |
 | [[CDIAG-029]] | class_diagram | 1 | UNCHANGED |
 | [[CDIAG-036]] | class_diagram | 2 | UNCHANGED |
 | [[CMP-001]] | diagram_c4_component | 7 | UNCHANGED |
 | [[CMP-010]] | diagram_c4_component | 6 | UNCHANGED |
-| [[DFEAT-007]] | domain_feature | 10 | UNCHANGED |
+| [[DFEAT-007]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-008]] | domain_feature | 7 | UNCHANGED |
 | [[DFEAT-009]] | domain_feature | 6 | UNCHANGED |
 | [[DFEAT-010]] | domain_feature | 2 | UNCHANGED |
@@ -140,7 +158,8 @@
 | [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-060]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-003]] | domain | 14 | UNCHANGED |
-| [[ERD-012]] | erd | 53 | UNCHANGED |
+| [[ERD-012]] | erd | 54 | UNCHANGED |
+| [[ERD-014]] | erd | 17 | UNCHANGED |
 | [[ERD-020]] | erd | 24 | UNCHANGED |
 | [[ERD-025]] | erd | 4 | UNCHANGED |
 | [[EVT-001]] | domain_event | 5 | UNCHANGED |
@@ -200,15 +219,17 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 118 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 54 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 52 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 78 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 53 | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 51 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 49 | UNCHANGED |
@@ -229,6 +250,8 @@
 | [[UC-011]] | use_case | 24 | UNCHANGED |
 | [[UC-016]] | use_case | 34 | UNCHANGED |
 | [[UC-018]] | use_case | 28 | UNCHANGED |
+| [[UC-029]] | use_case | 17 | UNCHANGED |
 | [[UC-032]] | use_case | 16 | UNCHANGED |
 | [[UC-038]] | use_case | 9 | UNCHANGED |
 | [[UC-042]] | use_case | 6 | UNCHANGED |
+| [[UC-043]] | use_case | 2 | UNCHANGED |

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 전체 통합 |
-| last sync | 2026-09-14T07:56:46.970Z (session 41) |
+| last sync | 2026-09-15T15:41:05.940Z (session 42) |
 | 화면 수 | 38개 |
-| ui_component 카탈로그 | populated 155건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/klid-authoring-screens |
+| ui_component 카탈로그 | populated 158건 |
+| 출력 루트 | docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -22,15 +22,15 @@
 | [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]], [[API-245]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
-| [[SCREEN-005]] | 라벨링 캔버스 화면 | UNCHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]], [[API-204]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-005]] | 라벨링 캔버스 화면 | UNCHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]], [[API-204]], [[API-043]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-006]] | 마킹 화면 | UNCHANGED | ✅ | [[API-047]], [[API-043]], [[API-091]], [[API-114]], [[API-084]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-008]] | 영상 처리 현황 화면 | UNCHANGED | ✅ | [[API-042]], [[API-047]], [[API-068]], [[API-070]], [[API-071]], [[API-181]], [[API-212]], [[API-214]] | [[ROLE-001]] |
+| [[SCREEN-008]] | 영상 처리 현황 화면 | UNCHANGED | ✅ | [[API-042]], [[API-047]], [[API-068]], [[API-070]], [[API-071]], [[API-181]], [[API-212]], [[API-214]], [[API-260]], [[API-261]] | [[ROLE-001]] |
 | [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 | [[SCREEN-010]] | 로드 버전 선택 | UNCHANGED | ✅ | [[API-197]], [[API-182]], [[API-195]], [[API-034]], [[API-035]], [[API-036]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-011]] | 대시보드 화면 | UNCHANGED | ✅ | [[API-042]], [[API-055]], [[API-072]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
-| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
+| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]], [[API-259]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]], [[API-250]] | [[ROLE-001]] |
+| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]], [[API-043]] | [[ROLE-001]] |
 | [[SCREEN-020]] | 작업자 통계 화면 | UNCHANGED | ✅ | [[API-001]], [[API-056]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-021]] | 전체 구축 현황 화면 | UNCHANGED | ✅ | [[API-057]], [[API-058]] | [[ROLE-001]] |
 | [[SCREEN-022]] | 증강 요청 화면 | UNCHANGED | ✅ | [[API-042]], [[API-059]], [[API-060]], [[API-092]], [[API-179]] | [[ROLE-001]] |
@@ -40,7 +40,7 @@
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
 | [[SCREEN-027]] | 파일 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-028]] | 포털 내 작업 화면 | UNCHANGED | ✅ | [[API-225]], [[API-203]] | [[ROLE-003]] |
-| [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]], [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-234]], [[API-235]], [[API-236]], [[API-237]] | [[ROLE-003]] |
+| [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]], [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-234]], [[API-235]], [[API-236]], [[API-237]], [[API-255]], [[API-257]], [[API-254]], [[API-256]], [[API-177]], [[API-258]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-032]] | 비식별 신고 관리 화면 | UNCHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]], [[API-207]], [[API-215]] | [[ROLE-001]] |
@@ -62,9 +62,9 @@
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 155 |
+| ui_component | _shared/ui-catalog.md | 158 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 221 |
+| api_endpoint | _shared/api/ | 230 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -128,7 +128,7 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 41건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 63건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -138,18 +138,22 @@
 > - UC-024 — SCREEN-028, SCREEN-029
 > - UC-027 — SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
 > - UC-032 — SCREEN-026, SCREEN-038
+> - UC-034 — SCREEN-005, SCREEN-029
 > - UC-036 — SCREEN-032, SCREEN-039
 > - UC-040 — SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037
 > - UC-041 — SCREEN-001, SCREEN-002, SCREEN-003
+> - UC-043 — SCREEN-008, SCREEN-012, SCREEN-018
 > - AC-1022 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
 > - AC-1023 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
 > - AC-1028 — SCREEN-005, SCREEN-025
 > - AC-1029 — SCREEN-005, SCREEN-025
+> - AC-1030 — SCREEN-005, SCREEN-029
+> - AC-1031 — SCREEN-005, SCREEN-029
 > - AC-1032 — SCREEN-039, SCREEN-039
 > - AC-1033 — SCREEN-039, SCREEN-039
-> - AC-1040 — SCREEN-018, SCREEN-019
-> - AC-1041 — SCREEN-018, SCREEN-019
-> - AC-1042 — SCREEN-018, SCREEN-019
+> - AC-1040 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1041 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1042 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1054 — SCREEN-005, SCREEN-010
 > - AC-1055 — SCREEN-005, SCREEN-010
 > - AC-1056 — SCREEN-005, SCREEN-010
@@ -169,8 +173,26 @@
 > - AC-1085 — SCREEN-021, SCREEN-021
 > - AC-1086 — SCREEN-027, SCREEN-027
 > - AC-1087 — SCREEN-027, SCREEN-027
+> - AC-1104 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1105 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1106 — SCREEN-001, SCREEN-002, SCREEN-003
+> - AC-1108 — SCREEN-005, SCREEN-028, SCREEN-029, SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
+> - AC-1109 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1110 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1111 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1112 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1113 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1114 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1115 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1116 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1117 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1121 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-018
+> - AC-1122 — SCREEN-012, SCREEN-012
+> - AC-1123 — SCREEN-012, SCREEN-012
+> - AC-1124 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-012, SCREEN-012, SCREEN-018, SCREEN-018
+> - AC-1125 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-018
+> - AC-1126 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-012, SCREEN-018, SCREEN-018
+> - AC-1127 — SCREEN-008, SCREEN-012, SCREEN-012, SCREEN-012, SCREEN-018
 
 ## git 권장
 

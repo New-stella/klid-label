@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-09-15T13:24:10.139Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 155 |
+| Last sync | 2026-09-15T15:36:16.708Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 159 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-005 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 38건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 40건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 6건 / 스코프 밖 43건
-  ℹ️  api_endpoint: 이번 키트 27건 / 스코프 밖 207건
+  ℹ️  api_endpoint: 이번 키트 27건 / 스코프 밖 210건
   ℹ️  erd: 이번 키트 3건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 11건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 35건
-  ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
+  ℹ️  use_case: 이번 키트 6건 / 스코프 밖 30건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 18건 / 스코프 밖 90건 (그중 domain_id 없음 10건)
+  ℹ️  acceptance: 이번 키트 20건 / 스코프 밖 95건 (그중 domain_id 없음 13건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 12건 / 스코프 밖 49건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 13건 / 스코프 밖 49건 (그중 domain_id 없음 8건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 10건 (그중 domain_id 없음 9건)
 ```
 
@@ -65,6 +65,8 @@
 | [[AC-1115]] | acceptance | 1 | UNCHANGED |
 | [[AC-1116]] | acceptance | 1 | UNCHANGED |
 | [[AC-1117]] | acceptance | 1 | UNCHANGED |
+| [[AC-1124]] | acceptance | 3 | UNCHANGED |
+| [[AC-1126]] | acceptance | 2 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
@@ -76,8 +78,9 @@
 | [[ADR-031]] | adr | 4 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
 | [[ADR-060]] | adr | 1 | UNCHANGED |
-| [[ADR-067]] | adr | 5 | UNCHANGED |
-| [[API-008]] | api_endpoint | 18 | UNCHANGED |
+| [[ADR-067]] | adr | 6 | UNCHANGED |
+| [[ADR-069]] | adr | 4 | UNCHANGED |
+| [[API-008]] | api_endpoint | 20 | UNCHANGED |
 | [[API-009]] | api_endpoint | 10 | UNCHANGED |
 | [[API-010]] | api_endpoint | 4 | UNCHANGED |
 | [[API-011]] | api_endpoint | 4 | UNCHANGED |
@@ -98,7 +101,7 @@
 | [[API-105]] | api_endpoint | 8 | UNCHANGED |
 | [[API-128]] | api_endpoint | 3 | UNCHANGED |
 | [[API-132]] | api_endpoint | 7 | UNCHANGED |
-| [[API-138]] | api_endpoint | 4 | UNCHANGED |
+| [[API-138]] | api_endpoint | 5 | UNCHANGED |
 | [[API-168]] | api_endpoint | 2 | UNCHANGED |
 | [[API-172]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
@@ -170,12 +173,12 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 118 | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 33 | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 47 | UNCHANGED |
 | [[SD-001]] | screen_design | 5 | UNCHANGED |
@@ -196,6 +199,7 @@
 | [[UC-010]] | use_case | 18 | UNCHANGED |
 | [[UC-022]] | use_case | 31 | UNCHANGED |
 | [[UC-023]] | use_case | 37 | UNCHANGED |
+| [[UC-043]] | use_case | 2 | UNCHANGED |
 | [[UI-056]] | ui_component | 8 | UNCHANGED |
 | [[UI-097]] | ui_component | 6 | UNCHANGED |
 | [[UI-107]] | ui_component | 7 | UNCHANGED |

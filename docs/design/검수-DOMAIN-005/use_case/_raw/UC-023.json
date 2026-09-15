@@ -65,9 +65,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-460"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:26:30.895Z",
         "module_paths": []
       },
       "postconditions": [
@@ -196,11 +199,11 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 37,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "SCREEN-018의 data.covered_by_acceptances 변경 — references",
     "change_summary": "검수 시작의 갈래를 닫힌 목록으로 적던 주 서술 두 자리를 판정 기준 꼴로 바꾼다. 본문 문단의 '검수 시작은 두 갈래다'와 주 흐름 2단계의 같은 형태 서술을, 상태를 전이하는 갈래는 검수 대기에서 집어가는 하나뿐이고 그 밖의 갈래는 모두 상태 전이 없이 점유만 세운다는 기준 서술로 바꾸고 사례는 예컨대 꼴로 달았다. 대체 흐름의 동시 검수 시작 경합 절은 이미 같은 기준 꼴이라 손대지 않았고, 이번 수정으로 한 문서 안에서 갈래 수가 서로 어긋나던 것이 맞춰진다. 갈래를 세어 두면 갈래가 하나 늘 때마다 그 수를 인용한 자리가 함께 틀리기 때문이다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T11:24:15.477Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:26:30.895Z",
     "created_at": "2026-06-05T09:46:43.690Z"
   }
 }

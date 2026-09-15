@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
-  "synced_at": "2026-09-15T13:24:08.153Z",
+  "synced_at": "2026-09-15T15:36:14.743Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 98,
+  "count": 99,
   "items": {
     "AC-1077": {
       "type": "acceptance",
@@ -101,6 +101,12 @@
       "domain_id": null,
       "version": 6,
       "content_hash": "1d3d44c9b7d35d2e2c8d48d7afdf3f47856d2807c204b762b3283436592ecf64"
+    },
+    "ADR-069": {
+      "type": "adr",
+      "domain_id": "DOMAIN-003",
+      "version": 4,
+      "content_hash": "d67a6d36fff5a70705fc084e166c296264bf3d452c51160e37e5d66cdfd6ad5c"
     },
     "API-074": {
       "type": "api_endpoint",
@@ -213,8 +219,8 @@
     "DFEAT-006": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-015",
-      "version": 10,
-      "content_hash": "40bbe0b5afd1fa042a98e8f9ae0b297bb4554238ebb86eb461cd030844b04524"
+      "version": 12,
+      "content_hash": "ad9cb84411b60fed5b3eed6c7d2403ef70719103495f1c70861f29ef63e79c97"
     },
     "DFEAT-043": {
       "type": "domain_feature",
@@ -555,8 +561,8 @@
     "ROLE-001": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 15,
-      "content_hash": "4a54bf112c4fa0e8200752731e22efd417da6b52908627d65a1a787a04f6f427"
+      "version": 16,
+      "content_hash": "a222c85e42f6096ab299c65cc34e8250a1272af8f3d11d5c4e59b85512320eba"
     },
     "ROLE-002": {
       "type": "permission_role",
@@ -586,7 +592,7 @@
       "type": "screen_spec",
       "domain_id": "DOMAIN-005",
       "version": 56,
-      "content_hash": "6a0bd535aa5ca84e15342e7d05101072e40eea790d40106e145793bab7bbfd0e"
+      "content_hash": "12fea8eed3ec057b4d0998c4f04adb6e9411a7dc3362b3cf5793fa2965317d90"
     },
     "TEST-004": {
       "type": "test_scenario",
