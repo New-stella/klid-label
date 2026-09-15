@@ -6,6 +6,7 @@
 // 보안: 사용자 입력은 path/body 파라미터로만 전달 (axios 자동 URL 인코딩, XSS 방지).
 // IDOR/Mass Assignment 방어는 BE 책임.
 
+import { aiCancelPath, aiFramePath } from '@/lib/api/aiRoutes';
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
@@ -741,7 +742,10 @@ export function newAiRequestId(): string {
 }
 
 /**
- * 진행 중인 추론을 **서버에서** 취소한다 — `POST /v1/ai-requests/{requestId}/cancel`.
+ * 진행 중인 추론을 **서버에서** 취소한다 — `POST /v1[/portal]/ai-requests/{requestId}/cancel`.
+ *
+ * ★ 포털 채널은 포털 취소 창구를 부른다({@link aiCancelPath}). 내부 창구는 포털 토큰이 닿지 않아
+ *   403 이고, 그 실패는 아래 규칙대로 삼켜지므로 **틀려도 아무 신호가 없다**(서버만 계속 돈다).
  *
  * ★ 실패를 삼킨다. 취소는 «더 안 기다린다» 는 화면의 결정이고 그 결정은 서버 응답과 무관하게 이미
  *   유효하다. 여기서 예외를 올리면 **취소했는데 오류 안내가 뜨는** 화면이 된다(취소를 오류에서
@@ -749,12 +753,14 @@ export function newAiRequestId(): string {
  * ★ 서버 응답의 `cancelled` 값도 읽지 않는다 — 못 끊는 사유(이미 끝남·이미 취소함·다른 노드)는
  *   화면에서 «더 기다릴 필요 없음» 으로 모두 같고, 구분해 보여줄 것이 없다.
  */
-export async function cancelAiRequest(requestId: string | undefined): Promise<void> {
+export async function cancelAiRequest(
+  requestId: string | undefined,
+  portal = false,
+): Promise<void> {
   if (!requestId) return;
   try {
-    // 경로 조립은 언제나 인코딩한다(CWE-22) — 지금은 우리가 만든 값만 들어오지만, 경로 조립
-    // 규칙은 입력 출처에 따라 흔들려서는 안 된다.
-    await apiClient.post(`/ai-requests/${encodeURIComponent(requestId)}/cancel`);
+    // 경로 조립(인코딩 포함)은 단일 지점이 한다 — 채널 접두도 거기서 붙는다.
+    await apiClient.post(aiCancelPath(portal, requestId));
   } catch {
     // 의도적 무시(위 주석) — 진단은 서버 로그가 갖는다.
   }
@@ -1144,10 +1150,11 @@ export interface Sam2SegmentResponse {
 
 /**
  * SAM2 클릭/박스 분할 요청.
- * BE: POST /frames/{srcSn}/sam2-segment
+ * BE: POST /frames/{srcSn}/sam2-segment · 포털 채널은 POST /portal/frames/{srcSn}/sam2-segment
  *
- * <p>내부(INTERNAL) 채널 전용이다 — 포털(외부 채널)에는 SAM2 를 제공하지 않으며(ADR-013) 구 포털
- * 전용 경로 `/portal/frames/{id}/sam2-segment` 는 서버에서 제거됐다. 채널 분기를 두지 않는다.
+ * <p>포털 채널도 AI 분할을 쓴다(2026-09-15 확정 — 포털 전용 창구, 본문·응답은 내부와 같다). 경로만
+ * 갈리며 그 조립은 {@link aiFramePath} 한 곳이 한다.
+ * ⚠ [폐기] 구 서술 — *"내부 채널 전용 · 포털 전용 경로는 서버에서 제거됐다 · 채널 분기를 두지 않는다"*.
  *
  * 보안: srcSn/points/box 입력 검증·IDOR·좌표 상한은 BE 책임.
  *
@@ -1158,6 +1165,7 @@ export function requestSam2Segment(
   payload: Omit<Sam2SegmentRequest, 'srcSn'>,
   signal?: AbortSignal,
   requestId?: string,
+  portal = false,
 ): Promise<Sam2SegmentResponse> {
   // body 를 명시 조립 — simplifyTolerance 는 숫자일 때만 포함(undefined 는 생략 → BE 기본값, 무회귀).
   const body: Record<string, unknown> = { srcSn };
@@ -1165,7 +1173,7 @@ export function requestSam2Segment(
   if (payload.box !== undefined) body.box = payload.box;
   if (typeof payload.simplifyTolerance === 'number') body.simplifyTolerance = payload.simplifyTolerance;
   return apiClient
-    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, body, {
+    .post<Sam2SegmentResponse>(aiFramePath(portal, srcSn, 'sam2-segment'), body, {
       headers: aiRequestIdHeaders(requestId),
       // 공용 기본값(30초)을 덮어쓴다 — 예산 판정은 aiBudget 한 곳. 빼면 30~60초짜리 정상 분할이
       // 실패로 보인다. 단일 프레임 경로라 프레임 수를 넘기지 않는다(예산의 고정분만 쓴다).
@@ -1213,6 +1221,7 @@ export interface AutolabelResponse {
 /**
  * YOLO/SAM 오토라벨 수동 실행 요청.
  * BE: POST /frames/{srcSn}/autolabel  — body {classes?, shape?}
+ *     포털 채널은 POST /portal/frames/{srcSn}/autolabel (본문·응답 동일 — 경로 조립은 {@link aiFramePath})
  *
  * @param classIds (Phase 4 — R3) 검출 대상 클래스(COCO 영문명) 화이트리스트. 미지정/빈 배열이면
  *                 classes 없이 호출(전체 검출, 하위호환). 지정 시 body {classes:[...]} 로 필터.
@@ -1223,7 +1232,8 @@ export interface AutolabelResponse {
  *                 - simplifyTolerance : 경계 세밀함 0~50 (폴리곤 검출)
  *
  * 보안: srcSn 은 path 파라미터(axios 자동 인코딩). shape 는 화이트리스트('BBOX'|'POLYGON')만 전달.
- *       IDOR·작업락·좌표검증·포털 차단은 BE 책임(ADR-013). classes/범위 검증은 BE @Valid.
+ *       인가(내부 배정 IDOR·작업락 / 포털 작업 대상 판정)·좌표검증은 BE 책임. classes/범위 검증은 BE @Valid.
+ * @param portal   포털 채널이면 포털 전용 창구를 부른다. 판정은 화면의 portalMode 에서 파생해 넘긴다.
  */
 export function requestAutolabel(
   srcSn: number,
@@ -1232,6 +1242,7 @@ export function requestAutolabel(
   opts?: { confThreshold?: number; simplifyTolerance?: number },
   signal?: AbortSignal,
   requestId?: string,
+  portal = false,
 ): Promise<AutolabelResponse> {
   const body: {
     classes?: string[];
@@ -1256,10 +1267,11 @@ export function requestAutolabel(
   // body 가 비면 데이터 없이 호출 — 기존 요청 형태 유지(무회귀, api.test 정합).
   //   ⚠ 두 번째 인자를 생략하는 대신 `undefined` 를 넘긴다. 제한시간은 세 번째 인자로만 실을 수 있고,
   //     axios 는 두 경우 모두 `config.data` 를 undefined 로 두므로 전송 형태는 달라지지 않는다.
+  const path = aiFramePath(portal, srcSn, 'autolabel');
   const post =
     Object.keys(body).length > 0
-      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, body, config)
-      : apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, undefined, config);
+      ? apiClient.post<AutolabelResponse>(path, body, config)
+      : apiClient.post<AutolabelResponse>(path, undefined, config);
   // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
   return post.then((r) => ({ ...r.data, message: r.message ?? null }));
 }

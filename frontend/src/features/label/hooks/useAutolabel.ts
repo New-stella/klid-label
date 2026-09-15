@@ -22,6 +22,11 @@ export interface UseAutolabelOptions {
    * 거부된) 요청이 값을 덮어써 앞선 결과의 안내 문구가 뒤바뀐다.
    */
   onApply?: (res: AutolabelResponse, ctx: AutolabelApplyContext) => void;
+  /**
+   * 포털 채널이면 포털 전용 탐지 창구·취소 창구를 쓴다. 판정은 화면의 portalMode 에서 파생해
+   * 넘긴다(이 훅은 채널을 판정하지 않는다). 기본값 false — 내부 경로 무회귀.
+   */
+  portal?: boolean;
 }
 
 export interface UseAutolabelResult {
@@ -54,7 +59,8 @@ export function useAutolabel(
   srcSn: number | undefined,
   options: UseAutolabelOptions = {},
 ): UseAutolabelResult {
-  const { runExclusiveOrNotify } = useBusyTask({ srcSn });
+  const portal = options.portal ?? false;
+  const { runExclusiveOrNotify } = useBusyTask({ srcSn, portal });
   const isAutolabeling = useIsBusyKind('AI_DETECT', srcSn);
   // 최신 콜백 참조 — onApply 가 매 렌더 새 함수여도 autolabel 의 참조 안정성을 지킨다.
   const onApplyRef = useRef(options.onApply);
@@ -76,18 +82,18 @@ export function useAutolabel(
         // 호출 형태에서만 취소가 화면 안에서 끝나고 서버는 계속 돈다(조용히 갈라지는 자리).
         let res: AutolabelResponse;
         if (shape !== undefined || opts !== undefined) {
-          res = await requestAutolabel(srcSn, classIds ?? [], shape, opts, signal, requestId);
+          res = await requestAutolabel(srcSn, classIds ?? [], shape, opts, signal, requestId, portal);
         } else if (classIds === undefined) {
-          res = await requestAutolabel(srcSn, undefined, undefined, undefined, signal, requestId);
+          res = await requestAutolabel(srcSn, undefined, undefined, undefined, signal, requestId, portal);
         } else {
-          res = await requestAutolabel(srcSn, classIds, undefined, undefined, signal, requestId);
+          res = await requestAutolabel(srcSn, classIds, undefined, undefined, signal, requestId, portal);
         }
         // 병합·안내는 보호 구간 안에서. 취소/프레임 전환 뒤면 반영하지 않는다.
         if (isAlive()) onApplyRef.current?.(res, { shape });
         return res;
       });
     },
-    [srcSn, runExclusiveOrNotify],
+    [srcSn, portal, runExclusiveOrNotify],
   );
 
   return { isAutolabeling, autolabel };

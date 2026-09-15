@@ -129,6 +129,11 @@ export interface ObjectAttributePanelProps {
     label?: string;
   };
   /**
+   * 포털 채널에서 렌더되는가 — 호출부가 `portalMode` 에서 그대로 넘긴다(패널은 채널을 판정하지 않는다).
+   * 속성 입력(라디오)을 포털 부품으로 그리는 데만 쓴다. 기본값 false — 관제 렌더 무변경.
+   */
+  portalMode?: boolean;
+  /**
    * (Phase 2 FE) AI 분할(SAM_SEGMENT) 조절 컨텍스트 — 도구 활성 시 "AI 분할 정밀도" 섹션 노출.
    * 인식 민감도는 분할에 무의미하므로 노출하지 않는다(경계 세밀함만).
    * - defaultTolerance      : 프리필 값(시스템 설정 POLYGON_SIMPLIFY_TOLERANCE). 미지정 시 코드 상수 폴백.
@@ -159,6 +164,7 @@ export function ObjectAttributePanel({
   imageHeight,
   track,
   segment,
+  portalMode = false,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 라벨 수정·정밀도 조절·즉시 그리기 토글을 막는다.
@@ -389,6 +395,7 @@ export function ObjectAttributePanel({
           serverId={target.serverId}
           // 속성값 커밋은 즉시 서버 쓰기다 — 좌표 편집(CoordsEditor)과 같은 축으로 차단한다.
           editBlocked={editBlocked}
+          portalMode={portalMode}
         />
       )}
 

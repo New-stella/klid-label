@@ -1,6 +1,6 @@
 // ISSUE-2 — ToolBar SAM2 분할/추적 도구 버튼 노출 + 선택 동작 검증.
 
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -64,10 +64,14 @@ describe('ToolBar — 키포인트 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  it('포털_사용자는_AI분할_도구를_사용할_수_없다', () => {
-    // ADR-013 — 포털은 SAM2·오토라벨 미제공. 서버 엔드포인트도 제거됐다(PortalSam2RemovedTest).
+  it('포털_사용자도_AI분할_도구를_AI_보조_묶음에서_쓴다', () => {
+    // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「포털_사용자는_AI분할_도구를_사용할_수_없다」.
+    //   포털도 AI 분할을 포털 전용 창구로 쓴다. 그리기 묶음이 아니라 「AI 보조」 묶음에 선다.
     renderWithProviders(<ToolBar portalMode />);
-    expect(screen.queryByRole('button', { name: 'AI 분할' })).not.toBeInTheDocument();
+    const aiGroup = screen.getByTestId('label-toolbar-ai-group');
+    const btn = within(aiGroup).getByRole('button', { name: 'AI 분할' });
+    fireEvent.click(btn);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
   });
 
   it('포털_사용자는_AI추적_도구를_사용할_수_없다', () => {
@@ -130,8 +134,86 @@ describe('ToolBar — YOLO 오토라벨', () => {
     expect(onAutolabel).not.toHaveBeenCalled();
   });
 
-  it('portalMode에서_YOLO_오토라벨_버튼_숨김_ADR_013', () => {
-    renderWithProviders(<ToolBar onAutolabel={vi.fn()} portalMode />);
-    expect(screen.queryByRole('button', { name: 'AI 탐지' })).not.toBeInTheDocument();
+  it('portalMode에서도_AI_탐지_버튼이_AI_보조_묶음에_서고_팝업_핸들러를_부른다', () => {
+    // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「portalMode에서_YOLO_오토라벨_버튼_숨김_ADR_013」.
+    const onAutolabel = vi.fn();
+    renderWithProviders(<ToolBar onAutolabel={onAutolabel} portalMode />);
+    const aiGroup = screen.getByTestId('label-toolbar-ai-group');
+    fireEvent.click(within(aiGroup).getByRole('button', { name: 'AI 탐지' }));
+    expect(onAutolabel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ToolBar — 포털 채널 묶음 구성 (SCREEN-029)', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  const cardTitles = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+  const namesIn = (el: HTMLElement) =>
+    within(el)
+      .getAllByRole('button')
+      .map((b) => b.getAttribute('aria-label'));
+
+  it('포털은_그리기_AI보조_보기_세_묶음이고_AI보조에_세_버튼이_순서대로_선다', () => {
+    renderWithProviders(
+      <ToolBar portalMode onAutolabel={vi.fn()} onFocusAutoTrack={vi.fn()} onToggleGrid={vi.fn()} />,
+    );
+    expect(cardTitles()).toEqual(['그리기', 'AI 보조', '보기']);
+    expect(namesIn(screen.getByTestId('label-toolbar-ai-group'))).toEqual([
+      'AI 탐지',
+      'AI 분할',
+      // 접근성 이름은 패널의 실행 버튼(「AI 자동 추적」)과 구별된다 — 보이는 이름을 포함한다.
+      'AI 자동 추적 패널로 이동',
+    ]);
+    // 그리기 묶음에는 AI 기능이 섞이지 않는다.
+    const drawCard = screen.getByRole('heading', { name: '그리기' }).closest('section') as HTMLElement;
+    expect(namesIn(drawCard)).toEqual(['선택', '바운딩 박스', '폴리곤']);
+    // 스켈레톤·선택 객체 AI 추적은 계속 없다.
+    expect(screen.queryByRole('button', { name: '스켈레톤' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'AI 추적' })).toBeNull();
+  });
+
+  it('내부_채널은_종전_두_묶음_그대로이고_AI보조_묶음과_자동추적_버튼이_없다', () => {
+    // 관제향 무변경 가드 — onFocusAutoTrack 이 새어 들어와도 내부 채널은 그 버튼을 두지 않는다.
+    renderWithProviders(<ToolBar onAutolabel={vi.fn()} onFocusAutoTrack={vi.fn()} />);
+    expect(cardTitles()).toEqual(['그리기 도구', '보기']);
+    expect(screen.queryByTestId('label-toolbar-ai-group')).toBeNull();
+    expect(screen.queryByRole('button', { name: /AI 자동 추적/ })).toBeNull();
+    const drawCard = screen
+      .getByRole('heading', { name: '그리기 도구' })
+      .closest('section') as HTMLElement;
+    expect(namesIn(drawCard)).toEqual(['선택', '바운딩 박스', '폴리곤', 'AI 분할', '스켈레톤', 'AI 탐지']);
+  });
+
+  it('포털_AI자동추적_버튼은_실행이_아니라_이동_핸들러만_부른다', () => {
+    const onFocusAutoTrack = vi.fn();
+    renderWithProviders(<ToolBar portalMode onFocusAutoTrack={onFocusAutoTrack} />);
+    fireEvent.click(screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' }));
+    expect(onFocusAutoTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('포털_AI자동추적_사용불가_사유가_있으면_비활성이고_사유를_툴팁과_보조문으로_보인다', () => {
+    const onFocusAutoTrack = vi.fn();
+    const reason = '뒤따르는 프레임이 없어 AI 자동 추적을 쓸 수 없습니다.';
+    renderWithProviders(
+      <ToolBar portalMode onFocusAutoTrack={onFocusAutoTrack} autoTrackUnavailableReason={reason} />,
+    );
+    const btn = screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', `AI 자동 추적 (${reason})`);
+    // 보조문이 화면에 보이고, 비활성 버튼이 그 문장을 설명으로 가리킨다(보조기술 전달).
+    const caption = screen.getByText(reason);
+    expect(btn).toHaveAttribute('aria-describedby', caption.id);
+    fireEvent.click(btn);
+    expect(onFocusAutoTrack).not.toHaveBeenCalled();
+  });
+
+  it('포털_AI자동추적_사유가_없으면_보조문을_두지_않는다', () => {
+    renderWithProviders(<ToolBar portalMode onFocusAutoTrack={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' });
+    expect(btn).toBeEnabled();
+    expect(btn).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText(/AI 자동 추적을 쓸 수 없습니다/)).toBeNull();
   });
 });

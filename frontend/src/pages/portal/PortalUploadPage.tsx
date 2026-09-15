@@ -18,11 +18,12 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Download, Inbox, Trash2, Upload, X } from 'lucide-react';
+import { CircleAlert, Download, FileBraces, Inbox, Trash2, Upload, X } from 'lucide-react';
 
 import { Pagination } from '@/components/common/Pagination';
 import { PortalAlert } from '@/components/portal/ui/PortalAlert';
-import { PortalCard } from '@/components/portal/ui/PortalCard';
+import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
+import { PortalIconButton } from '@/components/portal/ui/PortalIconButton';
 import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
 import {
@@ -31,6 +32,7 @@ import {
   PortalRecordRow,
 } from '@/components/portal/ui/PortalRecordRow';
 import { PortalProgress } from '@/components/portal/ui/PortalProgress';
+import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
 import {
   PortalUploadStatusBadge,
   PortalUploadStatusNote,
@@ -67,6 +69,11 @@ const PAGE_SIZE = 20;
 /** 포털 영상 허용 확장자(BE 와 동일: mp4/mov/avi). accept 1차 가드 — 최종 검증은 서버. */
 const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi';
 const UPLOAD_HINT = 'mp4 · mov · avi / 최대 5GB / 연결이 끊겨도 이어서 올립니다';
+/** 내려받기 버튼이 잠겼을 때의 설명 — 한 자산에서 한 번에 하나만 받는다. */
+const DOWNLOAD_LOCKED_TIP = '다른 내려받기가 끝난 뒤에 받을 수 있습니다';
+/** 삭제 버튼이 잠겼을 때의 설명 — 추출 중 자산은 서버도 409 로 거부한다. */
+const DELETE_LOCKED_TIP =
+  '프레임을 뽑는 중에는 지울 수 없습니다. 준비가 끝나거나 실패로 마무리되면 지울 수 있습니다.';
 
 /**
  * 파일 크기 표기 — 영상은 최대 5GB 라 GB 단계까지 올린다.
@@ -178,190 +185,177 @@ export function PortalUploadPage() {
     }
   };
 
-  const rangeFrom = page * PAGE_SIZE + 1;
-  const rangeTo = page * PAGE_SIZE + uploads.length;
-
   return (
-    <div className="flex w-full flex-col gap-card-gap tracking-body">
+    <div className="flex w-full flex-col gap-column tracking-body">
       {/*
-        포털 채널 셸에는 좌측 주 메뉴가 없고 화면 깊이가 얕다 — 빵부스러기를 두지 않는다.
-        목록 성격 화면이라 '뒤로가기' 조작도 두지 않는다.
+        ★머리 구성은 형제 화면(내 작업 · 증강)과 같다[SCREEN-033] — 페이지 제목(h1)을 따로 두지
+          않고 구역마다 구역 머리(h2 + 한 줄 설명 + 건수)를 세운다. 화면 이름은 이동 탭이, 서비스
+          이름은 Host 머리 영역이 이미 말한다(SHELL-002). 구역을 카드로 감싸지도 않는다 —
+          포털이 흰 카드를 그리므로 상자가 두 겹이 된다.
+        빵부스러기·'뒤로가기' 조작은 두지 않는다(목록 성격 화면이고 깊이가 얕다).
       */}
-      <header className="flex flex-col gap-tight">
-        <h1 className="text-title-lg text-balance text-gray-900">포털 업로드</h1>
-        <p className="text-body-sm text-pretty text-gray-600">
-          본인이 가진 영상을 올리고, 프레임 준비가 끝나면 직접 라벨링합니다.
-        </p>
-      </header>
-
-      {/*
-        "이 경로가 무엇이 아닌지" 를 맨 위에서 먼저 알린다. 골격 purpose 의 절반이 **하지 않는
-        것**인데 화면에 그 사실이 없으면 이용자는 «올려두면 알아서 라벨이 붙겠지» 로 기다린다.
-        ⚠ `live` 를 켜지 않는다 — 늘 서 있는 안내라 진입할 때마다 보조기술에 끼어들면 안 된다.
-      */}
-      <PortalAlert
-        tone="info"
-        title="여기에 올린 자산은 본인만 볼 수 있습니다"
-        description="자동 라벨링·검수·버전 관리를 거치지 않고, 다른 학습데이터와도 섞이지 않습니다. 영상은 마킹을 마쳐야 그 지점으로 프레임을 뽑고, 준비가 끝나야 라벨링할 수 있습니다."
-      />
-
       {/* ── 영상 업로드 (TUS) ───────────────────────────────────────────── */}
-      <PortalCard
-        ariaLabel="영상 업로드"
-        title="영상 업로드"
-        count="한 번에 한 편씩 올립니다"
-        bodyClassName="flex flex-col gap-block"
-      >
-        {videoFile === null ? (
-          /*
-            고르기 전 — 파선 받침. 파선은 «아직 내용이 놓이지 않은 자리» 를 뜻하는 확정 관례다.
-            올리는 중에는 파선을 흐리는 대신 **실선 파일 표시로 자리를 바꾼다**(아래 분기).
-          */
-          <UploadDropzone
-            label="영상 파일"
-            accept={VIDEO_ACCEPT}
-            hint={UPLOAD_HINT}
-            lead="여기로 영상을 끌어다 놓거나 눌러서 고르세요"
-            disabled={uploading}
-            onFiles={(files) => setVideoFile(files[0] ?? null)}
-          />
-        ) : (
-          <div className="flex flex-col gap-label-gap">
-            <span className="text-label text-gray-800">영상 파일</span>
-            <div className={cn(PORTAL_TILE, 'flex flex-wrap items-center gap-inline p-dense')}>
-              {/* 사용자 파일명 — 텍스트 노드(자동 escape). 좁은 폭에서는 잘리지 않고 줄바꿈한다. */}
-              <span className="min-w-0 flex-1 break-all text-body-sm font-medium text-gray-900">
-                {videoFile.name}
-              </span>
-              <span className="text-caption tabular-nums text-gray-600">
-                {formatSize(videoFile.size)}
-              </span>
-              {uploading ? (
-                <span className="rounded-pill bg-info-50 px-2.5 py-0.5 text-caption font-medium text-info-700">
-                  올리는 중
+      <section aria-labelledby="portal-upload-new" className="flex flex-col gap-in-component">
+        <PortalSectionHead
+          id="portal-upload-new"
+          title="영상 업로드"
+          lead="본인이 가진 영상을 올리고, 프레임 준비가 끝나면 직접 라벨링합니다. 한 번에 한 편씩 올립니다."
+        />
+
+        {/*
+          "이 경로가 무엇이 아닌지" 를 먼저 알린다. 골격 purpose 의 절반이 **하지 않는 것**인데
+          화면에 그 사실이 없으면 이용자는 «올려두면 알아서 라벨이 붙겠지» 로 기다린다.
+          ⚠ `live` 를 켜지 않는다 — 늘 서 있는 안내라 진입할 때마다 보조기술에 끼어들면 안 된다.
+        */}
+        <PortalAlert
+          tone="info"
+          title="여기에 올린 자산은 본인만 볼 수 있습니다"
+          description="자동 라벨링·검수·버전 관리를 거치지 않고, 다른 학습데이터와도 섞이지 않습니다. 영상은 마킹을 마쳐야 그 지점으로 프레임을 뽑고, 준비가 끝나야 라벨링할 수 있습니다."
+        />
+
+        <div className="flex flex-col gap-block-gap">
+          {videoFile === null ? (
+            /*
+              고르기 전 — 파선 받침. 파선은 «아직 내용이 놓이지 않은 자리» 를 뜻하는 확정 관례다.
+              올리는 중에는 파선을 흐리는 대신 **실선 파일 표시로 자리를 바꾼다**(아래 분기).
+            */
+            <UploadDropzone
+              label="영상 파일"
+              accept={VIDEO_ACCEPT}
+              hint={UPLOAD_HINT}
+              lead="여기로 영상을 끌어다 놓거나 눌러서 고르세요"
+              disabled={uploading}
+              onFiles={(files) => setVideoFile(files[0] ?? null)}
+            />
+          ) : (
+            <div className="flex flex-col gap-label-gap">
+              <span className="text-label text-gray-800">영상 파일</span>
+              <div className={cn(PORTAL_TILE, 'flex flex-wrap items-center gap-inline p-dense')}>
+                {/* 사용자 파일명 — 텍스트 노드(자동 escape). 좁은 폭에서는 잘리지 않고 줄바꿈한다. */}
+                <span className="min-w-0 flex-1 break-all text-body-sm font-medium text-gray-900">
+                  {videoFile.name}
                 </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setVideoFile(null)}
-                  aria-label="고른 영상 취소"
-                  className={portalButtonSm('ghost', 'px-2')}
-                >
-                  <X className="size-4" strokeWidth={2} aria-hidden />
-                </button>
-              )}
+                <span className="text-caption tabular-nums text-gray-600">
+                  {formatSize(videoFile.size)}
+                </span>
+                {uploading ? (
+                  <span className="rounded-pill bg-info-50 px-2.5 py-0.5 text-caption font-medium text-info-700">
+                    올리는 중
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setVideoFile(null)}
+                    aria-label="고른 영상 취소"
+                    className={portalButtonSm('ghost', 'px-2')}
+                  >
+                    <X className="size-4" strokeWidth={2} aria-hidden />
+                  </button>
+                )}
+              </div>
+              <p className="text-caption text-gray-600">{UPLOAD_HINT}</p>
             </div>
-            <p className="text-caption text-gray-600">{UPLOAD_HINT}</p>
+          )}
+
+          {tus.totalBytes > 0 && (
+            <PortalProgress
+              label="영상 업로드 진행률"
+              percent={videoPercent}
+              failed={tus.error != null}
+              caption={`${formatSize(tus.totalBytes * tus.progress)} / ${formatSize(tus.totalBytes)} 보냈습니다`}
+              note={
+                uploading
+                  ? '올리는 중에는 멈출 수 없습니다. 다만 보낸 만큼은 남아 있어, 연결이 끊겨도 같은 파일을 다시 고르면 이어서 올립니다.'
+                  : undefined
+              }
+            />
+          )}
+
+          {tus.error != null && (
+            <PortalAlert
+              live
+              tone="error"
+              title="전송이 끊겼습니다"
+              description="보낸 만큼은 남아 있습니다. 같은 파일을 다시 골라 이어서 올려 주세요."
+            />
+          )}
+
+          <div className="flex flex-wrap items-center gap-inline">
+            <button
+              type="button"
+              onClick={onVideoStart}
+              disabled={!videoFile || uploading}
+              className={portalButton('primary')}
+            >
+              <Upload className="size-4" strokeWidth={2} aria-hidden />
+              {/* 조작 자리에도 진행률을 싣는다 — 스크롤로 막대가 가려져도 상태를 읽을 수 있게. */}
+              {uploading ? (
+                <>
+                  업로드 중 <span className="tabular-nums">{videoPercent}%</span>
+                </>
+              ) : (
+                '영상 업로드'
+              )}
+            </button>
+            <p className="text-caption text-pretty text-gray-600">
+              다 올리면 아래 목록에 「마킹 대기」로 나타납니다.
+            </p>
           </div>
-        )}
-
-        {tus.totalBytes > 0 && (
-          <PortalProgress
-            label="영상 업로드 진행률"
-            percent={videoPercent}
-            failed={tus.error != null}
-            caption={`${formatSize(tus.totalBytes * tus.progress)} / ${formatSize(tus.totalBytes)} 보냈습니다`}
-            note={
-              uploading
-                ? '올리는 중에는 멈출 수 없습니다. 다만 보낸 만큼은 남아 있어, 연결이 끊겨도 같은 파일을 다시 고르면 이어서 올립니다.'
-                : undefined
-            }
-          />
-        )}
-
-        {tus.error != null && (
-          <PortalAlert
-            live
-            tone="error"
-            title="전송이 끊겼습니다"
-            description="보낸 만큼은 남아 있습니다. 같은 파일을 다시 골라 이어서 올려 주세요."
-          />
-        )}
-
-        <div className="flex flex-wrap items-center gap-inline">
-          <button
-            type="button"
-            onClick={onVideoStart}
-            disabled={!videoFile || uploading}
-            className={portalButton('primary')}
-          >
-            <Upload className="size-4" strokeWidth={2} aria-hidden />
-            {/* 조작 자리에도 진행률을 싣는다 — 스크롤로 막대가 가려져도 상태를 읽을 수 있게. */}
-            {uploading ? (
-              <>
-                업로드 중 <span className="tabular-nums">{videoPercent}%</span>
-              </>
-            ) : (
-              '영상 업로드'
-            )}
-          </button>
-          <p className="text-caption text-pretty text-gray-600">
-            다 올리면 아래 목록에 「마킹 대기」로 나타납니다.
-          </p>
         </div>
-      </PortalCard>
+      </section>
 
       {/* ── 업로드 자산 목록 ─────────────────────────────────────────────── */}
-      <PortalCard
-        ariaLabel="업로드 자산 목록"
-        title="업로드 자산"
-        count={
-          uploads.length > 0
-            ? `${totalElements}건 중 ${rangeFrom}-${rangeTo} · 페이지당 ${PAGE_SIZE}건`
-            : undefined
-        }
-        action={
-          /*
-            증강 요청 현황·결과로 가는 진입 — **목록에 한 번만** 둔다(자산별 액션이 아니다).
-            요청 이후의 현황·결과 확인·후속 작업·내려받기는 전부 그 화면이 담당한다.
-            [@design SCREEN-033] [@design SCREEN-044]
-          */
-          <Link to="/portal/augment" className={portalButtonSm('secondary')}>
-            증강 요청 현황·결과
-          </Link>
-        }
-        bodyClassName="p-0"
-      >
+      <section aria-labelledby="portal-upload-list" className="flex flex-col gap-in-component">
+        <PortalSectionHead
+          id="portal-upload-list"
+          title="업로드 자산"
+          /* 건수는 형제 화면과 같게 전체 건수만 둔다 — 쪽 범위는 페이저가 말한다. */
+          count={uploads.length > 0 ? `${totalElements}건` : undefined}
+          action={
+            /*
+              증강 요청 현황·결과로 가는 진입 — **목록에 한 번만** 둔다(자산별 액션이 아니다).
+              요청 이후의 현황·결과 확인·후속 작업·내려받기는 전부 그 화면이 담당한다.
+              [@design SCREEN-033] [@design SCREEN-044]
+            */
+            <Link to="/portal/augment" className={portalButton('secondary')}>
+              증강 요청 현황·결과
+            </Link>
+          }
+        />
+
         {deleteUpload.error != null && (
-          <div className="p-in-component pb-0">
-            <PortalAlert live tone="error" title={deleteErrorMessage(deleteUpload.error)} />
-          </div>
+          <PortalAlert live tone="error" title={deleteErrorMessage(deleteUpload.error)} />
         )}
 
         {uploadsQuery.isLoading ? (
-          <PortalListSkeleton className="p-in-component" />
+          <PortalListSkeleton />
         ) : uploadsQuery.isError ? (
           /*
            * 조회 실패는 빈 상태와 반드시 구분한다. React Query 는 실패 시 data 를 undefined 로
            * 두므로 목록이 [] 가 되는데, 그것을 "0건" 으로 그리면 사용자는 **서버 오류를 자기
            * 자산이 사라진 것으로 오해**한다. 문구가 그 오해를 직접 부정한다.
            */
-          <div className="p-in-component">
-            <PortalAlert
-              live
-              tone="error"
-              title="목록을 불러올 수 없습니다"
-              description="잠시 후 다시 시도해 주세요. 올린 자산이 사라진 것은 아닙니다."
-              action={
-                <button
-                  type="button"
-                  onClick={() => void uploadsQuery.refetch()}
-                  className={portalButtonSm('secondary')}
-                >
-                  다시 시도
-                </button>
-              }
-            />
-          </div>
+          <PortalAlert
+            live
+            tone="error"
+            title="목록을 불러올 수 없습니다"
+            description="잠시 후 다시 시도해 주세요. 올린 자산이 사라진 것은 아닙니다."
+            action={
+              <button
+                type="button"
+                onClick={() => void uploadsQuery.refetch()}
+                className={portalButtonSm('secondary')}
+              >
+                다시 시도
+              </button>
+            }
+          />
         ) : uploads.length === 0 ? (
-          <div
-            role="status"
-            className="flex flex-col items-center gap-inline px-in-component py-section text-center"
-          >
-            <Inbox className="size-10 text-gray-400" strokeWidth={1.5} aria-hidden />
-            <p className="text-body-sm font-medium text-gray-800">아직 올린 자산이 없습니다</p>
-            <p className="text-caption text-gray-600">위에서 영상을 올리면 여기에 쌓입니다.</p>
-          </div>
+          <PortalEmptyState
+            icon={Inbox}
+            title="아직 올린 자산이 없습니다"
+            description="위에서 영상을 올리면 여기에 쌓입니다."
+          />
         ) : (
           /*
             ★★ **표가 아니라 행 카드다 (2026-09-08 반전).** 여덟 열이 요구하는 최소 폭이 본문
@@ -483,34 +477,32 @@ export function PortalUploadPage() {
 
                         {/*
                           내려받기 둘은 **아이콘만** 둔다 — 한 줄이 조작을 다섯까지 담아 전부 글자로
-                          두면 조작 덩어리가 본문을 밀어낸다. 두 버튼 모두 '내려받기'라 같은 아이콘을
-                          쓰고 **구분은 접근 이름이 한다**(아이콘 한 벌 관례).
+                          두면 조작 덩어리가 본문을 밀어낸다. 대신 **모양을 가르고**(라벨 JSON = 중괄호
+                          문서 · 원본 = 내려받기) 마우스를 올리면 짧은 설명이 뜬다[SCREEN-033].
                           ⚠ 줄이 여럿이라 접근 이름에 파일명을 붙인다 — 이름 없이 두면 같은 이름의
                             버튼이 자산 수만큼 생겨 어느 자산인지 가릴 수 없다.
                         */}
                         {isReady && (
                           <>
-                            <button
-                              type="button"
+                            <PortalIconButton
                               onClick={() => exportLabels(u)}
                               disabled={busy !== undefined}
                               aria-label={`${u.orgnlFileNm} 내보내기(JSON)`}
-                              className={portalButtonSm('ghost', 'px-2')}
+                              tooltip={busy !== undefined ? DOWNLOAD_LOCKED_TIP : '라벨 JSON 내보내기'}
                             >
-                              <Download className="size-4" strokeWidth={2} aria-hidden />
-                            </button>
-                            <button
-                              type="button"
+                              <FileBraces className="size-4" strokeWidth={2} aria-hidden />
+                            </PortalIconButton>
+                            <PortalIconButton
                               onClick={() => downloadFile(u)}
                               disabled={busy !== undefined}
                               aria-label={`${u.orgnlFileNm} 원본 다운로드`}
                               /* 진행 사실은 보조기술에도 전달한다. 원본은 최대 5GB 라 오래
                                  걸릴 수 있어 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
                               aria-busy={busy === 'file' || undefined}
-                              className={portalButtonSm('ghost', 'px-2')}
+                              tooltip={busy !== undefined ? DOWNLOAD_LOCKED_TIP : '원본 파일 내려받기'}
                             >
                               <Download className="size-4" strokeWidth={2} aria-hidden />
-                            </button>
+                            </PortalIconButton>
                             {/*
                               취소는 **원본을 내려받는 동안에만** 나타나고 상호 비활성 대상에서
                               제외된다 — 취소는 눌러야 동작한다.
@@ -518,14 +510,13 @@ export function PortalUploadPage() {
                                 커서 아래에서 버튼이 갈려 «한 번 더» 누르려던 손이 취소를 누른다.
                             */}
                             {busy === 'file' && (
-                              <button
-                                type="button"
+                              <PortalIconButton
                                 onClick={() => cancelFileDownload(u.uldSn)}
                                 aria-label={`${u.orgnlFileNm} 원본 다운로드 취소`}
-                                className={portalButtonSm('ghost', 'px-2')}
+                                tooltip="내려받기 취소"
                               >
                                 <X className="size-4" strokeWidth={2} aria-hidden />
-                              </button>
+                              </PortalIconButton>
                             )}
                           </>
                         )}
@@ -542,32 +533,19 @@ export function PortalUploadPage() {
                         )}
 
                         {/*
-                          비활성 버튼은 마우스 이벤트를 받지 않으므로 **감싸는 요소**가 사유를
-                          나른다. 문구는 마크업에 실려 있어(`role="note"`) 속성이 지워져도
-                          스크린리더가 읽는다.
+                          잠겼을 때는 설명이 **왜 못 지우는지**를 말한다. 비활성 버튼은 마우스
+                          이벤트를 받지 않으므로 감싸는 요소가 설명을 띄운다(`PortalIconButton`).
+                          문구는 마크업에 실려 있어 스크린리더도 읽는다.
                         */}
-                        <span className="group relative inline-flex">
-                          <button
-                            type="button"
-                            onClick={() => void onDelete(u)}
-                            disabled={deleteUpload.isPending || isProcessing}
-                            aria-label={`${u.orgnlFileNm} 삭제`}
-                            aria-describedby={isProcessing ? `del-tip-${u.uldSn}` : undefined}
-                            className={portalButtonSm('ghost', 'px-2')}
-                          >
-                            <Trash2 className="size-4" strokeWidth={2} aria-hidden />
-                          </button>
-                          {isProcessing && (
-                            <span
-                              id={`del-tip-${u.uldSn}`}
-                              role="note"
-                              className="pointer-events-none absolute right-0 top-full z-10 mt-1 w-56 rounded-input border border-gray-200 bg-white p-2 text-caption text-gray-700 opacity-0 shadow-dropdown transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                            >
-                              프레임을 뽑는 중에는 지울 수 없습니다. 준비가 끝나거나 실패로
-                              마무리되면 지울 수 있습니다.
-                            </span>
-                          )}
-                        </span>
+                        <PortalIconButton
+                          onClick={() => void onDelete(u)}
+                          disabled={deleteUpload.isPending || isProcessing}
+                          aria-label={`${u.orgnlFileNm} 삭제`}
+                          tone="danger"
+                          tooltip={isProcessing ? DELETE_LOCKED_TIP : '삭제'}
+                        >
+                          <Trash2 className="size-4" strokeWidth={2} aria-hidden />
+                        </PortalIconButton>
                       </>
                     }
                   />
@@ -579,11 +557,9 @@ export function PortalUploadPage() {
 
         {/* 전체가 한 페이지에 들어오면 페이저를 그리지 않는다. */}
         {totalPages > 1 && (
-          <div className="border-t border-gray-200 p-in-component">
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
-          </div>
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         )}
-      </PortalCard>
+      </section>
 
       {augmentTarget !== null && (
         <AugmentRequestModal

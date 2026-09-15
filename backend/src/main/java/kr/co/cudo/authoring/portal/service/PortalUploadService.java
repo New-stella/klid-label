@@ -271,16 +271,9 @@ public class PortalUploadService {
         PortalUploadAsset uld = assetRepository.findByOwner(frme.getRawSn(), portalUserNo)
                 .orElseThrow(this::forbidden);
 
-        Path baseDir = baseDir();
-        Path resolved = resolveSafe(baseDir, Paths.get(frme.getSrcFilePathNm()));
-        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[PortalUpload] image file missing uldFrmeSn={}", uldFrmeSn);
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
-        }
-        // CWE-59/367 — lexical 검증(resolveSafe)만으로는 base 안의 심링크가 base 밖(예: 내부 파이프라인의
-        // frames/raw/**)을 가리키는 경우를 막지 못한다. FileSystemResource·Files.size 는 링크를 따라가므로
-        // 그대로 외부 채널로 나간다. 실경로 봉쇄 후 그 실경로를 NOFOLLOW 로 연다(다른 서빙 경로와 동일 규약).
-        Path realFile = realWithinBaseOrThrow(baseDir, resolved, "uldFrmeSn=" + uldFrmeSn);
+        // 파일 해석은 포털 AI 보조 추론 입력과 <b>같은 함수</b>를 쓴다(resolveUploadFrameFile) — 서빙과 추론
+        // 입력이 갈리면 사용자에게 보이지 않는 픽셀이 추론 서버로 나가는 경로가 생긴다.
+        Path realFile = resolveUploadFrameFile(frme);
         MediaType mediaType = resolveStoredMediaType(uld.mimeTypeNm());
         FrameImageService.OpenedFile opened;
         try {
@@ -294,6 +287,42 @@ public class PortalUploadService {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + uldFrmeSn + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(new InputStreamResource(opened.stream()));
+    }
+
+    /**
+     * 본인 업로드 프레임의 <b>서빙 대상 이미지 파일 해석</b> — 포털 업로드 프레임 이미지 서빙
+     * ({@link #serveFrameImage})과 포털 AI 보조 추론 입력이 <b>같은 이 함수</b>를 쓴다.
+     * @design API-149, API-254, API-255, API-257
+     *
+     * <p>포털 저장 base 기준 lexical 봉쇄({@link PortalStoragePathGuard#resolveSafe}, 이탈 403) → 존재·정규 파일
+     * (없으면 404) → 실경로 봉쇄({@link PortalStoragePathGuard#checkRealWithinBase}, 링크 이탈 403 · 해석 불가 404).
+     * 반환값은 판정에 쓴 <b>실경로</b>다.
+     *
+     * <p>CWE-59/367 — lexical 검증만으로는 base 안의 심링크가 base 밖(예: 내부 파이프라인의 frames/raw/**)을
+     * 가리키는 경우를 막지 못한다. {@code FileSystemResource}·{@code Files.size} 는 링크를 따라가므로 그대로 외부
+     * 채널로 나간다. 그래서 실경로로 봉쇄하고 그 실경로를 돌려준다.
+     *
+     * <p>⚠ <b>소유자 판정은 이 함수에 없다</b> — 호출자 몫이다(서빙은 소유자 스코프 조회, 포털 AI 보조는 작업 대상
+     * 판정). 인가 없이 이 함수를 부르는 새 호출부를 만들지 말 것. 이 자산은 본인 업로드라 비식별 누락 신고 게이트
+     * 대상이 아니다.
+     *
+     * @param frme 인가를 통과한 본인 업로드 자산의 프레임
+     * @return 존재하고 실경로 판정이 끝난 프레임 이미지 파일
+     */
+    public Path resolveUploadFrameFile(LsDataSrc frme) {
+        String stored = frme.getSrcFilePathNm();
+        if (stored == null || stored.isBlank()) {
+            // 경로 원문이 없으면 열 파일도 없다 — 해석을 시도하면 NPE(500)가 된다.
+            log.warn("[PortalUpload] image path missing uldFrmeSn={}", frme.getSrcSn());
+            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        }
+        Path baseDir = baseDir();
+        Path resolved = resolveSafe(baseDir, Paths.get(stored));
+        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
+            log.warn("[PortalUpload] image file missing uldFrmeSn={}", frme.getSrcSn());
+            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+        }
+        return realWithinBaseOrThrow(baseDir, resolved, "uldFrmeSn=" + frme.getSrcSn());
     }
 
     /**

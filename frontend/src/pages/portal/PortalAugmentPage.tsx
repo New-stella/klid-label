@@ -38,7 +38,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleAlert, Download, Sparkles, X } from 'lucide-react';
+import { CircleAlert, Download, FileBraces, Sparkles, X } from 'lucide-react';
 
 import { Pagination } from '@/components/common/Pagination';
 import { PortalAlert } from '@/components/portal/ui/PortalAlert';
@@ -512,8 +512,8 @@ function AugmentResultDownloads({
           aria-label="증강 결과물 라벨 내보내기"
           className={portalButtonSm('secondary')}
         >
-          {/* 두 버튼 모두 '내려받기'라 같은 아이콘을 쓴다 — 구분은 라벨이 한다. */}
-          <Download className="size-3.5" strokeWidth={2} aria-hidden />
+          {/* 라벨 JSON 은 업로드 목록과 같은 중괄호 문서 모양을 쓴다 — 같은 조작 = 같은 아이콘. */}
+          <FileBraces className="size-3.5" strokeWidth={2} aria-hidden />
           라벨 내보내기
         </button>
         <button

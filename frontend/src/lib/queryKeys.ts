@@ -210,8 +210,14 @@ export const SYSCONFIG_KEYS = {
    * AI 정밀도 기본값(GET /v1/ai-defaults) — 라벨링 화면 전용 읽기.
    *
    * `all` 하위에 두어 검수자의 설정 수정(useUpdateConfig)이 이 조회도 함께 무효화하게 한다.
+   *
+   * ★ 포털 채널은 다른 창구(GET /v1/portal/ai-defaults)를 부르므로 키를 가른다 — 창구가 조건 축이다.
+   *   내부 채널 키는 종전 그대로 둔다(기존 무효화·캐시 무회귀).
    */
-  aiDefaults: () => [...SYSCONFIG_KEYS.all, 'ai-defaults'] as const,
+  aiDefaults: (portal = false) =>
+    portal
+      ? ([...SYSCONFIG_KEYS.all, 'ai-defaults', 'portal'] as const)
+      : ([...SYSCONFIG_KEYS.all, 'ai-defaults'] as const),
 };
 
 /**

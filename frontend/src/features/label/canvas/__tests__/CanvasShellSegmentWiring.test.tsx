@@ -18,8 +18,13 @@ vi.mock('../layers/OverlayLayer', () => ({
 }));
 
 let mockIsSegmenting = false;
+// 훅에 넘어간 인자(프레임·포털 채널) — 캔버스가 채널 인자를 버리면 포털 분할이 내부 창구로 샌다.
+const segmentHookArgs: unknown[][] = [];
 vi.mock('../../hooks/useSam2Segment', () => ({
-  useSam2Segment: () => ({ segment: vi.fn(), isSegmenting: mockIsSegmenting }),
+  useSam2Segment: (...args: unknown[]) => {
+    segmentHookArgs.push(args);
+    return { segment: vi.fn(), isSegmenting: mockIsSegmenting };
+  },
 }));
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -51,6 +56,7 @@ const frame: FrameSummary = {
 beforeEach(() => {
   images.length = 0;
   overlayProps.length = 0;
+  segmentHookArgs.length = 0;
   mockIsSegmenting = false;
   useLabelStore.getState().reset();
 });
@@ -65,6 +71,18 @@ describe('CanvasShell — 즉시 그리기/진행 상태 배선', () => {
     const last = overlayProps[overlayProps.length - 1];
     expect(last.immediateSegment).toBe(true);
     expect(last.isSegmenting).toBe(true);
+  });
+
+  it('portalMode면_AI_분할_훅에_포털_채널을_넘기고_기본은_내부_채널이다', () => {
+    // SCREEN-029 · API-257 — 포털 채널의 AI 분할 요청·취소는 포털 전용 창구로 간다.
+    const { unmount } = render(
+      <CanvasShell frame={frame} width={200} height={200} labels={[]} portalMode />,
+    );
+    expect(segmentHookArgs[segmentHookArgs.length - 1]).toEqual([1, true]);
+    unmount();
+    segmentHookArgs.length = 0;
+    render(<CanvasShell frame={frame} width={200} height={200} labels={[]} />);
+    expect(segmentHookArgs[segmentHookArgs.length - 1]).toEqual([1, false]);
   });
 
   it('immediateSegment_미지정이면_기본_false로_전달된다', () => {

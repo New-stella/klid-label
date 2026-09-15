@@ -169,22 +169,26 @@ describe('포털 채널 라벨링 미노출', () => {
     ]);
   });
 
-  // ADR-013 — 포털은 오토라벨링·SAM2·VLM·버전관리·검수 미제공. 서버의 포털 전용 SAM2 엔드포인트
-  // (/v1/portal/frames/{srcSn}/sam2-*)도 제거됐으므로(BE PortalSam2RemovedTest) 도구를 노출하면
-  // 사용자가 404 만 만난다. FE 게이팅은 UX 편의이고 실제 강제는 서버가 한다.
-  it('포털_라벨링_도구바에_SAM2_분할_추적_스켈레톤이_노출되지_않는다', async () => {
+  // 포털 라벨링 화면(SCREEN-029)은 AI 보조 세 기능(AI 탐지·AI 분할·AI 자동 추적)을 포털 전용 창구로
+  // 제공한다(2026-09-15 확정). 여기서 계속 막는 것은 스켈레톤·선택 객체 AI 추적이다.
+  // ★반전 — 구 케이스 「포털_라벨링_도구바에_SAM2_분할_추적_스켈레톤이_노출되지_않는다」 의
+  //   AI 분할·AI 탐지 숨김 단언만 뒤집었다. 스켈레톤·AI 추적 숨김과 과잉 차단 가드는 그대로다.
+  it('포털_라벨링_도구바에_AI보조_세_버튼이_서고_스켈레톤_AI추적은_노출되지_않는다', async () => {
     renderPortalLabel();
     // 로딩 화면도 labeling-page testid 를 갖는다 → 도구바가 실제 렌더될 때까지(바운딩박스 버튼) 대기.
     await waitFor(() =>
       expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument(),
     );
-    expect(screen.queryByRole('button', { name: 'AI 분할' })).toBeNull();
+    const aiGroup = screen.getByTestId('label-toolbar-ai-group');
+    expect(within(aiGroup).getByRole('button', { name: 'AI 탐지' })).toBeInTheDocument();
+    expect(within(aiGroup).getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
+    expect(
+      within(aiGroup).getByRole('button', { name: 'AI 자동 추적 패널로 이동' }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI 추적' })).toBeNull();
     expect(screen.queryByRole('button', { name: '스켈레톤' })).toBeNull();
     // 기본 도구(바운딩박스/폴리곤)는 그대로 노출 — 과잉 차단 회귀 가드.
     expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
-    // YOLO 파이프라인 오토라벨도 포털 미제공 — 계속 숨김(회귀 가드).
-    expect(screen.queryByRole('button', { name: 'AI 탐지' })).toBeNull();
   });
 });

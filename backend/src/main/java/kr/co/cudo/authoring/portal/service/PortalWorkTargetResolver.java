@@ -91,8 +91,30 @@ public class PortalWorkTargetResolver {
         }
     }
 
+    /**
+     * 판정을 통과한 대상과 <b>그 판정이 조회한 프레임 행</b>.
+     *
+     * @param target 확정된 작업 대상(출처 포함)
+     * @param frame  판정에 쓴 프레임 엔티티 — 호출자가 같은 행을 다시 조회하지 않게 넘긴다
+     */
+    public record FrameTarget(Target target, LsDataSrc frame) {
+    }
+
     /** 프레임 식별자로 진입하는 창구(메타)의 대상 확정. */
     public Target resolveByFrame(Long srcSn, String portalUserNo) {
+        // 판정은 한 벌이다 — 프레임 행이 필요 없는 창구도 같은 판정을 거친다.
+        return resolveFrame(srcSn, portalUserNo).target();
+    }
+
+    /**
+     * 프레임 식별자로 진입하는 창구의 대상 확정 + 판정에 쓴 프레임 행 반환.
+     *
+     * <p>포털 AI 보조 창구가 인가를 통과한 프레임 엔티티(영상 식별자·이미지 경로)를 추론 본체에 넘기려고
+     * 쓴다. 판정 규칙은 {@link #resolveByFrame} 와 <b>같은 한 곳</b>이다 — 판정을 복제하지 않고 이 메서드가
+     * 판정의 본체이며 {@link #resolveByFrame} 가 여기에 위임한다.
+     * @design API-254, API-255, API-257
+     */
+    public FrameTarget resolveFrame(Long srcSn, String portalUserNo) {
         requireOwner(portalUserNo);
         if (srcSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "srcSn 은 필수입니다.");
@@ -102,7 +124,7 @@ public class PortalWorkTargetResolver {
         // 두 곳에서 유도하게 된다.
         Long rawSn = frame.getRawSn();
         LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow(PortalWorkTargetResolver::notFound);
-        return new Target(rawSn, srcSn, originOf(rawSn, raw, portalUserNo));
+        return new FrameTarget(new Target(rawSn, srcSn, originOf(rawSn, raw, portalUserNo)), frame);
     }
 
     /** 영상 식별자로 진입하는 창구(이벤트 어노테이션)의 대상 확정. */

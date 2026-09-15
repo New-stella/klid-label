@@ -135,7 +135,7 @@ export function BusyOverlay({ kind, startedAt, limitMs, onCancel }: BusyOverlayP
     >
       <div
         ref={panelRef}
-        className="flex max-w-sm flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-6 py-5 text-center shadow-lg"
+        className="flex max-w-[384px] flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-6 py-5 text-center shadow-lg"
       >
         {/* 스피너는 장식 — 상태 문구가 이미 role=status 로 읽히므로 중복 안내를 만들지 않는다. */}
         <span aria-hidden="true">

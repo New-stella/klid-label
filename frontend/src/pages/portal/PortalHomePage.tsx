@@ -30,13 +30,12 @@
 //   서버가 토큰 주체로 강제한다(CWE-639).
 
 import { useRef, useState } from 'react';
-import { Download, Inbox, X } from 'lucide-react';
+import { Download, FileBraces, Inbox, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { Pagination } from '@/components/common/Pagination';
 import { PortalAlert } from '@/components/portal/ui/PortalAlert';
 import { PortalBadge } from '@/components/portal/ui/PortalBadge';
-import { PortalCard } from '@/components/portal/ui/PortalCard';
 import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
 import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
 import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
@@ -96,6 +95,16 @@ const NO_ENTRY_REASON = '지금은 이어서 작업할 수 없습니다.';
 
 /** 내려받을 저작물이 없는 행의 사유 문구. */
 const NO_DOWNLOAD_REASON = '아직 저장한 작업이 없어 내려받을 것이 없습니다.';
+
+/**
+ * 내려받기 버튼 문구 — **받는 형식을 밝힌다**[SCREEN-028].
+ * 같은 자리의 버튼이 출처마다 다른 파일을 내려주므로(데이터마트 = 프레임 이미지·문서·비식별 영상 ZIP,
+ * 업로드 = 라벨 JSON 한 파일) 문구가 같으면 누르기 전에는 무엇을 받는지 알 수 없다.
+ */
+const DOWNLOAD_LABEL: Record<PortalWorkAssetSource, string> = {
+  DATAMART: 'ZIP 내려받기',
+  PORTAL_UPLOAD: 'JSON 내려받기',
+};
 
 /**
  * 주소의 page 값(0부터)을 읽는다. 사용자가 주소를 직접 고칠 수 있으므로 음수·소수·비수치는
@@ -243,7 +252,11 @@ export function PortalHomePage() {
             description="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다."
           />
         ) : (
-          <PortalCard ariaLabel="내 저장 작업 목록" bodyClassName="overflow-x-auto p-0">
+          /*
+           * ★카드로 한 번 더 감싸지 않는다[SCREEN-028] — 포털이 이미 흰 카드를 그리므로 우리 카드를
+           *   얹으면 상자가 두 겹이 된다. 열 제목 띠가 목록의 시작을 알린다.
+           */
+          <div className="overflow-x-auto">
             {/*
               * ★**열 폭을 표에 맡기지 않는다.** 자동 배분에 두면 브라우저가 「가장 잘 접히는 열」을
               *   최소 폭까지 눌러 그 칸만 여러 줄로 흘러내린다(형제 화면 증강 목록에서 실제로
@@ -254,7 +267,7 @@ export function PortalHomePage() {
               *   그 사유를 지우면 왜 못 누르는지 알 길이 사라지므로 폭으로 받아 준다.
               */}
             <table
-              className="w-full min-w-[52rem] table-fixed text-body-md"
+              className="w-full min-w-[832px] table-fixed text-body-md"
               data-testid="portal-work-table"
             >
               <caption className="sr-only">
@@ -262,9 +275,9 @@ export function PortalHomePage() {
               </caption>
               <colgroup>
                 <col />
-                <col className="w-[9.5rem]" />
-                <col className="w-[10.5rem]" />
-                <col className="w-[21rem]" />
+                <col className="w-[152px]" />
+                <col className="w-[168px]" />
+                <col className="w-[336px]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-gray-200 bg-secondary-50">
@@ -412,7 +425,7 @@ export function PortalHomePage() {
                             <button
                               type="button"
                               data-testid={`portal-work-download-${work.rawSn}`}
-                              aria-label={`${work.videoName} 작업 데이터 내려받기`}
+                              aria-label={`${work.videoName} ${DOWNLOAD_LABEL[work.assetSource]}`}
                               /* 버튼 이름을 aria-label 이 정하므로 바뀐 본문('내려받는 중…')은
                                  보조기술에 읽히지 않는다. 이 요청은 GB 급일 수 있어 진행 중이라는
                                  사실만은 전달해야 한다. */
@@ -422,8 +435,13 @@ export function PortalHomePage() {
                               onClick={() => onDownload(work)}
                               className={portalButtonSm('secondary')}
                             >
-                              <Download className="size-3.5" strokeWidth={2} aria-hidden />
-                              {downloading ? '내려받는 중…' : '내려받기'}
+                              {/* 아이콘도 형식을 따른다 — 라벨 JSON 은 업로드 목록과 같은 중괄호 문서 모양. */}
+                              {work.assetSource === 'PORTAL_UPLOAD' ? (
+                                <FileBraces className="size-3.5" strokeWidth={2} aria-hidden />
+                              ) : (
+                                <Download className="size-3.5" strokeWidth={2} aria-hidden />
+                              )}
+                              {downloading ? '내려받는 중…' : DOWNLOAD_LABEL[work.assetSource]}
                             </button>
                           </span>
 
@@ -446,7 +464,7 @@ export function PortalHomePage() {
                 })}
               </tbody>
             </table>
-          </PortalCard>
+          </div>
         )}
 
         {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}

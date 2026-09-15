@@ -184,6 +184,26 @@ describe('포털 내 작업 — 출처별 창구', () => {
     // then(부재): 데이터마트 창구로 새지 않는다
     expect(datamartDownloadMock).not.toHaveBeenCalled();
   });
+
+  /*
+   * ★ 같은 자리의 버튼이 출처마다 다른 파일을 내려준다 — 문구가 같으면 누르기 전에는 무엇을 받는지
+   *   알 수 없다(업로드 행에서 JSON 한 파일만 받아진다는 사용자 지적). 문구가 형식을 밝힌다.
+   */
+  it('★버튼_문구가_받는_형식을_밝힌다_데이터마트는_ZIP_업로드는_JSON', () => {
+    mockWorks([
+      work({ rawSn: 73, assetSource: 'DATAMART', videoName: 'CLIP-73' }),
+      work({ rawSn: 74, assetSource: 'PORTAL_UPLOAD', videoName: 'up.mp4' }),
+    ]);
+    renderHome();
+
+    const zip = screen.getByTestId('portal-work-download-73');
+    expect(zip).toHaveTextContent('ZIP 내려받기');
+    expect(zip).toHaveAccessibleName('CLIP-73 ZIP 내려받기');
+
+    const json = screen.getByTestId('portal-work-download-74');
+    expect(json).toHaveTextContent('JSON 내려받기');
+    expect(json).toHaveAccessibleName('up.mp4 JSON 내려받기');
+  });
 });
 
 describe('포털 내 작업 — 진행 표시와 동시 실행 방지', () => {

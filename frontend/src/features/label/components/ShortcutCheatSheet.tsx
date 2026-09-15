@@ -15,7 +15,7 @@ export interface ShortcutCheatSheetProps {
   open: boolean;
   onClose: () => void;
   /**
-   * ADR-013 — 포털 모드면 미제공 도구(PORTAL_HIDDEN_TOOLS: SAM2 분할/추적·키포인트)의 단축키 안내를
+   * 포털 모드면 미제공 도구(PORTAL_HIDDEN_TOOLS: 선택 객체 AI 추적·스켈레톤)의 단축키 안내를
    * 목록에서 제외한다. 툴바·키 디스패치를 막아놓고 안내만 남기면 포털 사용자가 존재하지 않는 기능을
    * 찾게 된다(누르면 무반응). 게이팅 판정은 세 곳 모두 PORTAL_HIDDEN_TOOLS 단일 소스를 공유한다.
    */

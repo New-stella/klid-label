@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Field, FieldLabel } from '@/components/common/Field';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Radio } from '@/components/common/Radio';
+import { PortalRadio } from '@/components/portal/ui/PortalRadio';
 import {
   Select,
   SelectContent,
@@ -62,6 +63,12 @@ export interface ObjectAttributeSectionProps {
    * 차단 구간에 나가면 진행 중 작업의 결과 병합과 겹쳐 같은 라벨이 두 축에서 갈린다.
    */
   editBlocked?: boolean;
+  /**
+   * 포털 채널에서 렌더되는가 — 호출부가 `portalMode` 에서 그대로 넘긴다.
+   * true 면 RADIO 속성을 포털 라디오로 그린다: 포털 Host 스타일이 네이티브 라디오를 숨겨 관제 공통
+   * 라디오로는 동그라미가 사라진다. 기본값 false — 관제 렌더 무변경.
+   */
+  portalMode?: boolean;
 }
 
 /**
@@ -72,6 +79,7 @@ export function ObjectAttributeSection({
   classId,
   serverId,
   editBlocked = false,
+  portalMode = false,
 }: ObjectAttributeSectionProps) {
   const defsQuery = useLabelAttrs(classId);
   const defs = useMemo(
@@ -198,6 +206,7 @@ export function ObjectAttributeSection({
             unsavedAttrIds.includes(def.attrId) &&
             (draft[def.attrId] ?? '') !== effective[def.attrId]
           }
+          portalMode={portalMode}
           onDraft={(v) => setDraftValue(def.attrId, v)}
           onCommit={(v) => commit(def.attrId, v)}
         />
@@ -226,6 +235,8 @@ interface AttrInputProps {
   disabled: boolean;
   /** 차단으로 저장되지 못한 입력값(P-2) — 값은 보존하되 저장 안 됐음을 알린다. */
   unsaved?: boolean;
+  /** 포털 채널 — RADIO 를 포털 라디오로 그린다. */
+  portalMode?: boolean;
   onDraft: (value: string) => void;
   onCommit: (value: string) => void;
 }
@@ -244,7 +255,15 @@ function UnsavedMark({ attrId }: { attrId: number }) {
 }
 
 /** 정의(inputType)에 맞는 입력 컨트롤. label 연결 + 색상 단독 정보전달 금지(텍스트 병기). */
-function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }: AttrInputProps) {
+function AttrInput({
+  def,
+  value,
+  disabled,
+  unsaved = false,
+  portalMode = false,
+  onDraft,
+  onCommit,
+}: AttrInputProps) {
   const choices = parseValues(def.valuesJson);
   const legendId = `attr-legend-${def.attrId}`;
   const fieldId = `attr-input-${def.attrId}`;
@@ -284,6 +303,7 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
   }
 
   if (def.inputType === 'RADIO') {
+    const ChoiceRadio = portalMode ? PortalRadio : Radio;
     return (
       <fieldset disabled={disabled} className="flex flex-col gap-1" aria-labelledby={legendId}>
         <legend id={legendId} className="text-label text-gray-500">
@@ -291,7 +311,7 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
         </legend>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
-          <Radio
+          <ChoiceRadio
             key={c}
             name={`attr-${def.attrId}`}
             value={c}

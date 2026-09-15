@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 /**
- * 취소 스코프를 매어 줄 경로 등록 — <b>사람이 기다리는 온디맨드 추론 4종만</b>.
+ * 취소 스코프를 매어 줄 경로 등록 — <b>사람이 기다리는 온디맨드 추론 경로만</b>(내부 4종 + 포털 3종).
  *
  * <p>범위를 좁히는 것이 이 설정의 요점이다. 전역으로 걸면 모든 요청이 취소 식별자를 실을 수 있게 되어
  * 등록소가 커지고, 배치·통지처럼 취소가 의미 없는 경로까지 스코프를 갖는다.
@@ -27,7 +27,12 @@ public class AiCallCancellationWebConfig implements WebMvcConfigurer {
             "/v1/frames/*/autolabel",
             "/v1/frames/*/sam2-segment",
             "/v1/frames/*/sam2-track",
-            "/v1/frames/*/yolo-track");
+            "/v1/frames/*/yolo-track",
+            // 포털 AI 보조(2026-09-15) — 같은 취소 규약. 선택 객체 추적(sam2-track)의 포털 창구는 없다.
+            // @design API-254, API-255, API-257
+            "/v1/portal/frames/*/autolabel",
+            "/v1/portal/frames/*/sam2-segment",
+            "/v1/portal/frames/*/yolo-track");
 
     private final AiCallCancellationInterceptor interceptor;
 

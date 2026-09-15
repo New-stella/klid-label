@@ -201,25 +201,22 @@ export const TOOL_DISPLAY_NAME: Record<ToolType, string> = {
 /**
  * 포털 모드에서 제외되는 도구 목록.
  *
- * ADR-013 — 포털(외부 채널)은 **오토라벨링·SAM2·VLM·버전관리·검수 미제공**이다. 포털 사용자에게는
- * 수동 라벨링(BBOX/POLYGON)만 제공하므로 SAM2 분할(SAM_SEGMENT)·AI 추적(TRACK)·
- * 스켈레톤(KEYPOINT)을 숨긴다. 서버의 포털 전용 SAM2 엔드포인트(`/v1/portal/frames/**`)도 제거돼
- * 있으므로(BE `PortalSam2RemovedTest`) 도구가 노출되면 사용자는 404 만 만난다.
+ * 포털(외부 채널) 라벨링 화면(SCREEN-029)은 AI 보조 세 기능(AI 탐지 · AI 분할 · AI 자동 추적)을
+ * 포털 전용 창구로 제공한다(2026-09-15 확정). 여기서 숨기는 것은 포털에 없는 두 도구뿐이다.
+ * - TRACK(선택 객체 AI 추적) — 포털에 대응 창구가 없고, 같은 목적은 AI 자동 추적 패널이 맡는다
+ *   (중복 진입을 포털에 두지 않는다).
+ * - KEYPOINT(스켈레톤) — 포털 미제공.
+ * ⚠ [폐기] 구 목록 — *"SAM_SEGMENT · TRACK · KEYPOINT — 포털은 오토라벨링·SAM2 미제공"*. AI 분할을 다시
+ *   넣으면 포털 도구바·단축키 G·치트시트에서 한꺼번에 사라진다.
  *
- * ⚠ 이 목록은 **UX 게이팅이지 신뢰 경계가 아니다** — devtools 로 채널 상태를 조작해도 서버에
- * 엔드포인트가 없어 무의미하다는 것이 실제 강제 수단이다.
+ * ⚠ 이 목록은 **UX 게이팅이지 신뢰 경계가 아니다** — 실제 강제 수단은 서버다(포털 채널에는 선택 객체
+ * 추적 창구가 없다).
  *
- * ⚠ **내부(INTERNAL) 채널은 영향받지 않는다** — SAM2 분할/추적은 SFR-08-01(VOS) 핵심 기능이며
- * 이 목록은 `portalMode` 일 때만 적용된다.
+ * ⚠ **내부(INTERNAL) 채널은 영향받지 않는다** — 이 목록은 `portalMode` 일 때만 적용된다.
  *
- * YOLO 파이프라인 오토라벨은 도구가 아닌 액션이라 ToolBar 의 독립 `portalHidden` 플래그로 숨긴다
- * (본 목록과 무관). 툴바 숨김(ToolBar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
+ * 툴바 숨김(ToolBar)·단축키 게이팅(useLabelingShortcuts)·치트시트(ShortcutCheatSheet)의 단일 정책 소스.
  */
-export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [
-  ToolType.SAM_SEGMENT,
-  ToolType.TRACK,
-  ToolType.KEYPOINT,
-];
+export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [ToolType.TRACK, ToolType.KEYPOINT];
 
 export interface FrameSummary {
   frameNo: number;

@@ -75,7 +75,7 @@ export function UploadDropzone({
       */}
       <div
         className={cn(
-          'relative flex min-h-[7.5rem] items-center justify-center',
+          'relative flex min-h-[120px] items-center justify-center',
           'rounded-tile border-2 border-dashed border-gray-400 bg-gray-50',
           'transition-colors duration-fast',
           'focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-[-2px] focus-within:outline-primary-500',

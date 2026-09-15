@@ -3,9 +3,13 @@
 // ★제목은 "AI 탐지"다 — 영문 "AI Tool" 은 사용자 노출 문구 규칙(모델명·영문 기술어 금지)과
 //   사양 양쪽에 어긋난다. 레이아웃은 좌우 분리(좌: 형태+대상 라벨 / 우: 정밀도)다.
 //
-// 구성: 형태(박스/폴리곤 라디오, 기본 박스) + 라벨 선택(마스터 라벨 다중선택) + [일반]/[트랙] 실행 버튼.
-//  - 일반  : 단일 프레임 검출/분할 (박스=AI 탐지, 폴리곤=AI 분할)
-//  - 트랙  : 후속 프레임 자동 추적 (AI 추적)
+// 구성: 형태(박스/폴리곤 라디오, 기본 박스) + 라벨 선택(마스터 라벨 다중선택) + 실행 버튼.
+//  실행 버튼 구성은 `runMode` 가 가른다.
+//  - 'detectOrTrack'(기본 · SCREEN-005 내부 채널): [일반]/[트랙] 두 버튼.
+//      일반 = 단일 프레임 검출/분할, 트랙 = 도구 전환 + 안내(실행 아님).
+//  - 'detectOnly'(SCREEN-029 포털 채널): [탐지 실행] 하나. 트랙 진입은 두지 않는다 — 포털의 추적은
+//      우측 「AI 자동 추적」 패널이 유일한 자리이고, 선택 객체 AI 추적은 포털에 없다(중복 진입 제거).
+//  ★ 채널을 이 컴포넌트가 판정하지 않는다 — 호출부가 portalMode 에서 파생해 넘긴다.
 //
 // 라벨 후보(★Phase COCO 매핑): 하드코딩 6종을 폐기하고 BE 후보 조회(DetectCandidate = 활성 라벨
 //   마스터 + COCO 매핑 여부)를 부모(LabelingPage)가 주입한다. 매핑된 라벨만 선택 가능(체크박스 활성),
@@ -24,6 +28,7 @@ import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
 import { Radio } from '@/components/common/Radio';
+import { PortalRadio } from '@/components/portal/ui/PortalRadio';
 import { cn } from '@/lib/cn';
 
 import type { DetectShapeType } from '../api';
@@ -39,6 +44,21 @@ import {
 
 /** AI Tool 실행 모드 — 일반(단일 프레임) / 트랙(후속 프레임 추적). */
 export type AiToolMode = 'detect' | 'track';
+
+/**
+ * 실행 버튼 구성.
+ * - `detectOrTrack` : [일반]/[트랙] 두 버튼(내부 채널 — 기존 구성).
+ * - `detectOnly`    : [탐지 실행] 하나(포털 채널). 트랙 버튼·「후속 프레임 없음」 안내를 두지 않는다.
+ */
+export type AiToolRunMode = 'detectOrTrack' | 'detectOnly';
+
+/** 설명문 — 실행 버튼 구성에 맞춰 말한다(버튼이 하나인데 「실행 방식을 고르세요」라고 하지 않는다). */
+const DESCRIPTION: Record<AiToolRunMode, string> = {
+  detectOrTrack:
+    '형태와 대상 라벨을 선택한 뒤 실행 방식을 고르세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다.',
+  detectOnly:
+    '형태와 대상 라벨을 선택한 뒤 실행하세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다.',
+};
 
 /** 선택지 라벨 글자색 — 공통 Radio/Checkbox 의 기본 라벨색(gray-700)보다 진하게 유지한다. */
 const SHAPE_LABEL_CLASS = 'text-body text-gray-900';
@@ -93,6 +113,14 @@ export interface AiToolModalProps {
    * 눌러도 배타 실행에 거부될 뿐인 버튼을 활성처럼 보이게 두지 않는다.
    */
   disabled?: boolean;
+  /** 실행 버튼 구성. 기본값 `detectOrTrack` — 기존 호출부 무회귀. */
+  runMode?: AiToolRunMode;
+  /**
+   * 포털 채널에서 렌더되는가 — 호출부가 `portalMode` 에서 그대로 넘긴다(이 컴포넌트는 채널을 판정하지 않는다).
+   * true 면 형태 라디오를 포털 라디오로 그린다: 포털 Host 스타일이 네이티브 라디오를 숨겨 관제 공통
+   * 라디오로는 동그라미가 사라진다. 기본값 false — 관제 렌더 무변경.
+   */
+  portalMode?: boolean;
 }
 
 export function AiToolModal({
@@ -107,7 +135,12 @@ export function AiToolModal({
   defaultConfThreshold,
   defaultSimplifyTolerance,
   disabled = false,
+  runMode = 'detectOrTrack',
+  portalMode = false,
 }: AiToolModalProps) {
+  const detectOnly = runMode === 'detectOnly';
+  // 형태 라디오 — 포털이면 보이는 동그라미를 직접 그리는 포털 부품(props 동일).
+  const ShapeRadio = portalMode ? PortalRadio : Radio;
   const [shape, setShape] = useState<DetectShapeType>('BBOX');
   // 선택은 라벨 마스터 PK(labelId) 기준 — 매핑된 라벨만 선택 대상이 된다.
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -198,13 +231,17 @@ export function AiToolModal({
   const selectedCount = selected.size;
   // 실행 가능 여부 — 매핑된 라벨이 하나도 없으면(전부 미매핑/빈 목록) 검출 대상이 없으므로 실행 차단.
   const canRun = mappedCount > 0;
+  // 포털(단일 실행)에서 「매핑 라벨이 없어 실행 불가」 사유 문장을 그리는 조건. 실행 버튼의 aria-describedby 가
+  // 같은 조건을 봐야 목록 로딩·오류 중에 없는 요소를 가리키지 않는다 — 조건을 한 곳에 둔다.
+  const showNoMappingReason =
+    detectOnly && !disabled && !canRun && !candidatesLoading && !candidatesError;
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="AI 탐지"
-      description="형태와 대상 라벨을 선택한 뒤 실행 방식을 고르세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다."
+      description={DESCRIPTION[runMode]}
       size="lg"
     >
       {/* ★좌우 분리 배치(사양) — 좌: 검출 형태 + 대상 라벨 / 우: 정밀도 조절.
@@ -219,14 +256,14 @@ export function AiToolModal({
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
         <div className="flex gap-4">
-          <Radio
+          <ShapeRadio
             id="ai-tool-shape-bbox"
             name="ai-tool-shape"
             label={<span className={SHAPE_LABEL_CLASS}>박스</span>}
             checked={shape === 'BBOX'}
             onChange={() => setShape('BBOX')}
           />
-          <Radio
+          <ShapeRadio
             id="ai-tool-shape-polygon"
             name="ai-tool-shape"
             label={<span className={SHAPE_LABEL_CLASS}>폴리곤</span>}
@@ -247,7 +284,7 @@ export function AiToolModal({
           data-testid="ai-tool-label-list"
           onScroll={updateLabelListScrollState}
           // 상한은 뷰포트 기준 — 고정 px 이면 낮은 해상도에서 모달이 화면을 넘긴다.
-          className="max-h-[min(16rem,34vh)] min-w-0 overflow-y-auto overscroll-contain"
+          className="max-h-[min(256px,34vh)] min-w-0 overflow-y-auto overscroll-contain"
         >
         {candidatesLoading ? (
           <p className="px-2 py-3 text-sub text-gray-500" aria-live="polite">
@@ -354,28 +391,62 @@ export function AiToolModal({
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleRun('detect')}
-            disabled={disabled || !canRun}
-          >
-            일반
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => handleRun('track')}
-            disabled={disabled || !canTrack || !canRun}
-          >
-            트랙
-          </Button>
+          {detectOnly ? (
+            <Button
+              variant="primary"
+              onClick={() => handleRun('detect')}
+              disabled={disabled || !canRun}
+              aria-describedby={
+                disabled
+                  ? 'ai-tool-run-blocked'
+                  : showNoMappingReason
+                    ? 'ai-tool-run-no-mapping'
+                    : undefined
+              }
+            >
+              탐지 실행
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => handleRun('detect')}
+                disabled={disabled || !canRun}
+              >
+                일반
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => handleRun('track')}
+                disabled={disabled || !canTrack || !canRun}
+              >
+                트랙
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {disabled && (
-        <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
+        <p
+          id={detectOnly ? 'ai-tool-run-blocked' : undefined}
+          className="mt-2 text-right text-[11px] text-gray-400"
+          aria-live="polite"
+        >
           다른 작업이 진행 중이라 지금은 실행할 수 없습니다.
         </p>
       )}
-      {!canTrack && (
+      {/* 포털(단일 실행)은 매핑 라벨이 없어 실행이 막힌 사유를 버튼 곁에서도 말한다 — 목록 안의
+          안내는 스크롤 상자 속이라 실행 버튼만 보고 있는 사용자에게 닿지 않을 수 있다. */}
+      {showNoMappingReason && (
+        <p
+          id="ai-tool-run-no-mapping"
+          className="mt-2 text-right text-[11px] text-gray-500"
+          aria-live="polite"
+        >
+          AI 검출 클래스가 매핑된 라벨이 없어 실행할 수 없습니다.
+        </p>
+      )}
+      {!detectOnly && !canTrack && (
         <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
           후속 프레임이 없어 추적할 수 없습니다.
         </p>
