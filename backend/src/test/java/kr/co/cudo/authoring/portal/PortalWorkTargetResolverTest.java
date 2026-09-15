@@ -46,7 +46,8 @@ class PortalWorkTargetResolverTest {
         srcRepository = mock(LsDataSrcRepository.class);
         videoRepository = mock(VideoRepository.class);
         statusRepository = mock(LsRawDataStatusRepository.class);
-        resolver = new PortalWorkTargetResolver(srcRepository, videoRepository, statusRepository);
+        resolver = new PortalWorkTargetResolver(srcRepository, videoRepository,
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(statusRepository, videoRepository));
     }
 
     // ---------------- fixtures ----------------
@@ -200,9 +201,9 @@ class PortalWorkTargetResolverTest {
     void batchExposureAnswersOnlyForRequestedIds() {
         givenApproved(true);   // RAW_SN 만 승인 상태다
 
-        assertThat(resolver.exposedToDatamart(List.of(RAW_SN)))
+        assertThat(resolver.workableVideos(List.of(RAW_SN)))
                 .as("요청한 것은 그대로 답한다").containsExactly(RAW_SN);
-        assertThat(resolver.exposedToDatamart(List.of(RAW_SN + 1)))
+        assertThat(resolver.workableVideos(List.of(RAW_SN + 1)))
                 .as("★요청하지 않은 식별자는 결과에 없다").isEmpty();
     }
 
@@ -210,8 +211,8 @@ class PortalWorkTargetResolverTest {
     @Test
     @DisplayName("빈_요청은_빈_집합이다")
     void emptyRequestYieldsEmptySet() {
-        assertThat(resolver.exposedToDatamart(List.of())).isEmpty();
-        assertThat(resolver.exposedToDatamart(null)).isEmpty();
+        assertThat(resolver.workableVideos(List.of())).isEmpty();
+        assertThat(resolver.workableVideos(null)).isEmpty();
     }
 
     // ---------------- 404 축 ----------------

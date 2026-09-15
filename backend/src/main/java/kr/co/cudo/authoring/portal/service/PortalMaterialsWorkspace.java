@@ -64,6 +64,15 @@ public class PortalMaterialsWorkspace {
     /** 해제본 요약 파일 이름 — 해제본과 <b>함께 공개</b>돼 재기동 뒤에도 남는다. */
     static final String SUMMARY_FILE = ".summary.json";
 
+    /**
+     * 데이터셋 영상 <b>원장 등록 상태 표식</b> 파일 이름 — 공개된 해제본 옆에 놓인다(ADR-068).
+     * 원장 표를 두지 않고 조달 상태와 같은 방식(파일)으로 표현한다.
+     */
+    static final String REGISTRATION_FILE = "registration.json";
+
+    /** 등록 상태 표식을 원자적으로 바꿔 끼울 때 쓰는 임시 파일 접두. */
+    static final String REGISTRATION_TMP_PREFIX = ".registration-";
+
     private final PortalStoragePathGuard pathGuard;
     private final ObjectMapper objectMapper;
 
@@ -144,6 +153,54 @@ public class PortalMaterialsWorkspace {
             return objectMapper.readValue(file.toFile(), PortalMaterialsSummary.class);
         } catch (IOException | RuntimeException e) {
             log.warn("[PortalMaterials] 해제본 요약을 읽지 못했습니다 — 준비 완료 판정은 그대로입니다.");
+            return null;
+        }
+    }
+
+    /**
+     * 등록 상태 표식을 <b>원자적으로</b> 쓴다 — 임시 파일에 쓰고 한 번의 rename 으로 바꿔 끼운다.
+     *
+     * <p>제자리에 덮어쓰면 쓰는 도중에 읽은 쪽이 반쯤 쓰인 JSON 을 본다. 읽기가 그것을 「표식 없음」으로
+     * 읽으면 등록이 불필요하게 다시 시작된다(멱등이라 안전하지만 낭비다).
+     *
+     * @throws IOException 공개된 해제본 자리가 없거나 쓰기가 실패했을 때
+     * @design ADR-068
+     */
+    public void writeRegistration(long datasetId, PortalDatasetRegistrationStatus status) throws IOException {
+        Path ready = readyDir(datasetId);
+        if (!Files.isDirectory(ready, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("공개된 해제본 자리가 없습니다.");
+        }
+        Path tmp = ready.resolve(REGISTRATION_TMP_PREFIX + UUID.randomUUID());
+        try {
+            objectMapper.writeValue(tmp.toFile(), status);
+            Files.move(tmp, ready.resolve(REGISTRATION_FILE),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
+     * 등록 상태 표식을 읽는다 — 없거나 읽을 수 없으면 {@code null}(= 표식 없음).
+     *
+     * <p>손상된 표식을 예외로 올리지 않는다 — 「표식 없음」으로 읽혀 등록이 다시 시작되는 쪽이 회복
+     * 방향이다(등록이 멱등이다).
+     *
+     * @design ADR-068
+     */
+    public PortalDatasetRegistrationStatus readRegistration(long datasetId) {
+        Path file = readyDir(datasetId).resolve(REGISTRATION_FILE);
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            return null;
+        }
+        try {
+            PortalDatasetRegistrationStatus status =
+                    objectMapper.readValue(file.toFile(), PortalDatasetRegistrationStatus.class);
+            return (status == null || status.state() == null) ? null : status;
+        } catch (IOException | RuntimeException e) {
+            log.warn("[PortalMaterials] 등록 상태 표식을 읽지 못했습니다 — 표식 없음으로 봅니다. datasetId={}",
+                    datasetId);
             return null;
         }
     }

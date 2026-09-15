@@ -28,6 +28,7 @@ import java.time.Instant;
  * 원본에 대해 하는 유일한 일은 <b>재검증된 실경로를 읽기로 여는 것</b>이다.
  *
  * @design INT-014
+ * @design ADR-068
  */
 @Slf4j
 @Component
@@ -39,6 +40,11 @@ public class PortalMaterialsProvisionRunner {
     private final PortalMaterialsUnpacker unpacker;
     private final PortalMaterialsWorkspace workspace;
     private final PortalMaterialsProvisionState state;
+    /**
+     * 공개 직후 <b>같은 백그라운드 작업</b>이 이어 하는 데이터셋 영상 원장 등록(ADR-068).
+     * 등록 실패는 조달 실패가 아니다 — 등록은 자기 표식에 사유를 남긴다.
+     */
+    private final PortalDatasetRegistrationService registrationService;
 
     /**
      * 조달을 수행한다 — 선점({@code state.claim})은 <b>호출자가 이미 마쳤다</b>.
@@ -48,8 +54,9 @@ public class PortalMaterialsProvisionRunner {
      */
     @Async("portalMaterialsExecutor")
     public void runAsync(long datasetId) {
+        boolean published;
         try {
-            provision(datasetId);
+            published = provision(datasetId);
             state.clearFailure(datasetId);
         } catch (Throwable t) {
             PortalMaterialsFailureReason reason = classify(t);
@@ -58,13 +65,31 @@ public class PortalMaterialsProvisionRunner {
             //   사유 분류와 예외 타입 이름만 남긴다.
             log.warn("[PortalMaterials] 조달 실패 datasetId={} reason={} type={}",
                     datasetId, reason, t.getClass().getSimpleName());
-        } finally {
             state.release(datasetId);
+            return;
+        }
+        // ★ 조달 선점을 <먼저> 놓는다 — 해제본은 이미 공개돼 준비 완료다. 등록이 오래 걸려도 조달 상태가
+        //   「진행 중」으로 붙들리지 않는다(판정 순서가 준비 완료 → 진행 중이라 화면에는 이미 준비 완료다).
+        state.release(datasetId);
+        if (published) {
+            // 공개를 <우리가> 했을 때만 이어 한다 — 다른 노드가 먼저 공개했으면 그 노드가 등록한다
+            // (놓쳐도 목록 창구의 회복 규칙이 메운다).
+            try {
+                registrationService.registerAfterProvision(datasetId);
+            } catch (RuntimeException e) {
+                // 본체는 예외를 올리지 않는다. 올라와도 조달 결과를 바꾸지 않는다.
+                log.warn("[PortalMaterials] 등록 단계가 예외로 끝났습니다 datasetId={} type={}",
+                        datasetId, e.getClass().getSimpleName());
+            }
         }
     }
 
-    /** 조달 본체 — 단계마다 실패를 <b>사유 있는 예외</b>로 올린다. */
-    void provision(long datasetId) throws IOException {
+    /**
+     * 조달 본체 — 단계마다 실패를 <b>사유 있는 예외</b>로 올린다.
+     *
+     * @return 이번 호출이 해제본을 <b>공개했으면</b> {@code true}, 다른 노드가 먼저 공개해 버렸으면 {@code false}
+     */
+    boolean provision(long datasetId) throws IOException {
         PortalMaterialsResponse response = client.fetch(datasetId);
         if (response == null) {
             throw new ProvisionFailure(PortalMaterialsFailureReason.FETCH_FAILED);
@@ -85,6 +110,7 @@ public class PortalMaterialsProvisionRunner {
         }
 
         Path staging = null;
+        boolean published = false;
         try {
             staging = workspace.createStaging(datasetId);
             PortalMaterialsUnpacker.UnpackResult result =
@@ -93,7 +119,7 @@ public class PortalMaterialsProvisionRunner {
                     response.code(), response.version(), response.variant(),
                     result.entryCount(), result.totalBytes(),
                     response.datasetVideos().size(), Instant.now()));
-            boolean published = workspace.publish(datasetId, staging);
+            published = workspace.publish(datasetId, staging);
             if (published) {
                 staging = null; // 공개된 자리는 우리 것이 아니다 — 정리 대상에서 뺀다.
                 log.info("[PortalMaterials] 조달 완료 datasetId={} entries={} bytes={}",
@@ -107,6 +133,7 @@ public class PortalMaterialsProvisionRunner {
             // 공개하지 못한 작업본은 어떤 경로로 끝나든 남기지 않는다(반쯤 풀린 자리 누적 방지).
             workspace.discardQuietly(staging);
         }
+        return published;
     }
 
     /**
