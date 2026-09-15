@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.common.client;
 
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -70,11 +71,29 @@ public class AiCallCancellationRegistry {
     private final Map<String, AiCallScope> scopes = new ConcurrentHashMap<>();
 
     /**
+     * 취소 소유자 키 — <b>채널 + 토큰 subject</b>. 등록({@link AiCallCancellationInterceptor})과 취소
+     * (내부·포털 취소 창구)가 <b>이 한 함수</b>로 키를 만든다.
+     *
+     * <p>subject 만 비교하면 포털 사용자 식별자와 내부 사용자 식별자가 <b>같은 문자열</b>일 때 서로의 요청을
+     * 끊을 수 있다(두 채널은 식별자 발급 주체가 다르다 — CWE-639). 같은 채널 안의 판정 결과는 subject 비교와
+     * 같다.
+     *
+     * @return 주체·subject 가 없으면 {@code null}(= 추적하지 않음 / 끊지 못함)
+     * @design API-204
+     */
+    public static String ownerKey(TokenClaims claims) {
+        if (claims == null || claims.sub() == null || claims.sub().isBlank()) {
+            return null;
+        }
+        return (claims.channel() == null ? "-" : claims.channel().name()) + ":" + claims.sub();
+    }
+
+    /**
      * 이 스레드에 스코프를 매고 등록소에 올린다.
      *
      * @param requestId 클라이언트가 준 취소 식별자. {@code null}·형식 위반·상한 초과면 <b>추적하지
      *                  않는 스코프</b>를 돌려준다(기존 동작 그대로).
-     * @param ownerId   취소를 허용할 주체(토큰 subject)
+     * @param ownerId   취소를 허용할 주체 — {@link #ownerKey}(채널 + 토큰 subject)
      */
     public AiCallScope open(String requestId, String ownerId) {
         AiCallScope scope = create(requestId, ownerId);

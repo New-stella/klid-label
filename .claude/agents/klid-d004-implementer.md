@@ -235,6 +235,19 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
   그 축과 무관한 이유(빈이 하나 늘어남)로 깨진다. **그 시험이 지키려는 것은 「등록됐는가」이지 개수가 아니다.**
   ⇒ `!isEmpty()` 로 두고, **시험이 무는 축을 문장으로 적어** 다음 사람이 개수를 다시 박지 않게 하라.
 
+### 채널 입력 경계 분리 — 같은 이름 오버로드는 기존 스텁을 시끄럽게 깬다 (2026-09-15 · CO-20260915-포털-라벨링-AI보조-제공)
+
+**실측**: 추론 본체를 `segment(AiFrameAccess, req)` 처럼 기존 `segment(req, actor)` 와 **같은 이름·같은 인자 수**로 열자
+`compileTestJava` 가 `reference to segment is ambiguous`(`Sam2SegmentMockMessageWiringTest`·`TrackNoticeChannelTest`)로 실패했다
+— 기존 Mockito `when(svc.m(any(), any()))` 스텁이 두 오버로드를 가르지 못한다.
+⇒ 채널·전략 인자를 받는 본체 진입점은 **다른 이름**(`*WithAccess`)으로 연다.
+
+### 좌표 clamp 치수는 추론 입력과 같은 파일에서 잰다 (2026-09-15)
+
+**실측**: `FrameBoundsResolver` 는 내부 저장 base(raw/비식별, `resolveFrameImageWithoutGate`) 전용이다. 저장 base 가 다른 채널
+(포털 업로드 = 포털 저장 base) 프레임에 재사용하면 **오류 없이** 상한이 생략되거나, 상대경로가 우연히 겹치면 다른 파일 치수로 clamp 된다.
+⇒ 그래서 `AiFrameAccess.resolveBounds` 는 기본 구현 없는 필수 메서드다. 채널 구현은 `resolveImage` 와 **같은 파일**에서 치수를 잰다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

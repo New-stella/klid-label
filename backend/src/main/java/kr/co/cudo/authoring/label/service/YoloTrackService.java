@@ -99,6 +99,29 @@ public class YoloTrackService {
     private final LabelMasterService labelMasterService;
 
     public YoloTrackResponseDto track(YoloTrackRequest req, TokenClaims actor) {
+        return trackWithAccess(internalAccess(actor), req);
+    }
+
+    /**
+     * 내부 채널 입력 경계 — 본인 배정 인가 · 신고 게이트 이미지 · 좌표 상한. 차단 판정은 두지 않는다
+     * (종전대로 이미지 게이트 {@link FrameImageEncoder#encodeFrame} 하나로 끊는다). 요청마다 행위자에 묶어 만든다.
+     */
+    private AiFrameAccess internalAccess(TokenClaims actor) {
+        return new InternalAiFrameAccess(accessGuard, frameImageEncoder, frameBoundsResolver, actor, null);
+    }
+
+    /**
+     * 자동 추적 <b>추론 본체</b> — 채널 독립. 인가 · 입력 이미지 · 좌표 상한 · 차단 판정은 {@code access} 가
+     * 공급한다({@link AiFrameAccess}). 요청 단위 시간 예산 · 교차 영상 혼입 거부(400) · 트래커 clipId 격리 ·
+     * 취소 · 좌표 정규화 · 라벨 마스터 식별자 해석 · 예산 절단 부분 결과({@code truncated}/{@code resume})는
+     * 모든 채널이 <b>이 한 곳</b>을 공유한다.
+     *
+     * <p>인가는 시작 프레임과 <b>후속 프레임 전부</b>에 대해 ai 호출 이전에 끝난다(같은 프레임 중복은 1회).
+     *
+     * @design API-123
+     * @param access 채널 입력 경계(한 요청·한 행위자에 묶인 인스턴스)
+     */
+    public YoloTrackResponseDto trackWithAccess(AiFrameAccess access, YoloTrackRequest req) {
         // ── 요청 단위 시간 예산 ──────────────────────────────────────────────────
         // 프레임마다 자기 상한을 그대로 허용하면 요청 하나의 대기가 프레임 수에 비례해 늘어, 절대
         // 상한 안에 서너 프레임밖에 못 넣는다. 그러면 화면이 요청을 쪼개는데 트래커는 요청마다
@@ -116,17 +139,19 @@ public class YoloTrackService {
         // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증한다.
         // 검증이 조회한 행을 그대로 받아 둔다(verifyAndGet) — 루프에서 같은 행을 findById 로 다시
         // 읽으면 프레임마다 조회가 두 번씩 나가고, 그 중복이 그대로 위 예산을 깎는다.
-        LsDataSrc startSrc = accessGuard.verifyAndGet(req.srcSn(), actor);
+        LsDataSrc startSrc = access.authorize(req.srcSn());
         Map<Long, LsDataSrc> frameBySrcSn = new HashMap<>();
         frameBySrcSn.put(req.srcSn(), startSrc);
         for (Long nextSrcSn : req.nextSrcSns()) {
             // 같은 프레임이 두 번 실려 와도 검증·조회는 한 번이면 된다(판정 결과는 같다).
-            frameBySrcSn.computeIfAbsent(nextSrcSn, sn -> accessGuard.verifyAndGet(sn, actor));
+            frameBySrcSn.computeIfAbsent(nextSrcSn, access::authorize);
         }
         // 요청 단위 고유 clipId — 동일 rawSn 에 대한 동시 트랙 요청이 ai-server 트래커 상태를
         // 상호 간섭(frameIndex=0 리셋이 상대 세션 초기화)하지 않도록 요청마다 격리한다.
         // 한 요청 내 모든 프레임은 이 동일 clipId 를 공유(트래킹 연속성). UUID 는 격리용(보안 토큰 아님).
         final String clipId = startSrc.getRawSn() + ":" + UUID.randomUUID();
+        // 채널 차단 판정(진입) — 내부 채널은 판정을 두지 않는다(통과).
+        access.requireNotBlocked(startSrc.getRawSn());
 
         // YOLO 추론 파라미터 1회 조회 (fail-safe — YoloAutolabelStep 과 동일 규칙).
         double conf = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
@@ -165,7 +190,9 @@ public class YoloTrackService {
                         "시퀀스 프레임이 시작 프레임과 다른 영상에 속합니다: srcSn=" + sn);
             }
 
-            String imageB64 = frameImageEncoder.encodeFrame(src);
+            // 채널 차단 판정(중간) — 프레임마다 ai 전송 직전에 다시 본다.
+            access.requireNotBlocked(src.getRawSn());
+            String imageB64 = access.encodeImage(src);
 
             YoloResponse resp;
             try {
@@ -200,10 +227,13 @@ public class YoloTrackService {
                         "YOLO track 호출 실패: frameIndex=" + frameIndex);
             }
 
-            List<YoloTrackResponseDto.Detected> detections = mapDetections(resp, src, labelIdMemo);
+            List<YoloTrackResponseDto.Detected> detections = mapDetections(access, resp, src, labelIdMemo);
             frames.add(new YoloTrackResponseDto.FrameDetections(sn, frameIndex, detections));
             frameIndex++;
         }
+
+        // 채널 차단 판정(마감) — 응답 조립 직전.
+        access.requireNotBlocked(startSrc.getRawSn());
 
         // 예산이 다했으면 «이어 보낼 요청» 을 그대로 만들어 준다. 아직 처리하지 않은 첫 프레임이
         // 다음 요청의 시작(트래커 리셋) 프레임이 된다 — 그래서 이어 보내면 trackId 가 새로 매겨진다.
@@ -241,13 +271,13 @@ public class YoloTrackService {
      * @param src          이 프레임 엔티티 — clamp 상한(실측 해상도) 해석 대상. 프레임마다 다르므로 루프 안에서 해석한다.
      * @param labelIdMemo  요청 단위 클래스명 → 라벨 PK 메모(N+1 방지). 호출자가 소유한다.
      */
-    private List<YoloTrackResponseDto.Detected> mapDetections(YoloResponse resp, LsDataSrc src,
+    private List<YoloTrackResponseDto.Detected> mapDetections(AiFrameAccess access, YoloResponse resp, LsDataSrc src,
                                                               Map<String, Optional<Long>> labelIdMemo) {
         if (resp == null || resp.detections() == null || resp.detections().isEmpty()) {
             return List.of();
         }
-        // 프레임별 실측 해상도(FrameBoundsResolver 자체 캐시). 측정 실패면 null → 상한 생략, 하한만 clamp.
-        int[] bounds = frameBoundsResolver.resolve(src).orElse(null);
+        // 프레임별 실측 해상도(채널 입력 경계 공급 — 내부는 FrameBoundsResolver 자체 캐시). 측정 실패면 null → 상한 생략, 하한만 clamp.
+        int[] bounds = access.resolveBounds(src).orElse(null);
         List<YoloTrackResponseDto.Detected> out = new ArrayList<>(resp.detections().size());
         for (YoloResponse.Detection d : resp.detections()) {
             Optional<List<Double>> points;

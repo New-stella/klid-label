@@ -24,12 +24,17 @@ import type { AiDefaults } from '../types';
  * 그래서 <b>호출 여부를 호출부가 정한다</b>. 여기서 채널을 판정하지 않는 이유는 이 훅이 시스템
  * 설정 도메인이고, 「이 화면에서 AI 도구를 쓰는가」를 아는 것은 화면이기 때문이다.
  *
+ * ★ 2026-09-15 — 포털 채널에도 AI 보조가 생겨 포털 전용 창구(`/v1/portal/ai-defaults`)가 열렸다.
+ *   그래서 «포털이면 부르지 않는다» 가 아니라 «포털이면 포털 창구를 부른다» 로 바뀌었다. 창구 선택
+ *   역시 호출부가 넘긴다(같은 이유 — 채널을 아는 것은 화면이다).
+ *
  * @param enabled 조회할지. 기본값 `true` — 기존 호출부의 동작이 바뀌지 않는다.
+ * @param portal  포털 채널 창구를 부를지. 기본값 `false` — 기존 호출부 무회귀.
  */
-export function useAiDefaults(enabled = true) {
+export function useAiDefaults(enabled = true, portal = false) {
   return useQuery<AiDefaults>({
-    queryKey: SYSCONFIG_KEYS.aiDefaults(),
-    queryFn: getAiDefaults,
+    queryKey: SYSCONFIG_KEYS.aiDefaults(portal),
+    queryFn: () => getAiDefaults(portal),
     enabled,
   });
 }

@@ -1253,6 +1253,17 @@ resilience4j:
         limit-for-period: 300
         limit-refresh-period: 1m
         timeout-duration: 0
+      # (CWE-770) — 포털 AI 보조(AI 탐지·AI 분할·AI 자동 추적) 사용자별 요청량 제한 config.
+      #  - per-user 이름(portalAiAssist-{sub})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - 한도 근거: 외부 채널 사용자가 관제 작업자와 <같은 추론 서버>를 쓴다. 한 사용자의 연타가
+      #    동시 호출 상한(bulkhead)을 채워 내부 추론까지 막지 않게 한다. AI 분할은 클릭마다 1회라
+      #    초당 1회 수준까지는 끊지 않고, 자동 추적의 이어 보내기(예산 절단 후 연속 요청)도 이 안에 든다.
+      #    timeout-duration=0: 대기 없이 즉시 429.
+      #  - ⚠ 형제 제한기와 동일하게 노드별 in-memory 라 다중 노드에서는 실질 한도가 노드 수 배다.
+      portalAiAssist:
+        limit-for-period: 60
+        limit-refresh-period: 1m
+        timeout-duration: 0
       # API-203 (CWE-770) — 포털 데이터마트 작업 데이터 ZIP 다운로드 사용자별 요청량 제한 config.
       #  - per-user 이름(portalDatamartDownload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
       #  - 한도 근거: 산출물에 비식별 영상이 포함되면 한 요청의 입출력 부담이 크므로 연타를 막는다

@@ -15,9 +15,13 @@
 // ★ 수락·제외의 단위는 **트랙**이다(검출 하나하나를 따로 고르지 않는다). 어느 방식이든 결과는
 //   작업 중인 객체 목록에만 들어가고 확정은 저장으로 한다.
 //
-// @design SCREEN-005, API-123, UC-034
+// ★ 포털 채널(SCREEN-029)도 같은 패널을 쓴다(2026-09-15 확정). 창구만 포털 전용으로 갈리고
+//   (`portal`), 실행·검토의 유일한 자리라는 성격은 같다. 포털 좌측 도구바의 「AI 자동 추적」 버튼은
+//   실행하지 않고 이 패널로 포커스를 옮길 뿐이라, 그 이동 대상이 `focusTargetRef` 다.
+//
+// @design SCREEN-005, SCREEN-029, API-123, API-254, UC-034
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type Ref } from 'react';
 
 import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
@@ -76,6 +80,13 @@ export interface AutoTrackPanelProps {
   onApply: (labelsBySrcSn: Record<number, Label[]>) => AutoTrackApplyOutcome;
   /** 편집 차단(장시간 작업 진행 중·비식별 재처리 중 등)이면 실행 진입을 막는다. */
   disabled?: boolean;
+  /** 포털 채널이면 포털 전용 자동 추적 창구·취소 창구를 쓴다. 기본값 false — 내부 경로 무회귀. */
+  portal?: boolean;
+  /**
+   * 외부에서 이 패널로 포커스를 옮길 대상(패널 제목). 지정할 때만 제목이 프로그램 포커스를 받는다
+   * (`tabIndex=-1` — 탭 순서에는 끼지 않는다). 미지정이면 종전 렌더 그대로다.
+   */
+  focusTargetRef?: Ref<HTMLDivElement>;
 }
 
 export function AutoTrackPanel({
@@ -84,6 +95,8 @@ export function AutoTrackPanel({
   nextSrcSns,
   onApply,
   disabled = false,
+  portal = false,
+  focusTargetRef,
 }: AutoTrackPanelProps) {
   const [mode, setMode] = useState<AutoTrackApplyMode>(DEFAULT_APPLY_MODE);
   const [review, setReview] = useState<AutoTrackReview | null>(null);
@@ -167,6 +180,7 @@ export function AutoTrackPanel({
       ]),
     // 이어 보내는 동안에도 갱신된다 — 멈춘 것처럼 보이지 않게.
     onProgress: (done, total) => setProgress({ done, total }),
+    portal,
   });
 
   const noNextFrames = nextSrcSns.length === 0;
@@ -216,7 +230,18 @@ export function AutoTrackPanel({
       data-testid="auto-track-panel"
       className="shrink-0 border-t border-gray-200 p-2 text-caption text-gray-700"
     >
-      <div className="mb-1 font-semibold text-gray-900">AI 자동 추적</div>
+      {focusTargetRef ? (
+        <div
+          ref={focusTargetRef}
+          tabIndex={-1}
+          data-testid="auto-track-panel-heading"
+          className="mb-1 rounded-sm font-semibold text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+        >
+          AI 자동 추적
+        </div>
+      ) : (
+        <div className="mb-1 font-semibold text-gray-900">AI 자동 추적</div>
+      )}
       <p className="mb-2 text-[11px] text-gray-600">
         시작 객체를 고르지 않아도 현재 프레임부터 뒤따르는 프레임까지 한 번에 찾습니다.
       </p>

@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Phase 4 — SAM2 클릭/박스 분할 프록시 서비스 (RQ-SFR-08-02).
@@ -91,8 +92,55 @@ public class Sam2SegmentService {
     private long maxImageBytes;
 
     public Sam2SegmentResponse segment(Sam2SegmentRequest req, TokenClaims actor) {
-        // IDOR 차단: 대상 프레임 접근 권한 검증 (LabelService 와 동일 규칙).
-        accessGuard.verifyAccess(req.srcSn(), actor);
+        return segmentWithAccess(internalAccess(actor), req);
+    }
+
+    /**
+     * 내부 채널 입력 경계 — 요청마다 행위자에 묶어 만든다.
+     *
+     * <ul>
+     *   <li>인가: {@link LabelAccessGuard#verifyAccess}(본인 배정 IDOR) 후 프레임 조회 — 종전과 같은 호출 순서.</li>
+     *   <li>이미지: {@link FrameImageEncoder#resolveFrameImageForInference}(비식별 우선 폴백 · 신고 구간이면
+     *       파일을 읽기 전 412).</li>
+     *   <li>차단 판정은 두지 않는다 — 종전대로 이미지 게이트 하나로 끊는다.</li>
+     *   <li>좌표 상한은 쓰지 않는다 — AI 분할 본체는 추론 입력 파일에서 치수를 직접 잰다.</li>
+     * </ul>
+     */
+    private AiFrameAccess internalAccess(TokenClaims actor) {
+        return new AiFrameAccess() {
+            @Override
+            public LsDataSrc authorize(Long srcSn) {
+                // IDOR 차단: 대상 프레임 접근 권한 검증 (LabelService 와 동일 규칙).
+                accessGuard.verifyAccess(srcSn, actor);
+                return srcRepository.findById(srcSn)
+                        .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
+            }
+
+            @Override
+            public Path resolveImage(LsDataSrc frame) {
+                return frameImageEncoder.resolveFrameImageForInference(frame);
+            }
+
+            @Override
+            public Optional<int[]> resolveBounds(LsDataSrc frame) {
+                return Optional.empty();
+            }
+        };
+    }
+
+    /**
+     * AI 분할 <b>추론 본체</b> — 채널 독립. 인가 · 입력 이미지 · 차단 판정은 {@code access} 가 공급한다
+     * ({@link AiFrameAccess}). 프롬프트 좌표 검증(400) · 이미지 크기 상한(413) · ai-server 호출 · 취소 ·
+     * mock 차단 · 응답 폴리곤 경계 검증 · 경계 세밀함 단순화는 모든 채널이 <b>이 한 곳</b>을 공유한다.
+     *
+     * <p>{@code path/body srcSn} 일치 판정은 창구(컨트롤러)의 몫이다 — 본체는 {@code req.srcSn()} 만 본다.
+     *
+     * @design API-093
+     * @param access 채널 입력 경계(한 요청·한 행위자에 묶인 인스턴스)
+     */
+    public Sam2SegmentResponse segmentWithAccess(AiFrameAccess access, Sam2SegmentRequest req) {
+        // 인가 최우선 — ai 호출 전에 프레임 접근을 판정하고 프레임을 획득한다.
+        LsDataSrc src = access.authorize(req.srcSn());
         // 입력 좌표 검증 (CWE-20) — Sam2TrackService 와 동일 규칙(Sam2CoordinateValidator 공유).
         // 전송 *전* 에 막아야 클라이언트 입력 오류가 ai-server 400 → BE 502 로 승격되지 않는다.
         // points/box 는 DTO @AssertTrue 로 배타 보장되므로 존재하는 쪽만 검증한다.
@@ -103,15 +151,15 @@ public class Sam2SegmentService {
             Sam2CoordinateValidator.validateCoords(req.box(), BOX_COORD_COUNT, "box");
         }
 
-        LsDataSrc src = srcRepository.findById(req.srcSn())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
+        // 채널 차단 판정(진입) — 내부 채널은 판정을 두지 않는다(통과).
+        access.requireNotBlocked(src.getRawSn());
 
         // M-6 — 비식별 우선 폴백(출처 컬럼에 맞는 base 로 검증). 해상도 파생 프레임은 원본 픽셀이
         //       실재하지 않아 SRC_FILE_PATH_NM 이 null 이므로, 원본 컬럼만 보면 파생 프레임 분할이
         //       "이미지 경로가 비어있습니다"(400)로 전면 실패한다.
         // S7 (CWE-359) — 외부 전송 단일 진입점. 이 영상이 비식별 누락 신고 구간이면 파일을 읽기도
         //       전에 412 로 끝난다(ai-server 호출 0건).
-        Path imagePath = frameImageEncoder.resolveFrameImageForInference(src);
+        Path imagePath = access.resolveImage(src);
         // 이미지 크기 상한 검증 (b64 인코딩 전).
         long size = fileSize(imagePath);
         if (size > maxImageBytes) {
@@ -172,6 +220,9 @@ public class Sam2SegmentService {
         if (outPolygon.size() < MIN_POLYGON_POINTS) {
             outPolygon = aiRes.polygon();
         }
+
+        // 채널 차단 판정(마감) — 응답 조립 직전.
+        access.requireNotBlocked(src.getRawSn());
 
         double score = clampScore(aiRes.score());
         log.info("[Sam2Segment] segmented srcSn={} points={} score={}",

@@ -349,6 +349,28 @@ SQL 조립을 피하려 `CASE WHEN :field = '...'` 로 바꾸면, 대상 표가 
   그때는 **「다른 값이 될 수 있다」를 고정하는 시험**으로 바꿔야 다음 사람이 도로 합치지 못한다.
 - 근거: 업로드축 `max(l.reg_dt)` ↔ `findLastLabelSavedAt`. 보존 입력은 **원소유자에서 받는다**.
 
+### 등록 키와 취소 키를 다른 클래스가 만들면 한쪽만 바뀌어도 조용히 무동작 (2026-09-15 · CO-20260915-포털-라벨링-AI보조-제공)
+
+**실측**: 취소 등록소 소유자 키를 채널 포함(`{CHANNEL}:{sub}`)으로 넓히며 인터셉터(등록)만 바꾸면, 창구(취소)는 `200 cancelled=false`
+를 돌려 **실패가 드러나지 않는다**. 기존 `AiCancelApiTest` 는 「모르는 식별자 → false」만 봐서 green 이었다.
+⇒ 키 조립은 **한 함수**(`AiCallCancellationRegistry.ownerKey`)로 모으고, 「인터셉터가 등록한 요청을 창구가 실제로 끊는다」를
+**배선째** 단언한다(`AiCallCancellationOwnerKeyTest` — 창구를 `actor.sub()` 로 되돌리는 변이에서 red).
+
+### @Value 필드를 가진 서비스의 판정부 공유는 같은 서비스의 public 메서드로 추출한다 (2026-09-15)
+
+**실측**: 포털 서빙 해석부를 AI 경로와 공유하려고 새 빈으로 빼면 수동 생성자 호출 시험(`new PortalLabelService(...)` 7파일)이
+컴파일부터 깨지고, `ReflectionTestUtils.setField(service, "storageDeidentifiedPath")` 주입이 새 빈에 닿지 않아 base 가 null 로 **조용히** 달라진다.
+⇒ `PortalLabelService.resolveDatamartFrameFile` · `PortalUploadService.resolveUploadFrameFile` 처럼 **같은 서비스의 public 메서드**로 추출하면 기존 시험 무수정 green.
+
+### 목이 필요한 새 @SpringBootTest 는 컨텍스트 래칫을 넘긴다 — 검증 범위에 architecture 포함 (2026-09-15)
+
+**실측**: `PortalAiAssistApiIT` 가 `@MockBean AiServerClient` + 클래스 고유 `@DynamicPropertySource` 로 새 컨텍스트 키를 만들어
+`TestContextDiversityRatchetTest` 가 76 > 75 로 매번 실패했다. 기존 `AiServerClient` 목 IT 6개가 **전부 각자 동적 프로퍼티를 선언**해
+재사용할 형제가 없었다. 구현 검증 범위(`portal.*`+`label`)에 `architecture` 가 없어 QA 전체 회귀에서야 드러났다.
+⇒ 가장 흔한 구성(`@SpringBootTest`+`@AutoConfigureMockMvc`+`local`, 목 빈·동적 프로퍼티 없음)으로 맞추고, 외부 클라이언트는 대상 서비스의
+필드를 `@BeforeEach` 교체·`@AfterEach` 원복(원본 먼저 기록). 저장소 픽스처는 기본 경로 아래 **고유 이름**으로 만들고, 이미 있던 디렉터리는 정리 대상에서 뺀다.
+⚠ 래칫 상한을 올리지 말 것. 새 IT 를 만들면 `--tests` 에 `architecture.TestContextDiversityRatchetTest` 를 **항상** 포함한다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

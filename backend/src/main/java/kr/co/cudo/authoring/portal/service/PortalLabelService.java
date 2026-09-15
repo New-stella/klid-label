@@ -694,35 +694,9 @@ public class PortalLabelService {
         //   서빙하지 않는다(라벨 좌표보다 상위 위험 = 실제 PII 이미지). 라벨 조회와 동일 게이트·동일 조건.
         accessGuard.requireNotUnderDeidentReport(src.getRawSn());
 
-        // 비식별 경로만 (원본 폴백 금지)
-        String deid = src.getDeidFilePath();
-        if (deid == null || deid.isBlank()) {
-            log.warn("[Portal] deid path missing srcSn={} rawSn={}", srcSn, src.getRawSn());
-            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 프레임이 존재하지 않습니다.");
-        }
-
-        // R17 이슈1 — deid 프레임은 deidentified-path 기준 절대경로. baseDir 도 deidentified-path 로 잡아야
-        // base 포함 검증을 통과한다 (CWE-22 Path Traversal 가드는 그대로 유지).
-        // 여기서 판정을 국소 재구현하지 않고 export·내부 서빙과 <b>literally 같은 판정기</b>를 쓴다 —
-        // 두 base 동일 운영 형상에서 lexical 검사는 frames/raw/** 를 통과시키고(fail-open),
-        // 심링크는 실경로 검사 없이는 잡히지 않는다(CWE-59/359).
-        Path baseDir = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
-        StorageSubtreePolicy.Verification verification =
-                StorageSubtreePolicy.verifyDeidentifiedFile(baseDir, deid);
-        if (!verification.ok()) {
-            // 사유 코드만 로그에 남긴다 — 경로 원문/내부 구조 비노출(CWE-209/117).
-            log.warn("[Portal] frame image rejected srcSn={} rawSn={} verdict={}",
-                    srcSn, src.getRawSn(), verification.verdict());
-            // 응답 코드는 <b>기존 포털 계약 그대로</b>: 경로 부재/파일 없음 = 404,
-            // base 이탈·비식별 서브트리 밖(심링크 우회 포함) = 403(구 resolveSafe FORBIDDEN 과 동일).
-            throw switch (verification.verdict()) {
-                case BLANK, MISSING, NOT_REGULAR_FILE, REALPATH_FAILED ->
-                        new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
-                default -> new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
-            };
-        }
-        // A-1 — 판정에 쓴 <b>실경로</b>를 그대로 사용한다(lexical 경로를 열면 검증 대상 ≠ 사용 대상).
-        Path resolved = verification.path();
+        // 파일 해석은 AI 추론 입력과 <b>같은 함수</b>를 쓴다(아래 resolveDatamartFrameFile) — 서빙과 추론 입력이
+        // 갈리면 사용자에게 보이지 않는 픽셀이 추론 서버로 나가는 경로가 생긴다.
+        Path resolved = resolveDatamartFrameFile(src);
 
         MediaType mediaType = FrameImageService.resolveMediaType(resolved);
 
@@ -750,6 +724,53 @@ public class PortalLabelService {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"frame_" + srcSn + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(body);
+    }
+
+    /**
+     * 데이터마트 프레임의 <b>서빙 대상 이미지 파일 해석</b> — 포털 프레임 이미지 서빙({@link #serveFrameImage})과
+     * 포털 AI 보조 추론 입력이 <b>같은 이 함수</b>를 쓴다. @design API-111, API-254, API-255, API-257
+     *
+     * <p>비식별 경로 컬럼만 본다(원본 폴백 금지) · 판정은 {@link StorageSubtreePolicy#verifyDeidentifiedFile}
+     * 단일 판정기 · 반환값은 판정에 쓴 <b>실경로</b>다. 응답 코드는 서빙 계약 그대로 — 경로 부재·파일 없음 404,
+     * base 이탈·비식별 서브트리 밖(심링크 우회 포함) 403.
+     *
+     * <p>⚠ <b>인가·신고 게이트는 이 함수에 없다</b> — 데이터마트 노출 판정과 비식별 누락 신고 게이트는 호출자
+     * 몫이다. 서빙은 둘 다 앞에서 걸고, 포털 AI 보조는 작업 대상 판정만 걸고 신고 게이트는 두지 않는다
+     * (2026-09-15 사용자 확정 「비식별 판정 미적용」). 인가 없이 이 함수를 부르는 새 호출부를 만들지 말 것.
+     *
+     * @param src 인가를 통과한 프레임
+     * @return 존재하고 실경로 판정이 끝난 비식별 프레임 이미지 파일
+     */
+    public Path resolveDatamartFrameFile(LsDataSrc src) {
+        // 비식별 경로만 (원본 폴백 금지)
+        String deid = src.getDeidFilePath();
+        if (deid == null || deid.isBlank()) {
+            log.warn("[Portal] deid path missing srcSn={} rawSn={}", src.getSrcSn(), src.getRawSn());
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 프레임이 존재하지 않습니다.");
+        }
+
+        // R17 이슈1 — deid 프레임은 deidentified-path 기준 절대경로. baseDir 도 deidentified-path 로 잡아야
+        // base 포함 검증을 통과한다 (CWE-22 Path Traversal 가드는 그대로 유지).
+        // 여기서 판정을 국소 재구현하지 않고 export·내부 서빙과 <b>literally 같은 판정기</b>를 쓴다 —
+        // 두 base 동일 운영 형상에서 lexical 검사는 frames/raw/** 를 통과시키고(fail-open),
+        // 심링크는 실경로 검사 없이는 잡히지 않는다(CWE-59/359).
+        Path baseDir = Paths.get(storageDeidentifiedPath).toAbsolutePath().normalize();
+        StorageSubtreePolicy.Verification verification =
+                StorageSubtreePolicy.verifyDeidentifiedFile(baseDir, deid);
+        if (!verification.ok()) {
+            // 사유 코드만 로그에 남긴다 — 경로 원문/내부 구조 비노출(CWE-209/117).
+            log.warn("[Portal] frame image rejected srcSn={} rawSn={} verdict={}",
+                    src.getSrcSn(), src.getRawSn(), verification.verdict());
+            // 응답 코드는 <b>기존 포털 계약 그대로</b>: 경로 부재/파일 없음 = 404,
+            // base 이탈·비식별 서브트리 밖(심링크 우회 포함) = 403(구 resolveSafe FORBIDDEN 과 동일).
+            throw switch (verification.verdict()) {
+                case BLANK, MISSING, NOT_REGULAR_FILE, REALPATH_FAILED ->
+                        new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+                default -> new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
+            };
+        }
+        // A-1 — 판정에 쓴 <b>실경로</b>를 그대로 돌려준다(lexical 경로를 열면 검증 대상 ≠ 사용 대상).
+        return verification.path();
     }
 
     /** 데이터마트 노출 조건 — 검수 완료(APPROVED) 영상만 true. row 부재/타 상태는 false. */
