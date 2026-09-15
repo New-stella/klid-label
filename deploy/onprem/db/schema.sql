@@ -1990,7 +1990,9 @@ CREATE TABLE klid_at.ls_task_evnt_log (
     subject_user_no bigint,
     prev_user_no bigint,
     rsn character varying(500),
-    ocrn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    ocrn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    actor_role_cd character varying(20),
+    CONSTRAINT ck_ls_task_evnt_log_actor_role CHECK (((actor_role_cd)::text = ANY ((ARRAY['ADMIN'::character varying, 'REVIEWER'::character varying, 'WORKER'::character varying])::text[])))
 );
 
 
@@ -3012,7 +3014,7 @@ COPY klid_at.ls_task_altmnt (assignment_id, user_no, raw_data_id, task_type_cd, 
 -- Data for Name: ls_task_evnt_log; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_task_evnt_log (evnt_id, raw_data_id, evnt_type_cd, actor_user_no, subject_user_no, prev_user_no, rsn, ocrn_dt) FROM stdin;
+COPY klid_at.ls_task_evnt_log (evnt_id, raw_data_id, evnt_type_cd, actor_user_no, subject_user_no, prev_user_no, rsn, ocrn_dt, actor_role_cd) FROM stdin;
 \.
 
 
