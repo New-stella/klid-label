@@ -194,6 +194,33 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - **재발 조건**: N+1·재시도·디바운스처럼 횟수가 계약인 시험.
   ⇒ `verify(times(n))` 또는 Answer 카운터를 쓴다.
 
+### ★★엔티티 기본값은 **필드 선언**에 둔다 — 빌더 생성자에만 두면 생성 경로 절반이 빈다 (CO-20260915-제외숨김)
+`NOT NULL` 컬럼을 기존 엔티티에 추가할 때 기본값을 생성자·빌더에만 넣으면, **`new Entity()`(보호 생성자) + 필드 대입**으로 만드는 경로가 통째로 비어 INSERT 가 전멸한다.
+- **근거**: `LsDataRaw` 는 증강·해상도 파생을 보호 생성자 + 필드 대입으로 만든다(같은 파일 451·497행). 생성자에만 `exclYn = EXCL_NO` 를 두고 전체 회귀를 돌리자 `null value in column "excl_yn" … violates not-null` 이 **113건 / 22개 클래스 130 FAILED**. 필드 초기화로 옮기자 0건.
+- **회귀 가드**: `LsDataRawExclusionDefaultTest(★★보호_생성자로_만들어도_제외여부_기본값이_선다)`.
+- **재발 조건**: `NOT NULL` 컬럼을 기존 엔티티에 더하는 모든 작업. 특히 **파생·복사 생성 경로가 있는 원장**(팩토리가 여럿이고 그중 일부가 빌더를 우회한다).
+
+### ★★인가 시험은 `LS_USER_ROLE` 에 역할을 **실제로 심어야** 의미가 생긴다 (CO-20260915-제외숨김)
+이 저장소에서 **JWT 의 `role` 클레임은 인가에 쓰이지 않는다 — `LS_USER_ROLE` 이 진실원**이고 토큰의 값은 표기일 뿐이다.
+- **근거**: `JwtTestSupport.token(secret, "2", "ADMIN", …)` 로 만든 관리자 토큰이 `hasRole('REVIEWER')` 창구에서 **403**. `LS_USER_ROLE` 에 심고 `userRoleResolver.evict(userNo)` 한 뒤 200. `AdminRoleAuthorizationTest` 가 그 사실을 주석으로 못박아 두고 있었다.
+- **★더 위험한 쪽**: 역할을 **안 심은** 작업자 토큰의 403 은 「작업자라서」가 아니라 **「무권한이라서」** 난다 — 인가 시험이 이름만 남고 아무것도 검증하지 않는다. 작업자도 실제로 심어라(`AfterEach` 로 정리).
+- **재발 조건**: 역할 기반 인가를 다루는 모든 신규 IT. 특히 「관리자가 계층으로 통과한다」를 검증할 때 — **관리자에게 검수자 역할을 미리 주면 계층이 끊겨도 통과한다**는 함정과 겹친다.
+
+### ★적대검증의 변이는 「삭제」가 아니라 「결과만 뒤집는 최소 변형」이다 (CO-20260915-제외숨김)
+named parameter 를 쓰는 절을 **통째로 지우면** 그 파라미터가 미바인딩이 되어 컨텍스트 기동이 실패하고 **무관한 시험까지 전부 FAILED** 한다. 폭발 반경이 부풀려져 「이 시험이 그 술어를 지킨다」는 판정 자체가 불가능해진다.
+- **근거**: `markExcluded` 의 `AND NOT EXISTS (… a.taskTypeCd = :labelerTaskTypeCd)` 를 삭제하자 `VideoExclusionIT` 15건 중 **10건** FAILED(대부분 술어와 무관). 절을 남기고 `AND 1 = 0` 을 덧붙여 **조건만 무력화**하자 **정확히 2건**(배정 충돌)만 FAILED — 그제야 신호가 읽혔다.
+- **재발 조건**: JPQL·SQL 술어의 mutation testing 전부. ⇒ 폭발 반경이 예상보다 넓으면 **먼저 부트스트랩 실패를 의심**하라.
+
+### ★리포지토리에 오버로드를 더하면 Mockito 스텁이 **컴파일은 통과한 채** 깨진다 (CO-20260915-제외숨김)
+인자 하나 더 많은 오버로드를 만들고 서비스가 그쪽을 부르게 하면, 옛 시그니처를 스텁하던 시험이 **런타임 NPE** 로 죽는다(mock 은 default 메서드도 가로채 null 을 돌려준다). 컴파일러가 알려주지 않는다.
+- **근거**: `searchOriginals(…, boolean excludedOnly, Pageable)` 추가 후 `VideoListAssignmentBatchLookupTest`·`VideoQueryServiceDeidentStatusTest` 의 `given(…any(), any(Pageable.class))` 가 여전히 12인자 오버로드에 바인딩돼 컴파일 성공. `anyBoolean()` 을 끼워 13인자로 옮겨야 했다.
+- **재발 조건**: 하위호환을 위해 default 오버로드를 쌓는 Spring Data 리포지토리를 확장할 때. ⇒ 오버로드를 더하면 **그 메서드를 스텁하는 시험을 전수로 세어** 어느 시그니처에 바인딩되는지 확인한다.
+
+### ★가시성 플래그를 바꾸면서 `MDFCN_DT` 를 함께 밀지 마라 (CO-20260915-제외숨김)
+「갱신했으니 갱신시각도 올린다」가 자연스러워 보이지만, 이 저장소에서 그 컬럼은 **고착 회수 스윕의 1차 필터**라 밀면 고착된 영상이 「방금 선점된 것」으로 보여 **회수 후보에서 조용히 빠진다**(오류 없음).
+- **근거**: `VideoRepository.findStaleProcessingRawSns` 가 `r.mdfcnDt < :cutoff` 로 후보를 고른다. 그래서 `markExcluded`·`markRestored` 는 `EXCL_YN` 만 쓰고 갱신시각을 건드리지 않으며, `VideoExclusionBoundaryIT(★★경계_배치_…후보집합이_그대로다)` 가 before/after 로 고정한다.
+- **재발 조건**: 기존 원장에 플래그성 컬럼을 더하고 관례대로 갱신시각을 함께 올릴 때. ⇒ **그 컬럼을 누가 필터로 읽는지 먼저 세라.**
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}
