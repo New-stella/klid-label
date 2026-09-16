@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.portal.dto.PortalDatasetRegistrationResponse;
 import kr.co.cudo.authoring.portal.dto.PortalDatasetRegistrationState;
 import kr.co.cudo.authoring.portal.dto.PortalDatasetVideoPageResponse;
 import kr.co.cudo.authoring.portal.dto.PortalDatasetVideoResponse;
@@ -70,6 +71,7 @@ import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.realDoc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,9 +92,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @design ADR-068
  * @design API-253
  * @design API-203
+ * @design API-262
  * @design AC-1118
  * @design AC-1119
  * @design AC-1120
+ * @design AC-1132
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -462,6 +466,8 @@ class PortalDatasetRegistrationIT {
 
         PortalDatasetVideoPageResponse page = videoService.list(datasetId, 0, 20, "ds-user-" + datasetId);
         assertThat(page.registrationState()).isEqualTo(PortalDatasetRegistrationState.FAILED);
+        assertThat(page.registrationFailureReason()).as("목록이 실패 사유 분류를 싣는다(API-253 v3)")
+                .isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH);
         assertThat(page.content()).isEmpty();
     }
 
@@ -573,6 +579,154 @@ class PortalDatasetRegistrationIT {
                 .andExpect(jsonPath("$.data.content[0].labelCount").value(4))
                 .andExpect(jsonPath("$.data.content[0].entrySrcSn").isNumber())
                 .andExpect(jsonPath("$.data.content[0].lastSavedAt").doesNotExist());
+    }
+
+    // ==================================================== AC-1132 — 등록 재착수 (API-262)
+
+    /** 짝 없는 이미지 한 장으로 구조 불일치를 만든다 — 앞 영상이 정상이어도 한 행도 쓰지 않는다. */
+    private void mismatchLayout(long datasetId) throws IOException {
+        Path content = readyContent(datasetId);
+        frame(content, 0, realDoc("a.mp4", 0, "fire"));
+        Path sub = dir(content, "sub");
+        frame(sub, 1, realDoc("b.mp4", 1, "fire"));
+        Files.write(sub.resolve("0002.jpg"), DEID_JPEG);
+    }
+
+    /** 백그라운드 등록이 끝날 때까지(이 노드 진행 중 해제 + 표식이 진행 중이 아님) 기다린다. */
+    private PortalDatasetRegistrationStatus awaitRegistrationEnd(long datasetId) throws InterruptedException {
+        PortalDatasetRegistrationStatus marker = workspace.readRegistration(datasetId);
+        for (int i = 0; i < 300; i++) {
+            marker = workspace.readRegistration(datasetId);
+            if (!registrationService.inProgress(datasetId) && marker != null
+                    && marker.state() != PortalDatasetRegistrationState.IN_PROGRESS) {
+                return marker;
+            }
+            Thread.sleep(100);
+        }
+        return marker;
+    }
+
+    @Test
+    @DisplayName("★★실패_표식은_목록이_재시작하지_않고_재착수가_다시_돌리며_같은_구성이면_같은_사유로_실패하고_구성을_고치면_DONE")
+    void restartRerunsFailedRegistration() throws Exception {
+        long datasetId = newDatasetId();
+        String user = "ds-restart-" + datasetId;
+        mismatchLayout(datasetId);
+        assertThat(registerNow(datasetId).failureReason())
+                .isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH);
+
+        // 목록 — 실패 사유를 싣고 재시작하지 않는다.
+        PortalDatasetVideoPageResponse page = videoService.list(datasetId, 0, 20, user);
+        assertThat(page.registrationState()).isEqualTo(PortalDatasetRegistrationState.FAILED);
+        assertThat(page.registrationFailureReason()).isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH);
+        assertThat(registrationService.inProgress(datasetId)).as("목록은 실패 표식을 재시작하지 않는다").isFalse();
+        assertThat(workspace.readRegistration(datasetId).state()).isEqualTo(PortalDatasetRegistrationState.FAILED);
+
+        // 재착수 — 같은 구성이면 같은 사유로 다시 실패하고 원장은 비어 있다.
+        Instant beforeRestart = workspace.readRegistration(datasetId).updatedAt();
+        PortalDatasetRegistrationResponse first = videoService.restartRegistration(datasetId, user);
+        assertThat(first.registrationState()).isEqualTo(PortalDatasetRegistrationState.IN_PROGRESS);
+        assertThat(first.registrationFailureReason()).isNull();
+        PortalDatasetRegistrationStatus again = awaitRegistrationEnd(datasetId);
+        assertThat(again.state()).isEqualTo(PortalDatasetRegistrationState.FAILED);
+        assertThat(again.failureReason()).isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH);
+        assertThat(again.updatedAt()).as("등록이 실제로 다시 돌았다 — 표식이 새로 쓰였다").isAfter(beforeRestart);
+        assertThat(rawSnsOf(datasetId)).isEmpty();
+
+        // 읽을 수 있는 구성으로 고친 뒤 재착수 — DONE 으로 끝나고 영상 행이 생기며 목록의 사유는 비어 있다.
+        Path sub = workspace.readyDir(datasetId).resolve(PortalMaterialsUnpacker.CONTENT_DIR).resolve("sub");
+        Files.writeString(sub.resolve("0002.json"), realDoc("b.mp4", 2, "fire"));
+        PortalDatasetRegistrationResponse second = videoService.restartRegistration(datasetId, user);
+        assertThat(second.registrationState()).isEqualTo(PortalDatasetRegistrationState.IN_PROGRESS);
+        PortalDatasetRegistrationStatus done = awaitRegistrationEnd(datasetId);
+        assertThat(done.state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        assertThat(rawSnsOf(datasetId)).hasSize(2);
+        PortalDatasetVideoPageResponse after = videoService.list(datasetId, 0, 20, user);
+        assertThat(after.registrationState()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        assertThat(after.registrationFailureReason()).isNull();
+        assertThat(after.content()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("★완료된_데이터셋의_재착수는_DONE_을_답하고_등록이_다시_돌지_않는다_표식_갱신_시각_불변")
+    void restartOnDoneIsNoop() throws Exception {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        registrationService.registerAfterProvision(datasetId);
+        Instant written = workspace.readRegistration(datasetId).updatedAt();
+        List<Long> rows = rawSnsOf(datasetId);
+
+        PortalDatasetRegistrationResponse res = videoService.restartRegistration(datasetId, "u");
+
+        assertThat(res.registrationState()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        assertThat(res.registrationFailureReason()).isNull();
+        assertThat(registrationService.inProgress(datasetId)).isFalse();
+        assertThat(workspace.readRegistration(datasetId).updatedAt()).isEqualTo(written);
+        assertThat(rawSnsOf(datasetId)).isEqualTo(rows);
+    }
+
+    @Test
+    @DisplayName("★신선한_진행_중_표식의_재착수는_IN_PROGRESS_를_답하고_새_작업을_시작하지_않는다")
+    void restartOnFreshInProgressIsNoop() throws Exception {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        Instant written = Instant.now();
+        workspace.writeRegistration(datasetId, PortalDatasetRegistrationStatus.inProgress(0, 0, written));
+
+        PortalDatasetRegistrationResponse res = videoService.restartRegistration(datasetId, "u");
+
+        assertThat(res.registrationState()).isEqualTo(PortalDatasetRegistrationState.IN_PROGRESS);
+        assertThat(res.registrationFailureReason()).isNull();
+        assertThat(registrationService.inProgress(datasetId)).isFalse();
+        assertThat(workspace.readRegistration(datasetId).updatedAt()).isEqualTo(written);
+        assertThat(rawSnsOf(datasetId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("소재가_준비되지_않은_데이터셋의_재착수는_409")
+    void restartNotReadyIsConflict() {
+        long datasetId = newDatasetId();
+
+        assertThatThrownBy(() -> videoService.restartRegistration(datasetId, "u"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("재착수_창구_인가_계약_토큰없음_401_내부채널_403_미준비_409_실패표식_200_IN_PROGRESS_완료_200_DONE")
+    void restartEndpointContract() throws Exception {
+        long datasetId = newDatasetId();
+        String path = "/v1/portal/datasets/" + datasetId + "/registration";
+        String portal = JwtTestSupport.token(secret, "ds-http-" + datasetId, "PORTAL_USER", "PORTAL", issuer, 60);
+        String reviewer = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(post(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post(path).header("Authorization", "Bearer " + reviewer)).andExpect(status().isForbidden());
+        mockMvc.perform(post(path).header("Authorization", "Bearer " + portal)).andExpect(status().isConflict());
+
+        mismatchLayout(datasetId);
+        registerNow(datasetId);
+        mockMvc.perform(get("/v1/portal/datasets/" + datasetId + "/videos").header("Authorization", "Bearer " + portal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.registrationState").value("FAILED"))
+                .andExpect(jsonPath("$.data.registrationFailureReason").value("PAIR_MISMATCH"));
+        mockMvc.perform(post(path).header("Authorization", "Bearer " + portal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.registrationState").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.registrationFailureReason").doesNotExist());
+        awaitRegistrationEnd(datasetId);
+
+        long doneId = newDatasetId();
+        validLayout(doneId);
+        registrationService.registerAfterProvision(doneId);
+        mockMvc.perform(post("/v1/portal/datasets/" + doneId + "/registration")
+                        .header("Authorization", "Bearer " + portal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.registrationState").value("DONE"))
+                .andExpect(jsonPath("$.data.registrationFailureReason").doesNotExist());
+        mockMvc.perform(get("/v1/portal/datasets/" + doneId + "/videos").header("Authorization", "Bearer " + portal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.registrationFailureReason").doesNotExist());
     }
 
     // ==================================================== AC-1120 — 작업 창구 통과

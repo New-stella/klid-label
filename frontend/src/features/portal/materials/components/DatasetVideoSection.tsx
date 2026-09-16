@@ -1,6 +1,15 @@
 /**
  * 데이터셋 영상 구역 — 소재가 준비된 데이터셋에서 영상을 골라 라벨링으로 들어간다.
- * [@design SCREEN-046] [@design API-253]
+ * [@design SCREEN-046] [@design API-253] [@design API-262]
+ *
+ * <h3>등록 실패는 「다시 등록」으로 사람이 재착수한다 (2026-09-16)</h3>
+ * 목록 조회는 실패 표식을 다시 시작시키지 않는다 — 구조 불일치는 다시 돌려도 같은 사유로 실패하므로
+ * 자동으로 되풀이하지 않는다. 대신 응답의 실패 사유를 문구로 보이고(사유 코드를 그대로 찍지 않는다 ·
+ * 모르는 값은 폴백), 「다시 등록」이 재착수 창구를 부른 뒤 목록을 무효화해 등록 중 폴링이 재개된다.
+ * 같은 답이 돌아올 사유에서는 버튼을 숨기지 않고 보조 위계로 낮춘다. 재착수 요청 자체가 거부되면
+ * (소재 미준비·등록 꺼짐·대기열 포화) 서버 안내 문장을 그 판 안에 보이고 버튼은 다시 누를 수 있다.
+ * ⚠ 2026-09-16 실사고 — 파서를 고쳐 배포해도 옛 실패 표식이 남은 데이터셋은 영원히 실패로 보였고
+ *   서버에서 표식 파일을 손으로 지워야 풀렸다. 「다시 확인」(재조회)으로는 풀리지 않는다.
  *
  * <h3>흐름에서 이 구역의 자리</h3>
  * 포털 학습데이터 상세 → (이 화면) 소재 가져오기 → **영상 고르기** → 라벨링 → 저장. 영상과 프레임은
@@ -36,6 +45,7 @@ import { CircleAlert, Inbox, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import {
+  Alert,
   EmptyState,
   PageNav,
   RecordRow,
@@ -45,8 +55,11 @@ import {
 import { ConditionChips } from '@/components/portal/authoring';
 import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 import { buildPortalDatamartLabelPath } from '@/features/portal/labelingEntry';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 
 import { useDatasetVideos } from '../hooks/useDatasetVideos';
+import { useRestartDatasetRegistration } from '../hooks/useRestartDatasetRegistration';
+import { registrationFailureNotice } from '../registrationFailureReason';
 import { PortalDatasetVideoRegistrationState, type PortalDatasetVideo } from '../types';
 
 const SECTION_ID = 'portal-dataset-videos';
@@ -57,6 +70,12 @@ export const DATASET_VIDEOS_LEAD = '영상을 골라 라벨링합니다. 라벨�
 /** 열 프레임이 없는 영상의 사유. */
 const NO_ENTRY_REASON = '열 수 있는 프레임이 없습니다.';
 
+/** 등록 실패 판의 제목 — 사유가 무엇이든 고정이다(사유는 설명 줄이 말한다). */
+export const REGISTRATION_FAILED_TITLE = '영상을 등록하지 못했습니다';
+
+/** 재착수 요청이 거부됐는데 서버 문장이 없을 때의 폴백. */
+export const RESTART_REJECTED_FALLBACK = '다시 등록을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
 interface DatasetVideoSectionProps {
   datasetId: number;
 }
@@ -64,6 +83,7 @@ interface DatasetVideoSectionProps {
 export function DatasetVideoSection({ datasetId }: DatasetVideoSectionProps) {
   const [page, setPage] = useState(0);
   const query = useDatasetVideos(datasetId, page, true);
+  const restart = useRestartDatasetRegistration(datasetId);
   const data = query.data;
   const state = data?.registrationState;
   /** 등록이 끝난 응답만 목록으로 믿는다 — 그 밖의 상태는 목록이 완전하지 않다. */
@@ -76,6 +96,9 @@ export function DatasetVideoSection({ datasetId }: DatasetVideoSectionProps) {
       {label}
     </Button>
   );
+
+  /* 재착수 — 거부는 아래 판 안에서 `restart.isError` 가 싣는다. 여기서 삼키되 던지지 않는다. */
+  const restartRegistration = () => void restart.mutateAsync().catch(() => undefined);
 
   return (
     <section aria-labelledby={SECTION_ID} className="klid-authoring-block">
@@ -103,14 +126,12 @@ export function DatasetVideoSection({ datasetId }: DatasetVideoSectionProps) {
           <EmptyState busy title="영상을 등록하고 있습니다. 끝나면 이 자리에 목록이 나타납니다." />
         </div>
       ) : state === PortalDatasetVideoRegistrationState.FAILED ? (
-        <div role="alert" data-testid="dataset-videos-registration-failed">
-          <EmptyState
-            icon={CircleAlert}
-            title="영상을 등록하지 못했습니다"
-            desc="가져온 소재는 그대로 남아 있습니다. 잠시 후 다시 확인해 주세요."
-            action={retryAction('다시 확인')}
-          />
-        </div>
+        <RegistrationFailedPane
+          reason={data?.registrationFailureReason}
+          pending={restart.isPending}
+          rejected={restart.isError ? extractBeMessage(restart.error, RESTART_REJECTED_FALLBACK) : null}
+          onRestart={restartRegistration}
+        />
       ) : done === undefined ? (
         /* 서버가 값역을 넓혔을 때 — 모르는 값을 완료로 읽지 않는다. */
         <div role="alert" data-testid="dataset-videos-unknown-state">
@@ -166,6 +187,63 @@ export function DatasetVideoSection({ datasetId }: DatasetVideoSectionProps) {
         </div>
       )}
     </section>
+  );
+}
+
+interface RegistrationFailedPaneProps {
+  /** 목록 응답의 실패 사유 — 모르는 값·`null` 은 표기 모듈이 폴백으로 받는다. */
+  reason: string | null | undefined;
+  /** 재착수 요청이 나가 있는 동안 — 버튼을 잠근다(연타 방지). */
+  pending: boolean;
+  /** 재착수 요청이 거부됐을 때 보일 문장(서버 안내 또는 폴백). 거부가 아니면 `null`. */
+  rejected: string | null;
+  onRestart: () => void;
+}
+
+/**
+ * 등록 실패 판 — 사유 문구 + 「다시 등록」. [@design SCREEN-046] [@design API-262]
+ *
+ * ★ 제목은 고정이고 사유는 설명 줄이 말한다(제목 · 사유 제목 · 다음 걸음 세 줄).
+ * ★ 버튼 위계는 사유가 정한다 — 같은 답이 돌아올 사유(구조 불일치 계열)는 보조 위계(`tertiary`)로
+ *   낮추되 **숨기지 않는다**. 어느 사유든 다시 착수할 수는 있다(서버가 막지 않는다).
+ * ★ 거부 문장은 판 안의 별도 띠(`role="alert"`)로 선다 — 판을 둘 세우면 어느 것이 지금 상태인지
+ *   갈리지 않는다. 사유 문구는 그대로 두고 그 아래에 「지금 시도가 거부됐다」만 덧붙인다.
+ */
+function RegistrationFailedPane({ reason, pending, rejected, onRestart }: RegistrationFailedPaneProps) {
+  const notice = registrationFailureNotice(reason);
+  return (
+    <div role="alert" data-testid="dataset-videos-registration-failed">
+      <EmptyState
+        icon={CircleAlert}
+        title={REGISTRATION_FAILED_TITLE}
+        desc={
+          <>
+            <span data-testid="dataset-videos-registration-failed-reason">{notice.title}</span>{' '}
+            {notice.description}
+          </>
+        }
+        action={
+          <div className="klid-authoring-row-actions">
+            <Button
+              variant={notice.retryWorthwhile ? 'secondary' : 'tertiary'}
+              size="medium"
+              onClick={onRestart}
+              disabled={pending}
+            >
+              <RotateCcw aria-hidden />
+              다시 등록
+            </Button>
+          </div>
+        }
+      />
+      {rejected !== null && (
+        <div data-testid="dataset-videos-restart-rejected">
+          <Alert tone="danger" title="다시 등록을 시작하지 못했습니다.">
+            {rejected}
+          </Alert>
+        </div>
+      )}
+    </div>
   );
 }
 

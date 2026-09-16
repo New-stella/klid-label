@@ -25,7 +25,11 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { PortalDatasetVideoPage, PortalMaterialsStatus } from './types';
+import type {
+  PortalDatasetRegistrationResult,
+  PortalDatasetVideoPage,
+  PortalMaterialsStatus,
+} from './types';
 
 /** 조달 상태 조회. */
 export function getDatasetMaterials(datasetId: number): Promise<PortalMaterialsStatus> {
@@ -57,5 +61,21 @@ export function getDatasetVideos(
 ): Promise<PortalDatasetVideoPage> {
   return apiClient
     .get<PortalDatasetVideoPage>(`/portal/datasets/${datasetId}/videos`, { params })
+    .then((r) => r.data);
+}
+
+/**
+ * 데이터셋 영상 등록 재착수 — 실패 표식일 때만 등록을 다시 시작시킨다. @design API-262
+ *
+ * ⚠ 본문을 보내지 않는다 — 창구가 경로 변수 하나만 받는다.
+ * ⚠ 응답 코드는 언제나 200 이다(접수·이미 완료·진행 중 모두). 구분은 본문의 상태 값이 싣는다 —
+ *   조달 착수(202)와 다르다. 거부는 409(소재 미준비·등록 꺼짐)·503(대기열 포화)이며 서버 안내
+ *   문장이 `ApiError` 로 온다.
+ */
+export function restartDatasetRegistration(
+  datasetId: number,
+): Promise<PortalDatasetRegistrationResult> {
+  return apiClient
+    .post<PortalDatasetRegistrationResult>(`/portal/datasets/${datasetId}/registration`)
     .then((r) => r.data);
 }
