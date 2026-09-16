@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.common.config;
 
 import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.client.ControlNotifyTokenProvider;
+import kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
@@ -47,7 +48,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <b>검증 규칙은 그대로이고 적용 시점만 옮겼다</b> — 한 연동의 설정 실수로 저작 업무 전체가 멈추는
  * 편이, 배포 시점에 빨리 아는 것보다 훨씬 비싸기 때문이다.
  *
+ * <h3>★ 외부향 빈은 호출 로그 필터를 맨 마지막에 단다</h3>
+ * <p>{@link kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter} — 재작성·전송 가드·자격증명
+ * 필터를 거친 <b>실제 대상</b>과 결과 코드·소요 시간, 오류 응답 사유를 서버 로그에 남긴다.
+ *
  * @design ADR-062
+ * @design NFR-038
  */
 @Configuration
 public class WebClientConfig {
@@ -113,6 +119,9 @@ public class WebClientConfig {
                 // 빈 base 는 상대 URI 가 되어 loopback:80 으로 나간다 — 전송 자체를 막는다.
                 .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
                         IntegrationEndpoint.AI_SERVER, address.rejectionLabel()))
+                // ★ 호출 로그는 맨 마지막(가장 안쪽) — 재작성·가드를 거친 실제 대상을 기록한다(NFR-038).
+                //   오류 본문은 이 빈의 버퍼 상한(32MB) 안에서 읽고 로그에는 1000자만 남긴다.
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.AI_SERVER.name(), true))
                 .exchangeStrategies(largeBufferStrategies())
                 .build();
     }
@@ -185,6 +194,9 @@ public class WebClientConfig {
             b.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
                     IntegrationEndpoint.VLM, base, VLM_API_KEY_HEADER));
         }
+        // ★ 호출 로그는 맨 마지막(가장 안쪽) — 조건부 자격증명 필터보다도 뒤에 둬야 재작성·핀 적용 후의
+        //   실제 대상을 기록한다. 오류 응답의 벤더 사유(detail)를 남기는 것이 목적이다(NFR-038).
+        b.filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.VLM.name(), true));
         return b.build();
     }
 
@@ -251,6 +263,8 @@ public class WebClientConfig {
             // 값은 설정에서만 온다(CWE-798). 로그에 남기지 않으며 헤더명은 마스킹 패턴이 이미 덮는다.
             builder.defaultHeader(PORTAL_MATERIALS_API_KEY_HEADER, apiKey.trim());
         }
+        // ★ 호출 로그는 맨 마지막 — 헤더 값(API 키)은 기록하지 않는다(NFR-038).
+        builder.filter(ExternalCallLoggingFilter.of(ExternalCallLoggingFilter.PORTAL_MATERIALS, true));
         return builder.build();
     }
 
@@ -351,6 +365,9 @@ public class WebClientConfig {
                     + "(authoring.control-notify.token 미설정 + JWT_SECRET 미설정) — 관제 SPI 가 {} 를 "
                     + "요구하면 전 통지가 401 로 거부됩니다.", CONTROL_NOTIFY_TOKEN_HEADER);
         }
+        // ★ 호출 로그는 맨 마지막 — 세 갈래(정적 토큰·동적 발급·토큰 없음) 어느 쪽이든 자격증명 필터보다
+        //   뒤에 붙는다. 헤더 값은 기록하지 않는다(NFR-038).
+        builder.filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.CONTROL_NOTIFY.name(), true));
         return builder.build();
     }
 
@@ -416,6 +433,9 @@ public class WebClientConfig {
                         IntegrationEndpoint.CONTROL_ACCOUNT, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
                         IntegrationEndpoint.CONTROL_ACCOUNT, base))
+                // ★ 호출 로그는 맨 마지막. 이 창구는 응답에 세션 토큰이 실리므로 <오류 본문도 읽지 않는다>
+                //   — 상태 코드·소요 시간만 남긴다(NFR-038).
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.CONTROL_ACCOUNT.name(), false))
                 .build();
     }
 

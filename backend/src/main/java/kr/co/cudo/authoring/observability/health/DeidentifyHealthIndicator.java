@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.observability.health;
 
+import kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter;
 import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -140,8 +141,10 @@ public class DeidentifyHealthIndicator implements HealthIndicator {
         try {
             // ② KPST 실위탁 형상 — 위탁 대상(kpst.deid.base-url)의 루트를 핑한다.
             //   base-url 은 스킴+호스트+포트 형태(경로 세그먼트 없음)라 "/" 로 루트가 된다.
+            //   주기 점검 표식 — 성공 호출 로그는 DEBUG 로 낮아진다(실패는 평소 레벨). [@design NFR-038]
             kpstWebClient.get()
                     .uri("/")
+                    .attribute(ExternalCallLoggingFilter.PERIODIC_PROBE_ATTRIBUTE, Boolean.TRUE)
                     .retrieve()
                     .toBodilessEntity()
                     .timeout(PING_TIMEOUT)

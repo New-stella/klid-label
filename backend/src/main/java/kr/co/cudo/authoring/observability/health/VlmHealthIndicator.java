@@ -33,7 +33,8 @@ import java.util.Map;
  * <h3>핑 경로 = 규격이 보장하는 서버 상태 창구</h3>
  * <p>연동 규격(KLID 연동 API v1.1.0 §3.5)이 "요청 전 서버의 처리 가능 여부를 확인한다"는 용도로
  * 정의한 창구를 그대로 쓴다. 헬스 전용 경로·전용 WebClient 를 새로 만들지 않고 실제 위탁에 쓰는
- * {@link VlmClient#fetchStatus()} 를 호출해, 주소·인증 헤더·TLS 구성이 실행 경로와 갈라지지 않게 한다.
+ * {@link VlmClient#fetchStatus(String, boolean)} 를 (주기 점검 표식과 함께) 호출해, 주소·인증 헤더·TLS 구성이
+ * 실행 경로와 갈라지지 않게 한다.
  *
  * <h3>미연동이면 DOWN 이 아니라 부재</h3>
  * <p>연동 주소가 주입되지 않았으면 핑할 대상 자체가 없다. 그 상태를 DOWN 으로 리포트하면 위 관제
@@ -166,7 +167,8 @@ public class VlmHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         try {
-            VlmServerStatus status = vlmClient.fetchStatus()
+            // 헬스는 주기적으로 불린다 — 성공 호출 로그는 DEBUG 로 낮춘다(실패는 평소 레벨). [@design NFR-038]
+            VlmServerStatus status = vlmClient.fetchStatus(null, true)
                     .timeout(PING_TIMEOUT)
                     .block();
             // 서버가 상태를 돌려줬다 = 살아 있다. busy·loading 도 UP 이다(위탁 수용 여부는 별개 축이며
