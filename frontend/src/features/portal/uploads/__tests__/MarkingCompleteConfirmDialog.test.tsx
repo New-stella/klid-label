@@ -10,7 +10,7 @@
  *  5. 저장이 나가는 동안 두 버튼을 함께 잠근다.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { MarkingCompleteConfirmDialog } from '../components/MarkingCompleteConfirmDialog';
@@ -37,11 +37,15 @@ function renderDialog(overrides: Partial<Parameters<typeof MarkingCompleteConfir
 }
 
 describe('마킹 완료 확인 창', () => {
-  it('★기본_초점이_취소에_있다', () => {
+  it('★기본_초점이_취소에_있다', async () => {
     renderDialog();
 
     // 되돌릴 수 없는 쪽(확정)이 아니라 물러나는 쪽이 첫 초점이어야 한다.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: '취소' }));
+    // ⚠ 2026-09-16 — 포털 창(킷 `Dialog`)으로 갈아타며 초점이 **한 박자 늦게** 잡히게 됐다(킷이
+    //   타이머로 옮긴다). 그래서 기다린다 — 지키는 사실(첫 초점이 취소)은 그대로다.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: '취소' })),
+    );
     expect(document.activeElement).not.toBe(
       screen.getByRole('button', { name: '완료하고 추출 시작' }),
     );
@@ -54,9 +58,14 @@ describe('마킹 완료 확인 창', () => {
     const focusables = Array.from(
       dialog.querySelectorAll('a[href], input, select, textarea, button, [tabindex]:not([tabindex="-1"])'),
     );
-    // 초점 가능한 것은 두 버튼뿐이고, 그중 앞선 것이 취소다(닫기 X 를 두지 않는 이유이기도 하다).
-    expect(focusables).toHaveLength(2);
+    // ⚠ 2026-09-16 — 포털 창에는 **머리 줄의 닫기(X)가 있다**(킷이 늘 그린다). 「닫기 X 를 두지
+    //   않는다」던 구 동작은 폐기다 — 포털 창은 X 를 나가는 길로 삼고 아랫동에는 고르는 걸음만 둔다.
+    //   ★그래도 **첫 초점은 취소**다: 킷이 X 를 내용보다 뒤에 그려 문서 순서상 아랫동이 앞선다.
+    //   그것이 이 시험이 지키는 사실이므로, 본문에 초점 대상을 두지 않는 규약도 그대로다.
+    expect(focusables).toHaveLength(3);
     expect(focusables[0]).toHaveTextContent('취소');
+    expect(focusables[1]).toHaveTextContent('완료하고 추출 시작');
+    expect(focusables[2]).toHaveTextContent('모달 닫기');
   });
 
   it('자동이면_간격과_환산_시간과_뽑힐_장수를_알린다', () => {

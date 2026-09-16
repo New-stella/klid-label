@@ -12,19 +12,22 @@
  * ③ 잘못했을 때의 회복 경로 — 지우고 다시 올려야 하며, 삭제는 추출이 진행 중인 동안 거절되므로
  *    추출이 끝나기를 기다려야 한다. 이 시점이 사용자가 아직 취소할 수 있는 마지막 자리다.
  *
- * <h3>기본 초점은 취소에 둔다</h3>
- * 되돌릴 수 없는 쪽이 기본 선택이면 무심코 누른 한 번이 그대로 확정된다.
- * ★ 초점은 <b>DOM 순서</b>가 정한다 — 공용 모달이 열릴 때 첫 초점 대상을 잡으므로, 닫기(X)를 두지
- *   않고 본문에 초점 잡히는 요소를 두지 않아야 취소가 첫 대상이 된다. 본문에 버튼·입력을 넣으면
- *   그 자리로 초점이 옮겨 가 이 규약이 조용히 깨진다(회귀 가드가 이 지점을 고정한다).
+ * <h3>포털 창 한 벌을 쓴다 (2026-09-16)</h3>
+ * 포털에 창은 `Dialog` 하나이고 화면은 거기에 글만 꽂는다 — 문구가 다르다고 창을 새로 만들지
+ * 않는다는 것이 그 부품의 규약이다. 그래서 관제 공용 모달에서 이 창으로 갈아탔다.
+ * ⚠ 그 결과 <b>머리 줄에 닫기(X)가 선다</b>. 구 동작(닫기 없음)은 폐기다 — 포털 창은 X 를 나가는
+ *   길로 삼고 아랫동에는 고르는 걸음만 둔다.
+ * ★ <b>기본 초점이 취소라는 규약은 그대로다</b> — 킷 창은 열릴 때 문서 순서상 첫 초점 대상을
+ *   잡는데, X 는 내용보다 <b>뒤</b>에 그려지므로(krds-react 1.1.1 실측) 아랫동의 취소가 먼저다.
+ *   그래서 본문에 초점 잡히는 요소를 두지 않는 규약도 그대로 지킨다(회귀 가드가 고정한다).
+ * ★ 초점은 창이 열린 뒤 <b>한 박자 늦게</b> 잡힌다(킷이 타이머로 옮긴다) — 시험은 그 시점을 기다린다.
  *
- * <h3>브라우저 기본 확인창을 쓰지 않는다</h3>
- * 이 저장소의 관례가 화면 안 창이고, 알려야 할 것이 여러 항목이라 평문 한 덩어리로는 위계를 줄 수
- * 없으며, 기본 초점을 취소에 두는 것도 화면 안 창에서만 정할 수 있다.
+ * <h3>닫혀 있으면 아무것도 그리지 않는다</h3>
+ * ⚠ 킷 창은 `open` 이 거짓이어도 DOM 에 남고 CSS 로만 감춘다(krds-react 1.1.1 실측). 그대로 두면
+ *   <b>화면에 없는 창의 버튼이 문서에 실재</b>해 보조기술과 시험 양쪽에서 읽힌다. 그래서 여기서
+ *   걷어낸다 — 킷 파일은 고치지 않는다(복사본 규약).
  */
-import { Alert } from '@/components/common/Alert';
-import { Button } from '@/components/common/Button';
-import { Modal } from '@/components/common/Modal';
+import { Alert, Dialog, KeyValueList } from '@/components/portal/kit';
 
 import type { CapOutcome } from '../markingPlan';
 import { PortalMarkingMode } from '../markingTypes';
@@ -59,87 +62,88 @@ export function MarkingCompleteConfirmDialog({
   onConfirm,
   onCancel,
 }: MarkingCompleteConfirmDialogProps) {
+  if (!open) return null;
+
   const isAuto = mode === PortalMarkingMode.AUTO;
 
   return (
-    <Modal
-      open={open}
-      onClose={onCancel}
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        // 저장이 나가는 동안에는 X·ESC·배경 누르기로도 물러나지 않는다 — 두 버튼을 잠근 것과
+        // 같은 이유다(응답을 기다리는 사이에 창이 사라지면 결과를 받을 자리가 없어진다).
+        if (next || saving) return;
+        onCancel();
+      }}
       title="마킹을 완료하고 프레임을 추출할까요?"
-      size="md"
-      /* 닫기(X)를 두지 않는다 — ① 초점이 취소에 먼저 가야 하고 ② 물러나는 길이 취소 하나로
-         모여야 한다. ESC·배경 누르기는 그대로 살아 있어(둘 다 취소와 같게 다룬다) 키보드로
-         빠져나올 수 없게 되지 않는다. */
-      showCloseButton={false}
-      footer={
+      /* 되돌릴 수 없다는 사실과 회복 경로, 그 회복에 따르는 기다림을 한자리에서 알린다.
+         절단은 그보다 앞선다 — 「무엇이 잘리는가」를 읽고 나서야 「되돌릴 수 없다」가 무게를 갖는다. */
+      alert={
         <>
-          <Button variant="secondary" onClick={onCancel} disabled={saving}>
-            취소
-          </Button>
-          <Button variant="danger" onClick={onConfirm} loading={saving}>
-            완료하고 추출 시작
-          </Button>
+          {/* 절단 안내 — 상한에 걸릴 때만 나타난다. 상한을 모르면 아무 주장도 하지 않는다.
+              ⚠ 시험 후크는 싸개에 단다(킷 안내 띠는 그 속성을 받지 않는다 — 복사본이라 고치지 않는다).
+                 조작 요소가 아니라 읽는 자리라 싸개로 족하다. */}
+          {cap.truncated && (
+            <div data-testid="marking-confirm-truncated">
+              <Alert tone="danger" title="고른 지점이 추출 장수 상한을 넘어 일부만 뽑힙니다.">
+                요청한 {cap.requestedCount}장 가운데 {cap.effectiveCount}장만 뽑힙니다.{' '}
+                {isAuto
+                  ? '자동은 전 구간을 고르게 다시 뽑아 덮는 범위가 유지됩니다.'
+                  : '수동은 앞에서부터 상한까지 남고 뒤가 빠집니다.'}{' '}
+                지금 취소하고 {isAuto ? '간격을 넓히면' : '지점을 줄이면'} 고른 지점을 모두 살릴 수
+                있습니다.
+              </Alert>
+            </div>
+          )}
+          <div data-testid="marking-confirm-irreversible">
+            <Alert tone="danger" live="none" title="완료하면 되돌릴 수 없습니다.">
+              다시 마킹하려면 이 자산을 지우고 다시 올려야 하며, 추출이 진행 중인 동안에는 지울 수
+              없습니다.
+            </Alert>
+          </div>
         </>
       }
+      sub={{ label: '취소', close: true, disabled: saving }}
+      main={{
+        label: '완료하고 추출 시작',
+        tone: 'danger',
+        busy: saving,
+        onClick: onConfirm,
+      }}
     >
       {/* 확정되는 내용 — 값은 창을 열 때의 설정에서 그때그때 계산해 넘어온다. */}
-      {/* ⚠ 새 유틸리티 클래스를 만들지 않는다 — 스타일시트는 두 채널이 한 벌을 나눠 쓰므로,
-          여기서만 쓰는 임의 값(예: 열 너비를 직접 적은 격자)이 관제 채널 산출물에도 실린다.
-          이미 쓰이는 클래스 조합으로 같은 모양을 만든다. */}
-      <dl className="mb-4 space-y-2 text-body-md text-gray-800">
-        <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-gray-500">방식</dt>
-          <dd data-testid="marking-confirm-mode">{isAuto ? '자동' : '수동'}</dd>
-        </div>
-        {isAuto && (
-          <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-gray-500">간격</dt>
-            <dd data-testid="marking-confirm-interval">
-              {intervalFrames} 프레임
-              {intervalSec !== null && ` (약 ${formatSeconds(intervalSec)})`}
-            </dd>
-          </div>
-        )}
-        {!isAuto && (
-          <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-gray-500">찍은 지점</dt>
-            <dd data-testid="marking-confirm-picked">{cap.requestedCount}건</dd>
-          </div>
-        )}
-        <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-gray-500">뽑힐 프레임</dt>
-          <dd data-testid="marking-confirm-frame-count">
-            {cap.effectiveCount}장
-            {/* 잘렸으면 요청한 수를 나란히 적는다 — 실제 장수만 보여 주면 고른 것이 다 들어간 줄 안다. */}
-            {cap.truncated && ` (요청 ${cap.requestedCount}장 중)`}
-          </dd>
-        </div>
-      </dl>
-
-      {/* 절단 안내 — 상한에 걸릴 때만 나타난다. 상한을 모르면 아무 주장도 하지 않는다. */}
-      {cap.truncated && (
-        <Alert
-          variant="error"
-          title="고른 지점이 추출 장수 상한을 넘어 일부만 뽑힙니다."
-          data-testid="marking-confirm-truncated"
-        >
-          요청한 {cap.requestedCount}장 가운데 {cap.effectiveCount}장만 뽑힙니다.{' '}
-          {isAuto
-            ? '자동은 전 구간을 고르게 다시 뽑아 덮는 범위가 유지됩니다.'
-            : '수동은 앞에서부터 상한까지 남고 뒤가 빠집니다.'}{' '}
-          지금 취소하고 {isAuto ? '간격을 넓히면' : '지점을 줄이면'} 고른 지점을 모두 살릴 수 있습니다.
-        </Alert>
-      )}
-
-      {/* 되돌릴 수 없다는 사실과 회복 경로, 그 회복에 따르는 기다림을 한자리에서 알린다.
-          누르기 직전에 마지막으로 읽히도록 조작 버튼 바로 위에 둔다. */}
-      <Alert
-        variant="error"
-        title="완료하면 되돌릴 수 없습니다."
-        data-testid="marking-confirm-irreversible"
-      >
-        다시 마킹하려면 이 자산을 지우고 다시 올려야 하며, 추출이 진행 중인 동안에는 지울 수 없습니다.
-      </Alert>
-    </Modal>
+      <KeyValueList
+        surface={false}
+        divided={false}
+        ariaLabel="마킹 완료 내용"
+        items={[
+          { label: '방식', value: <span data-testid="marking-confirm-mode">{isAuto ? '자동' : '수동'}</span> },
+          isAuto
+            ? {
+                label: '간격',
+                value: (
+                  <span data-testid="marking-confirm-interval">
+                    {intervalFrames} 프레임
+                    {intervalSec !== null && ` (약 ${formatSeconds(intervalSec)})`}
+                  </span>
+                ),
+              }
+            : {
+                label: '찍은 지점',
+                value: <span data-testid="marking-confirm-picked">{cap.requestedCount}건</span>,
+              },
+          {
+            label: '뽑힐 프레임',
+            value: (
+              <span data-testid="marking-confirm-frame-count">
+                {cap.effectiveCount}장
+                {/* 잘렸으면 요청한 수를 나란히 적는다 — 실제 장수만 보여 주면 고른 것이 다 들어간 줄 안다. */}
+                {cap.truncated && ` (요청 ${cap.requestedCount}장 중)`}
+              </span>
+            ),
+          },
+        ]}
+      />
+    </Dialog>
   );
 }

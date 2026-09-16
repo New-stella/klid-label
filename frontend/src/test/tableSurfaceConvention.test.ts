@@ -97,6 +97,20 @@ const CHANNEL_TABLE_SPEC: Record<DesignChannel, ChannelTableSpec> = {
 interface TableCase {
   label: string;
   file: string;
+  /**
+   * 표 **표면을 누가 소유하는가**.
+   *
+   * · `tailwind`(기본) — 화면이 제 손으로 `<thead>` 를 그리고 유틸리티로 표면을 만든다.
+   *   아래 관례 검사(헤더 배경·글자·본문 크기·행 hover)가 전부 이 축을 본다.
+   * · `kit` — **부품 킷이 표면을 소유**한다(포털 채널의 KRDS 킷 `Table`). 화면 소스에 표면
+   *   유틸리티가 아예 없으므로 그 검사들이 **판정할 대상이 없다** — 클래스 문자열을 찾아
+   *   실패시키면 「없는 것을 없다고 잡는」 거짓 실패가 된다.
+   *   대신 §킷 표면 전용 검사가 ①킷 표를 실제로 쓰는지 ②두 축을 섞지 않는지를 본다.
+   *
+   * ⚠ `kit` 을 **검사 면제로 쓰지 말 것.** 화면이 제 유틸리티로 표면을 덮기 시작하면 두
+   *   진실원이 생기므로, 그 경우를 아래 「섞지 않는다」 검사가 잡는다.
+   */
+  surface?: 'tailwind' | 'kit';
 }
 
 /**
@@ -175,12 +189,22 @@ const TABLES: TableCase[] = [
   },
   {
     // ⚠ 형제 화면(증강·업로드)은 2026-09-08 에 표에서 **행 카드**로 바뀌어 이 목록에서 빠졌다.
-    //   이 화면만 표로 남는다 — 네 열이 전부 짧은 값이라 폭이 모자라지 않고, 시안(SD-024)이
-    //   표로 확정했다. 형태는 담는 내용이 정한다.
+    //   이 화면만 표로 남는다 — 다섯 열이 전부 짧은 값이라 폭이 모자라지 않고, 시안이 표로
+    //   확정했다. 형태는 담는 내용이 정한다.
+    // ★ 2026-09-16 — 표면 소유가 **킷으로 넘어갔다.** 부모 포털의 저작도구 시안을 입히면서
+    //   이 표가 KRDS 킷 `Table` 로 바뀌어, 헤더 배경·글자·행 hover 를 **킷 CSS 와 포털 테마**가
+    //   갖는다. 화면 소스에는 그 유틸리티가 더 이상 없으므로 관제 축(Tailwind) 검사가
+    //   판정할 대상이 없다 — `surface: 'kit'` 이 그 사실을 적은 것이고 면제가 아니다.
     label: 'PortalHomePage(포털 내 작업 — 내 저장 작업 목록)',
     file: 'src/pages/portal/PortalHomePage.tsx',
+    surface: 'kit',
   },
 ];
+
+/** 화면이 제 손으로 표면을 만드는 표 — 아래 관례 검사(배경·글자·본문·hover)의 대상. */
+const TAILWIND_TABLES = TABLES.filter((t) => (t.surface ?? 'tailwind') === 'tailwind');
+/** 부품 킷이 표면을 소유하는 표 — §킷 표면 전용 검사가 본다. */
+const KIT_TABLES = TABLES.filter((t) => t.surface === 'kit');
 
 /**
  * `<thead>` 를 갖고 있지만 표 표면 규약의 판정 대상이 **아닌** 파일.
@@ -477,7 +501,11 @@ describe('적용관례 — 표 목록 자체의 완전성', () => {
       .map((f) => path.join('src', f))
       .filter((rel) => {
         const raw = readSrc(rel);
-        return raw.includes('<thead') && stripComments(raw).includes('<thead');
+        // ★ 킷 표는 헤더를 `<Table.Thead>` 로 그린다 — 소문자 `<thead` 만 세면 그 표가
+        //   **스캔에서 통째로 빠져** 등록 여부를 아무도 확인하지 않게 된다(열거가 새 파일을
+        //   놓치는 것을 막으려고 둔 스캔인데 새 «형태»를 놓치는 셈이다).
+        const hasHeader = (s: string) => s.includes('<thead') || s.includes('<Table.Thead');
+        return hasHeader(raw) && hasHeader(stripComments(raw));
       })
       .sort();
     expect(scanned.length, '스캔 결과 0건 — 파일 수집이 깨졌다').toBeGreaterThan(0);
@@ -564,8 +592,55 @@ function backgroundUtilities(region: string): string[] {
   return [...region.matchAll(/(?:[a-z-]+:)*bg-[A-Za-z0-9_[\]#().%/-]+/g)].map((m) => m[0]);
 }
 
+/* ------------------------------------------------------------------ *
+ * ①-2 킷이 표면을 소유하는 표 (포털 채널)
+ * ------------------------------------------------------------------ */
+
+/**
+ * 표면을 **부품 킷이 갖는** 표의 규약.
+ *
+ * 포털 채널의 표는 KRDS 킷 `Table` 이 그리고, 헤더 배경·글자·행 hover 는 킷 CSS 와 포털
+ * 테마(`styles/portal/krds-theme.css`)가 소유한다. 그래서 위 Tailwind 축 검사는 판정할 대상이
+ * 없다 — 대신 여기서 **두 가지**를 못박는다.
+ *
+ *  1. 실제로 킷 표를 쓴다 — 껍데기(`klid-table-shell`)와 킷 `Table` 이 함께 있어야 한다.
+ *     둘 중 하나만 있으면 표면이 반만 입혀진 상태다.
+ *  2. **두 축을 섞지 않는다** — 화면이 제 유틸리티로 헤더 배경·행 hover 를 덮기 시작하면
+ *     같은 것을 정하는 자리가 둘이 되고, 킷을 올릴 때 조용히 갈린다.
+ *
+ * ⚠ 이 묶음이 비면 포털 축 표가 **한 축도 검사되지 않는다** — 아래 전수 대조가 그것을 막는다.
+ */
+describe('적용관례 — 킷이 표면을 소유하는 표(포털 채널)', () => {
+  it('킷_표가_하나라도_있다_없으면_포털_축이_검사되지_않는다', () => {
+    expect(KIT_TABLES.length).toBeGreaterThan(0);
+  });
+
+  it.each(KIT_TABLES)('$label — 킷_표_껍데기와_킷_Table_을_함께_쓴다', ({ file }) => {
+    const src = stripComments(readSrc(file));
+    expect(src, `${file}: 표 껍데기(klid-table-shell)가 없다`).toContain('klid-table-shell');
+    expect(src, `${file}: 킷 Table 을 쓰지 않는다`).toMatch(/<Table[\s>]/);
+    expect(src, `${file}: 킷 헤더(<Table.Thead>)가 없다`).toContain('<Table.Thead');
+  });
+
+  it.each(KIT_TABLES)('$label — 표면을_제_유틸리티로_덮지_않는다_두_진실원_금지', ({ file }) => {
+    const src = stripComments(readSrc(file));
+    // 헤더 배경·행 hover 는 킷·테마의 몫이다 — 화면이 같은 것을 또 정하면 갈린다.
+    expect(src, `${file}: 헤더 배경을 화면이 덮는다(${HEADER_BG_TOKEN})`).not.toContain(
+      HEADER_BG_TOKEN,
+    );
+    expect(src, `${file}: 행 hover 를 화면이 덮는다`).not.toContain('hover:bg-rowHover');
+  });
+
+  it.each(KIT_TABLES)('$label — 킷_표에는_자체_thead_가_없다', ({ file }) => {
+    // 한 파일에 두 형태가 섞이면 위 Tailwind 축 검사가 그 표를 못 보고 지나간다.
+    expect(stripComments(readSrc(file)), `${file}: 자체 <thead> 가 남아 있다`).not.toContain(
+      '<thead',
+    );
+  });
+});
+
 describe('적용관례 — 표 헤더 배경(DS-001 do_rules)', () => {
-  it.each(TABLES)('$label — 표_헤더가_보조색_최옅단_배경을_쓴다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 표_헤더가_보조색_최옅단_배경을_쓴다', ({ file }) => {
     // given: 파일 안의 모든 헤더 영역(thead ~ </thead>)
     const regions = headerRegions(readSrc(file), file);
 
@@ -606,7 +681,7 @@ describe('적용관례 — 표 헤더 배경(DS-001 do_rules)', () => {
     expect(colorScale('portal', 'secondary')['50']).toBe('#eef1fe');
   });
 
-  it.each(TABLES)('$label — 헤더_글자색이_secondary_50_위에서_AA를_만족한다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 헤더_글자색이_secondary_50_위에서_AA를_만족한다', ({ file }) => {
     // given: 글자가 있는 모든 <th> 에 **실제로 남는** 클래스(twMerge 통과 결과)
     const content = stripComments(readSrc(file));
     const consts = classConstants(content);
@@ -724,7 +799,7 @@ describe('적용관례 — 표 헤더 글자(크기·굵기·대문자화)', () 
    *     똑같은 방식으로 침묵으로 깨진다.** 컬럼 정의 파일에는 `<thead>` 가 없어 이 가드가
    *     구조적으로 도달하지 못하는 통로다.
    */
-  it.each(TABLES)('$label — 헤더에_굵기_유틸리티를_겹치지_않는다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 헤더에_굵기_유틸리티를_겹치지_않는다', ({ file }) => {
     // given: 헤더 영역(thead ~ </thead>) + 각 <th> 에 실제로 남는 클래스
     const content = stripComments(readSrc(file));
     const consts = classConstants(content);
@@ -750,7 +825,7 @@ describe('적용관례 — 표 헤더 글자(크기·굵기·대문자화)', () 
     ).toEqual([]);
   });
 
-  it.each(TABLES)('$label — 헤더_타이포_토큰이_th_요소까지_도달한다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 헤더_타이포_토큰이_th_요소까지_도달한다', ({ file }) => {
     // given: 글자가 있는 모든 <th> (빈 칸은 판정 대상 아님)
     const content = stripComments(readSrc(file));
     const consts = classConstants(content);
@@ -772,7 +847,7 @@ describe('적용관례 — 표 헤더 글자(크기·굵기·대문자화)', () 
     ).toEqual([]);
   });
 
-  it.each(TABLES)('$label — 헤더_글자가_대문자화_유틸을_유지한다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 헤더_글자가_대문자화_유틸을_유지한다', ({ file }) => {
     // ★2026-08-10 — 이 describe 제목은 "대문자화"를 검증한다고 적혀 있었는데 정작
     //   `uppercase` 를 검사하는 케이스가 **하나도 없었다**(지워도 전부 초록). 제목이
     //   과대 진술이 되지 않도록 실제 계약으로 만든다.
@@ -916,7 +991,7 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
    *    식별자"를 위반으로 봐야 하는데, `cn(CELL_CLASS, alignClass(...), meta?.cellClassName)`
    *    처럼 해석 불가 식별자가 정상 코드에 널려 있어 잡음이 커진다.
    */
-  it.each(TABLES)('$label — 표_루트가_17px_본문_토큰을_선언한다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 표_루트가_17px_본문_토큰을_선언한다', ({ file }) => {
     const content = stripComments(readSrc(file));
     const consts = classConstants(content);
 
@@ -937,7 +1012,7 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
     });
   });
 
-  it.each(TABLES)('$label — 본문_계열_요소가_17px를_덮어쓰지_않는다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 본문_계열_요소가_17px를_덮어쓰지_않는다', ({ file }) => {
     const content = stripComments(readSrc(file));
     const consts = classConstants(content);
     const targets = bodySizeTargets(content);
@@ -1007,24 +1082,41 @@ describe('적용관례 — 표 본문 셀 크기(DS-001 typography Do\'s)', () =
 const GRAY_ROW_HOVER = /hover:bg-(gray|neutral|slate|zinc|stone)-\d{2,3}\b/;
 
 /**
- * 행 hover hex 전수 스캔의 **제외 목록** — 기대값으로 그 hex 를 들고 있는 가드 파일뿐이다.
+ * 행 hover hex 전수 스캔의 **제외 목록** — 두 갈래뿐이다.
+ *   · `guard` — 기대값으로 그 hex 를 들고 있는 가드 파일
+ *   · `tokens` — **팔레트를 정의하는 자리**. 이 스캔의 취지는 *"토큰 경유가 규칙이고, 화면이
+ *     raw hex 를 들면 값이 두 군데로 갈린다"* 인데 정의처는 그 「한 군데」 자신이다.
+ *     스캔 머리말이 *"설정 파일은 토큰 정의처라 스캔 대상이 아니다"* 라고 이미 적어 둔 갈래이며,
+ *     2026-09-16 에 부모 포털 테마를 `src/styles/portal/` 로 들여오면서 정의처가 `src` 안으로
+ *     들어와 명시가 필요해졌다.
  *
  * ⚠ 제외는 「빠뜨린 것」이 아니라 판정을 마친 건이다. **컴포넌트·화면 파일은 절대 여기 넣지
- *   않는다** — 토큰 경유가 규칙이고, 화면이 raw hex 를 들면 값이 두 군데로 갈린다.
+ *   않는다** — 아래 검사가 갈래별로 경로 규칙까지 못박아 그 문이 열리지 않게 한다.
  */
-const HEX_SCAN_EXEMPT: { file: string; reason: string }[] = [
+const HEX_SCAN_EXEMPT: { file: string; kind: 'guard' | 'tokens'; reason: string }[] = [
   {
     file: 'tableSurfaceConvention.test.ts',
+    kind: 'guard',
     reason:
       '이 가드 자신 — DS-001 do_rules 2 가 못박은 행 hover 색을 기대값 상수(ROW_HOVER_HEX)로 ' +
       '들고 있어야 관제 축 토큰 값을 대조할 수 있다.',
   },
   {
     file: 'designTokensPortalChannel.test.ts',
+    kind: 'guard',
     reason:
       '포털 채널 토큰 가드 — DS-002 warn 팔레트의 최옅단이 같은 값이라 그 스케일을 값 단위로 ' +
       '고정하려면 리터럴이 필요하다. 그 값이 포털에서 **경고색**이라는 사실이 곧 관제 축의 ' +
       '호박색 hover 를 물려받을 수 없는 근거이기도 하다.',
+  },
+  {
+    file: 'styles/portal/krds-theme-cobalt.css',
+    kind: 'tokens',
+    reason:
+      '부모 포털에서 들여온 **팔레트 정의처** — 이 hex 는 행 hover 가 아니라 그 시스템의 ' +
+      'warning(amber) 스케일 최옅단 값이다(`--krds-color-light-warning-5`). 정의처는 값이 ' +
+      '갈리는 「두 군데」가 아니라 그 한 군데 자신이라 스캔의 취지 밖이다. ' +
+      '⚠ 이 파일의 값을 우리가 고치지 않는다 — 부모 포털 사본이다.',
   },
 ];
 
@@ -1034,9 +1126,16 @@ describe('적용관례 — 표 행 hover 표면(DS-001 do_rules)', () => {
     // 커지면 스캔이 조용히 무력해지므로 **가드 파일뿐**이라는 것도 함께 못박는다.
     for (const e of HEX_SCAN_EXEMPT) {
       expect(e.reason.length, `${e.file}: 제외 사유가 비었거나 너무 짧다`).toBeGreaterThan(30);
-      expect(e.file, `${e.file}: 가드(.test.ts) 가 아닌 파일은 제외 대상이 아니다`).toMatch(
-        /\.test\.tsx?$/,
-      );
+      // 갈래마다 경로 규칙을 못박는다 — 「사유만 그럴듯하게 적으면 뭐든 들어간다」를 막는다.
+      if (e.kind === 'guard') {
+        expect(e.file, `${e.file}: guard 갈래는 가드 파일(.test.ts)이어야 한다`).toMatch(
+          /\.test\.tsx?$/,
+        );
+      } else {
+        expect(e.file, `${e.file}: tokens 갈래는 팔레트 정의 CSS 여야 한다`).toMatch(
+          /^styles\/portal\/[\w-]+\.css$/,
+        );
+      }
     }
   });
 
@@ -1065,7 +1164,7 @@ describe('적용관례 — 표 행 hover 표면(DS-001 do_rules)', () => {
     expect(colorScale('portal', 'warning')['50'].toUpperCase()).toBe(ROW_HOVER_HEX);
   });
 
-  it.each(TABLES)('$label — 표_행_hover_가_전용_토큰을_쓴다', ({ file }) => {
+  it.each(TAILWIND_TABLES)('$label — 표_행_hover_가_전용_토큰을_쓴다', ({ file }) => {
     // ⚠ 구 구현은 **파일 단위 toContain** 이었다 — 파일에 `hover:bg-rowHover` 가 한 번만
     //   있으면 같은 파일의 **다른 표**는 회색이어도 통과했다(DashboardPage 는 표가 둘이다).
     //   그래서 판정 단위를 헤더를 가진 `<table>` 하나하나로 좁힌다.

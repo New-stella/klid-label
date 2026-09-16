@@ -143,7 +143,9 @@ describe('포털 내 작업 — 들어갈 수 없는 행', () => {
     // then(존재): 누를 수 없다는 사실이 눈으로도 보조기술로도 읽힌다
     //   ⚠ 원인을 단정하지 않는다 — 이 갈래는 실제로 프레임이 없지만, 같은 값이 오는 다른 갈래는
     //     프레임이 멀쩡히 있다. 화면은 그 둘을 구분할 근거가 없다.
-    expect(screen.getByText('지금은 이어서 작업할 수 없습니다.')).toBeInTheDocument();
+    /* ⚠ 2026-09-16 — 사유가 문서에 **두 번** 나온다: 말풍선(눈) + 화면 밖 글(귀).
+       킷 말풍선 본문은 `aria-hidden` 이라 그것만으로는 보조기술에 닿지 않아 한 벌을 더 뒀다. */
+    expect(screen.getAllByText('지금은 이어서 작업할 수 없습니다.').length).toBeGreaterThan(0);
     expect(control).toHaveAccessibleDescription('지금은 이어서 작업할 수 없습니다.');
     expect(screen.queryByText(/프레임이 없/)).toBeNull();
 
@@ -177,7 +179,7 @@ describe('포털 내 작업 — 들어갈 수 없는 행', () => {
     // then: 이어서 작업만 막힌다
     expect(screen.getByTestId('portal-work-continue-89')).toHaveAttribute('aria-disabled', 'true');
     // then: 만료 예정일은 그대로 보인다 — 그것이 이 행을 목록에 남기는 이유다
-    expect(screen.getByTestId('portal-work-expiry-89')).toHaveTextContent('만료: 2026-06-10');
+    expect(screen.getByTestId('portal-work-expiry-89')).toHaveTextContent('2026-06-10');
     // then: 내려받기는 함께 막히지 않는다
     expect(screen.getByTestId('portal-work-download-89')).toBeEnabled();
   });
@@ -207,11 +209,13 @@ describe('포털 내 작업 — 들어갈 수 없는 행', () => {
     expect(screen.getByTestId('portal-work-row-90')).toBeInTheDocument();
     expect(screen.getByTestId('portal-work-continue-90')).toHaveAttribute('aria-disabled', 'true');
     // then(존재): 안내는 나오되 **프레임이 없다고 말하지 않는다** — 이 행은 프레임이 있다
-    expect(screen.getByText('지금은 이어서 작업할 수 없습니다.')).toBeInTheDocument();
+    /* ⚠ 2026-09-16 — 사유가 문서에 **두 번** 나온다: 말풍선(눈) + 화면 밖 글(귀).
+       킷 말풍선 본문은 `aria-hidden` 이라 그것만으로는 보조기술에 닿지 않아 한 벌을 더 뒀다. */
+    expect(screen.getAllByText('지금은 이어서 작업할 수 없습니다.').length).toBeGreaterThan(0);
     // then(부재): 사유를 단정하는 표현이 없다
     expect(screen.queryByText(/프레임이 없|마킹|추출/)).toBeNull();
     // then: 다른 축은 함께 막히지 않는다
-    expect(screen.getByTestId('portal-work-expiry-90')).toHaveTextContent('만료: 2026-06-11');
+    expect(screen.getByTestId('portal-work-expiry-90')).toHaveTextContent('2026-06-11');
     expect(screen.getByTestId('portal-work-download-90')).toBeEnabled();
   });
 
@@ -244,8 +248,10 @@ describe('포털 내 작업 — 들어갈 수 없는 행', () => {
     // then: 두 행이 **문자 그대로 같은** 안내를 단다
     const first = within(screen.getByTestId('portal-work-row-91'));
     const second = within(screen.getByTestId('portal-work-row-92'));
-    const firstText = first.getByText(/이어서 작업할 수 없/).textContent;
-    const secondText = second.getByText(/이어서 작업할 수 없/).textContent;
+    /* ⚠ 2026-09-16 — 사유가 문서에 **두 번** 나온다: 말풍선(눈) + 화면 밖 글(귀).
+       킷 말풍선 본문은 `aria-hidden` 이라 그것만으로는 보조기술에 닿지 않아 한 벌을 더 뒀다. */
+    const firstText = first.getAllByText(/이어서 작업할 수 없/)[0].textContent;
+    const secondText = second.getAllByText(/이어서 작업할 수 없/)[0].textContent;
     expect(firstText).toBe('지금은 이어서 작업할 수 없습니다.');
     expect(secondText).toBe(firstText);
   });

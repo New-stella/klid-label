@@ -1,0 +1,69 @@
+@charset "utf-8";
+/* 캔버스 안내. 기준: design.md §2 · §5 (떠 있는 층) · §7 */
+
+/* ── 덮는 하나 ── 칸 전체 */
+.klid-canvas-notice[data-kind='loading'] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  /* 받는 중 — 칸 바탕색을 반만 비치게 덮는다 (그림이 흐리게 남아 무엇을 받는 중인지 보인다) */
+  background-color: color-mix(in srgb, var(--krds-color-light-gray-10) 60%, transparent);
+}
+
+/* 고리 — 받는 중은 크게(48). 획 굵기는 그림이라 척도가 아니다 */
+.klid-canvas-notice .ring {
+  width: var(--krds-size-height-7);
+  height: var(--krds-size-height-7);
+  border: 0.4rem solid var(--krds-color-light-gray-20);
+  border-top-color: var(--krds-color-light-primary-50);
+  border-radius: var(--krds-radius-max);
+  animation: klid-canvas-notice-spin 0.9s linear infinite;
+}
+@keyframes klid-canvas-notice-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klid-canvas-notice .ring {
+    animation: none;
+  }
+}
+
+/* ── 떠 있는 둘 ── 칸 가장자리. 띠 밖은 누를 수 있게 그릇은 누르는 자리를 받지 않는다 */
+.klid-canvas-notice[data-kind='tag'],
+.klid-canvas-notice[data-kind='alert'] {
+  position: absolute;
+  z-index: 1;
+  left: var(--krds-gap-5);
+  right: var(--krds-gap-5);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.klid-canvas-notice[data-placement='top'],
+.klid-canvas-notice[data-placement='top-end'] {
+  top: var(--krds-gap-5);
+}
+.klid-canvas-notice[data-placement='bottom'] {
+  bottom: var(--krds-gap-5);
+}
+.klid-canvas-notice[data-placement='top-end'] {
+  justify-content: flex-end;
+}
+/* 안내 띠는 칸 가로를 꽉 채운다 (2026-09-15 사용자 지시. 종전 글 길이만큼 가운데) */
+.klid-canvas-notice[data-kind='alert'] > .klid-alert {
+  pointer-events: auto;
+}
+/* 어두운 띠 — 그림 위에서 읽혀야 해서 짙은 면 + 흰 글 */
+.klid-canvas-notice .tag {
+  padding: var(--krds-padding-2) var(--krds-padding-5);
+  border-radius: var(--krds-radius-medium1);
+  background-color: color-mix(in srgb, var(--krds-color-light-gray-90) 85%, transparent);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-0);
+  pointer-events: auto;
+}

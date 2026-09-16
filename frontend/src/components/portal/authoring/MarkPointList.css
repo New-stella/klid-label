@@ -1,0 +1,76 @@
+@charset "utf-8";
+/* 마킹 지점 목록. 기준: design.md §2 (보조 본문 14) · §4 (틴트 공식: 면 5 · 선 30 · 글자 70) · §6 */
+
+/* 알약이 흘러 서고 사이 8. 높이를 묶고 안에서 굴린다 —
+   24rem 은 알약 여섯 줄 남짓이 보이는 창의 키다 (척도가 아니라 굴리는 창의 높이) */
+.klid-mark-points {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--krds-gap-3);
+  max-height: 24rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* 알약 — 캡슐 한 개가 고르는 자리와 지우는 자리를 나눠 갖는다. 선 · 면은 알약이 갖고
+   안의 두 버튼은 글자만 */
+.klid-mark-point {
+  display: inline-flex;
+  align-items: center;
+  height: var(--krds-size-height-5);
+  border: 0.1rem solid var(--krds-color-light-gray-30);
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-gray-0);
+  font-size: var(--krds-pc-font-size-body-small);
+  color: var(--krds-color-light-gray-80);
+}
+.klid-mark-point:hover {
+  border-color: var(--krds-color-light-gray-50);
+}
+/* 고른 알약 — 틴트 공식으로 한 칸 떠오른다 (마킹 지점 줄의 고른 눈금과 같은 코발트 계열) */
+.klid-mark-point[data-selected] {
+  border-color: var(--krds-color-light-primary-50);
+  background-color: var(--krds-color-light-primary-5);
+  color: var(--krds-color-light-primary-70);
+}
+
+.klid-mark-point-pick,
+.klid-mark-point-remove {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: var(--krds-radius-max);
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.klid-mark-point-pick {
+  padding: 0 var(--krds-padding-5);
+  font-variant-numeric: tabular-nums;
+}
+/* ×가 붙으면 글자 쪽 오른쪽 여백을 덜어 × 와 붙인다 — 한 알약 안의 두 조각이다 */
+.klid-mark-point[data-removable] .klid-mark-point-pick {
+  padding-right: var(--krds-padding-2);
+}
+.klid-mark-point-remove {
+  padding: 0 var(--krds-padding-4) 0 var(--krds-padding-2);
+  color: var(--krds-color-light-gray-60);
+}
+.klid-mark-point-remove:hover {
+  color: var(--krds-color-light-danger-60);
+}
+.klid-mark-point-remove > svg {
+  width: 1.4rem; /* 배지·칩 안 아이콘 14 (CLAUDE.md 아이콘 규칙) — 크기 규칙이라 토큰이 아니다 */
+  height: 1.4rem;
+}
+/* 맨 버튼이라 킷 포커스 링이 안 따라온다 — 포털 공통 링을 직접 건다 */
+.klid-mark-point-pick:focus-visible,
+.klid-mark-point-remove:focus-visible {
+  box-shadow: var(--krds-box-shadow-outline);
+}

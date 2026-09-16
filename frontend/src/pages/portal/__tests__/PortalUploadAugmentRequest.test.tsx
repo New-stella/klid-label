@@ -75,16 +75,35 @@ async function openForm(user: ReturnType<typeof userEvent.setup>, name = 'street
   return within(await screen.findByRole('dialog'));
 }
 
+/**
+ * 한 칸을 고른다 — 펼쳐서 항목을 누른다.
+ *
+ * ⚠ 2026-09-16 — 고르는 칸이 네이티브 `<select>` 에서 **킷 드롭다운**(ARIA APG Select-Only
+ *   Combobox)으로 바뀌었다. 구 기대값(`selectOptions` · `getByLabelText`)은 폐기다 —
+ *   ①`selectOptions` 는 `<select>` 전용이고 ②킷은 이름(`aria-label`)을 트리거와 목록 **둘 다**
+ *   에 달아 `getByLabelText` 가 어느 쪽인지 가리지 못한다. 그래서 **역할로** 짚는다.
+ *   보이는 것은 우리말이고 보내는 것은 코드라는 축은 그대로다(아래 전송값 단언).
+ */
+async function choose(
+  user: ReturnType<typeof userEvent.setup>,
+  form: ReturnType<typeof within>,
+  field: string,
+  option: string,
+) {
+  await user.click(form.getByRole('combobox', { name: field }));
+  await user.click(form.getByRole('option', { name: option }));
+}
+
 /** 다섯 항목을 모두 고른다 — 보이는 것은 우리말이다. */
 async function chooseAll(
   user: ReturnType<typeof userEvent.setup>,
   form: ReturnType<typeof within>,
 ) {
-  await user.selectOptions(form.getByLabelText(/시간대/), '밤');
-  await user.selectOptions(form.getByLabelText(/계절/), '겨울');
-  await user.selectOptions(form.getByLabelText(/날씨/), '눈');
-  await user.selectOptions(form.getByLabelText(/지형/), '도로');
-  await user.selectOptions(form.getByLabelText(/심각도/), '높음');
+  await choose(user, form, '시간대', '밤');
+  await choose(user, form, '계절', '겨울');
+  await choose(user, form, '날씨', '눈');
+  await choose(user, form, '지형', '도로');
+  await choose(user, form, '심각도', '높음');
 }
 
 beforeEach(() => {
@@ -155,14 +174,14 @@ describe('포털 업로드 목록 — 증강 요청 폼', () => {
 
     expect(form.getByRole('button', { name: '요청' })).toBeDisabled();
 
-    await user.selectOptions(form.getByLabelText(/시간대/), '밤');
-    await user.selectOptions(form.getByLabelText(/계절/), '겨울');
-    await user.selectOptions(form.getByLabelText(/날씨/), '눈');
-    await user.selectOptions(form.getByLabelText(/지형/), '도로');
+    await choose(user, form, '시간대', '밤');
+    await choose(user, form, '계절', '겨울');
+    await choose(user, form, '날씨', '눈');
+    await choose(user, form, '지형', '도로');
     // 아직 심각도가 비었다 — 넷만 골라서는 보낼 수 없다.
     expect(form.getByRole('button', { name: '요청' })).toBeDisabled();
 
-    await user.selectOptions(form.getByLabelText(/심각도/), '높음');
+    await choose(user, form, '심각도', '높음');
     expect(form.getByRole('button', { name: '요청' })).toBeEnabled();
   });
 
@@ -197,7 +216,7 @@ describe('포털 업로드 목록 — 증강 요청 폼', () => {
     renderWithProviders(<PortalUploadPage />);
     const form = await openForm(user);
     await chooseAll(user, form);
-    await user.type(form.getByLabelText(/자유 지시문/), '눈 내리는 밤으로');
+    await user.type(form.getByRole('textbox', { name: '자유 지시문' }), '눈 내리는 밤으로');
     await user.click(form.getByRole('button', { name: '요청' }));
 
     const body = requestAsyncMock.mock.calls[0][0].body as Record<string, unknown>;
@@ -213,8 +232,9 @@ describe('포털 업로드 목록 — 증강 요청 폼', () => {
 
     // 고를 수 있는 것은 생성 조건 다섯뿐이다.
     expect(form.getAllByRole('combobox')).toHaveLength(5);
-    for (const forbidden of [/이벤트 유형/, /세부 유형/, /증강 종류/]) {
-      expect(form.queryByLabelText(forbidden)).toBeNull();
+    for (const forbidden of ['이벤트 유형', '세부 유형', '증강 종류']) {
+      expect(form.queryByRole('combobox', { name: forbidden })).toBeNull();
+      expect(form.queryByText(forbidden)).toBeNull();
     }
   });
 

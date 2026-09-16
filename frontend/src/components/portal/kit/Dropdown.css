@@ -1,0 +1,339 @@
+@charset "utf-8";
+/* 드롭다운 — 킷 Select 를 대신하는 선택 전용 콤보박스.
+   닫힌 모양(트리거)은 킷 셀렉트 실측값을 그대로 잇는다: 높이 36/44/52 · 보더 1 gray-30 ·
+   라운드 8 (§3 "입력·셀렉트는 8") · 좌 12 · 우 36(화살표 16 을 오른쪽 12 에 두고 4 를 띄운다) ·
+   글자 14/400. 킷 셀렉트가 같은 화면에 남아 있어도 두 모양이 갈리지 않게 하기 위함이다. */
+
+.klid-dropdown {
+  position: relative;
+  min-width: 0;
+}
+
+/* ── 트리거 ─────────────────────────────────────────────────────────── */
+
+.klid-dropdown > .trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  width: 100%;
+  padding: 0 var(--krds-padding-5);
+  border: 0.1rem solid var(--krds-color-light-gray-30);
+  border-radius: 0.8rem;
+  background-color: var(--krds-color-light-gray-0);
+  font-size: var(--klid-control-font-sm);
+  font-weight: 400;
+  color: var(--krds-color-light-gray-90);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+/* 높이는 § 컨트롤 사다리(krds-theme.css)에서 온다 — 킷 셀렉트와 같은 값을 읽으므로
+   한 화면에 둘이 섞여 서도 갈리지 않고, 모바일에서도 함께 44/52/60 이 된다 */
+.klid-dropdown[data-size='small'] > .trigger {
+  height: var(--klid-control-height-sm);
+}
+.klid-dropdown[data-size='medium'] > .trigger {
+  height: var(--klid-control-height-md);
+}
+.klid-dropdown[data-size='large'] > .trigger {
+  height: var(--klid-control-height-lg);
+}
+
+/* 조건 이름 — 값보다 한 톤 옅게 앞에 선다. 이름과 값 사이는 킷 gap(6)이 이미 벌려 준다.
+   이름은 안 줄어든다(`flex: none`) — 폭이 모자랄 때 줄어야 하는 쪽은 값이다 */
+.klid-dropdown > .trigger > .label {
+  flex: none;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 고른 값. 폭이 모자라면 말줄임 — 시/군/구는 이름이 길고 뒤에 건수까지 붙는다 */
+.klid-dropdown > .trigger > .value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.klid-dropdown > .trigger > .value[data-placeholder] {
+  color: var(--krds-color-light-gray-40);
+}
+
+.klid-dropdown > .trigger > svg {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--krds-color-light-gray-50);
+  transition: transform 0.15s ease;
+}
+.klid-dropdown[data-open] > .trigger > svg {
+  transform: rotate(180deg);
+}
+
+/* hover 는 칩과 같은 값이다 (design.md §3 호버 갈래 — 칩·드롭다운 트리거).
+   둘 다 흰 면을 두고 **고르는** 조작이라, 같은 줄에 섞여 서는 필터 패널에서 반응이 갈리면
+   무엇이 같은 종류인지 손끝으로 안 읽힌다 */
+.klid-dropdown > .trigger:hover:not(:disabled) {
+  border-color: var(--krds-color-light-primary-30);
+  background-color: var(--krds-color-light-primary-5);
+}
+/* 펼친 동안은 보더만 코발트로 세운다 — 면까지 깔면 아래 목록과 한 덩어리로 뭉쳐
+   어디까지가 트리거인지 흐려진다. hover 보다 뒤에 오고 `:hover` 를 함께 조준해야
+   "펼친 채 마우스가 얹혀 있는" 흔한 상태에서 틴트가 되살아나지 않는다 */
+.klid-dropdown[data-open] > .trigger,
+.klid-dropdown[data-open] > .trigger:hover {
+  border-color: var(--krds-color-light-primary-50);
+  background-color: var(--krds-color-light-gray-0);
+}
+
+.klid-dropdown > .trigger:disabled {
+  background-color: var(--krds-color-light-gray-5);
+  color: var(--krds-color-light-gray-40);
+  cursor: not-allowed;
+}
+.klid-dropdown > .trigger:disabled > svg {
+  color: var(--krds-color-light-gray-30);
+}
+
+/* ── 목록 ───────────────────────────────────────────────────────────── */
+
+/* 트리거 바로 아래 4 를 띄우고 트리거 폭을 최소로 삼되, 항목이 길면 더 벌어질 수 있게 둔다
+   (`min-width` 이지 `width` 가 아니다) — 폭 96 짜리 연도 드롭다운도 항목은 안 잘린다.
+   그림자는 §5 패널 값. z-index 는 같은 패널의 다음 줄 컨트롤 위로 올리기 위한 최소치다 */
+/* ※ `> .list` 가 아니라 내려찾기다 — 목록은 이름 줄과 함께 판(`.panel`) 안에 있다.
+     넓은 화면에서 그 판은 자리를 안 먹으므로(`display: contents`) 목록의 기준 상자는
+     여전히 `.klid-dropdown` 이다 */
+.klid-dropdown .list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--krds-gap-2));
+  left: 0;
+  min-width: 100%;
+  max-width: 32rem;
+  /* 8줄까지 보이고 그 뒤로는 굴린다 — 시/군/구는 스물이 넘는 곳이 있다 */
+  max-height: 32.4rem;
+  padding: var(--krds-padding-2);
+  overflow-y: auto;
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 0.8rem;
+  background-color: var(--krds-color-light-gray-0);
+  box-shadow: 0 1rem 1.5rem -0.3rem rgb(15 23 42 / 10%), 0 0.4rem 0.6rem -0.4rem rgb(15 23 42 / 10%);
+}
+.klid-dropdown .list[hidden] {
+  display: none;
+}
+/* 위로 열기 — 아래 자리가 모자랄 때 부품이 재서 켠다 (Dropdown.tsx ★). 트리거와의 사이는 아래로 열 때와 같다 */
+.klid-dropdown .list[data-above] {
+  top: auto;
+  bottom: calc(100% + var(--krds-gap-2));
+}
+
+.klid-dropdown .option {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  /* 목록 한 줄도 누르는 자리다 — 트리거와 같은 sm 급으로 사다리를 탄다 */
+  height: var(--klid-control-height-sm);
+  padding: 0 var(--krds-padding-4);
+  border-radius: 0.6rem;
+  font-size: 1.4rem;
+  color: var(--krds-color-light-gray-90);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.klid-dropdown .option > .label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.klid-dropdown .option > svg {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--krds-color-light-primary-60);
+}
+
+/* 마우스가 얹힌 자리와 키보드가 가리키는 자리를 **한 상태로 합친다** — 포인터가 움직이면
+   active 가 따라오므로 `:hover` 를 따로 그릴 필요가 없고, 둘이 동시에 다른 줄을 밝히는 일도 없다.
+   목록 항목의 hover 는 LNB·GNB 패널과 같은 회색 필이다 (§11) */
+.klid-dropdown .option[data-active] {
+  background-color: var(--krds-color-light-gray-5);
+}
+
+/* 고른 항목은 틴트 + 코발트 글자 + 체크. 색만으로 가르지 않는다 (§8 색각) */
+.klid-dropdown .option[aria-selected='true'] {
+  background-color: var(--krds-color-light-primary-5);
+  font-weight: 600;
+  color: var(--krds-color-light-primary-60);
+}
+.klid-dropdown .option[aria-selected='true'][data-active] {
+  background-color: var(--krds-color-light-primary-10);
+}
+
+.klid-dropdown .option[aria-disabled='true'] {
+  color: var(--krds-color-light-gray-40);
+  cursor: not-allowed;
+}
+
+/* ── capsule — 캡슐로 서는 조건 줄 ──────────────────────────────────── */
+
+/* `default` 에서 **모서리와 폭 잡는 법만** 다르다. 면·보더·높이·글자·hover·펼침은 위 기본
+   규칙을 그대로 쓴다 — 같은 물건의 다른 모양이지 다른 물건이 아니다.
+   ★ 줄을 채우지 않는다 — 캡슐 줄에서는 고른 값 길이만큼만 서야 옆의 기간 칩과 한 줄로 읽힌다.
+     각진 폼 컨트롤은 칸이 맞아야 줄이 정돈돼 보이지만, 알약은 길이가 저마다 달라도 어긋나
+     보이지 않는다 (필터 칩 줄이 그렇다).
+   ★ 좌우 여백 14 — 알약 끝이 둥글어 각진 상자의 12 를 그대로 쓰면 글자가 벽에 붙어 보인다.
+     § 컨트롤 사다리의 sm 여백과 같은 값이라 캡슐 입력(16)보다 2 좁은데, 오른쪽에 화살표가
+     서서 그만큼을 되돌려 준다 */
+.klid-dropdown[data-variant='capsule'] > .trigger {
+  width: auto;
+  padding-inline: var(--klid-control-padding-sm);
+  border-radius: var(--krds-radius-max);
+  /* 글자는 기간 칩과 같은 값이다 (gray-90 · 600). 캡슐 줄에서는 조건 하나하나가 「지금 걸려
+     있는 조건」을 말하는 자리라 폼 입력값(400)보다 한 단 무겁게 선다 — 굵기가 갈리면
+     같은 줄의 칩과 셀렉트가 다른 종류로 읽힌다 */
+  font-weight: 600;
+}
+/* 이름도 값과 같은 색으로 둔다 — 옅게 깔면 「가입일」 한 조각과 무게가 갈린다.
+   이름과 값을 가르는 일은 색이 아니라 사이 여백(6)이 맡는다 */
+.klid-dropdown[data-variant='capsule'] > .trigger > .label {
+  color: inherit;
+}
+/* 고른 값이 늘어나는 만큼 캡슐이 늘어난다 — 기본은 남는 폭을 값이 먹지만(`flex: 1`),
+   여기서는 먹을 남는 폭 자체가 없다 */
+.klid-dropdown[data-variant='capsule'] > .trigger > .value {
+  flex: none;
+}
+/* 목록은 트리거보다 넓게 시작한다 — 캡슐이 값 길이만큼만 서다 보니 트리거 폭을 그대로
+   물려받으면 판이 손톱만 해져 항목을 훑을 수 없다 (「전체」 하나만 고른 상태가 가장 좁다) */
+.klid-dropdown[data-variant='capsule'] .list {
+  min-width: 12rem;
+}
+
+/* ── sorting — 목록 위에 얹히는 정렬 기준 ───────────────────────────── */
+
+/* 폼 컨트롤이 아니라 목록에 딸린 조작이라 면과 보더가 없다. 킷 `.krds-form-select-sort` 실측
+   (15/600 · 좌 4 · 우 22 · 보더 0)을 잇는다. hover 는 §3 "면이 없는 글자 조작" 갈래 */
+.klid-dropdown[data-variant='sorting'] > .trigger {
+  width: auto;
+  height: auto;
+  /* 면이 없는 글자 조작이라 높이는 글자가 정한다. 손가락에는 그 높이가 모자라므로
+     누르는 자리만 사다리의 최소치까지 넓힌다 — PC(최소치 0)에서는 아무 일도 없다 */
+  min-height: var(--klid-tap-min);
+  padding: var(--krds-padding-1) var(--krds-padding-2);
+  border: 0;
+  border-radius: 0.6rem;
+  background: none;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.klid-dropdown[data-variant='sorting'] > .trigger:hover:not(:disabled),
+.klid-dropdown[data-variant='sorting'] > .trigger:hover:not(:disabled) > svg {
+  background: none;
+  color: var(--krds-color-light-primary-50);
+}
+.klid-dropdown[data-variant='sorting'][data-open] > .trigger {
+  color: var(--krds-color-light-primary-50);
+}
+.klid-dropdown[data-variant='sorting'] > .trigger > .value[data-placeholder] {
+  color: inherit;
+}
+/* 오른쪽 끝에 서는 조작이라 목록도 오른쪽 모서리를 맞춘다 — 왼쪽 정렬이면 목록이 화면 밖으로 샌다 */
+.klid-dropdown[data-variant='sorting'] .list {
+  left: auto;
+  right: 0;
+  min-width: 16rem;
+}
+
+
+/* ── 폰 — 목록이 **아래에서 올라온다** (바텀시트 · 2026-09-07 사용자 지시) ─────────────
+   좁은 폭에서 목록을 트리거 밑에 붙여 열면 둘이 걸린다. 조건이 화면 아래쪽에 있으면 목록이
+   화면 밖으로 나가고, 항목 한 줄이 손가락 하한(44)이라 다섯만 넘어도 화면을 덮는다.
+   아래에서 올라오면 **자리가 늘 같고**(화면 아래) 길면 시트 안에서 구른다.
+
+   ★ **트리거는 안 바뀐다.** 갈리는 것은 목록이 서는 자리뿐이다 — 조건 줄의 생김새가 폭에
+     따라 달라지면 같은 화면을 두 번 익혀야 한다.
+   ※ `data-sheet` 는 부품이 폭을 재서 붙인다 (Dropdown.tsx). CSS 만으로 못 가르는 이유는
+     덮개와 바깥 누르기 같은 **동작**도 함께 갈리기 때문이다 */
+
+/* 뒤를 덮는 면. 창(모달)의 스크림과 같은 값이다 — 같은 층에서 같은 일을 한다 */
+.klid-dropdown > .sheet-dim {
+  position: fixed;
+  z-index: 1030; /* 킷 창(1020) 위 — 창 안에서 열려도 시트가 위에 선다 */
+  inset: 0;
+  background-color: var(--krds-modal--color-dim, rgb(15 23 42 / 0.45));
+}
+.klid-dropdown > .sheet-dim[hidden] {
+  display: none;
+}
+
+/* 이름 줄 + 목록을 묶은 판. **넓은 화면에서는 자리를 안 먹는다** — 목록이 종전처럼
+   트리거(`.klid-dropdown`) 기준으로 붙어야 하므로, 판이 기준 상자가 되면 안 된다 */
+.klid-dropdown > .panel {
+  display: contents;
+}
+
+/* 폰에서는 이 판이 **아래에 붙는 상자**가 된다. 이름은 제자리에 남고 목록만 구른다 */
+.klid-dropdown[data-sheet] > .panel {
+  display: flex;
+  position: fixed;
+  z-index: 1031; /* 덮개 바로 위 */
+  right: 0;
+  bottom: 0;
+  left: 0;
+  flex-direction: column;
+  /* 화면의 3분의 2를 넘지 않는다 — 넘으면 무엇 위에서 고르는지가 안 보인다.
+     항목이 적으면 그만큼만 서고, 많으면 목록이 시트 안에서 구른다 */
+  max-height: 66vh;
+  /* 위 모서리만 접힌다 — 아래는 화면 끝이라 접을 모서리가 없다. 창의 라운드와 같은 값 */
+  border-radius: 1.6rem 1.6rem 0 0;
+  background-color: var(--krds-color-light-gray-0);
+  box-shadow: 0 -0.4rem 1.6rem rgb(15 23 42 / 12%);
+}
+/* 닫혔을 때는 판이 없는 셈이다 — 안이 다 `hidden` 이라 빈 상자만 남으면 화면 아래에 흰 띠가 뜬다 */
+.klid-dropdown[data-sheet]:not([data-open]) > .panel {
+  display: none;
+}
+
+/* 시트 머리 줄 — 무엇을 고르는 중인지 */
+.klid-dropdown[data-sheet] > .panel > .sheet-title {
+  flex: none;
+  margin: 0;
+  padding: var(--krds-padding-6) var(--krds-padding-6) var(--krds-padding-5);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-dropdown .sheet-title[hidden] {
+  display: none;
+}
+
+.klid-dropdown[data-sheet] > .panel > .list {
+  position: static;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  /* 아래는 화면 바닥이라 여백을 더 준다 — 손가락이 걸치는 자리다 */
+  padding: 0 var(--krds-padding-5) var(--krds-padding-8);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* 시트 안에서는 한 줄이 **손가락 하한(44)** 으로 선다. 트리거 옆에 붙던 목록은 마우스가
+   짚는 자리라 sm(36)이면 됐지만, 여기는 손가락이 짚는다 (design.md §9) */
+.klid-dropdown[data-sheet] .option {
+  height: var(--klid-control-height-md);
+  padding: 0 var(--krds-padding-6);
+  border-radius: 0.8rem;
+  font-size: 1.5rem;
+  /* 이름이 길면 접힌다 — 시트는 줄을 채울 폭이 있어 말줄임할 이유가 없다 */
+  white-space: normal;
+}
+
+/* 손가락에는 hover 가 없다 — 가리키는 표시를 지운다. 고른 것은 오른쪽 체크가 말한다 */
+.klid-dropdown[data-sheet] .option[data-active]:not([aria-selected='true']) {
+  background-color: transparent;
+}

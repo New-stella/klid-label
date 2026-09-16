@@ -1,0 +1,2872 @@
+@charset "utf-8";
+/* =============================================================================
+   KLID 포털 디자인 테마 — krds-react 위에 얹는 한 겹
+
+   krds-react 의 마크업은 손대지 않는다. KRDS 기본과 다른 부분은 전부 여기서
+   토큰으로 맞춘다. 컴포넌트 CSS 를 직접 덮어쓰면 업그레이드에 묶인다.
+
+   구성
+     1) 색     krds-theme-cobalt.css (프리미티브 오버라이드)
+              + klid-domain.css (KRDS 밖 도메인 토큰 — 이벤트색·violet·canvas)
+     2) 연출   klid-effects.css (히어로·밴드 그라데이션·도트 텍스처·card-soft)
+     3) 타이포  전역 스케일 (본문 15px 기준)
+     4) 치수    컴포넌트 변수 레벨 조준 (--krds-{component}--*)
+
+   폰트는 KRDS 권장 서체 Pretendard GOV 유지. 로드는 index.html·preview-head.html.
+   KRDS 는 1rem = 10px(font-size 62.5%). px 값은 /10 해서 rem 으로 적는다.
+   고대비 모드(--krds-color-high-contrast-*)는 손대지 않는다.
+
+   기준 디자인 출처: klid_2nd /style 스타일 가이드 (2026-07 확정)
+   ============================================================================= */
+
+@import './krds-theme-cobalt.css';
+@import './klid-domain.css';
+@import './klid-effects.css';
+
+/* -----------------------------------------------------------------------------
+   컨트롤 사다리 — 이 포털의 컨트롤 크기는 전부 여기서 나온다 (2026-08-26 확정)
+
+   ★ 크기를 자리마다 박지 않는다. 버튼·입력·셀렉트·검색창·드롭다운·아이콘 버튼·페이저는
+     이 토큰을 가리키고 **급(sm·md·lg)만 고른다.**
+
+   ★★ 값은 36 / 44 / 52 **한 벌뿐이다.** 모바일용 값을 따로 만들지 않는다 —
+     모바일에서는 **sm 자리에 md 를 쓴다.** 아래 767 블록이 새 숫자를 적지 않고
+     md 토큰을 가리키기만 하는 까닭이다.
+     손가락 최소(44)를 밑도는 건 sm(36) 하나뿐이고 md·lg 는 원래 넘으므로, 그 하나만
+     올리면 끝난다. 값을 두 벌 두면 고칠 때마다 두 군데를 맞춰야 하고 PC 에 없는
+     외톨이 숫자가 생긴다 (2026-08-26 판단 — 한때 44/52/60 로 두었다가 되돌렸다).
+
+   종전에는 높이를 서른 군데에 직접 적어 뒀고, 모바일 대응이 필요해지자 파일 다섯 곳에
+   767 블록이 따로 생겼다. 화면을 하나 더 만들 때마다 같은 일이 반복됐다
+   (생성형 AI 화면의 드롭다운 재조준이 그 예다). 2026-08-26 에 한 곳으로 모았다.
+
+   값의 근거는 design.md §3 「실측 앵커」·「모바일 규칙」.
+   -------------------------------------------------------------------------- */
+:root {
+  --klid-control-height-sm: 3.6rem;
+  --klid-control-height-md: 4.4rem;
+  --klid-control-height-lg: 5.2rem;
+
+  /* 글자 ≈ 높이 ÷ 3 (design.md §1-2) */
+  --klid-control-font-sm: 1.4rem;
+  --klid-control-font-md: 1.5rem;
+  --klid-control-font-lg: 1.7rem;
+
+  /* 버튼 좌우 여백은 높이 비례가 아니라 누진이다 (design.md §3) */
+  --klid-control-padding-sm: 1.4rem;
+  --klid-control-padding-md: var(--krds-padding-7);
+  --klid-control-padding-lg: 2.8rem;
+
+  /* 정사각 아이콘 버튼 — 박스와 글리프가 따로 움직인다 (별도 스케일) */
+  --klid-iconbtn-box-sm: 2.8rem;
+  --klid-iconbtn-box-md: 3.2rem;
+  --klid-iconbtn-box-lg: 3.6rem;
+  --klid-iconbtn-glyph-sm: 1.4rem;
+  --klid-iconbtn-glyph-md: 1.6rem;
+  --klid-iconbtn-glyph-lg: 1.8rem;
+
+  /* 라디오·체크 — 동그라미/네모(box)와 그 안 표식(점·체크).
+     킷은 medium·large 둘뿐이라, 밀집 UI 용 sm 을 우리가 한 급 더 얹는다.
+     ★ 표식은 box 와 **짝수 차이**여야 한다 — 킷이 위치를 `(box − 표식) ÷ 2` 로 잡아
+       홀수 차이면 반픽셀 밀린다 (design.md §3). 18/8 · 20/10 · 24/12 전부 짝수 차이다 */
+  --klid-check-box-sm: 1.8rem;
+  --klid-check-box-md: 2rem;
+  --klid-check-box-lg: 2.4rem;
+  --klid-check-dot-sm: 0.8rem;
+  --klid-check-dot-md: 1rem;
+  --klid-check-dot-lg: 1.2rem;
+  --klid-check-mark-md: 1.2rem;
+  --klid-check-mark-lg: 1.6rem;
+  --klid-check-mark-sm: var(--klid-check-mark-md);
+
+  /* 킷이 직접 그리는 아이콘 버튼(모달 닫기 ✕ · 비밀번호 보기 눈 · 검색어 지우기).
+     킷은 박스와 글리프를 한 값으로 묶어 24 로 그린다 — 우리 사다리 밖이라 따로 잡는다 */
+  --klid-kiticon-glyph: 2.4rem;
+
+  /* 누르는 자리 최소치. 마우스에는 하한이 없고 손가락에는 md(44) 다.
+     ★ 쓰임이 둘이라 토큰도 둘이다 —
+       `--klid-tap-min` 은 `min-height`/`min-width` 에 그대로 꽂는다. PC 값이 `auto` 인 것은
+         `0` 으로 두면 세로로 쌓인 자리에서 상자가 제 내용보다 작아질 수 있기 때문이다.
+       `--klid-tap-floor` 는 `max()` 안에서 계산된다. `auto` 는 계산식에 못 들어가므로 0 이다. */
+  --klid-tap-min: auto;
+  --klid-tap-floor: 0rem;
+
+  /* lg 는 「화면을 끝내는 제출 버튼」자리다 (design.md §3 급 규칙).
+     좁은 폭에서는 가로를 채워 "여기서 끝난다"를 한눈에 만든다 */
+  --klid-btn-lg-width: auto;
+}
+
+/* 모바일 — 새 값을 적지 않는다. **sm 이 md 를 가리킨다**. md·lg 는 그대로 둔다 */
+@media (max-width: 767px) {
+  :root {
+    --klid-control-height-sm: var(--klid-control-height-md);
+    --klid-control-font-sm: var(--klid-control-font-md);
+    --klid-control-padding-sm: var(--klid-control-padding-md);
+
+    /* 라디오·체크도 같은 규칙 — sm 자리에 md 를 쓴다 */
+    --klid-check-box-sm: var(--klid-check-box-md);
+    --klid-check-dot-sm: var(--klid-check-dot-md);
+
+    /* 아이콘 버튼 박스는 배경이 없어 눈에 안 보이는 자리다 — 세 급을 다 컨트롤 md(44)로
+       두고 **글리프 크기로만 급을 가른다.** 글리프는 §8 아이콘 사다리(14·16·18·20)를
+       한 칸씩 올린 값이라 여기서도 새 숫자가 없다 */
+    --klid-iconbtn-box-sm: var(--klid-control-height-md);
+    --klid-iconbtn-box-md: var(--klid-control-height-md);
+    --klid-iconbtn-box-lg: var(--klid-control-height-md);
+    --klid-iconbtn-glyph-sm: 1.6rem;
+    --klid-iconbtn-glyph-md: 1.8rem;
+    --klid-iconbtn-glyph-lg: 2rem;
+
+    --klid-tap-min: var(--klid-control-height-md);
+    --klid-tap-floor: 4.4rem;
+    --klid-btn-lg-width: 100%;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   전역 타이포 스케일 — 본문 15px 기준
+   KRDS 기본(본문 17px · 14px 없음 · 19→24 빈 단계 · 제목=본문 크기 겹침)은
+   데이터 밀도가 중요한 이 포털엔 크고 위계가 성기다. PC 트랙만 재정의한다.
+   13px 하한 유지 · 모바일/고대비 트랙 불변 · 컴포넌트 토큰(버튼 등)은 별도 고정값.
+   -------------------------------------------------------------------------- */
+:root {
+  /* 서체 스택: 라틴·숫자 = Roboto, 한글 = Pretendard GOV (Roboto 에 한글 글리프가 없어
+     자동 폴백). 폰트 로드는 index.html·preview-head.html */
+  --krds-typo-font-type: Roboto, 'Pretendard GOV';
+  /* 웨이트 상한 600 (2026-07-29 결정: 700+ 볼드 미사용, 위계는 크기·색으로).
+     킷의 bold 참조 48곳이 전부 이 프리미티브를 따른다 */
+  --krds-font-weight-bold: 600;
+  /* 컨테이너 정렬 통일 (design.md §6: 최대 1200 + 좌우 24). 킷 기본 wrap 1248 은
+     본문(.klid-container)과 정렬선이 24px 어긋난다 — 푸터 등 킷 .inner 전부가 이 토큰을 따른다 */
+  --krds-contents-wrap-size: 120rem;
+  --krds-pc-font-size-body-large: 1.7rem; /* 19 → 17 */
+  --krds-pc-font-size-body-medium: 1.5rem; /* 17 → 15 · 본문 기본 */
+  --krds-pc-font-size-body-small: 1.4rem; /* 15 → 14 */
+  --krds-pc-font-size-label-large: 1.7rem; /* 19 → 17 */
+  --krds-pc-font-size-label-medium: 1.5rem; /* 17 → 15 */
+  --krds-pc-font-size-label-small: 1.4rem; /* 15 → 14 */
+  --krds-pc-font-size-heading-small: 2rem; /* 19 → 20 · 빈 단계 채움 (카드 제목급) */
+  --krds-pc-font-size-heading-large: 3rem; /* 32 → 30 */
+  /* heading-xsmall 17 · xxsmall 15 · heading-medium 24 · xlarge 40 · display ·
+     body-xsmall 13(하한) 은 유지 */
+}
+
+/* 자간 — 전역 -0.5px (Pretendard 한글 보정, design.md §2 기준).
+   KRDS 는 body 에 letter-spacing 을 선언하지 않아 "추가"로 성립하고,
+   폼 요소는 킷이 inherit 라 그대로 따라온다 (예외는 툴팁 오버레이 한 곳뿐). */
+body {
+  letter-spacing: -0.05rem;
+}
+
+/* 한국어 글줄 — **어절 단위로 접는다** (UX-writing.md §6 「줄바꿈」).
+   기본값(`normal`)은 낱말 가운데서도 끊어 「데이터셋 다운로드」가 「데이터셋 다운로
+   드」로 갈린다. 한국어는 낱말 사이 공백이 적어 이 한 번의 끊김이 글을 크게 깨뜨린다.
+   `break-word` 를 함께 주는 이유는 칸보다 긴 한 덩어리(긴 파일명·URL) 때문이다 —
+   keep-all 만 주면 그런 값이 칸 밖으로 넘쳐 옆 열을 밀어낸다.
+   공백 없는 문자열이 드는 칸은 그 자리에서 `overflow-wrap: anywhere` 로 되돌린다.
+   KRDS 는 body 에 이 두 속성을 선언하지 않아 "추가"로 성립한다 */
+body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 창이 뜰 때 화면이 옆으로 밀리지 않게 — 스크롤바 자리를 늘 비워 둔다.
+   킷은 창이 열려 있는 동안 body 에 .scroll-no(overflow:hidden) 를 붙여 뒤 지면을 잠근다
+   (krds-react 1.1.1 · 사이트맵 오버레이도 같은 방식이다). 그러면 오른쪽 스크롤바가 함께
+   사라지면서 지면이 그만큼 넓어지고, 가운데 정렬된 본문이 스크롤바 폭의 절반만큼 오른쪽으로
+   튄다 — 창이 뜰 때마다 화면 전체가 한 번 흔들려 보이는 까닭이다.
+   stable 은 스크롤이 없는 화면에서도 그 자리를 비워 두므로, 창이 열릴 때도 화면을 옮겨
+   다닐 때도 본문이 제자리에 선다. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* -----------------------------------------------------------------------------
+   Button — pill(rounded-full) · 3단 스케일(36/44/52) · semibold
+   킷은 5단(xsmall~xlarge)이라 small·medium·large 를 sm·md·lg 스케일에 대응시킨다.
+   버튼·입력·검색창은 같은 높이 스케일을 공유한다.
+   -------------------------------------------------------------------------- */
+.krds-btn {
+  /* pill */
+  --krds-button--radius-small: var(--krds-radius-max);
+  --krds-button--radius-medium: var(--krds-radius-max);
+  --krds-button--radius-large: var(--krds-radius-max);
+
+  /* 높이·여백·글자 — 전부 § 컨트롤 사다리 에서 온다. 폭에 따라 알아서 바뀌므로
+     여기에 모바일 분기를 두지 않는다 */
+  --krds-button--size-height-small: var(--klid-control-height-sm);
+  --krds-button--size-height-medium: var(--klid-control-height-md);
+  --krds-button--size-height-large: var(--klid-control-height-lg);
+
+  --krds-button--padding-x-small: var(--klid-control-padding-sm);
+  --krds-button--padding-x-medium: var(--klid-control-padding-md);
+  --krds-button--padding-x-large: var(--klid-control-padding-lg);
+
+  /* ★ 글자는 pc·mobile **두 자리에 같은 토큰**을 꽂는다. 킷이 767 아래에서 mobile 자리로
+     갈아 끼우기 때문에, pc 만 채우면 모바일에서 킷 기본값(15/17/19)이 새어 나온다 —
+     2026-08-26 이전에 모바일 글자가 혼자 커 보이던 원인이 이것이다 */
+  --krds-button--pc-font-size-small: var(--klid-control-font-sm);
+  --krds-button--pc-font-size-medium: var(--klid-control-font-md);
+  --krds-button--pc-font-size-large: var(--klid-control-font-lg);
+  --krds-button--mobile-font-size-small: var(--klid-control-font-sm);
+  --krds-button--mobile-font-size-medium: var(--klid-control-font-md);
+  --krds-button--mobile-font-size-large: var(--klid-control-font-lg);
+
+  /* semibold 고정. 킷 기본은 regular */
+  --krds-button--font-weight-small: 600;
+  --krds-button--font-weight-medium: 600;
+  --krds-button--font-weight-large: 600;
+
+  /* 아이콘 간격 6 / 8 / 8 */
+  --krds-button--gap-small: 0.6rem;
+  --krds-button--gap-medium: var(--krds-gap-3);
+  --krds-button--gap-large: var(--krds-gap-3);
+
+  /* secondary — 흰 배경 + cobalt-200 보더 + cobalt-700 글자, hover cobalt-50.
+     KRDS 기본(코발트 틴트 배경)과 다르다 */
+  --krds-button--color-secondary-fill: var(--krds-color-light-gray-0);
+  --krds-button--color-secondary-fill-hover: var(--krds-color-light-primary-5);
+  --krds-button--color-secondary-fill-pressed: var(--krds-color-light-primary-10);
+  --krds-button--color-secondary-border: var(--krds-color-light-primary-20);
+  --krds-button--color-secondary-text: var(--krds-color-light-primary-60);
+
+  /* text — 면을 깔지 않는다 (design.md §3 호버 갈래). KRDS 기본은 hover·pressed 에
+     secondary-5 면을 까는데, 면이 없다는 것이 이 버튼의 무게라 반응도 글자에서 끝내야 한다.
+     한 줄에 text 와 secondary 가 같이 서는 자리(필터 패널 버튼 줄)에서 둘 다 면이 생기면
+     무엇이 실행이고 무엇이 곁다리인지 색만으로는 안 갈린다. 글자색은 아래 :hover 룰 */
+  --krds-button--color-text-fill-hover: transparent;
+  --krds-button--color-text-fill-pressed: transparent;
+
+  /* disabled — 본래 variant 색 유지 + 반투명(아래 opacity 룰).
+     KRDS 의 회색 처리 대신 각 variant 의 enabled 색을 그대로 참조시킨다 */
+  --krds-button--color-primary-fill-disabled: var(--krds-button--color-primary-fill);
+  --krds-button--color-primary-text-disabled: var(--krds-button--color-primary-text);
+  --krds-button--color-primary-border-disabled: var(--krds-button--color-primary-border);
+  --krds-button--color-secondary-fill-disabled: var(--krds-button--color-secondary-fill);
+  --krds-button--color-secondary-text-disabled: var(--krds-button--color-secondary-text);
+  --krds-button--color-secondary-border-disabled: var(--krds-button--color-secondary-border);
+  --krds-button--color-tertiary-fill-disabled: var(--krds-button--color-tertiary-fill);
+  --krds-button--color-tertiary-text-disabled: var(--krds-button--color-tertiary-text);
+  --krds-button--color-tertiary-border-disabled: var(--krds-button--color-tertiary-border);
+  --krds-button--color-text-fill-disabled: var(--krds-button--color-text-fill);
+  --krds-button--color-text-text-disabled: var(--krds-button--color-text-text);
+  --krds-button--color-text-border-disabled: var(--krds-button--color-text-border);
+  --krds-button--color-link-fill-disabled: var(--krds-button--color-link-fill);
+  --krds-button--color-link-text-disabled: var(--krds-button--color-link-text);
+  --krds-button--color-link-border-disabled: var(--krds-button--color-link-border);
+}
+
+/* text 버튼의 hover·active 는 글자색으로만 (design.md §3 호버 갈래 — 면이 없는 글자 조작).
+   KRDS 는 `.krds-btn.text:hover` 에 background-color 만 선언하고 color 는 선언하지 않아,
+   색을 여기서 "추가"로 얹는다 (선언 속성 덮어쓰기가 아니다).
+   구획 토글(.klid-filter-disclosure .trigger)·패널 링크와 같은 값이라 갈래가 한눈에 묶인다 */
+.krds-btn.text:not(:disabled):hover {
+  color: var(--krds-color-light-primary-50);
+}
+.krds-btn.text:not(:disabled):active {
+  color: var(--krds-color-light-primary-60);
+}
+/* 킷 마스크 아이콘은 currentColor 를 안 따르고 background-color 로 그려 따로 맞춰야 한다.
+   lucide 인라인 SVG 는 currentColor 라 위 color 만으로 따라온다 */
+.krds-btn.text:not(:disabled):hover .svg-icon {
+  background-color: var(--krds-color-light-primary-50);
+}
+
+/* disabled = 반투명 50%. KRDS 는 :disabled 에 opacity 를 선언하지 않아 추가로 성립 */
+/* `.disabled` 클래스는 킷이 주는 **잠겼지만 손이 닿는** 모양이다 (속성 disabled 는 손을 올려도 사유 말풍선이
+   안 뜬다 — IconButton 의 aria-disabled 와 같은 갈래). 잠김 모양을 둘이 같이 쓴다 */
+.krds-btn:disabled,
+.krds-btn.disabled {
+  opacity: 0.5;
+}
+
+/* text 변형에 아이콘이 붙는 자리. 킷은 .krds-btn.text 를 inline-block 으로 선언해서,
+   같은 컴포넌트가 선언한 gap:6 이 아무 일도 하지 않는다 — 아이콘이 글자에 달라붙어
+   한 낱말처럼 읽힌다 (학습데이터 상세 즐겨찾기 · 검색 화면 '초기화').
+   ★ 예외(선언 속성 덮어쓰기): display 만 바꾼다. text-align·white-space 는 그대로 둬서
+   여러 줄로 흐르는 텍스트 버튼의 줄바꿈은 살아 있다 */
+.krds-btn.text {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 버튼 안 아이콘은 18 (design.md §8 "크기는 역할 고정 : … 버튼·툴바 18").
+   킷은 자기 마스크 아이콘(.svg-icon)만 크기를 선언하고 lucide 가 그리는 맨 svg 는 선언하지 않아,
+   그냥 두면 lucide 기본값 24 가 나온다 — 글자 14~17 옆에서 아이콘만 커진다.
+   미선언 속성이라 덮어쓰기가 아니라 추가다. flex:none 은 긴 라벨에서 아이콘이 눌리는 것을 막는다 */
+.krds-btn > svg {
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+/* 작은 버튼(글자 14)은 킷이 자기 아이콘에 주는 작은 칸을 lucide 에도 준다 — 18 이면 글자보다 아이콘이 크다 */
+.krds-btn.small > svg,
+.krds-btn.xsmall > svg {
+  width: var(--krds-icon--size-small);
+  height: var(--krds-icon--size-small);
+}
+
+/* 위험 동작 버튼 (회원 탈퇴 등): primary 문법에 danger 팔레트.
+   채움형은 danger-50(#dc2626, 흰 글자 4.5+) · 외곽형은 secondary 문법에 danger 글자·보더 */
+.krds-btn.klid-btn-danger {
+  --krds-button--color-primary-fill: var(--krds-color-light-danger-50);
+  --krds-button--color-primary-border: var(--krds-color-light-danger-50);
+  --krds-button--color-primary-fill-hover: var(--krds-color-light-danger-60);
+  --krds-button--color-primary-fill-pressed: var(--krds-color-light-danger-70);
+}
+/* 답을 기다리는 버튼 (창의 걸음 `busy`): 잠긴 버튼 글 앞에 도는 고리를 세운다.
+   킷 Button 에 기다림 상태가 없어 가상 요소로 얹는다. 고리는 글자색을 따라 잠긴 색과 같이 간다.
+   16 은 인라인 아이콘 크기 규칙이고 0.2rem 은 획 굵기다 */
+.krds-btn.klid-btn-busy::before {
+  content: '';
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0.2rem solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--krds-radius-max);
+  animation: klid-btn-busy-spin 0.9s linear infinite;
+}
+@keyframes klid-btn-busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .krds-btn.klid-btn-busy::before {
+    animation: none;
+  }
+}
+.krds-btn.klid-btn-danger-line {
+  --krds-button--color-secondary-border: var(--krds-color-light-danger-30);
+  --krds-button--color-secondary-text: var(--krds-color-light-danger-60);
+  --krds-button--color-secondary-fill-hover: var(--krds-color-light-danger-5);
+  --krds-button--color-secondary-fill-pressed: var(--krds-color-light-danger-10);
+}
+/* 글자 버튼의 위험 동작 (업로드 자산 줄의 「삭제」): 평소엔 옆 글자 버튼과 같은 색이고 얹었을 때만 빨강이다
+   (2026-09-14 사용자 결정 — 아이콘 버튼 삭제 톤과 같은 문법). 아이콘은 글자색을 따라온다 */
+.krds-btn.text.klid-btn-danger-text:not(:disabled):hover {
+  color: var(--krds-color-light-danger-50);
+}
+.krds-btn.text.klid-btn-danger-text:not(:disabled):active {
+  color: var(--krds-color-light-danger-60);
+}
+
+/* -----------------------------------------------------------------------------
+   Modal — rounded-2xl(16px) + 스크림 slate-900/45
+   -------------------------------------------------------------------------- */
+.krds-modal {
+  --krds-modal--wrap-radius: 1.6rem;
+  /* 스크림은 허용된 opacity 예외 (모달 뒤 어둡게) */
+  --krds-modal--color-dim: rgb(15 23 42 / 0.45);
+  /* ★ **창 이름은 한 크기다 — 19** (2026-09-07 사용자 지시). 종전에는 19·20·22 셋으로
+     갈려 있었다: 킷 기본 22(넓은 창) · 작은 창만 20 · 다운로드 신청 창만 19. 창을 옮겨
+     다닐 때마다 이름이 커졌다 작아졌다 했다. 스케일의 `heading-small` 한 자리로 모은다.
+     창 폭이 이름 크기를 정하지 않는다 — 이름은 창의 이름일 뿐이고, 창이 크다고 이름까지
+     커질 이유가 없다. **두 갈래(다이얼로그·모달)도 이름 크기는 같다.**
+     ※ 여기서 정하면 모든 창이 한 번에 따라온다. 창 파일이 제 크기를 다시 정하지 않는다 */
+  /* ★ 이름 크기를 **우리 이름 하나로 잡아 둔다.** 킷은 폭마다 다른 변수를 읽고(pc·mobile),
+     X 를 이름 줄 가운데에 세우는 계산도 그 크기를 알아야 한다. 세 자리가 같은 값을 각자
+     적으면 한 번 고칠 때 세 군데를 고쳐야 하고, 하나를 빠뜨리면 X 만 줄에서 어긋난다.
+     ※ 스케일 자체가 폭에 따라 갈린다 — 넓은 화면 20 · 폰 19 (`heading-small`). 갈리는 자리는
+       이 한 줄뿐이고 나머지는 전부 이 이름을 읽는다 */
+  --klid-modal-title-size: var(--krds-pc-font-size-heading-small);
+  --krds-modal--header-pc-font-size: var(--klid-modal-title-size);
+  --krds-modal--header-mobile-font-size: var(--klid-modal-title-size);
+  /* 여백 정렬 (design.md §5 모달 앵커. 킷 기본: 좌우 40·헤더 상 56·본문 하 8 — 푸터 없는
+     모달은 바닥이 8 로 끝나 어긋난다).
+     ★ **좌우는 24 하나다** — 머리 줄 · 본문 · 아랫동이 같은 세로선 위에 선다.
+       (`--krds-modal--padding` 이 세 칸의 좌우를 한꺼번에 정한다) */
+  --krds-modal--padding: var(--krds-padding-8);
+  /* ★ **머리 줄 · 아랫동의 위아래는 16** (2026-09-07 사용자 지시 · 종전 24).
+     선이 생기면서 두 칸이 눈에 보이는 띠가 됐다. 24 로 두면 이름 한 줄 · 버튼 한 줄을
+     담는 띠가 본문보다 두꺼워져, 정작 읽을 것이 가운데로 밀린다.
+     ※ 본문(`--krds-modal--conts-padding-*`)은 그대로다 — 그쪽은 창마다 든 것이 달라 따로 잡는다 */
+  --krds-modal--header-padding-top: var(--krds-padding-6);
+  --krds-modal--btn-padding-top: var(--krds-padding-6);
+  --krds-modal--conts-padding-top: var(--krds-padding-6);
+  --krds-modal--conts-padding-bottom: var(--krds-padding-8);
+  --krds-modal--btn-close-position: 1.6rem;
+  --krds-modal--size-medium: 51.2rem;
+  /* ★ 휴대폰(≤767)에서 킷은 **다른 값 한 벌**을 쓴다 (`--krds-modal--mobile-*`). 위 값들은
+     그 폭에서 아예 안 닿는다. 그중 머리 줄 위 여백이 52 라, 제목이 X 와 같은 줄에 못 서고
+     **한 줄 아래로 내려앉는다** — 창 위에 X 만 있는 빈 띠가 생긴다 (§5 · 2026-08-26 실측).
+     제목과 X 는 같은 줄이 규칙이므로 넓은 화면과 같은 값으로 맞춘다. X 자리도 같이 16
+     (킷 휴대폰 값 20). 좌우 여백은 킷 휴대폰 값이 이미 24 라 그대로 둔다 */
+  --krds-modal--mobile-header-padding-top: var(--krds-padding-6);
+  /* 폰에서는 스케일이 한 칸 아래다 — 이름 19 (넓은 화면 20) */
+  --krds-modal--mobile-btn-padding-top: var(--krds-padding-6);
+  --krds-modal--mobile-btn-padding-bottom: var(--krds-padding-6);
+  --krds-modal--mobile-btn-close-position: 1.6rem;
+}
+
+/* ★ **창은 흐름의 여백을 먹지 않는다** (2026-09-07 실측 · 페이지 식으로 바꾸며 드러났다).
+   창은 화면에 붙어 뜨는 것(`position: fixed`)이라 문서 흐름에 자리를 안 먹는데, **여백은
+   그대로 먹어 창째로 밀린다.**
+   ★ 킷이 창을 `<section>` 으로 그리는 것이 걸린다 — 화면들이 "구획 사이 48" 을
+     `> section + section` 으로 잡아 두는데, 그 규칙이 **창까지 형제로 세어** 창을 48 내린다
+     (문의 상세 · 즐겨찾기 실측). 사방 여백이 있던 때는 눈에 안 띄었지만, 화면을 꽉 채우면
+     그만큼 아래가 잘린다.
+   ※ 클래스를 겹쳐 적은 것은 **이기기 위해서다** — 화면 규칙이 (0,1,2)라 클래스 하나(0,1,0)로는
+     진다. 클래스 둘(0,2,0)이면 이긴다. 화면마다 `:not(.krds-modal)` 을 다는 것보다,
+     창이 스스로 흐름 여백을 안 받는 편이 새 화면에서도 다시 안 터진다 */
+.krds-modal.krds-modal {
+  margin: 0;
+}
+
+/* ★ 창 제목은 **가운데** 서고 **X 와 같은 줄**을 쓴다 (2026-08-26 확정 · §5 모달).
+   킷 기본은 왼쪽인데, 창마다 제목 자리가 갈리지 않도록 공통층이 한 번에 잡는다
+   (종전에는 안내 창 파일에만 적혀 있어 나머지 창이 킷 기본으로 섰다).
+
+   ★ **이름은 창의 정중앙에 선다.** 한때 오른쪽만 X 자리만큼 더 비워 「왼쪽 끝 ~ 이름」과
+     「이름 ~ X」 를 맞춰 봤는데, **이름이 왼쪽으로 치우쳐 보였다** (2026-09-07 사용자 확인 후
+     되돌림). X 는 얇은 글리프라 빈 공간처럼 한쪽을 눌러 주지 않는다 — 그만큼을 다 비우면
+     지나치다. 눈은 이름을 **창 전체**에 대고 읽는다.
+   ★ 좌우를 **같이** 비운다. X 는 절대배치라 흐름에서 자리를 안 먹는데, 왼쪽만 본문 값(24)으로
+     두면 긴 이름이 X 밑으로 들어간다. 값은 X 가 차지하는 폭(여백 + 글리프)에 사이 8 을 더한 것 —
+     식으로 두어 글리프가 사다리 위에서 오르내려도 따라온다.
+   ※ 바텀시트는 X 자리가 달라 뺀다 */
+.krds-modal .modal-header {
+  text-align: center;
+}
+.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .modal-header {
+  padding-inline: calc(var(--krds-padding-8) + var(--krds-icon--size-medium) + var(--krds-gap-3));
+}
+
+@media (max-width: 767px) {
+  .krds-modal {
+    --klid-modal-title-size: var(--krds-mobile-font-size-heading-small);
+  }
+}
+
+/* =============================================================================
+   ★★ 창은 **두 갈래**다 — 모달 · 다이얼로그 (2026-09-07 사용자 지시)
+   =============================================================================
+   종전에는 둘이 섞여 있었다. 같은 부품 안에서 꼴만 갈렸고, 어떤 창이 어느 쪽인지는
+   버튼이 가운데냐 오른쪽이냐로만 짐작할 수 있었다. 갈래를 이름부터 나눈다.
+
+   | | **모달** (`Modal`) | **다이얼로그** (`Dialog`) |
+   |---|---|---|
+   | 무엇이 주인인가 | **내용** | **이름과 걸음** |
+   | 머리 줄에 드는 것 | 이름 (+ 왼쪽 조각) | 이름뿐 |
+   | 걸음 자리 | **오른쪽 끝** | **가운데** |
+   | 머리·아랫동 선 | **있다** | **없다** |
+   | 폭 | sm · md · lg 셋 | sm 하나 |
+
+   **모달이 기본이다** — 아래 규칙은 조건 없이 걸리고, 다이얼로그만 그중 둘(선·걸음 자리)을
+   되돌린다. 창의 대부분이 내용을 담는 자리이고, 다이얼로그는 그중 "글과 걸음만 남은" 좁은
+   갈래이기 때문이다.
+   ※ 이름 크기 · 좌우 24 · 위아래 16 · X 자리는 **두 갈래가 같다.** 갈리는 것은 위 표의 셋뿐이다.
+   ============================================================================= */
+
+/* ── 모달 (기본) — 머리 줄 아래 · 아랫동 위에 선이 선다 ──
+   창은 이름 · 내용 · 걸음 세 칸인데 선이 없으면 세 칸이 한 덩어리로 읽히고, 본문이 굴러
+   글줄이 반쯤 잘릴 때 그 줄이 경계에 걸린 것이 아니라 깨진 것처럼 보인다. 선이 있어야
+   이름과 걸음이 **떠 있는 줄**이 된다. 내용이 주인인 창이라 그 경계가 필요하다.
+   굵기·색은 내부 구분선 규격 그대로다 (0.1 · gray-20 — DetailCard · FilterPanel 과 같은 값).
+
+   여백은 위아래 **16** 으로 같다 (변수는 위 블록, 아래는 킷에 없는 자리라 여기서 준다).
+   ※ 예외 조준 — 킷이 767 아래에서 머리 줄(`... .modal-header` 0-4-0)과 아랫동
+     (`... .modal-btn` 0-4-0)의 여백을 통째로 다시 쓴다. 0-5-0 으로 조준해야 두 폭에서 다 이긴다.
+     머리 줄 아래 여백은 킷에 아예 없고(폰에서는 0 으로 눌린다) 선을 그으려면 여기서 준다.
+     아랫동 아래 여백은 PC 에서 좌우와 같은 변수(`--krds-modal--padding` 24)를 읽으므로,
+     좌우를 24 로 둔 채 아래만 16 으로 내리려면 이 자리에서 따로 적는다.
+   ※ 바텀시트는 뺀다 (X · 걸음 자리가 다른 갈래다) */
+.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .modal-header {
+  padding-bottom: var(--krds-padding-6);
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .modal-btn {
+  padding-bottom: var(--krds-padding-6);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+/* 걸음은 **오른쪽 끝**에 선다 — 킷 기본이라 여기서 적을 것이 없다 (아래 다이얼로그가 되돌린다) */
+
+/* ── 모달은 폰에서 **화면을 꽉 채운다** (2026-09-07 사용자 지시 · 「페이지 식」) ──
+   좁은 폭에서 모달은 이미 화면을 거의 다 쓰는데, 사방에 20 씩 남은 띠 때문에 **뒤 화면이
+   테두리처럼 비쳐** 창인지 화면인지 애매하다. 담은 것이 한 판짜리 폼이나 읽을 자료라
+   세로가 길고, 그 20 이 스크롤할 자리를 깎기도 한다. 아예 꽉 채우고 **머리 줄과 X 가
+   페이지의 머리 노릇**을 하게 둔다 — 창을 띄운 것이 아니라 한 걸음 들어간 것으로 읽힌다.
+
+   **다이얼로그는 그대로 뜬다** — 글 두어 줄과 걸음뿐이라 화면을 채우면 빈 공간만 남고,
+   "잠깐 묻는다" 는 성격도 사라진다.
+   **넓은 화면도 그대로다** — 거기서는 창이 화면의 일부로 떠 있는 것이 맞다.
+
+   변수만 갈아 끼운다 — 킷이 폰에서 창 크기를 이 셋으로 잡는다. 라운드는 화면 모서리와
+   겹치므로 편다. `.modal-content` 는 킷이 `max-height` 만 주므로 높이를 채우도록 더한다.
+   본문은 남는 높이를 먹고 혼자 구른다 — 머리 줄과 아랫동은 제자리에 남는다
+   (`max-height: none` 은 다운로드 신청 창이 넓은 화면용으로 걸어 둔 60vh 를 푼다) */
+@media (max-width: 767px) {
+  .krds-modal:not([data-type='bottom-sheet']):not(.klid-dialog) {
+    --krds-modal--mobile-gap: 0rem;
+    --krds-modal--mobile-width: 100%;
+    --krds-modal--mobile-height: 100%;
+    --krds-modal--wrap-radius: 0;
+  }
+  .krds-modal:not([data-type='bottom-sheet']):not(.klid-dialog) .modal-dialog .modal-content {
+    height: 100%;
+    max-height: 100%;
+    border: 0;
+    box-shadow: none;
+  }
+  .krds-modal:not([data-type='bottom-sheet']):not(.klid-dialog)
+    .modal-dialog
+    .modal-content
+    .modal-conts {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+}
+
+/* ── 다이얼로그 — 선을 **긋지 않는다** ──
+   담은 것이 글 두어 줄과 걸음뿐이라 나눌 칸이 없다. 선을 그으면 짧은 글이 칸에 갇혀,
+   알리려던 한 문장보다 테두리가 먼저 보인다. 굴러 잘릴 내용도 없어 경계를 알릴 일도 없다.
+   ★ 조준은 위 모달 규칙과 **같은 무게(0-5-0)에 클래스 하나를 더해** 이긴다
+     (`.klid-dialog` 가 `.krds-modal` 과 같은 요소에 붙는다 — krds-react 1.1.1) */
+.klid-dialog.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .modal-header {
+  border-bottom: 0;
+}
+.klid-dialog.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .modal-btn {
+  border-top: 0;
+}
+/* 걸음은 **가운데**로 모은다. 창이 통째로 가운데 정렬이라 걸음만 오른쪽에 붙으면 축이 둘이 된다.
+   ※ 예외 조준 — 킷이 `.krds-modal .modal-dialog .modal-btn` (0-3-0)에 `flex-end` 를 선언한다 */
+.klid-dialog.krds-modal .modal-dialog .modal-btn {
+  justify-content: center;
+}
+
+/* ★ **X 는 이름의 글줄 한가운데에 선다.**
+   킷 X 는 창(`.modal-content`) 기준 절대배치라 머리 줄의 여백이 셈에 안 들어가고, 위에서
+   센 고정값 하나로 뜬다. 머리 줄 위 여백이 12 로 내려오면서 그 고정값(16)이 이름보다
+   아래로 처져 **아래 선에 걸쳤다** (2026-09-07 실측).
+   자리는 머리 줄에서 **계산한다** — 위 여백 + 이름의 **눈에 보이는 한가운데**.
+   ★ 글줄 상자의 절반(크기 × 0.75)이 아니다. 한글은 **아랫벌을 안 쓴다** — 글자 상자는
+     알파벳 g·y 가 내려갈 자리를 아래에 비워 두는데 한글은 거기까지 안 내려오므로,
+     상자의 한가운데는 눈에 보이는 한가운데보다 **아래**다. 그 상자에 X 를 맞추면 X 만
+     내려앉아 보인다 (2026-09-07 사용자 지적 · 실측 1px).
+     0.72 는 두 폭에서 잰 잉크 한가운데를 맞춘 값이다 (폰 이름 19 · 넓은 화면 20 —
+     폰트 지표가 정수로 반올림돼 폭마다 조금 갈리므로 둘의 오차가 가장 작은 값으로 둔다.
+     남는 어긋남은 어느 폭에서도 0.5 아래다).
+   ★ 이름의 크기·행간이나 글꼴을 바꾸면 이 값을 다시 잰다 — 잉크는 글꼴이 정한다.
+   ★ 숫자로 박지 않는 이유: 이름 크기가 폭마다 갈리고(넓은 화면 20 · 폰 19) 앞으로도 사다리
+     위에서 오르내린다. 박아 두면 이름을 한 칸 옮길 때마다 여기도 따라 고쳐야 하고, 한 번
+     잊으면 X 만 줄에서 빠진다 — 실제로 그렇게 두 번 어긋났다 (2026-09-07).
+   ★ 제 높이의 절반만큼 되올려(`translateY`) **X 가 몇이든 가운데가 그 자리에 맞는다** — X 는
+     폰에서 44(손가락 하한), 넓은 화면에서 24 로 상자가 갈리는데 이 한 줄이 둘 다 잡는다.
+
+   좌우는 **글리프가 본문·아랫동과 같은 세로선(24)에 서게** 맞춘다 (2026-09-07 좌우 통일).
+   X 는 누르는 상자가 글리프보다 크다 — 넓은 화면 24, 폰은 손가락 하한까지 넓어져 44 다.
+   그 상자를 24 에 붙이면 **글리프는 그 안에서 또 물려 있어** 줄이 어긋난다.
+   그래서 상자가 아니라 **글리프를 24 에 세운다**: 24 − (상자 − 글리프) ÷ 2.
+   ★ 식으로 두는 이유는 상자도 글리프도 값이 갈리기 때문이다 — 폭마다 상자가 다르고(24·44)
+     글리프는 사다리 위에서 오르내린다. 숫자로 박으면 한쪽을 고칠 때마다 여기도 따라 고쳐야
+     하고, 한 번 잊으면 X 만 줄에서 빠진다. 식은 미디어 쿼리도 필요 없다 —
+     `--klid-tap-floor` 가 넓은 화면에서 0 이라 `max()` 가 두 폭을 알아서 가른다.
+   ※ 예외 조준 — 킷이 767 아래에서 `... .modal-dialog .btn-close` (0-4-0)로 다시 쓴다.
+     0-5-0 으로 조준해야 두 폭에서 다 이긴다 */
+.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .btn-close {
+  top: calc(var(--krds-modal--header-padding-top) + var(--klid-modal-title-size) * 0.72);
+  right: calc(
+    var(--krds-padding-8) -
+      (max(var(--krds-button--icon-size-medium), var(--klid-tap-floor)) -
+            var(--krds-icon--size-medium)) / 2
+  );
+  transform: translateY(-50%);
+}
+
+/* ★ **X 글리프는 20** — 아이콘 사다리(16 · 20 · 24) 한 칸 아래다 (2026-09-07 사용자 지시 · 종전 24).
+   이름이 17 로 내려오면서 X 가 이름보다 커져, 창 위에서 먼저 눈에 걸리는 것이 나가는 길이 됐다.
+   창의 머리 줄에서 주인은 이름이다.
+   ★ **누르는 자리는 그대로 44 다** (폰). 줄인 것은 보이는 글리프뿐이고 손가락이 닿는 넓이는
+     안 건드린다 (§9 손가락 하한 · krds-theme.css § 킷 아이콘 버튼).
+   ※ 이 창의 X 만 줄인다 — 같은 킷 글리프를 쓰는 비밀번호 보기 눈 · 검색어 지우기는 입력칸 안
+     조작이라 결이 다르고, 한꺼번에 줄일 자리가 아니다 (`--klid-kiticon-glyph` 는 24 그대로) */
+.krds-modal:not([data-type='bottom-sheet']) .modal-dialog .modal-content .btn-close .svg-icon {
+  width: var(--krds-icon--size-medium);
+  height: var(--krds-icon--size-medium);
+}
+
+
+/* -----------------------------------------------------------------------------
+   Badge — disabled(라이트) 텍스트 대비 보정 (킷 gray-50 on gray-20 = 3.86:1 미달 → gray-60 6.9:1)
+   -------------------------------------------------------------------------- */
+.krds-badge {
+  --krds-badge--color-disabled-text: var(--krds-color-light-gray-60);
+  /* 채움형 disabled: 킷 gray-40 배경 + 흰 글자 = 2.56:1 미달 → gray-60 배경 7.6:1 */
+  --krds-badge--color-disabled-element: var(--krds-color-light-gray-60);
+}
+
+/* -----------------------------------------------------------------------------
+   StepIndicator — canvas 배경 가시성 (킷 기본은 비활성 원·트랙이 gray-10급이라
+   서브페이지 canvas(#f4f6fa)에 묻힌다). 비활성 원·미완료 라인 전부 gray-30 으로 통일 —
+   킷은 활성 단계 뒤 라인만 border-default 를 써서 색이 갈린다. 완료 라인(다크)은 진행 표시라 유지
+   -------------------------------------------------------------------------- */
+.krds-step-wrap {
+  --krds-step--color-fill-default: var(--krds-color-light-gray-30);
+  --krds-step--color-border-default: var(--krds-color-light-gray-30);
+}
+/* 활성 원: 킷의 3겹(흰 채움+보더+바깥 링) 대신 단색 코발트 (채움·링 숨김은 킷 선언 덮음 — 예외) */
+.krds-step-wrap > li.active > span::before {
+  background-color: var(--krds-step--color-fill-active);
+}
+.krds-step-wrap > li.active > span::after {
+  display: none;
+}
+
+/* -----------------------------------------------------------------------------
+   Table — thead 회색(가벼운 헤더) · 행 구분선 옅게 · 셀 여백은 design.md §5
+   카드 셸(rounded-2xl 테두리)은 킷에 대응 개념이 없어 래퍼로 처리한다.
+   -------------------------------------------------------------------------- */
+.krds-table-wrap {
+  --krds-table--data-thead-border: var(--krds-color-light-gray-20);
+  /* 행 사이 선 (design.md §5 구분선 위계). 종전 gray-5 는 흰 면 위에서 거의 안 보여
+     줄을 가르지 못했다 — 한 톤 진한 gray-10 이다 (2026-08-24) */
+  --krds-table--data-tbody-color-divider: var(--krds-color-light-gray-10);
+
+  /* ★ 머리 줄은 **면을 갖는다** (2026-08-24 · design.md §5). 표가 시작되는 자리를 면이 알린다.
+     아주 옅은 그레이라 값 쪽(상태 배지·붉은 D-day)의 색과 다투지 않는다 */
+  --krds-table--data-thead-surface: var(--krds-color-light-gray-5);
+
+  /* 셀 여백 (design.md §5 표 셀) — 세로·가로 토큰이 따로다. 머리·본문 모두 세로 12, 가로 12.
+     본문 행 높이가 글자 15×1.6 + 상하 12 = 44 로 떨어진다 (2026-08-24 · 종전 14/52) */
+  --krds-table--data-thead-th-padding: var(--krds-padding-5);
+  --krds-table--data-thead-th-padding-sides: var(--krds-padding-5);
+  --krds-table--data-tbody-padding: var(--krds-padding-5);
+  --krds-table--data-tbody-padding-sides: var(--krds-padding-5);
+
+  /* 머리 글자는 **13**, 값은 15. 머리가 값보다 뒤로 물러나는 일을 크기가 맡는다.
+     ★ 글자 크기는 **넓은 화면·폰 두 짝을 다 정한다** (2026-09-07). 폰 쪽을 비워 두면 킷 기본값이
+     그대로 나오는데, 값 쪽 기본이 17 이라 폰에서만 본문이 저 혼자 커졌다 (머리 13 · 값 17).
+     한 짝만 적으면 넓은 화면에서 맞춘 위계가 폰에서 무너진다 — 네 줄이 늘 같이 선다 */
+  --krds-table--data-thead-pc-font-size: 1.3rem;
+  --krds-table--data-thead-mobile-font-size: 1.3rem;
+  --krds-table--data-tbody-pc-font-size: 1.5rem;
+  --krds-table--data-tbody-mobile-font-size: 1.5rem;
+
+  /* ★★ 머리 글자색은 **600 이 하한이다** — 머리에 면이 들어온 뒤로 500 은 4.40:1 로 §8 하한에
+     미달한다 (흰 면 위에서만 4.76:1 로 겨우 통과하던 값이다). 연하게 보이는 일은 색이 아니라
+     크기 13 · 굵기 400 이 맡는다 */
+  --krds-table--data-thead-color-text: var(--krds-color-light-gray-60);
+}
+/* thead th 가 font-weight-bold 를 하드 참조한다. 머리는 regular(400) — 굵기를 빼면 같은 색도
+   한 단 연하게 보인다 (2026-08-24 · 종전 500) */
+.krds-table-wrap thead {
+  --krds-font-weight-bold: 400;
+}
+
+/* 표 카드 셸. 킷 테이블을 감싸는 래퍼용.
+   색은 토큰으로 부른다 (2026-08-08) — 값이 같더라도 직접 박아 두면 팔레트를 바꿀 때
+   이 셸만 옛 색으로 남는다. 값은 §5 표면과 같다 (흰 면 + gray-20 보더 + 라운드 16) */
+/* ★ 껍데기(면·보더·라운드)를 **이름으로** 둔다 — 모바일에서 미는 표는 이 껍데기가 셸에서
+   안쪽 상자로 옮겨 간다 (아래 「좌우로 미는 콘텐츠의 가장자리」). 값을 두 번 적으면
+   §5 표면을 손볼 때 한쪽만 바뀐다 */
+.klid-table-shell {
+  --klid-table-shell-border: 0.1rem solid var(--krds-color-light-gray-20);
+  --klid-table-shell-radius: 1.6rem;
+  --klid-table-shell-surface: var(--krds-color-light-gray-0);
+
+  overflow: hidden;
+  border: var(--klid-table-shell-border);
+  border-radius: var(--klid-table-shell-radius);
+  background-color: var(--klid-table-shell-surface);
+}
+/* ★ 줄 짚기(얹히면 면이 바뀜)는 **눌리는 줄에만** 준다 (2026-09-07 확정 · design.md §5).
+   종전에는 셸을 가진 표면 전부에 줬는데, 그러면 눌러도 아무 일이 없는 표(다운로드 순위 ·
+   접속이력 요약)에서도 줄이 반응한다 — 면이 바뀌는 것은 읽던 줄 표시이기 전에 **누를 수 있다는
+   말**이라, 눌러 보고 아무 일이 없으면 화면이 고장 난 것으로 읽힌다.
+   읽기 보조가 필요한 긴 표는 실제로 전부 줄이 창을 여는 표다.
+   면은 **토큰을 다시 정의해서** 준다 (킷이 셀 배경을 그 토큰으로 그린다). CSS 변수는 쓰이는
+   요소(td)에서 해석되므로 행(tr)에서 갈라치면 그 줄만 면이 바뀐다 */
+.klid-table-shell .tbl.data tbody tr.klid-row-open:hover {
+  --krds-table--data-tbody-color-surface: var(--krds-color-light-primary-5);
+}
+
+/* 줄이 창을 여는 표 — 줄 전체가 누를 자리다 (design.md §5 · 부품은 rowOpen.ts).
+   얹힘 표시(면 바뀜)는 바로 위 규칙이 이미 주므로 여기서는 손 모양과 초점 자리만 더한다.
+   초점 링은 box-shadow 대신 outline 으로 그린다 — 표는 셀 테두리를 겹쳐 그려서(collapse)
+   tr 의 섀도가 셀 밑으로 잘린다. 안쪽으로 당겨(offset 음수) 줄 폭 안에 링이 든다 */
+.klid-row-open {
+  cursor: pointer;
+}
+.klid-row-open:focus-visible {
+  outline: 0.2rem solid var(--krds-light-color-border-primary);
+  outline-offset: -0.2rem;
+}
+
+/* 표 안 배지는 칸에서 접히지 않는다 — 「다운로드 가능」이 두 줄로 접히면 그 줄만 키가 커진다 */
+.klid-table-shell .krds-badge {
+  white-space: nowrap;
+}
+
+/* 정렬 표식 — 목록이 **어느 열을 기준으로 서 있는지** 머리글이 말한다 (2026-09-02).
+   기준이 안 보이면 줄 차례가 임의로 읽히고, 예약 공지처럼 공개 시작이 늦은 글이 위에 있을 때
+   "왜 여기 있나"를 표에서 알 길이 없다.
+   ★ 누르는 것이 아니다 — 서버가 정한 고정 정렬이라(정렬 파라미터가 없다) 버튼으로 만들지
+     않는다. 글리프는 방향만 말하고, 보조기술에는 머리글의 `aria-sort` 가 같은 말을 한다 */
+.klid-th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.klid-th-sort svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  color: var(--krds-color-light-gray-50);
+}
+
+/* ── 표 컬럼 폭 척도 (2026-08-31 · 목록 표 공통) ──
+   값 길이가 정해진 칸(유형·상태·날짜·수치·버튼)은 내용 폭으로 못 박고, 길이가 들쭉날쭉한 칸
+   (제목·이름)이 남는 폭을 다 먹는다. 못 박지 않으면 남는 폭이 모든 칸에 고루 퍼져서
+   제목은 일찍 접히는데 유형·상태·등록일은 필요 없이 벌어진다.
+   칸마다 값이 달라 못 박는 자리는 각 화면 CSS 가 고르고, **폭 값은 여기 한 곳**에 둔다.
+   척도에 없는 실측값이라 rem 으로 둔다 (표 컬럼 폭의 관행) */
+.klid-table-shell {
+  --klid-table-col-xs: 7rem; /* 순위 · 첨부 표시 */
+  --klid-table-col-s: 9rem; /* 번호 · 건수 · 용량 */
+  --klid-table-col-m: 11rem; /* 날짜 · 조회수 */
+  --klid-table-col-l: 12rem; /* 유형 · 상태 배지 · 버튼 한 개 */
+  --klid-table-col-xl: 14rem; /* 시·도 이름 · 기관명 · 배지 둘이 붙는 상태 */
+
+  /* ★ 제목 · 대상 — **길이가 들쭉날쭉한 칸**. 폰에서 28 에 못 박는다 (2026-09-07 사용자 확정).
+     종전에는 이 칸이 남는 폭을 다 먹어서 표마다 19~38 로 두 배 차이가 났다. 그래서 같은 폰
+     폭에서도 공지·문의는 제목이 한 줄로 뻗고, 내 학습데이터·이력은 두 줄로 접혔다 —
+     접히는 자리가 표마다 다르면 목록을 옮겨 다닐 때 줄 키가 계속 튄다.
+     ★ 값이 **하나뿐인 까닭** — 표는 `table-layout: fixed` 라 칸 폭을 width 로만 알아듣는다.
+     최소·최대를 둘 다 주면 둘 다 무시되고 예전(남는 폭 다 먹기)으로 돌아간다. 그래서 폭은
+     28 하나로 못 박고, 짧은 제목도 이 폭에 선다 — 넷이 **같은 자리에서** 접히는 쪽을 택했다 */
+  --klid-table-col-title: 28rem;
+}
+
+/* 표 안 숫자는 자리폭 고정 — 번호·건수·날짜가 행마다 흔들리지 않게 (design.md §2) */
+.klid-table-shell table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 셸 안 표의 첫·끝 열만 좌우 20 (design.md §5 "표 끝 열 20" — 카드 패딩과 정렬해 셸에 딱 붙지 않게)
+   **＋ 시각 보정 4** — 셸이 둥근 면이라 끝 열 글자가 그냥 붙으면 밖으로 새 보인다
+   (klid-optical.css §둥근 면 위 맨 글자). 표에서는 열 하나를 반쯤 밀 수 없어 **열이 통째로** 움직인다.
+   ★ 킷 선언 속성(padding) 덮어쓰기 예외. 첫·끝 열 전용 토큰이 없어 셀 패딩을 직접 조준한다.
+     셸이 없는 표(마이페이지 등)는 이 규칙의 전제(셸 경계)가 없으므로 킷 기본을 유지한다 */
+.klid-table-shell .tbl.data th:first-child,
+.klid-table-shell .tbl.data td:first-child {
+  padding-left: calc(2rem + var(--klid-text-optical));
+}
+.klid-table-shell .tbl.data th:last-child,
+.klid-table-shell .tbl.data td:last-child {
+  padding-right: calc(2rem + var(--klid-text-optical));
+}
+
+/* -----------------------------------------------------------------------------
+   좌우로 미는 콘텐츠의 가장자리 (모바일 · design.md §9)
+
+   휴대폰에서 좌우로 미는 것(옆으로 미는 줄 · 화면보다 넓은 표)은 **셋이 한꺼번에 서야 한다**:
+     ① 처음 자리 — 왼쪽 여백이 빈다 (내용이 화면의 다른 것과 같은 선에서 시작한다)
+     ② 미는 동안 — 내용이 그 여백을 가로질러 **화면 좌우 끝까지** 찬다
+     ③ 마지막 자리 — 오른쪽 여백이 빈다
+   미는 상자가 좌우 여백을 되돌려(음수 마진) 화면 끝까지 나가고 그 여백을 **안쪽 패딩으로**
+   되돌려 넣으면 셋이 저절로 선다. 되돌릴 폭은 셸이 이름으로 준다 (shell.css `--klid-page-pad`)
+   — 화면이 12 를 옮겨 적지 않는다. 멈춤(스냅)이 있는 줄은 같은 선에 서도록 scroll-padding 도
+   함께 준다.
+
+   ★ 2026-09-01 공용으로 올렸다 — 종전에는 추천 세트 줄과 상세 미리보기 줄이 같은 세 줄을
+     각자 적고 있었다. 미는 자리가 생기면 **이 클래스를 붙인다**, 세 줄을 다시 적지 않는다.
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .klid-swipe-edge,
+  .klid-table-shell {
+    margin-inline: calc(-1 * var(--klid-page-pad, 0px));
+    padding-inline: var(--klid-page-pad, 0px);
+    scroll-padding-inline: var(--klid-page-pad, 0px);
+  }
+  /* 막대가 뜨는 미는 상자라면 — 막대는 **내용과 같은 선에서 시작하고 끝난다**
+     (2026-09-01 사용자 지시). 상자는 화면 끝까지 나가 있어서 그대로 두면 막대만 화면
+     이쪽 끝에서 저쪽 끝까지 그어져, 카드보다 긴 줄이 하나 더 생긴다.
+     되돌린 여백만큼 트랙을 물려 막대의 좌우 끝을 카드의 좌우 끝에 맞춘다.
+     (막대 생김새 자체는 공용 `klid-scrollbar` 가 갖는다 — 여기서는 자리만 맞춘다) */
+  .klid-swipe-edge::-webkit-scrollbar-track,
+  .klid-table-shell::-webkit-scrollbar-track {
+    margin-inline: var(--klid-page-pad, 0px);
+  }
+
+  /* ── 표를 미는 자리 — **미는 것은 카드다** ──────────────────────────────────
+     셸이 껍데기(면·보더·라운드)를 벗어 **미는 상자**가 되고, 그 껍데기는 표를 감싼 안쪽
+     상자가 그대로 입는다 (값은 위 `.klid-table-shell` 이 이름으로 준다). 그래서 처음
+     자리에서는 카드 왼쪽 둥근 모서리가 여백 뒤에 서고, 미는 동안 카드가 화면 끝까지 차고,
+     마지막 자리에서 오른쪽 모서리가 선다 — 상세 미리보기 줄에서 낱장이 하는 일과 같다.
+     껍데기를 셸에 남겨 두면 카드가 제자리에 못 박혀 ②·③ 이 서지 않는다.
+
+     ★★ **셸을 가진 표는 전부 이렇게 된다** (2026-09-01 사용자 지시 — 공지사항·문의하기·약관
+       ·내 학습데이터). 화면이 클래스를 붙이는 방식으로 두면 붙인 화면만 이 짜임이 되고
+       나머지는 카드 오른쪽 선에서 잘린 채 남는다 — 목록 화면의 표는 전부 같은 물건이다 */
+  /* ★★ 킷이 폰에서 표를 **73.2rem 으로 못 박는다** — 우리 표에는 맞지 않는 못이다 (2026-09-07).
+     열 폭이 내용대로 정해져 있는데 표 폭만 732 로 고정되니, 남는 폭을 **제목 칸이 통째로**
+     먹었다. 그래서 같은 폰 폭에서 제목 칸이 표마다 19~38 로 두 배 차이가 났고 (다른 칸이
+     많은 표일수록 제목이 좁아진다), 접히는 자리도 표마다 달랐다.
+     못을 뽑아 **열 폭의 합이 표 폭을 정하게** 한다 */
+  .klid-table-shell .krds-table-wrap .tbl {
+    min-width: 0;
+  }
+  /* 제목 · 대상 칸 폭 — 표는 `table-layout: fixed` 라 칸 폭을 **width 로만** 알아듣는다
+     (최소·최대는 통째로 무시된다). 그래서 척도의 위쪽 값 하나로 못 박는다.
+     ★ 폰에서만이다 — 넓은 화면에서는 이 칸이 남는 폭을 먹는 것이 옳다 (제목이 길어 봐야
+     칸이 넉넉하다). PC 에서 폭을 박으면 남는 폭이 모든 칸에 고루 퍼져 표가 무너진다 */
+  .klid-table-shell .tbl.data th.klid-th-title {
+    width: var(--klid-table-col-title);
+  }
+
+  .klid-table-shell {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    /* 늘 뜨는 막대는 카드 밑변에서 4 띄운다 (2026-09-01 사용자 지시 · 미는 줄과 같은 값).
+       막대 생김새는 화면이 짜지 않는다 — 상자에 공용 `klid-scrollbar` 를 함께 붙인다 */
+    padding-bottom: var(--krds-padding-2);
+  }
+  .klid-table-shell .krds-table-wrap {
+    /* 미는 일은 바깥(셸)이 맡으므로 여기서는 굴리지 않는다. 껍데기가 둥근 모서리 밖으로
+       새지 않게 감싸기만 한다 (머리 줄 회색 면이 모서리를 네모로 덮는 것을 막는다).
+       ★ 폭 — 킷이 767 이하에서 이 상자 폭을 **화면 폭 기준(100vw)** 으로 다시 잡는데,
+         그러면 카드가 표보다 좁아 오른쪽 열이 잘린다 (실측 2026-09-01). 표가 요구하는
+         폭(킷 min-width)만큼 갖되, 표가 화면보다 좁을 때는 자리를 다 채우게 둔다 */
+    width: min-content;
+    min-width: 100%;
+    overflow: hidden;
+    border: var(--klid-table-shell-border);
+    border-radius: var(--klid-table-shell-radius);
+    background-color: var(--klid-table-shell-surface);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   결과 머리 — 건수(왼쪽)와 정렬(오른쪽)이 서는 한 줄. 목록을 늘어놓는 화면이 공유한다
+   (학습데이터 검색 · AI 모델 목록 …). 간격 규칙은 design.md §6 "결과 머리".
+   화면마다 따로 두면 같은 값을 옮겨 적게 되고, 실제로 두 화면에 같은 선언이 갈라져 있었다.
+   -------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+   메타 구분선 — 카드 아래 사실값 두 짝(녹화일·제작처 ↔ 용량)을 가르는 세로선.
+   가운뎃점은 글자와 같은 흐름이라 `녹화 2023-08 · 1.2 GB` 가 한 문장처럼 이어져 읽힌다 —
+   선은 둘이 성격이 다른 값임을 모양으로 말한다.
+   높이는 글자(13)에 맞춘 12 다. 상자 높이를 따라가면 글자보다 위아래로 튀어나온다.
+   색은 gray-30 — 줄 구분선(gray-20)보다 한 단계 진하다. 12 짜리 짧은 선이라 같은 값이면
+   글자 옆에서 사라진다. 좌우 8 은 아이콘·글자 간격 급이다 (design.md §1).
+
+   ★ 학습데이터 검색(.klid-dataset-search)에만 있던 것을 올렸다 (2026-08-18). 즐겨찾기가
+   같은 결과 카드를 쓰면서 두 화면이 쓰게 됐는데, 화면 스코프라 즐겨찾기에서는 선이 아예
+   안 그려져 두 값이 붙어 읽혔다 (`녹화 2023-081.2 GB`). 결과 머리와 같은 사유다.
+   -------------------------------------------------------------------------- */
+.klid-meta-div {
+  display: inline-block;
+  width: 0.1rem;
+  height: 1.2rem;
+  margin: 0 0.8rem;
+  vertical-align: -0.1rem;
+  background-color: var(--krds-color-light-gray-30);
+}
+
+.klid-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--krds-gap-4) var(--krds-gap-5);
+  /* 표면 없이 맨바닥에 서는 줄이라 좌우 8 (design.md §6). 이 줄이 컨테이너 끝에 붙으면
+     위아래의 필터 패널·카드보다 바깥으로 튀어나온 것처럼 읽힌다 — 면은 보더 안쪽에서
+     글이 시작하는데 이 줄은 0 에서 시작하기 때문이다 */
+  padding-right: var(--krds-padding-3);
+  padding-left: var(--krds-padding-3);
+  margin-top: 3.2rem; /* 위 구획(필터·리드문)에서 넘어오는 전환 32 */
+  /* 아래 목록과는 12 — 건수·정렬은 그 목록을 설명하는 줄이라 붙여 둔다.
+     ★ 다음 형제(`+ *`)가 아니라 **머리 자신의 아래 여백**으로 준다. 목록 컨테이너는 자기
+     margin 을 0 으로 지우는 것이 보통인데(ul 기본 여백 제거), 특정도가 같아 나중에 로드되는
+     컴포넌트 CSS 가 이겨 12 가 조용히 죽는다. 실제로 .klid-row-list 에서 그랬다 */
+  margin-bottom: 1.2rem;
+}
+.klid-result-head .klid-result-count {
+  margin-block: 0;
+  /* 머리 줄이 이미 8 을 갖고 있다 — 여기서 또 주면 16 이 된다 */
+  padding-inline: 0;
+}
+
+/* 결과 머리 없이 **건수만 홀로** 서는 화면도 있다 (활용사례·공지사항·FAQ·문의하기).
+   정렬이 없어 한 줄을 따로 두지 않은 자리인데, 맨바닥에 선 줄인 것은 같으므로 같은 8 을
+   준다 (design.md §6). 위의 머리 안에서는 이 값을 도로 0 으로 지운다 */
+.klid-result-count {
+  padding-inline: var(--krds-padding-3);
+}
+
+/* -----------------------------------------------------------------------------
+   배지 4종 — 목록 카드와 상세 머리가 함께 쓴다 (design.md §4 배지 4종 표가 정본).
+
+   ★ 검색 화면 CSS 에만 있었다 (2026-08-08 공통층 이동). 같은 세 가지 사실(재난유형·증강·
+     출처)이 목록과 상세에 다 서는데 모양이 한쪽에만 있으면, 상세는 킷 Badge 로 따로 그리게
+     되고 실제로 그랬다 — 셋 다 캡슐이 되어 "모양이 갈래를 말한다"는 §4 의 전제가 무너졌다.
+   -------------------------------------------------------------------------- */
+
+/* -----------------------------------------------------------------------------
+   구획 카드 — 상세 화면에서 구획 하나를 담는 흰 면. §5 표면 규칙 그대로다
+   (흰 면 + gray-20 보더 + 라운드 16 + 기본 본문 패딩 24).
+
+   ★ 학습데이터 상세(.klid-ds-card)와 AI 모델 상세(.klid-aim-card)가 **같은 선언을 이름만
+     달리해 각자 갖고 있었다** (2026-08-08 통합). 이름이 다르니 중복으로 보이지도 않아,
+     §5 값이 바뀌면 두 곳을 따로 고쳐야 했다. 상세 화면이 늘 때마다 한 벌씩 늘어난다.
+   -------------------------------------------------------------------------- */
+.klid-section-card {
+  padding: var(--krds-padding-8); /* §5 기본 본문 24 */
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-gray-0);
+}
+
+/* -----------------------------------------------------------------------------
+   다운로드 신청 모달 (.klid-dl-*) — 학습데이터 상세와 AI 모델 상세가 함께 쓴다.
+   담는 항목은 화면마다 다르지만(범위 선택·활용 목적 유무) **껍데기는 같은 모달**이다.
+
+   ★ 두 화면 CSS 가 같은 클래스를 각자 정의하고 있었다 (2026-08-08 통합). 이름이 같으니
+     SPA 에서 두 파일이 다 로드되면 **나중에 로드된 쪽이 이긴다** — 어느 화면을 먼저 들렀는지에
+     따라 약관 박스 높이(16rem vs 12rem)와 패딩(20 vs 16)이 달라졌다. 값이 갈린 자리는
+     규칙이 있는 쪽으로 모았다: 패딩 20(§5 밀집 목록), 약관 위 구분선 유지(여백만으로는
+     "적는 자리 → 읽고 동의하는 자리" 경계가 안 읽힌다).
+   화면에만 있는 것(오류 문구·범위 요약)은 각 화면 CSS 에 남는다.
+   -------------------------------------------------------------------------- */
+
+/* 무엇을 받는지 되보여 주는 줄 */
+.klid-dl-target {
+  padding: var(--krds-padding-5) var(--krds-padding-6);
+  border-radius: 1.2rem;
+  background-color: var(--krds-color-light-gray-5);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-dl-field {
+  margin-top: var(--krds-gap-6);
+}
+.klid-dl-label {
+  margin-bottom: 1.2rem;
+  font-size: 1.4rem; /* 폼 라벨 14 (design.md §2) */
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-dl-radios {
+  display: grid;
+  gap: var(--krds-gap-4);
+}
+
+/* 여기부터는 적는 자리가 아니라 읽고 동의하는 자리다. 경계는 **여백과 제목**이 맡는다.
+   ★ 종전에는 위에 구분선을 뒀는데 2026-09-03 사용자 지시로 뺐다 — 머리 줄·아랫동에 선이
+     생기면서 창 안에 가로선이 셋이 됐고, 그중 이 선만 칸을 나누는 선이 아니라 겉돌았다.
+     선을 뺀 뒤에는 위 여백 한 값만 남긴다 (선이 있을 때의 위 24 + 아래 24 를 그대로 두면
+     빈 띠가 된다).
+   ★ 창 안의 칸 사이 간격은 같은 날 **척도에서 한 칸씩 내렸다** (필드 사이 24→20 ·
+     이 구획 32→24 · 동의 줄 20→16). 창이 세로로 길어 한 칸 위 값으로는 한 화면에 안 들어왔다.
+     위아래 관계는 그대로다 — 구획 사이(24) > 필드 사이(20) > 묶음 안(16) */
+.klid-dl-terms {
+  margin-top: var(--krds-gap-7);
+}
+.klid-dl-terms h3 {
+  margin-bottom: 1.2rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+/* 약관 전문은 길어서 모달 안에서 따로 스크롤한다. 키보드로도 굴릴 수 있게 tabindex 를 준다 */
+.klid-dl-terms-body {
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: var(--krds-padding-7); /* §5 밀집 목록 20 */
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.2rem;
+  background-color: var(--krds-color-light-gray-5);
+  font-size: 1.4rem;
+  color: var(--krds-color-light-gray-70);
+}
+/* 보조 본문 14px 행간 1.55 (design.md §2). ★ 상자에만 걸면 글에 닿지 않는다 — 킷 리셋이
+   p·li 하나하나에 기본 행간(--krds-line-height-base = 1.5)을 직접 박아 상속을 덮어쓴다.
+   약관 전문은 화면이 <p> 목록으로 꽂아 넣으므로 문단·항목에 건다 (상세 본문도 같다) */
+.klid-dl-terms-body,
+.klid-dl-terms-body p,
+.klid-dl-terms-body li {
+  line-height: 1.55;
+}
+/* ── 우리가 만든 스크롤 영역의 스크롤바 ──────────────────────────────────────────
+   스크롤바는 킷 모달 본문(.modal-conts)과 같은 문법으로 맞춘다. 킷은 그 규칙을 자기
+   컴포넌트에만 걸어 둬서, 우리가 만든 스크롤 영역은 손대지 않으면 OS 기본이 나온다 —
+   한 화면에 서로 다른 스크롤바가 둘이면 그것부터 눈에 걸린다.
+   ★★ **새 스크롤 영역은 `klid-scrollbar` 를 붙인다** (2026-09-01 사용자 지시 —
+   "스크롤바 우리 것 써라, 자꾸 만들어내지 말고"). 종전에는 아래 목록에 선택자를 하나씩
+   더했는데, 그러면 스크롤 영역이 생길 때마다 이 파일 네 자리를 고쳐야 하고 빠뜨리면
+   그 자리만 OS 기본 막대가 나온다. **막대 생김새를 화면이 다시 짜는 일은 없다.**
+   아래 목록은 이름을 붙이기 전부터 있던 자리들이라 그대로 둔다 (약관 박스 · 검색 조건 창
+   본문 · 내 학습데이터 표 · 상세 미리보기 미는 줄).
+   ※ 표는 **막대를 늘 띄우려고** 여기 든다 (2026-08-26 사용자 지시) — 손대지 않으면 맥·크롬은
+   밀 때만 잠깐 뜨는 겹침 막대를 써서, 표가 옆으로 밀린다는 사실을 아무것도 말하지 않는다.
+   열이 셸 경계에 딱 맞아 떨어지면 표가 거기서 끝난 것으로 읽힌다. 규칙을 주면 자리를
+   차지하는 보통 막대로 바뀌어 밀 수 있는 동안 늘 보인다.
+   (미는 줄과 반대 결정인 것은 담는 것이 달라서다 — 저기는 잘린 낱장이 말해 주지만,
+    표의 열은 폭이 제각각이라 늘 걸치게 잡을 수가 없다.)
+   ※ 옆으로 미는 줄(추천 세트 · 저장분 칩)은 여기 들지 않는다 — 막대를 아예 감춘다 (아래 참조).
+   ※ 다만 **학습데이터 상세 미리보기 미는 줄**은 미는 줄인데도 여기 든다 — 낱장이 누를 수 없는
+   그림뿐이라 막대를 감추면 키보드로 옮길 수단이 없어진다 (아래 감추기 주석의 단서 그대로).
+   맥의 겹침 막대가 그림 위에 올라앉지 않게 하는 것도 여기 드는 이유다 — 규칙을 주면 자리를
+   차지하는 보통 막대로 바뀌어 그림 **아래**에 선다 (2026-08-31 사용자 지시).
+   ※ 검색 조건 창은 킷 모달인데도 여기 든다 — 킷이 창 본문에 제 스크롤바(8 · 바탕색 있는 트랙)를
+   따로 걸어 두는데, 그 하나만 포털의 다른 스크롤 영역과 모양이 갈린다. 조건이 창을 넘기는
+   자리라 늘 보이는 막대인데, 그 막대가 화면 안 다른 막대와 다르면 그것부터 눈에 걸린다.
+   킷 규칙이 0-3-0 이라 이 줄만 조준을 한 급 올려 뒀다.
+
+   ★ 손잡이는 투명 테두리 2 를 둘러 사방으로 2 씩 물린다. 스크롤 영역이 둥근 모서리를 가질 때
+   네모 스크롤바가 그 선 밖으로 빠져나오는 것을 막는다.
+   그래서 굵기를 8→12 로 잡았고, 보이는 손잡이는 8 로 킷과 같다.
+   트랙(바탕)은 색을 지운다 — 바탕색이 위아래 모서리를 네모로 덮는 것이 주범이다.
+   ※ 표준 속성(scrollbar-width·scrollbar-color)은 **쓰지 않는다** — 크롬은 둘 중 하나라도 있으면
+   아래 -webkit- 규칙을 통째로 버려서, 손잡이 물림(2)도 트랙 지움도 사라진다 (2026-08-26 실측).
+   ※ 폰(iOS)의 겹쳐 뜨는 스크롤바는 OS 가 그리는 것이라 여기 규칙이 닿지 않는다 */
+.klid-scrollbar::-webkit-scrollbar,
+.klid-table-shell::-webkit-scrollbar,
+.klid-dl-terms-body::-webkit-scrollbar,
+.klid-mydata .krds-table-wrap::-webkit-scrollbar,
+.klid-ds-swipe::-webkit-scrollbar,
+.klid-filter-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar,
+.klid-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar {
+  width: 1.2rem;
+  height: 1.2rem; /* 옆으로 미는 줄은 굵기가 높이다 */
+}
+/* ── 옆으로 미는 줄은 막대를 **감춘다** (2026-08-26 사용자 확정) ──────────────────
+   손가락으로 미는 줄이라 막대는 평소 조작에 쓰이지 않는데, 늘 떠 있으면 줄 아래 회색 선이
+   하나 더 생긴 것으로 읽히고 낱장 밑변에 겹쳐 카드가 잘려 보인다.
+   **옆에 더 있다는 것은 잘린 낱장이 말한다** — 카드·칩 폭을 화면에 딱 떨어지지 않게 잡아
+   다음 장의 왼쪽이 늘 걸치게 해 둔 것이 그 표식이다.
+   ※ 접근성 — 이 줄의 낱장은 전부 누를 수 있는 것(링크·버튼)이라 Tab 으로 하나씩 닿고 줄이
+     따라 밀린다(2026-08-26 확인). **누를 수 없는 낱장이 섞이면 막대를 되살려야 한다** —
+     그때는 키보드가 멈출 자리가 없어 막대가 유일한 이동 수단이 된다 */
+.klid-search-set-grid,
+.klid-saved-chips {
+  scrollbar-width: none; /* 파이어폭스 */
+}
+.klid-search-set-grid::-webkit-scrollbar,
+.klid-saved-chips::-webkit-scrollbar {
+  display: none;
+}
+.klid-scrollbar::-webkit-scrollbar-thumb,
+.klid-table-shell::-webkit-scrollbar-thumb,
+.klid-dl-terms-body::-webkit-scrollbar-thumb,
+.klid-mydata .krds-table-wrap::-webkit-scrollbar-thumb,
+.klid-ds-swipe::-webkit-scrollbar-thumb,
+.klid-filter-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar-thumb,
+.klid-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar-thumb {
+  border: 0.2rem solid transparent;
+  border-radius: 0.8rem;
+  background-color: var(--krds-light-color-element-secondary-light);
+  background-clip: padding-box;
+}
+.klid-scrollbar::-webkit-scrollbar-track,
+.klid-table-shell::-webkit-scrollbar-track,
+.klid-dl-terms-body::-webkit-scrollbar-track,
+.klid-mydata .krds-table-wrap::-webkit-scrollbar-track,
+.klid-ds-swipe::-webkit-scrollbar-track,
+.klid-filter-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar-track,
+.klid-modal.krds-modal .modal-dialog .modal-conts::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+/* 걸음 줄이 없는 창은 본문이 창 바닥까지 닿는다 — 막대 길을 창 둥글기만큼 바닥에서 띄워
+   손잡이가 아래 모서리 곡선 밖으로 빠져나오지 않게 한다 (단축키 도움말 실측 · 2026-09-15) */
+.klid-modal[data-steps='none'].krds-modal .modal-dialog .modal-conts::-webkit-scrollbar-track {
+  margin-bottom: var(--krds-modal--wrap-radius);
+}
+.klid-dl-terms-body p + p {
+  margin-top: 1.2rem;
+}
+/* 동의는 약관을 읽은 뒤의 별개 행위라 블록 간격 20 으로 띄운다 (design.md §6).
+   ★ 킷 클래스(.krds-form-check 등)를 겨누지 않고 "약관 박스 다음 것" 으로 잡는다 —
+   킷이 체크박스를 무엇으로 감싸든 이 규칙은 살아 있어야 한다 */
+.klid-dl-terms-body + * {
+  margin-top: var(--krds-gap-5);
+}
+
+/* 본문 위·아래 여백만 이 창의 것이다 — 든 것이 폼 한 판이라 다른 창보다 넉넉히 잡는다.
+   ※ 제목 크기 · 머리 줄과 아랫동의 여백 · 선 · X 자리는 **공통층이 갖는다** (위 § Modal).
+     2026-09-07 에 창 전부가 같은 값으로 서게 되면서 이 창만의 값이 아니게 됐다 */
+.krds-modal.klid-dl-modal {
+  --krds-modal--conts-padding-top: var(--krds-padding-8);
+}
+
+/* 휴대폰에서 킷이 본문 아래 여백을 0 으로 누른다 — 그대로 두면 마지막 줄이 아랫동 선에 붙는다 */
+.krds-modal.klid-dl-modal .modal-dialog .modal-content .modal-conts {
+  padding-bottom: var(--krds-padding-8);
+}
+
+/* 내용이 긴 모달은 본문이 스스로 굴러야 한다 — 안 그러면 하단 버튼이 내용을 덮는다.
+   킷이 선언하지 않은 속성이라 덧붙이기만 한다 (design.md §10 킷 수정 순서) */
+.krds-modal.klid-dl-modal .modal-conts {
+  max-height: 60vh;
+  overflow-y: auto;
+  /* 스크롤바가 본문 오른쪽 8 을 먹는데 푸터에는 스크롤바가 없다 — 그대로 두면 입력칸 오른쪽 끝만
+     안으로 밀려, 신청 버튼이 홀로 밖으로 튀어나온 것처럼 보인다. 자리를 늘 잡아 두고(gutter)
+     오른쪽 패딩에서 그만큼 덜어, 입력칸·약관 박스의 오른쪽 끝이 푸터 버튼과 같은 선에 선다.
+     스크롤바는 그 바깥 여백에 뜬다 */
+  scrollbar-gutter: stable;
+  padding-right: var(--krds-padding-6);
+}
+
+/* -----------------------------------------------------------------------------
+   Chip — pill + py 기반 치수(md 34 / sm 30)
+   선택색(코발트 틴트)은 시맨틱 참조로 이미 맞다. 치수·모양만 조정.
+   다중선택 = CheckboxChip(틴트) / 단일선택 = RadioChip + .klid-chip-fill(채움)
+   -------------------------------------------------------------------------- */
+.krds-form-chip {
+  --krds-form-chip--radius-small: var(--krds-radius-max);
+  --krds-form-chip--radius-medium: var(--krds-radius-max);
+  --krds-form-chip--radius-large: var(--krds-radius-max);
+
+  --krds-form-chip--size-height-small: 3rem;
+  --krds-form-chip--size-height-medium: 3.4rem;
+  /* lg 44 — 입력·셀렉트 md(44)와 한 줄에 놓이는 필터바용. 캡슐은 둥근 끝이 덩어리를 깎아
+     같은 높이여도 네모보다 작아 보이므로, 필터 안에서는 높이를 맞춰야 한 줄로 읽힌다 */
+  --krds-form-chip--size-height-large: 4.4rem;
+
+  --krds-form-chip--padding-x-small: var(--krds-padding-4);
+  --krds-form-chip--padding-x-medium: 1.4rem;
+  /* lg 가로 18 — §4 의 "가로:세로 2.3~2.5:1"(세로 여백 ≈11 → 가로 25)과 "글자 대비 1.0em"
+     (글자 15 → 15) 사이. 25 는 알약이 지나치게 길어져 8개 줄이 두 줄로 넘어간다 */
+  --krds-form-chip--padding-x-large: 1.8rem;
+
+  --krds-form-chip--pc-font-size-small: 1.4rem;
+  --krds-form-chip--pc-font-size-medium: 1.4rem;
+  --krds-form-chip--pc-font-size-large: 1.5rem; /* 높이 44 → 글자 15 (§3 높이의 약 1/3) */
+
+  --krds-form-chip--gap: 0.6rem;
+}
+
+/* 칩 줄 간격 — 킷은 그룹 컨테이너(.krds-check-area)에 gap-6(20)을 쓴다. 세로로 쌓인 라디오·
+   체크박스 목록 기준값이라 가로 칩 줄에 쓰면 칩끼리 남처럼 떨어진다. §6 사다리에서 20 은
+   "다음 항목" 값이고, 칩 한 줄은 "한 컴포넌트 안"(10~16)이므로 8 로 좁힌다.
+   ★ 킷 선언 속성(gap) 덮어쓰기 예외. 토큰(--krds-gap-6)은 전역 간격이라 이 자리에서 재조준하면
+     하위 다른 요소까지 끌려가므로 gap 자체를 조준한다. 칩이 든 그룹만 골라 세로 목록은 킷 기본 유지 */
+.krds-check-area:has(.krds-form-chip) {
+  gap: var(--krds-gap-3);
+  /* 칩 줄은 좁아지면 접힌다. 킷은 nowrap 이라 칩이 많은 줄(재난유형 8·월 12)이 좁은 화면에서
+     옆으로 밀려나가 문서 폭을 늘린다 — 접힌 아코디언 안이어도 새어 나온다.
+     세로로 쌓인 라디오·체크박스 목록은 이 셀렉터에 안 걸려 킷 기본을 그대로 쓴다 */
+  flex-wrap: wrap;
+}
+
+/* 칩 hover·active — 킷이 아예 선언하지 않는 상태다 (토큰도 color-action / -checked / -disabled
+   셋뿐이고 hover 가 없다). 미선언 속성이라 추가한다.
+   §3 은 "표면이 흰 것은 hover 에 틴트 표면(cobalt-50 / slate-100)" 두 갈래를 준다. 칩은 조건을
+   켜는 자리라 회색이 아니라 **코발트 쪽**을 쓴다 — 회색 틴트는 "비활성"으로도 읽혀 누를 수 있다는
+   신호가 약하다. 미선택 hover 는 primary-5, 선택 hover 는 한 단계 진한 primary-10 이다.
+   미선택 hover 의 보더는 primary-30 으로, 선택 상태(primary-50)보다 확실히 옅게 둬야
+   "얹었을 뿐"과 "켜졌다"가 갈린다.
+   칩 label 에는 킷이 이미 transition(.4s)을 걸어놨으므로 따로 주지 않는다.
+   대비: 미선택 hover 16.3:1 · 선택 hover 7.38:1 (§8 하한 4.5:1) */
+.krds-form-chip input:not(:disabled) ~ label:hover {
+  background-color: var(--krds-color-light-primary-5);
+  border-color: var(--krds-color-light-primary-30);
+}
+.krds-form-chip input:not(:disabled):checked ~ label:hover {
+  background-color: var(--krds-color-light-primary-10);
+  border-color: var(--krds-color-light-primary-60);
+}
+/* 누르는 순간은 한 단계 더 (§3 active 두 단계) */
+.krds-form-chip input:not(:disabled) ~ label:active {
+  background-color: var(--krds-color-light-primary-10);
+}
+.krds-form-chip input:not(:disabled):checked ~ label:active {
+  background-color: var(--krds-color-light-primary-20);
+}
+
+/* 라디오·체크박스(.krds-form-check)도 같은 이유로 hover 가 없다. 칩과 한 패널에 섞여 놓이므로
+   (학습데이터 검색 조건) 한쪽만 반응하면 고장처럼 보인다. 이쪽은 표면이 없으니 동그라미·네모
+   테두리(::before)를 코발트로 올려 "이걸 고르려는 중"을 알린다 */
+.krds-form-check input:not(:disabled) ~ label:hover::before {
+  border-color: var(--krds-color-light-primary-50);
+}
+
+/* 칩 체크(✓) 아이콘 토글.
+   색각 접근성 장치(색만으로 선택 상태를 구분하지 않게)라 기본은 유지하고,
+   미니멀이 필요한 자리만 이 클래스를 얹어 끈다.
+   ★ KRDS 가 선언한 ::before content 를 재정의하는 문서화 예외다 (토글 기능상 불가피).
+   셀렉터는 KRDS 원형(input~label:before, 특이도 0,2,2)을 이겨야 해서 같은 구조로 조준한다. */
+.klid-chip-no-check .krds-form-chip input[type='radio'] ~ label::before,
+.klid-chip-no-check .krds-form-chip input[type='checkbox'] ~ label::before {
+  content: none;
+}
+
+/* 채움형 칩 래퍼 — 단일선택(RadioChip) 묶음에 얹으면 checked 가 틴트 대신
+   코발트 채움이 된다. 컴포넌트 CSS 를 덮지 않고 색 토큰만 재선언한다.
+   ★ KRDS 가 checked 색 토큰을 .krds-form-chip 자신에 선언하므로 래퍼 단독
+     셀렉터로는 가려진다. 반드시 하위 조합으로 조준해야 이긴다. */
+.klid-chip-fill .krds-form-chip {
+  --krds-form-chip--color-action-checked: var(--krds-color-light-primary-50);
+  --krds-form-chip--color-border-checked: var(--krds-color-light-primary-50);
+  --krds-form-chip--color-text-checked: var(--krds-color-light-gray-0);
+  --krds-form-chip--color-check-checked: var(--krds-color-light-gray-0);
+}
+
+/* 세그먼트 래퍼 — 단일선택 묶음을 한 덩어리 막대로 붙인다.
+   낱개로 흩어진 칩(다중선택)과 모양으로 갈리게 하려는 것이다: 붙어 있으면 하나만 켜지고,
+   떨어져 있으면 여러 개 켤 수 있다. 미선택 상태에서도 몇 개를 고를 수 있는지 알 수 있다.
+   채움과 체크 끄기를 안에 품으므로 .klid-chip-fill·.klid-chip-no-check 를 겹쳐 붙이지 않는다. */
+.klid-segment .krds-form-chip {
+  --krds-form-chip--color-action-checked: var(--krds-color-light-primary-50);
+  --krds-form-chip--color-border-checked: var(--krds-color-light-primary-50);
+  --krds-form-chip--color-text-checked: var(--krds-color-light-gray-0);
+  --krds-form-chip--color-check-checked: var(--krds-color-light-gray-0);
+}
+.klid-segment .krds-form-chip input[type='radio'] ~ label::before {
+  content: none;
+}
+/* 칸 사이를 붙이고 보더 한 겹을 공유한다 */
+.klid-segment .krds-check-area:has(.krds-form-chip) {
+  gap: 0;
+}
+.klid-segment .krds-form-chip + .krds-form-chip {
+  margin-left: -0.1rem;
+}
+/* 가운데 칸은 각지게, 양 끝만 캡슐 (§7 명령은 캡슐).
+   기본 각짐은 토큰으로 끄고, 양 끝 모서리만 직접 조준한다.
+   ★ 킷 선언 속성(border-radius) 덮어쓰기 예외. 끝 칸 전용 토큰이 없어 다른 길이 없다.
+     킷 선택자가 `.krds-form-chip.medium input[type=radio]~label` 라 클래스 3·요소 2 무게다 —
+     같은 모양(input ~ label)으로 적어야 이긴다. label 만 잡으면 조용히 진다 */
+.klid-segment .krds-form-chip {
+  --krds-form-chip--radius-small: 0;
+  --krds-form-chip--radius-medium: 0;
+  --krds-form-chip--radius-large: 0;
+}
+.klid-segment .krds-form-chip:first-child input[type='radio'] ~ label {
+  border-start-start-radius: var(--krds-radius-max);
+  border-end-start-radius: var(--krds-radius-max);
+}
+.klid-segment .krds-form-chip:last-child input[type='radio'] ~ label {
+  border-start-end-radius: var(--krds-radius-max);
+  border-end-end-radius: var(--krds-radius-max);
+}
+/* 켜진 칸이 이웃 보더에 잘리지 않게 위로 올린다 */
+.klid-segment .krds-form-chip:has(input:checked) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 폼 안 첨부파일 변형 — 킷 FileUpload 는 "그것만 있는 업로드 화면"(워크스페이스 영상 업로드)을
+   전제로 만들어져, 폼의 한 항목으로 넣으면 세 가지가 어긋난다.
+     ① 제목이 17 굵은 h3 라 다른 입력의 폼 라벨(14)과 그리드가 안 맞는다
+     ② 파일 선택 버튼이 채움형이라 폼의 주 동작(등록)과 무게가 경합한다
+     ③ 드롭영역 안내 문구와 버튼 라벨이 같은 말이 된다 (버튼 라벨은 킷 고정값이라
+        uploadText 를 끌어다 놓기 안내로 바꿔 역할을 가른다 — 화면 쪽 처리)
+   폼 안에 놓을 때만 이 래퍼를 씌운다. 독립 업로드 화면은 킷 기본을 그대로 쓴다. */
+/* 킷이 컨테이너에 패딩 40 을 준다 (독립 업로드 화면의 카드 안쪽 여백). 폼 안에서는 그만큼
+   왼쪽으로 밀려 다른 입력과 정렬선이 어긋난다 → 폼이 이미 패딩을 가지므로 0 으로 둔다.
+   ★ 킷 선언 속성 덮어쓰기 예외 */
+/* 세 조각(라벨·설명·드롭영역)이 한 항목으로 읽히게 묶는다 — 킷 기본은 라벨→설명 16,
+   설명→드롭영역 24 라 **폼의 항목 사이(20)보다 안쪽이 더 벌어진다.** 그러면 드롭영역이
+   첨부파일 칸의 것이 아니라 그 다음 항목처럼 보인다 (design.md §6: 붙은 것 4~6 · 다음 항목 20~).
+   ★ gap 은 컨테이너에만 건다 — 토큰(--krds-file-upload--gap)을 줄이면 올린 파일 목록의
+   줄 간격까지 같이 좁아진다 */
+.klid-file-inline .krds-file-upload {
+  --krds-file-upload--head-pc-margin-bottom: 0.4rem; /* 라벨→설명 (design.md §6) */
+  --krds-file-upload--head-mobile-margin-bottom: 0.4rem;
+  padding: 0;
+  gap: 0.6rem; /* 라벨묶음→드롭영역 밀착 */
+}
+.klid-file-inline .file-head .tit {
+  font-size: 1.4rem; /* 폼 라벨과 같은 급 (design.md §2) */
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+}
+/* 올린 파일 목록은 드롭영역에 붙은 것이 아니라 그 **결과**라 항목 간격(20)으로 떼어 놓는다 —
+   위 gap 6 이 그대로 걸리면 목록이 드롭영역 테두리에 붙어 한 상자처럼 읽힌다 */
+.klid-file-inline .file-list {
+  margin-top: 1.4rem;
+  gap: 0.8rem; /* 건수 줄 → 목록. 킷 24 는 둘을 남남으로 벌린다 */
+}
+/* 올린 파일 줄 — **폼의 입력칸과 같은 세로선에 글자를 세운다** (design.md §5).
+   킷은 줄 안쪽을 사방 16 으로 두는데, 이 폼의 입력칸은 좌우 14 다(보더 1 포함 15).
+   위아래로 겹쳐 서는 상자라 2~3 의 차이가 그대로 어긋난 글머리로 보인다.
+   위아래 12 는 줄 높이를 입력칸(52)과 같은 급으로 잡아 준다 */
+.klid-file-inline .krds-file-upload .file-list .upload-list > li {
+  /* ★ 킷 선언 속성 덮어쓰기 예외 — 킷이 `.krds-file-upload .file-list .upload-list>li` 에
+     패딩·보더를 선언해 같은 깊이로 조준해야 이긴다 */
+  padding: 1.2rem 1.4rem;
+  /* 보더 2 는 드롭영역(점선)의 값이다. 목록 줄은 카드·표와 같은 머리카락 선(1)이라야
+     글머리가 14+1 로 입력칸과 같은 자리에 선다 (2 면 1 만큼 안으로 밀린다) */
+  border-width: 0.1rem;
+}
+/* 올린 파일 줄의 삭제 — 킷 「삭제 ⊗」 글자 버튼을 **아이콘 버튼 삭제 톤(IconButton tone="danger")과 같은 모양**으로
+   (2026-09-14 사용자 결정). 평소 회색 휴지통, 얹으면 위험 5 면 + 위험 50 아이콘. 박스·글리프·라운드도 그 부품 값이다.
+   킷이 버튼 마크업을 그리므로 부품을 꽂을 수 없어 겉모습을 맞춘다 — 값이 바뀌면 IconButton.css 와 같이 옮긴다.
+   「삭제」 글자는 지우지 않고 크기만 0 으로 눌러 버튼 이름으로 남긴다 (보조기술은 그대로 「삭제」 로 읽는다).
+   받기·바로보기 글자 버튼은 그대로 두려고 삭제 아이콘을 가진 버튼만 조준한다 */
+.krds-file-upload .file-list .upload-list .btn-wrap .krds-btn.text:has(.ico-delete-fill) {
+  /* ★ 킷 선언 속성 덮어쓰기 예외 — 킷 text 버튼의 높이·패딩·글자 크기를 정사각 아이콘 박스로 바꾼다 */
+  justify-content: center;
+  width: var(--klid-iconbtn-box-md);
+  min-width: 0;
+  height: var(--klid-iconbtn-box-md);
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  border-radius: var(--krds-radius-medium3);
+  font-size: 0;
+  background-color: transparent;
+}
+.krds-file-upload .file-list .upload-list .btn-wrap .krds-btn.text:has(.ico-delete-fill):not(:disabled):hover {
+  background-color: var(--krds-color-light-danger-5);
+}
+.krds-file-upload .file-list .upload-list .btn-wrap .krds-btn.text .svg-icon.ico-delete-fill {
+  width: var(--klid-iconbtn-glyph-md);
+  height: var(--klid-iconbtn-glyph-md);
+  /* ★ 킷 선언 덮어쓰기 예외 — 킷은 이 아이콘만 그림(회색 원 + ×)을 배경으로 박고 면색을 !important 로 비워 둔다.
+     다른 라인 아이콘처럼 마스크로 되돌려야 색 토큰을 받는다 */
+  background-image: none;
+  background-color: var(--krds-color-light-gray-60) !important;
+  -webkit-mask: var(--klid-ico-trash) no-repeat center / contain;
+  mask: var(--klid-ico-trash) no-repeat center / contain;
+}
+.krds-file-upload .file-list .upload-list .btn-wrap .krds-btn.text:not(:disabled):hover .svg-icon.ico-delete-fill {
+  background-color: var(--krds-color-light-danger-50) !important;
+}
+/* 다 올린 줄에 킷이 휴지통 옆에 세우는 완료 체크(✓)를 끈다 (2026-09-14 사용자 결정).
+   ★ 킷 선언 속성 덮어쓰기 예외 — display 만 끈다 */
+.krds-file-upload .file-list .upload-list .btn-wrap .ico-invalid.complete {
+  display: none;
+}
+/* 파일 선택 버튼을 보조 동작으로 — 킷이 마크업에 primary 를 박아 두어 색 토큰을
+   secondary 정의(위 .krds-btn 참조)와 같은 값으로 재조준한다. 속성은 덮지 않는다 */
+.klid-file-inline .krds-btn.primary {
+  --krds-button--color-primary-fill: var(--krds-color-light-gray-0);
+  --krds-button--color-primary-fill-hover: var(--krds-color-light-primary-5);
+  --krds-button--color-primary-fill-pressed: var(--krds-color-light-primary-10);
+  --krds-button--color-primary-border: var(--krds-color-light-primary-20);
+  --krds-button--color-primary-text: var(--krds-color-light-primary-60);
+}
+
+/* -----------------------------------------------------------------------------
+   Radio·Checkbox — 사다리의 라디오 급(§ 컨트롤 사다리)에 맞춘다.
+   킷은 사이즈가 medium·large 둘뿐이라, 킷 medium 자리에 우리 md 를, large 자리에 lg 를 꽂는다.
+   ★ 글자를 pc·mobile **두 자리에 다** 꽂는 것이 핵심이다 — 위 전역 타이포는 PC 트랙만
+     재정의해 두어서, 그냥 두면 모바일에서 킷 기본값이 나온다 (로그인 「아이디 저장」이
+     PC 15 인데 휴대폰에서 17 로, 회원가입 동의줄이 15→17 · 17→19 로 커졌다. 2026-08-26 실측).
+     동그라미는 그대로인데 글자만 커져 줄이 어긋나 보이던 원인이다 — 버튼과 같은 사정.
+   -------------------------------------------------------------------------- */
+.krds-form-check {
+  /* 킷 medium 자리 = 우리 md 급 */
+  --krds-form-check--pc-font-size-medium: var(--klid-control-font-md);
+  --krds-form-check--mobile-font-size-medium: var(--klid-control-font-md);
+  --krds-form-check--button-size-medium: var(--klid-check-box-md);
+  --krds-form-check--radio-check-size-medium: var(--klid-check-dot-md);
+  --krds-form-check--checkbox-check-size-medium: var(--klid-check-mark-md);
+
+  /* 킷 large 자리 = 우리 lg 급 */
+  --krds-form-check--pc-font-size-large: var(--klid-control-font-lg);
+  --krds-form-check--mobile-font-size-large: var(--klid-control-font-lg);
+  --krds-form-check--button-size-large: var(--klid-check-box-lg);
+  --krds-form-check--radio-check-size-large: var(--klid-check-dot-lg);
+  --krds-form-check--checkbox-check-size-large: var(--klid-check-mark-lg);
+}
+
+/* 라디오는 **PC md · 모바일 lg** 다 — 2026-08-26 결정. 체크박스는 어디서나 md 그대로.
+
+   사다리의 일반 규칙(모바일에서 sm 자리에 md 를 쓴다)은 손가락 최소치(44)를 밑도는 sm 하나만
+   올리면 끝나는 컨트롤들 얘기다. 라디오는 사정이 다르다 — 동그라미는 상자가 아니라 **표식**이라
+   md(20)여도 손가락에 견줘 작게 읽힌다. 줄 키는 이미 44 로 받쳐 뒀으니(아래 블록) 못 눌러서가
+   아니라 **눈에 안 잡혀서** 다. 그래서 라디오만 한 급을 더 올린다.
+
+   ★ 체크박스를 함께 올리지 않는 것이 이 블록의 요점이다. 두 낱개가 킷의 같은 변수를 나눠 쓰기
+     때문에 범위를 안 좁히면 약관 동의·아이디 저장까지 따라 커진다 — 그쪽은 줄줄이 세워 두는
+     자리라 커지면 문단이 성겨진다. `:has(input[type='radio'])` 가 그 경계다.
+
+   ★ 값은 여기서도 새로 적지 않는다. lg 토큰을 가리키기만 한다 (원 24 · 점 12 · 글자 17).
+     `pc-` 자리에도 함께 꽂는 까닭은 위 § Radio·Checkbox 의 ★ 와 같다. */
+@media (max-width: 767px) {
+  .krds-form-check:has(input[type='radio']) {
+    --krds-form-check--pc-font-size-medium: var(--klid-control-font-lg);
+    --krds-form-check--mobile-font-size-medium: var(--klid-control-font-lg);
+    --krds-form-check--button-size-medium: var(--klid-check-box-lg);
+    --krds-form-check--radio-check-size-medium: var(--klid-check-dot-lg);
+  }
+}
+
+/* 동그라미를 **첫 줄 글줄의 한가운데**에 세운다. 킷은 이 윗여백을 .3rem 으로 박아 두는데,
+   그 값은 킷 기본 글자(17) 기준이라 우리 글자(PC 15)에서는 동그라미가 1.75 내려가 앉는다
+   (2026-09-07 실측: 동그라미 한가운데 13 · 글줄 한가운데 11.25). 급마다 어긋나는 폭도 다르다.
+
+   ★ 그래서 값을 다시 박지 않고 **계산해서 얹는다** — (글줄 키 − 동그라미) ÷ 2.
+     글자·동그라미가 급마다 달라져도 이 식 하나로 따라온다. 상수를 급마다 적어 두면
+     글자를 한 칸 올릴 때마다 같이 안 움직여 또 어긋난다.
+
+   ★ 계산식을 **이름표(label)에 얹는 것**이 요점이다. 글줄 키(1lh)는 선언한 자리의 글자로
+     재는데, 바깥 상자(.krds-form-check)는 글자 크기가 달라 엉뚱한 키가 나온다.
+     동그라미(::before)와 그 안 점(::after)이 이름표에서 이 값을 함께 물려받아 같이 움직인다. */
+.krds-form-check > input[type='radio'] ~ label,
+.krds-form-check > input[type='checkbox'] ~ label {
+  --krds-form-check--button-margin-top: calc((1lh - var(--krds-form-check--button-size-medium)) / 2);
+}
+.krds-form-check.large > input[type='radio'] ~ label,
+.krds-form-check.large > input[type='checkbox'] ~ label {
+  --krds-form-check--button-margin-top: calc((1lh - var(--krds-form-check--button-size-large)) / 2);
+}
+
+/* 누르는 자리는 이름표 전체다 (동그라미만이 아니다). 손가락 폭에서는 줄 키를 사다리 최소치까지
+   받쳐 준다 — 동그라미·글자는 그대로고 위아래 빈자리만 늘어난다 (design.md §3 모바일 규칙).
+   킷은 동그라미를 `::before` 로 글줄 위쪽에 맞춰 두므로 세로 가운데 정렬을 걸지 않는다 —
+   걸면 줄이 여러 줄로 접히는 긴 이름표(약관 동의)에서 동그라미가 글 한가운데로 내려간다 */
+.krds-form-check > label {
+  display: flex;
+  align-items: flex-start;
+  min-height: var(--klid-tap-min);
+}
+
+/* -----------------------------------------------------------------------------
+   Input·Textarea — 버튼과 같은 높이 스케일(36/44/52) + rounded-lg(8px)
+   -------------------------------------------------------------------------- */
+.krds-input {
+  --krds-input--size-height-small: var(--klid-control-height-sm);
+  --krds-input--size-height-medium: var(--klid-control-height-md);
+  --krds-input--size-height-large: var(--klid-control-height-lg);
+
+  --krds-input--radius-small: 0.8rem;
+  --krds-input--radius-medium: 0.8rem;
+  --krds-input--radius-large: 0.8rem;
+  --krds-input--radius-xlarge: 0.8rem;
+
+  --krds-input--padding-x: 1.4rem;
+
+  /* pc·mobile 두 자리에 같은 토큰 (위 § 버튼 의 ★ 참조) */
+  --krds-input--pc-font-size-small: var(--klid-control-font-sm);
+  --krds-input--pc-font-size-medium: var(--klid-control-font-md);
+  --krds-input--pc-font-size-large: var(--klid-control-font-lg);
+  --krds-input--mobile-font-size-small: var(--klid-control-font-sm);
+  --krds-input--mobile-font-size-medium: var(--klid-control-font-md);
+  --krds-input--mobile-font-size-large: var(--klid-control-font-lg);
+
+  /* 보더 slate-300, focus cobalt-400. KRDS 기본은 진한 보더 */
+  --krds-input--color-border: var(--krds-color-light-gray-30);
+  --krds-input--color-border-active: var(--krds-color-light-primary-40);
+}
+
+/* Textarea — 여백은 인풋과 같은 14 다 (design.md §5 「입력 (전 사이즈) 좌우 14 고정」).
+   ★ 선언 자리가 `.krds-input` 이면 안 된다 — 킷이 같은 두 변수를 `textarea.krds-input`(요소+클래스)
+   에서 16/8 로 다시 잡아서, 클래스 하나짜리 선언은 특이도로 조용히 진다. 여기서 급을 맞춰 둬야
+   같은 폼의 인풋·셀렉트와 글 시작선이 한 줄에 선다 */
+textarea.krds-input {
+  --krds-input--textarea-padding-x: 1.4rem;
+  --krds-input--textarea-padding-y: var(--krds-padding-4);
+}
+
+/* 급 — 킷 Textarea 에는 size 가 없어 늘 `large` 슬롯을 소비한다(17). 인풋·셀렉트가 md 인 폼에서는
+   여러 줄 상자 하나만 글자가 한 급 크게 읽힌다.
+   ★ 킷 사이즈 클래스(`.medium`)를 얹는 길은 막혀 있다 — 그 규칙이 height 까지 44 로 눌러
+     여러 줄 상자를 한 줄로 만든다.
+   ★ 그래서 킷이 스스로 내건 변수를 **그 변수를 쓰는 요소에서** 다시 가리킨다. 선언 속성
+     (font-size)을 덮지 않는 길이라, 급을 또 갈아야 할 때 한 곳만 본다
+     (같은 수법: FilterPanel.css § Textarea).
+   쓰는 쪽은 Textarea 의 className — 킷이 그 값을 `<textarea>` 자체에 단다 */
+textarea.krds-input.klid-textarea-md {
+  --krds-input--pc-font-size-large: var(--klid-control-font-md);
+  --krds-input--mobile-font-size-large: var(--klid-control-font-md);
+}
+
+/* 날짜 칸의 달력 글리프 — 킷은 마스크 아이콘을 24 에 본문 색으로 그려서, 글자(14~17)보다
+   크고 진하다. 같은 자리의 다른 표식(검색창 돋보기 18 · 기간 칩 달력 16)과 무게가 갈리므로
+   18 · gray-50 으로 맞춘다 (design.md §8 「버튼·툴바 18」 · 표식은 값보다 옅다).
+   기간 칩은 글자 옆 인라인이라 16 을 따로 갖는다 (DateRangeFilter.css) */
+.krds-btn.icon.form-btn-datepicker .svg-icon.ico-calendar {
+  width: 1.8rem;
+  height: 1.8rem;
+  background-color: var(--krds-color-light-gray-50);
+}
+
+/* 캡슐 변형 — **라운드만** 알약으로 바꾼다 (2026-09-02 추가). 조건 줄이 캡슐로 서는 자리에서
+   입력만 각지면 한 줄이 두 모양으로 갈린다. 높이·글자·보더·포커스는 위 기본값 그대로다.
+   쓰는 쪽은 `TextInput` 의 className 에 얹는다 — 킷이 그 값을 바깥 `.form-group` 에 달기
+   때문에, 토큰을 다시 선언하는 자리는 그 안의 `.krds-input` 이어야 한다 (요소에 직접 선언된
+   값은 물려받은 값을 이긴다).
+   짝이 되는 부품: 셀렉트는 `Dropdown` 의 `variant="capsule"`, 기간은 `DateRangeFilter`.
+   ★ 좌우 여백 16 — 알약 끝이 둥글어 각진 상자와 같은 14 를 주면 글자가 벽에 붙어 보인다 */
+.klid-input-capsule .krds-input {
+  --krds-input--radius-small: var(--krds-radius-max);
+  --krds-input--radius-medium: var(--krds-radius-max);
+  --krds-input--radius-large: var(--krds-radius-max);
+  --krds-input--radius-xlarge: var(--krds-radius-max);
+
+  --krds-input--padding-x: 1.6rem;
+
+  /* 친 값은 같은 줄의 칩·셀렉트와 같은 값으로 선다 (gray-90 · 600).
+     ★ placeholder 는 따라오지 않는다 — 그건 값이 아니라 안내문이라 옅고 가볍게 남는다 */
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+/* 달력 글리프도 좌우 여백선에 맞춘다 — 글자는 왼쪽 벽에서 16 인데 글리프는 킷 기본으로
+   23 이라, 알약 안에서 오른쪽만 한 뼘 더 비어 보인다. 글리프 상자(24)가 글리프(18)보다
+   커서 3 을 이미 갖고 있으므로 13 을 주면 눈에 보이는 가장자리가 16 에 선다 */
+.klid-input-capsule .krds-btn.icon.form-btn-datepicker {
+  right: 1.3rem;
+}
+.klid-input-capsule .krds-input::placeholder {
+  font-weight: 400;
+}
+
+/* 폼 라벨 — 14px semibold (색은 text-subtle → gray-70 로 이미 맞다).
+   .form-tit 은 font-size·weight 미선언(body 상속)이라 둘 다 추가로 성립 */
+.form-group {
+  --krds-form-group--label-pc-font-size: 1.4rem;
+}
+.form-group .form-label,
+.form-group .form-tit {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+/* -----------------------------------------------------------------------------
+   Calendar — 떠 있는 판은 **흰 면**이다 (2026-08-24)
+
+   킷은 달력 몸통에 `면-보조-옅음` 을 쓴다. 그 슬롯이 회색이던 순정 팔레트에서는 조용한 값인데,
+   우리 팔레트에서는 그 자리가 **옅은 코발트(#eef1fe)** 라 달력 전체가 파란 덩어리로 뜬다 —
+   같은 화면의 다른 떠 있는 것들(드롭다운 목록·모달·안내 창)이 전부 흰 면 + gray-20 보더라
+   달력만 다른 물건으로 읽힌다. 팔레트를 코발트로 바꾸면서 회색이 파랗게 따라온 자리다.
+   §5 표면 값(흰 면 + gray-20 보더)으로 되돌린다. 날짜 선택·오늘 표식 같은 **강조 색은 그대로** 둔다
+   — 파랗게 두면 안 되는 건 바탕이지 조작이 아니다.
+   -------------------------------------------------------------------------- */
+.krds-calendar-area {
+  --krds-calendar--color-surface: var(--krds-color-light-gray-0);
+  --krds-calendar--color-border: var(--krds-color-light-gray-20);
+
+  /* 기간 선택에서 **양 끝 사이를 이어 주는 띠**. 위 몸통 색과 같은 갈래의 자리다 —
+     킷은 여기에 `조작-보조-켜짐` 슬롯을 쓰는데, 그 자리가 순정 팔레트에서는 옅은 회색이지만
+     우리 팔레트에서는 **흰색(#ffffff)** 으로 떨어진다. 흰 판에 흰 띠라 사이 날짜가 안 이어지고
+     양 끝만 동그라미로 떨어져 보였다(실측 2026-08-25 사용자 확인).
+     옅은 코발트로 되돌려 양 끝(진한 코발트)과 한 덩어리로 읽히게 한다 — 띠는 바탕이므로
+     끝점보다 확실히 옅어야 어디가 시작·끝인지 갈린다.
+     띠 위 대비(실측): 평일 숫자 14.37:1 · 일요일 빨강 5.21:1 (§8 하한 4.5:1) */
+  --krds-calendar--date-set-color-action-period: var(--krds-color-light-primary-10);
+}
+
+/* 요일 줄 밑 "2026년 8월" 을 지운다(2026-08-25 화면 검토).
+   킷은 `caption` 을 기본적으로 안 보이게 접어 두면서(전역 sr-only 규칙), 달력 표에서만
+   `...calendar-tbl caption` 으로 그 접음을 도로 풀어 화면에 낸다 — 그런데 그 자리는 이미
+   머리 줄의 "2026년 ▾ 08월 ▾" 이 같은 값을 보여주고 있어 줄만 하나 더 먹는 중복이다.
+   ★ 킷 선언 속성(width·height·margin·clip, 전부 !important) 덮어쓰기 예외 —
+   전역 sr-only 규칙으로 되돌리는 것뿐이라 !important 로만 이길 수 있다.
+   ★★ 셀렉터를 킷과 **같은 깊이**로 그대로 베껴 썼다 — grep 으로 잘라 본 `.calendar-tbl caption`
+   짧은 형태는 실제로는 `.krds-calendar-area .calendar-wrap .calendar-body .calendar-table-wrap
+   .calendar-tbl caption` 다섯 겹인데, 짧은 셀렉터로 !important 를 걸면 특이도가 낮아 진다
+   (실측 2026-08-25 — 짧은 형태로 냈다가 안 먹혔다) */
+.krds-calendar-area .calendar-wrap .calendar-body .calendar-table-wrap .calendar-tbl caption {
+  position: absolute !important;
+  width: 0.1rem !important;
+  height: 0.1rem !important;
+  margin: -0.1rem !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+}
+
+/* 요일 줄(일 월 화...) 밑에 빈틈이 크게 떠 있던 이유 — 요일칸(th) 아래 여백이 46px 이나 된다.
+   바로 위 caption 규칙의 `top: 4.6rem` 과 값이 똑같다 — 원래 그 caption("2026년 8월")이
+   요일 줄과 겹치지 않게 앉을 자리를 th 여백으로 미리 비워 둔 것이었는데, caption 을 지운
+   지금은 아무도 안 쓰는 빈 여백만 남았다(2026-08-25 화면 검토). 요일 줄과 날짜 줄 사이에
+   어울리는 값으로 줄인다.
+   ★ 셀렉터는 위 caption 규칙과 같은 이유로 킷과 같은 다섯 겹을 그대로 쓴다 — 짧은 셀렉터는
+   특이도가 낮아 킷 규칙에 진다(실측 2026-08-25, 같은 함정을 또 밟았다) */
+.krds-calendar-area .calendar-wrap .calendar-body .calendar-table-wrap .calendar-tbl th {
+  padding-bottom: var(--krds-padding-5);
+}
+
+/* -----------------------------------------------------------------------------
+   Select — 인풋과 동일 스케일 (트리거 기준)
+   -------------------------------------------------------------------------- */
+.krds-form-select {
+  --krds-form-select--size-height-small: var(--klid-control-height-sm);
+  --krds-form-select--size-height-medium: var(--klid-control-height-md);
+  --krds-form-select--size-height-large: var(--klid-control-height-lg);
+
+  /* 보더 — 인풋과 동일 (slate-300, focus cobalt-400) */
+  --krds-form-select--color-border: var(--krds-color-light-gray-30);
+  --krds-form-select--color-border-active: var(--krds-color-light-primary-40);
+
+  --krds-form-select--radius-small: 0.8rem;
+  --krds-form-select--radius-medium: 0.8rem;
+  --krds-form-select--radius-large: 0.8rem;
+
+  /* pc·mobile 두 자리에 같은 토큰 (위 § 버튼 의 ★ 참조) */
+  --krds-form-select--pc-font-size-small: var(--klid-control-font-sm);
+  --krds-form-select--pc-font-size-medium: var(--klid-control-font-md);
+  --krds-form-select--pc-font-size-large: var(--klid-control-font-lg);
+  --krds-form-select--mobile-font-size-small: var(--klid-control-font-sm);
+  --krds-form-select--mobile-font-size-medium: var(--klid-control-font-md);
+  --krds-form-select--mobile-font-size-large: var(--klid-control-font-lg);
+
+  /* 좌우 패딩 — 킷 기본 16 은 인풋(14)보다 넓어, 폼에서 나란히 서면 글 시작선이 어긋난다.
+     인풋과 같은 14 로 맞춘다 (design.md §5 「입력 (전 사이즈) 좌우 14 고정」).
+     이 값 하나가 좌·우를 다 정한다 — 오른쪽은 킷이 `calc(padding-default + gap-3 + 화살표)` 로
+     파생하고, 화살표 위치(background-position)도 같은 변수를 써서 함께 따라온다 */
+  --krds-form-select--padding-default: 1.4rem;
+}
+
+/* 컴팩트(36)만 12 다 (2026-08-07 확정, design.md §3 「컴팩트 셀렉트 좌우 12」). 값이 짧은
+   셀렉트(연도 `2021년`·지역 `전체`)가 서는 자리라, 14 를 주면 글자보다 여백이 더 넓어 보인다.
+   ★ 클래스 두 겹이라 위 블록을 이긴다 */
+.krds-form-select.small {
+  --krds-form-select--padding-default: var(--krds-padding-5);
+}
+
+/* 손가락 폭에서는 컴팩트가 아니다 — sm 자리가 md 를 쓰므로(§ 모바일) 이 셀렉트는 이미 44·15 로
+   서 있다. 여백·화살표만 12·16 으로 남으면 같은 급의 인풋·셀렉트와 다시 어긋난다.
+   여기서도 새 값을 적지 않는다 — md 가 쓰는 것을 그대로 가리킨다 */
+@media (max-width: 767px) {
+  .krds-form-select.small {
+    --krds-form-select--padding-default: 1.4rem;
+    --krds-form-select--icon-size-small: var(--krds-form-select--icon-size-medium);
+  }
+}
+
+/* 화살표 — 그림은 lucide ChevronDown 으로 갈고, 크기는 토큰으로 잡는다.
+   킷 원본은 색 `#2D2D2D`(순정 팔레트의 검정)에 24px 이었다. 우리 중립은 slate 라 그 검정만
+   옛 팔레트로 남고, 24 는 §8 역할 고정 크기(인라인 16 / 버튼·툴바 18) 어디에도 없다.
+
+   ★ 크기는 background-size 로 덮으면 안 된다 — 킷이 `background-size: var(--…icon-size-*)
+   !important` 로 박아 둬서 조용히 진다. 토큰을 갈아야 실효된다.
+   ★ 예외(선언 속성 덮어쓰기): background-image 하나. 킷이 마스크가 아니라 background-image 로
+   직접 넣어서 색이 토큰을 안 따라온다 (CLAUDE.md '알아둘 것') — 색을 박은 그림으로 바꾸는
+   수밖에 없다. gray-60(#58616a) */
+.krds-form-select {
+  --krds-form-select--icon-size-small: 1.6rem; /* 컴팩트(36) 화살표 16 (design.md §3) */
+  --krds-form-select--icon-size-medium: 1.8rem;
+  --krds-form-select--icon-size-large: 1.8rem;
+
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358616a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* 마우스 올림 — 우리 드롭다운 트리거와 같은 값이다 (틴트 5 + 보더 30, design.md §3 호버 갈래).
+   킷 셀렉트에는 호버가 아예 없다. 같은 필터 줄에 드롭다운과 나란히 서는데 한쪽만 반응하면
+   무엇이 같은 종류인지 손끝으로 안 읽힌다.
+   ★ 면 색은 킷이 `background-color: var(--…color-background) !important` 로 박아 둬서
+   속성으로 덮으면 조용히 진다 — 토큰을 갈아야 실효된다.
+   ★ 포커스는 뺀다 — 펼친 동안 면까지 깔면 아래 목록과 한 덩어리로 뭉친다 (드롭다운과 같은 이유) */
+.krds-form-select:hover:not([disabled]):not(:focus) {
+  --krds-form-select--color-background: var(--krds-color-light-primary-5);
+  --krds-form-select--color-border: var(--krds-color-light-primary-30);
+}
+
+/* 선택 불가 — 우리 드롭다운 트리거와 같은 값 (면 gray-5 · 보더 gray-30 · 글자 gray-40 ·
+   화살표 gray-30). 킷 기본은 면을 회색 계열로만 잡아 보더까지 흐려지고, 무엇보다
+   **화살표를 킷 원본 그림으로 되돌린다** — `[disabled]` 가 위 화살표 규칙보다 특이도가 높고,
+   색을 박은 그림이라 토큰을 안 따라오기 때문이다. 그대로 두면 잠긴 셀렉트만 화살표가 진해진다.
+   같은 자리에서 흐린 그림으로 다시 얹는다 */
+.krds-form-select[disabled] {
+  --krds-form-select--color-background-disabled: var(--krds-color-light-gray-5);
+  --krds-form-select--color-border-disabled: var(--krds-color-light-gray-30);
+  --krds-form-select--color-text-disabled: var(--krds-color-light-gray-40);
+
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* -----------------------------------------------------------------------------
+   Select 펼친 목록 — 우리 드롭다운 목록과 같은 색으로 맞춘다
+
+   킷 셀렉트는 네이티브 `<select>` 라 지금까지 펼친 목록을 **브라우저가 회색 OS 패널로**
+   그렸다. 같은 화면에 우리 드롭다운(.klid-dropdown)과 나란히 서면 열자마자 두 모양이 갈린다.
+   크로미움 계열의 커스터마이즈 가능 셀렉트(`appearance: base-select`)를 켜면 목록이
+   우리 CSS 사정권에 들어온다. 켜지지 않는 브라우저(사파리·파이어폭스)는 지금까지처럼
+   OS 패널을 그린다 — 닫힌 모양은 어느 쪽이든 같으니 화면 설계는 갈리지 않는다.
+
+   값은 전부 우리 드롭다운(Dropdown.css 의 .list / .option)에서 그대로 가져온다.
+   -------------------------------------------------------------------------- */
+.krds-form-select,
+.krds-form-select::picker(select),
+.krds-form-select-sort,
+.krds-form-select-sort::picker(select) {
+  appearance: base-select;
+}
+
+/* 켜면 트리거가 플렉스 상자가 되는데 세로 정렬 기본값이 늘리기라, 고른 값이 위로 붙는다.
+   네이티브 셀렉트가 공짜로 해주던 세로 가운데를 직접 준다 (켜지지 않는 브라우저에선 무해) */
+.krds-form-select,
+.krds-form-select-sort {
+  align-items: center;
+}
+
+/* 켠 순간 브라우저가 자기 화살표(::picker-icon)를 하나 더 붙인다 — 우리 화살표와 겹친다 */
+.krds-form-select::picker-icon,
+.krds-form-select-sort::picker-icon {
+  display: none;
+}
+
+/* 펼친 동안은 보더만 코발트로 세운다 — 면까지 깔면 아래 목록과 한 덩어리로 뭉쳐
+   어디까지가 트리거인지 흐려진다 (드롭다운과 같은 이유).
+   ★ 위 호버 규칙과 특이도를 맞춰 뒤에 둔다 — "펼친 채 마우스가 얹혀 있는" 흔한 상태에서
+   틴트가 되살아나지 않게 하기 위함이다 */
+.krds-form-select:open,
+.krds-form-select:open:hover:not([disabled]) {
+  --krds-form-select--color-background: var(--krds-color-light-gray-0);
+  --krds-form-select--color-border: var(--krds-color-light-primary-50);
+}
+
+/* 목록 판 — 트리거 바로 아래 4 를 띄우고, 8줄까지 보이고 그 뒤로는 굴린다 */
+.krds-form-select::picker(select),
+.krds-form-select-sort::picker(select) {
+  min-width: anchor-size(width);
+  max-width: 32rem;
+  max-height: 32.4rem;
+  margin-top: 0.4rem;
+  padding: var(--krds-padding-2);
+  overflow-y: auto;
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 0.8rem;
+  background-color: var(--krds-color-light-gray-0);
+  box-shadow:
+    0 1rem 1.5rem -0.3rem rgb(15 23 42 / 10%),
+    0 0.4rem 0.6rem -0.4rem rgb(15 23 42 / 10%);
+}
+
+.krds-form-select option,
+.krds-form-select-sort option {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  /* 고른 값 한 줄도 누르는 자리다 — sm 급으로 사다리를 탄다 */
+  min-height: var(--klid-control-height-sm);
+  padding: 0 var(--krds-padding-4);
+  border-radius: 0.6rem;
+  font-size: 1.4rem;
+  font-weight: 400; /* 정렬 셀렉트는 트리거가 굵어서 항목까지 굵기가 흘러든다 */
+  color: var(--krds-color-light-gray-90);
+}
+
+/* 체크는 오른쪽 — 브라우저 기본은 글자 앞에 둔다 */
+.krds-form-select option::checkmark,
+.krds-form-select-sort option::checkmark {
+  order: 1;
+  margin-inline-start: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--krds-color-light-primary-60);
+}
+
+/* 목록 항목의 호버는 LNB·GNB 패널과 같은 회색 필이다 */
+.krds-form-select option:hover,
+.krds-form-select-sort option:hover {
+  background-color: var(--krds-color-light-gray-5);
+}
+
+/* 고른 항목은 틴트 + 코발트 글자 + 체크. 색만으로 가르지 않는다 (색각) */
+.krds-form-select option:checked,
+.krds-form-select-sort option:checked {
+  background-color: var(--krds-color-light-primary-5);
+  font-weight: 600;
+  color: var(--krds-color-light-primary-60);
+}
+.krds-form-select option:checked:hover,
+.krds-form-select-sort option:checked:hover {
+  background-color: var(--krds-color-light-primary-10);
+}
+
+.krds-form-select option:disabled,
+.krds-form-select-sort option:disabled {
+  color: var(--krds-color-light-gray-40);
+}
+
+/* 힌트·에러 글줄 — 아이콘 머리를 필드 안 글자 머리에 맞춘다.
+   킷은 이 줄을 필드 *바깥 선*에 딱 붙여서, 아이콘(16)+틈(4)만큼 글자가 밀려난다.
+   필드 안 글자는 선에서 13(보더 1 + 좌패딩 12) 들어와 있으니 둘이 한 줄로 안 떨어진다.
+   같은 값만큼 줄 전체를 들여, 아이콘이 기준선을 잡게 한다.
+   ★ 셀렉트가 든 폼 그룹에만 건다 — 텍스트 입력은 안 패딩이 14 라 값이 다르다 */
+.form-group:has(.krds-form-select) [class^='form-hint'] {
+  padding-left: 1.3rem;
+}
+
+/* 정렬 셀렉트 (variant="sorting") — 박스가 아니라 글자형 컨트롤이라 위 스케일과 별개다.
+   킷 기본은 large 가 heading-small(20)이라, 짝을 이루는 결과 건수(15)보다 크고 카드 제목(17)보다도
+   커진다. 그 줄에서 먼저 읽혀야 하는 것은 "몇 건인지"이고 정렬은 필요할 때 찾는 도구다 —
+   무게가 뒤집힌다. 크기를 본문(15)으로 내리고 위계는 굵기·색으로만 준다 (design.md §2).
+   목록 화면 전부가 공유한다 (AI 모델 목록·학습데이터 검색·공지사항·활용사례). */
+.krds-form-select-sort {
+  --krds-form-select-sorting--pc-font-size-large: 1.5rem;
+  --krds-form-select-sorting--mobile-font-size-large: 1.5rem;
+  --krds-form-select-sorting--pc-font-size-medium: 1.5rem;
+  --krds-form-select-sorting--mobile-font-size-medium: 1.5rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Tab — 선택 = 언더라인 cobalt-600 + 글자 cobalt-700, 미선택 slate-500, 배경 투명.
+   KRDS 는 활성 색을 secondary 시맨틱으로 그리므로 primary 로 재조준한다.
+   ★ 토큰이 .krds-tab 이 아니라 .tab 클래스에 정의돼 있다 (이름 함정).
+   -------------------------------------------------------------------------- */
+.tab {
+  --krds-tab--button-color-action: transparent;
+  --krds-tab--button-color-action-hover: transparent;
+  --krds-tab--button-color-action-pressed: var(--krds-color-light-gray-5);
+  /* 미선택 탭 글자 — gray-50 은 서브페이지 배경 canvas(#f4f6fa) 위에서 4.4:1 로 미달이다.
+     탭은 대부분 canvas 위에 놓이므로 하한을 gray-60(7.1:1)으로 올린다 (design.md §8) */
+  --krds-tab--button-color-text: var(--krds-color-light-gray-60);
+
+  /* 치수 — 15px · 높이 48 · semibold.
+     ★ Tab 컴포넌트의 size prop 기본값이 'full' 이라 .tab.line.full 로 렌더된다.
+       normal·full 양쪽 토큰을 모두 정렬해야 실효된다. */
+  --krds-tab--button-pc-font-size: 1.5rem;
+  --krds-tab--full-button-pc-font-size: 1.5rem;
+  --krds-tab--button-size-height: 4.8rem;
+  --krds-tab--full-button-size-height: 4.8rem;
+  /* 버튼이 font-weight-bold 를 하드 참조한다 */
+  --krds-font-weight-bold: 600;
+  /* 컨테이너 정렬 통일 (design.md §6: 최대 1200 + 좌우 24). 킷 기본 wrap 1248 은
+     본문(.klid-container)과 정렬선이 24px 어긋난다 — 푸터 등 킷 .inner 전부가 이 토큰을 따른다 */
+  --krds-contents-wrap-size: 120rem;
+
+  --krds-tab--line-button-color-border: var(--krds-color-light-gray-20);
+  --krds-tab--line-button-color-line-active: var(--krds-color-light-primary-50);
+  --krds-tab--line-button-color-text-active: var(--krds-color-light-primary-60);
+
+  /* fill variant 활성도 코발트로 정렬 */
+  --krds-tab--fill-button-color-action-active: var(--krds-color-light-primary-50);
+  --krds-tab--fill-button-color-border-active: var(--krds-color-light-primary-50);
+  --krds-tab--mobile-button-trigger-color-action: var(--krds-color-light-primary-50);
+  /* 라운드 = 캡슐 (design.md §7 "명령(누르는 것)은 캡슐").
+     킷 기본은 6 인데, 우리 체계에서 6 은 "읽기만 하는 사각 태그"의 값이라 누르는 요소에 맞지 않는다 */
+  --krds-tab--fill-button-radius: var(--krds-radius-max);
+  /* 좌우 24 — 캡슐은 가로가 짧으면 원이 되므로 여백으로 알약 비례를 만든다.
+     design.md §3 누진 곡선(높이 대비 0.39→0.45→0.54)에서 높이 48 지점 ≈ 0.5 → 24.
+     킷 기본 8 은 각진 탭 전제의 값이다. (size="full" 은 킷이 별도 값을 하드 참조하므로 normal 기준) */
+  --krds-tab--fill-button-padding: var(--krds-padding-8);
+}
+
+/* -----------------------------------------------------------------------------
+   Pagination — 36px 정사각 + rounded-lg(8px), 현재 페이지 코발트 채움, 호버 slate-100
+   -------------------------------------------------------------------------- */
+.krds-pagination {
+  /* 숫자 셀은 sm 급이다 — 사다리를 따라 모바일에서 44 가 된다 */
+  --krds-pagination--size-height: var(--klid-control-height-sm);
+  --krds-pagination--radius: 0.8rem;
+  --krds-pagination--color-action-active: var(--krds-color-light-primary-50);
+  --krds-pagination--color-action-hover: var(--krds-color-light-gray-10);
+}
+
+/* ★ 휴대폰에서도 **한 줄이다** (2026-08-26 사용자 지시).
+   킷은 767 이하에서 줄을 접어 두 줄로 세운다 — 위에 `이전`·`다음`, 아래에 번호 줄
+   (`flex-wrap: wrap` + `.page-links { width: 100% }` + `다음` 을 앞 순서로 보내는 세 선언).
+   목록 끝의 조작 한 줄이 두 줄이 되면 그만큼 화면이 길어지고, 위아래로 갈린 `이전/다음` 과
+   번호가 서로 다른 조작처럼 읽힌다. 셋을 되돌려 `‹ 번호들 ›` 한 줄로 세운다.
+
+   한 줄에 담으려면 **폭을 두 군데서 줄여야 한다** (390 실측: 줄 폭 343 인데 종전 그대로면 448):
+   ① 이전·다음을 **화살표만 남긴 44 정사각**으로 (60 → 44). 글자를 지우는 것이 아니라 크기를
+      0 으로 내리는 것이라, 보조기술이 읽는 이름(`이전`·`다음`)은 그대로 남는다.
+      44 는 §9 컨트롤 사다리의 모바일 아이콘 버튼 값이다.
+   ② 번호는 **현재 페이지 앞뒤를 접는다** — 부르는 쪽이 `siblingCount={0}` 을 준다
+      (PageNav 참조). 여기 CSS 로는 못 하는 일이라 부품이 맡는다.
+   숫자 셀 44 는 그대로다 (§9 표에 박힌 값).
+   ★ 킷 선언 속성(flex-wrap · width · order · padding) 덮어쓰기 예외 */
+@media (max-width: 767px) {
+  .krds-pagination {
+    flex-wrap: nowrap;
+  }
+  .krds-pagination .page-links {
+    width: auto;
+  }
+  .krds-pagination .page-navi.next {
+    order: 3;
+  }
+  /* 화살표는 킷이 ::before/::after 로 그리고 크기를 제 변수로 잡으므로 글자만 0 으로 내려도
+     그림은 그대로 선다. 눌리는 자리 44 는 줄어들지 않는다 */
+  .krds-pagination .page-navi {
+    width: var(--klid-control-height-md);
+    flex: none;
+    padding: 0;
+    font-size: 0;
+  }
+  /* 마지막 5 를 여기서 번다 (360 실측 — 위 ①②를 하고도 318 로 5 가 넘쳤다).
+     사이는 4, 「…」 자리는 16 이다. 둘 다 **누르는 자리가 아니다** — 번호 셀과 화살표
+     44 는 그대로 두고, 손이 닿지 않는 것에서만 줄인다.
+     최악(첫·끝 쪽: 번호 넷 + 「…」 하나)이 304 라 360 짜리 화면에 9 가 남는다 */
+  .krds-pagination {
+    --krds-pagination-gap: var(--krds-gap-2);
+  }
+  .krds-pagination .page-links {
+    gap: var(--krds-gap-2);
+  }
+  .krds-pagination .page-links .page-link.link-dot {
+    width: 1.6rem;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Badge — **크기 둘(S · M)** (2026-08-31 사용자 확정).
+
+   짜임의 기준은 **여백이 상자를 만든다** 이다 — 높이는 넣는 값이 아니라 결과다:
+   상하 여백 + 글자줄 + 상하 여백.
+
+     S   좌우 8 · 상하 4 · 글자 13 · 아이콘 14   → 높이 24   (기본)
+     M   좌우 12 · 상하 8 · 글자 15 · 아이콘 16  → 높이 32   (킷 `size="large"`)
+
+   킷은 상하를 패딩으로 안 받고 높이로 받는다 (`padding: 0 var(--krds-badge--padding)`).
+   그래서 같은 결과를 **글자줄을 상자보다 작게 잡아** 만든다 — 줄높이 16 을 높이 24 상자
+   가운데 세우면 위아래가 4 씩 남고, 32 상자면 8 씩 남는다. 두 크기가 글자줄을 같이 쓴다.
+   -------------------------------------------------------------------------- */
+.krds-badge {
+  --krds-badge--radius: var(--krds-radius-max);
+  --krds-badge--pc-font-size: 1.3rem;
+  --krds-badge--size-height: 2.4rem;
+  --krds-badge--line-height: 1.6rem; /* 글자줄 16 — 상하 4 를 만드는 값 (S·M 공용) */
+  --krds-badge--padding: var(--krds-padding-3); /* 좌우 8 */
+  /* ★ **폰에서도 같은 크기다** (2026-08-31 사용자 확정). 킷은 767 이하에서 배지 글자를
+     `mobile-font-size` 로 갈아끼우는데, 종전에는 PC 쪽(`pc-font-size`)만 13 으로 낮춰 둬서
+     **폰에서만 글자가 혼자 15 로 커졌다** — 상자(24)와 좌우 여백은 그대로인 채 글자만
+     커지니 폰에서 배지가 꽉 찼다. 크기는 화면 폭이 아니라 **쓰는 자리**가 고른다:
+     S 로 세운 배지는 PC 에서도 폰에서도 S 다 */
+  --krds-badge--mobile-font-size: 1.3rem;
+  /* ★ 굵기는 **500 이다** (2026-08-25 사용자 확정 · 600 → 400 을 거쳐 그 사이로 왔다).
+     색이 면으로 넘어가면서 글자가 검정 하나가 됐고, 그 상태의 600 은 배지가 같은 줄의
+     제목·값과 무게를 다툰다 — 배지는 읽는 자리가 아니라 **훑는 표식**이라 물러나야 한다.
+     그렇다고 400 까지 내리면 표에서 본문 글자와 구분이 사라져 알약 안의 글자가 그냥 셀
+     내용처럼 읽힌다. 500 은 본문(400)보다 한 단 위, 강조(600)보다 한 단 아래다.
+     킷은 굵기 전용 토큰 없이 전역 `--krds-font-weight-regular` 를 하드 참조한다. 그 토큰을
+     500 으로 재조준하면 "regular" 의 의미가 틀어지므로 굵기만 직접 지정한다.
+     ★ 킷 선언 속성 덮어쓰기 예외. */
+  font-weight: 500;
+}
+
+/* **M** — 킷 `size="large"`. 글자 15 · 높이 32 · 좌우 12.
+
+   기준 여백을 10 이 아니라 **12 로 잡은 이유**: 아이콘이 붙으면 글자 쪽에 4 를 더하는데
+   (아래 `.klid-badge-event`), 10 이면 글자 쪽이 14 가 되어 **여백 척도에 없는 칸**이 된다.
+   12 → 16 은 둘 다 척도 칸이고, 상하 8 로 높이도 32 칸에 그대로 떨어진다.
+
+   ★ 킷은 767 이하에서 large 배지도 `mobile-font-size` 를 쓴다 (`-large` 쪽은 어디서도
+     안 읽는다). 그래서 폰에서 M 이 S 글자로 주저앉지 않게 이 스코프에서 다시 15 로 준다 */
+.krds-badge.large {
+  --krds-badge--padding: var(--krds-padding-5); /* 좌우 12 */
+  --krds-badge--size-height-large: 3.2rem;
+  --krds-badge--pc-font-size-large: 1.5rem;
+  --krds-badge--mobile-font-size: 1.5rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Badge — **포털 변형 둘.** 하나는 면·글자색, 하나는 모양이고 **겹쳐 쓸 수 있다** (2026-08-25 확정).
+   ★ 킷 선언 속성(radius·padding·font-weight) 덮어쓰기 예외.
+   -------------------------------------------------------------------------- */
+
+
+/* ① **틴트 면 + 먹색 글자** (2026-08-25 사용자 확정). 색은 **면이 지고 글자는 검다**.
+
+   같은 날 반대쪽(회색 면 + 색 글자)도 세워 보고 이쪽으로 정했다. 글자가 색을 지면 배지마다
+   글자 톤이 갈려 **한 줄에 선 배지들의 무게가 들쭉날쭉**해지고, 팔레트마다 쓸 수 있는 톤이
+   달라(노랑은 밝은 톤이 대비 미달) 어떤 것은 선명하고 어떤 것은 탁해진다. 색을 면으로 넘기면
+   글자는 여덟 배지가 다 같은 먹색이라 **줄이 고르게 읽히고**, 색은 면끼리만 견준다.
+
+   면은 킷 `light` 가 주는 팔레트 5 를 그대로 쓴다 (§4 틴트 공식의 배경). 글자만 덮는다.
+   ★ 킷 선언 속성(color) 덮어쓰기 예외. `Components/Badge` 참조 */
+.krds-badge.klid-badge-tint {
+  color: var(--krds-color-light-gray-90);
+}
+
+/* ② **각진 모양** — 킷 배지는 캡슐 하나뿐인데, 갈래를 말하는 자리에는 각진 태그가 필요하다.
+   캡슐들 옆에 섰을 때 **색이 아니라 모양으로** 갈리게 하려는 것이다 (design.md §4 사각 태그).
+
+   ★ **모서리만 다르다** (2026-08-31 사용자 확정). 여백·글자·아이콘·높이는 같은 크기의
+     캡슐과 한 값도 다르지 않으므로 여기서 건드리지 않는다 — 한 줄에 캡슐과 나란히 서도
+     밑선과 좌우 숨이 그대로 맞는다. 종전에는 여백을 6 으로 따로 줬는데(척도에 없는 숫자라
+     코드에 직접 박혀 있었다) 같은 줄의 캡슐(당시 10)보다 좁아 셋의 좌우 숨이 어긋났다.
+     지금 쓰는 자리는 학습데이터의 출처(내부·외부)다 */
+.krds-badge.klid-badge-square {
+  --krds-badge--radius: var(--krds-radius-medium1); /* S 모서리 6 */
+  /* ★ 굵기는 **캡슐과 같은 600 이다** (2026-08-25 사용자 지적으로 수정 — 종전 500).
+     500 은 이 태그가 "가장 조용하게 서는 갈래"이던 때의 값인데, 그 조용함은 **색**이 지고
+     있었다(면·글자가 다 옅은 초록/노랑). 셋이 다 틴트 면 + 먹색 글자가 된 지금은 굵기가
+     유일하게 다른 값이라, 한 줄에 나란히 서면 조용한 게 아니라 **혼자 잘못 찍힌 것처럼** 보인다.
+     갈래를 가르는 일은 모양(각짐)이 이미 하고 있다 */
+}
+
+/* M 의 각짐은 **한 칸 위**다 (2026-08-31 확정). 상자가 24 → 32 로 커지는 만큼 모서리도
+   같이 커져야 한다 — 6 을 그대로 두면 큰 상자에서 더 각져 보여 S 와 다른 모양처럼 읽힌다 */
+.krds-badge.large.klid-badge-square {
+  --krds-badge--radius: var(--krds-radius-medium3); /* M 모서리 8 */
+}
+
+/* -----------------------------------------------------------------------------
+   Badge — **분류(재난유형) 변형** (2026-08-25 확정. design.md §4 표가 정본).
+
+   킷 배지로 낼 수 없는 짜임만 여기서 얹는다 — 흰 면 · gray-30 선, 그리고 아이콘이 들어설 자리.
+   상자(높이 24 · 13 · 캡슐)는 킷이 그대로 준다.
+   ★ 킷 선언 속성(background-color·color) 덮어쓰기 예외.
+   -------------------------------------------------------------------------- */
+
+/* 분류(재난유형) — 필터의 **꺼진 유형 칩과 같은 모양**이다: 흰 면 · gray-30 선 · 캡슐.
+   필터에서 고르던 모양이 결과 카드에도 있어야 "내가 고른 그것"이 이어진다.
+   색은 **아이콘에만** — 배경까지 물들이면 같은 줄의 출처·구성과 색이 셋이 되어 갈래가 흐려진다.
+   킷 배지는 글자만 담는 상자라 아이콘을 넣으려면 가로 정렬·간격을 여기서 준다 (킷 미선언 추가) */
+.krds-badge.klid-badge-event {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--krds-gap-2); /* 아이콘↔글자 4 — S·M 같다 (2026-08-31 확정) */
+  border: 0.1rem solid var(--krds-color-light-gray-30);
+  background-color: var(--krds-color-light-gray-0);
+  color: var(--krds-color-light-gray-90);
+  white-space: nowrap;
+  /* ★ **아이콘이 있으면 글자 쪽에 4 를 더한다** (2026-08-31 사용자 확정).
+     아이콘 쪽은 기준값(S 8 · M 12) 그대로 두고, **아이콘이 없는 쪽 = 글자가 끝나는 쪽**만
+     한 칸 올린다 (S 12 · M 16). 아이콘은 자기 그림 안에 이미 빈 자리를 데리고 다녀서
+     양쪽에 같은 값을 주면 아이콘 쪽만 더 벌어져 보인다.
+     규칙은 **좌·우가 아니라 아이콘 쪽·글자 쪽**이다 — 아이콘이 오른쪽에 붙는 배지가
+     생기면 그대로 뒤집어 적용한다.
+     ★ 킷 선언 속성(padding) 덮어쓰기 예외 — 킷은 `padding: 0 var(--krds-badge--padding)`
+       단축으로 좌우를 한 값으로 묶어 두어, 한쪽만 다르게 하려면 이 자리에서 다시 줘야 한다. */
+  padding-inline-end: var(--krds-padding-5); /* S 글자 쪽 12 */
+}
+.krds-badge.large.klid-badge-event {
+  padding-inline-end: var(--krds-padding-6); /* M 글자 쪽 16 */
+}
+
+
+/* -----------------------------------------------------------------------------
+   Accordion — 흰 카드 헤더(15px semibold) + 열림 패널 slate-50 + rounded-2xl.
+   KRDS 기본형은 회색 버튼 + 컨테이너 상하 divider 라 색·치수 토큰으로 뒤집는다.
+   -------------------------------------------------------------------------- */
+.krds-accordion {
+  --krds-accordion--radius: 1.6rem;
+  /* 헤더 여백. 단일 padding 토큰이라 세로(16px) 기준 통일. 좌우는 기준(20px)보다
+     4px 좁다 — 토큰 한계로 절충 */
+  --krds-accordion--padding: var(--krds-padding-6);
+  /* 아이템 간격은 아래 카드 룰의 margin 으로 주므로 0 */
+  --krds-accordion--list-margin-y: 0;
+
+  --krds-accordion--button-pc-font-size: 1.5rem;
+  --krds-accordion--button-color-action: var(--krds-color-light-gray-0);
+  /* 헤더는 hover 반응 없음 */
+  --krds-accordion--button-color-action-hover: var(--krds-color-light-gray-0);
+  --krds-accordion--button-color-text: var(--krds-color-light-gray-80);
+  --krds-accordion--button-color-text-open: var(--krds-color-light-gray-80);
+  /* 화살표 — 20px · slate-400. 기본 24px 진회색은 크고 무겁다 */
+  --krds-accordion--button-icon-size: 2rem;
+  --krds-accordion--color-icon: var(--krds-color-light-gray-40);
+
+  /* 헤더·패널 모두 흰 표면 (2026-07-30 확정). 질문/답변 구분은 배경이 아니라
+     A 표식과 패널 상단 구분선이 맡는다. gray-5 는 흰색과 명도차가 1~2% 뿐이라
+     "한 톤 눌렀다"는 의도가 실제로는 거의 읽히지 않았다 */
+  --krds-accordion--color-action: var(--krds-color-light-gray-0);
+  --krds-accordion--color-action-open: var(--krds-color-light-gray-0);
+
+  /* 컨테이너 상하 divider 없음 */
+  --krds-accordion--color-divider: transparent;
+  --krds-accordion--color-divider-open: transparent;
+
+  /* 헤더가 font-weight-bold 를 하드 참조한다. semibold(600).
+     이 스코프 안의 bold 참조가 모두 600 이 되는 점 유의. */
+  --krds-font-weight-bold: 600;
+  /* 컨테이너 정렬 통일 (design.md §6: 최대 1200 + 좌우 24). 킷 기본 wrap 1248 은
+     본문(.klid-container)과 정렬선이 24px 어긋난다 — 푸터 등 킷 .inner 전부가 이 토큰을 따른다 */
+  --krds-contents-wrap-size: 120rem;
+}
+
+/* 기본형 아코디언 = 독립 카드형 (line variant 는 제외).
+   보더·간격·패널 상단선은 KRDS 가 선언하지 않는 속성이라 "추가"만 한다.
+   (패널 padding-top 0 → 1.6rem 재선언 하나만 예외) */
+.krds-accordion:not(.type-line) .accordion-item {
+  overflow: hidden;
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-gray-0);
+}
+
+/* 머리줄의 초점 링은 **안쪽으로** 그린다.
+   바로 위 `overflow: hidden` 은 둥근 모서리로 패널을 자르려고 건 것인데, 밖으로 그리는
+   기본 링(요소 밖 4까지 나간다)까지 통째로 잘라낸다 — **닫힌 줄은 키보드로 짚어도 아무
+   표시가 안 났다** (2026-09-07 실측: 짚기 전후로 바뀌는 픽셀 0). 열린 줄만 패널 쪽으로
+   삐져나온 아랫변 한 줄이 남아, 테가 아니라 밑줄처럼 보였다.
+   표(.klid-row-open)·탭(.btn-tab)이 같은 사정에서 쓰는 것과 같은 수법이다 — 링을 상자
+   안으로 들여 잘릴 자리를 없앤다. 색·두께는 킷의 안쪽 링 토큰 그대로라 고대비 모드도 따라온다 */
+.krds-accordion:not(.type-line) .accordion-item .btn-accordion:focus-visible {
+  box-shadow: var(--krds-box-shadow-outline-inset);
+  outline-offset: -0.4rem;
+}
+.krds-accordion:not(.type-line) .accordion-item + .accordion-item {
+  margin-top: 1rem;
+}
+.krds-accordion:not(.type-line) .accordion-item .accordion-body {
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+  padding-top: var(--krds-padding-6);
+}
+
+/* Q·A 표식 값 — **여기가 정본**이다. FAQ 아코디언의 ::before 와 부품(QaMark)이 같이 본다.
+   아코디언 표식은 CSS 로 그린 글자라 부품으로 갈아끼울 수 없다. 그래서 모양 값만 밖으로
+   빼서 둘이 같은 것을 보게 했다 — 한쪽만 고쳐 FAQ 와 문의 상세가 어긋나는 일을 막는다 */
+:root {
+  --klid-qa-mark-size: 2.8rem;
+  --klid-qa-mark-radius: 0.8rem;
+  --klid-qa-mark-font-size: 1.4rem;
+  --klid-qa-mark-gap: var(--krds-gap-4);
+  --klid-qa-mark-q-surface: var(--krds-color-light-primary-5);
+  --klid-qa-mark-q-ink: var(--krds-color-light-primary-60);
+  --klid-qa-mark-a-surface: var(--krds-color-light-gray-20);
+  /* gray-50 on gray-20 은 3.86:1 로 미달 (배지 disabled 에서도 같은 조합을 gray-60 으로 올렸다).
+     ::before 로 그린 글자라 대비 감사 스크립트가 훑지 못해 남아 있던 자리 → 6.15:1 */
+  --klid-qa-mark-a-ink: var(--krds-color-light-gray-60);
+}
+
+/* Q·A 표식 — FAQ 카드형 아코디언의 정체성. 기본형에 자동 표시한다.
+   KRDS 가 이 요소들에 display·::before 를 선언하지 않아 "추가"로 성립한다.
+   FAQ 가 아닌 용도(약관·상세정보 등)는 .klid-accordion-plain 으로 끈다. */
+/* ★ Q·A 표식은 **위에 붙인다** (2026-09-07 사용자 지시). 가운데로 세우면 질문이 두 줄인
+   항목에서만 Q 가 아래로 내려와, 목록을 훑을 때 표식 줄이 항목마다 어긋나 보인다.
+   갈매기(::after)가 이미 위에 절대배치라 위로 맞추면 표식 셋이 한 줄에서 시작한다.
+   A 는 원래 위에 서 있었다 — 같은 이름으로 적어 둘이 갈리지 않게 한다 */
+.krds-accordion:not(.type-line) .accordion-item .btn-accordion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--klid-qa-mark-gap);
+}
+.krds-accordion:not(.type-line) .accordion-item .btn-accordion::before,
+.krds-accordion:not(.type-line) .accordion-item .accordion-body::before {
+  content: 'Q';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--klid-qa-mark-size);
+  height: var(--klid-qa-mark-size);
+  flex-shrink: 0;
+  border-radius: var(--klid-qa-mark-radius);
+  background-color: var(--klid-qa-mark-q-surface);
+  color: var(--klid-qa-mark-q-ink);
+  font-size: var(--klid-qa-mark-font-size);
+  font-weight: 600;
+  line-height: 1;
+}
+/* 패널 = A 표식 + 본문 타이포(15px·slate-600·행간 1.7).
+   flex 라 패널 내용은 요소 하나로 감싸서 넣는다(여러 형제를 직접 두면 가로로 흐른다). */
+.krds-accordion:not(.type-line) .accordion-item .accordion-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--klid-qa-mark-gap);
+  color: var(--krds-color-light-gray-60);
+  font-size: 1.5rem;
+  line-height: 1.7;
+}
+.krds-accordion:not(.type-line) .accordion-item .accordion-body::before {
+  content: 'A';
+  background-color: var(--klid-qa-mark-a-surface);
+  color: var(--klid-qa-mark-a-ink);
+}
+/* Q·A 표식 끄기 (FAQ 아닌 아코디언).
+   켜는 쪽 선택자가 :not(.type-line) 을 물고 있어 클래스 4개 무게다. 끄는 쪽도 4개로 맞춰야
+   이긴다 — 3개짜리로 적으면 조용히 져서 표식이 그대로 남는다.
+   래퍼에 걸든(.klid-accordion-plain > .krds-accordion) 아코디언 자체에 걸든 둘 다 받는다 */
+.krds-accordion.klid-accordion-plain .accordion-item .btn-accordion::before,
+.krds-accordion.klid-accordion-plain .accordion-item .accordion-body::before,
+.klid-accordion-plain .krds-accordion .accordion-item .btn-accordion::before,
+.klid-accordion-plain .krds-accordion .accordion-item .accordion-body::before {
+  content: none;
+}
+
+/* -----------------------------------------------------------------------------
+   Breadcrumb (design.md §2 타이포·§8 색: 14px · 링크 gray-50 · 현재 gray-70 medium · 구분자 gray-30)
+   -------------------------------------------------------------------------- */
+.krds-breadcrumb-wrap {
+  /* 14px. 킷 기본은 label-small(15px) */
+  --krds-breadcrumb--pc-font-size: 1.4rem;
+  --krds-breadcrumb--mobile-font-size: 1.4rem;
+  /* hover 틴트 pill 제거 — 반응은 글자색으로만 (아래 :hover) */
+  --krds-breadcrumb--color-action-hover: transparent;
+}
+/* 텍스트 색 위계. 킷은 .txt 에 color 미선언(전역 gray-90 상속)이라 "추가"로 성립.
+   링크·기본 gray-50 / 현재(마지막) gray-70 + medium. */
+.krds-breadcrumb-wrap .breadcrumb li .txt {
+  color: var(--krds-color-light-gray-60); /* canvas 배경 대비 하한 (gray-50 은 4.4:1 미달 — design.md §8) */
+}
+.krds-breadcrumb-wrap .breadcrumb li:last-child .txt {
+  color: var(--krds-color-light-gray-70);
+  font-weight: 500;
+}
+/* 링크 밑줄 제거, hover 는 색만. 밑줄·hover 배경은 킷 선언 속성 오버라이드(예외). */
+.krds-breadcrumb-wrap .breadcrumb li a.txt {
+  text-decoration: none;
+}
+.krds-breadcrumb-wrap .breadcrumb li a.txt:hover {
+  color: var(--krds-color-light-gray-80);
+}
+/* 구분자 꺾쇠 — 연한 gray-30 · 14px. 킷은 gray-90·16px 하드코딩이라 오버라이드(예외). */
+.krds-breadcrumb-wrap .breadcrumb li:not(:last-child)::after {
+  background-color: var(--krds-color-light-gray-30);
+  width: 1.4rem;
+  height: 1.4rem;
+}
+/* 홈 아이콘 숨김 → "홈" 텍스트만 노출 */
+.krds-breadcrumb-wrap .breadcrumb .home .txt::before {
+  display: none;
+}
+/* 전체 경로 노출. 킷은 3단계 이상이면 중간 항목을 clip 으로 숨기고 홈>···>현재 로 접는다.
+   전 경로를 그대로 보이게 접힘을 해제한다(예외 — !important clip 되돌림). */
+.krds-breadcrumb-wrap .breadcrumb li:not(.home):not(:last-child) {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  border: 0 !important;
+}
+/* 접힘용 말줄임(::before)·꼬리 꺾쇠(::after) 제거 */
+.krds-breadcrumb-wrap .breadcrumb li:not(.home):not(:nth-child(2)):last-child::before,
+.krds-breadcrumb-wrap .breadcrumb li:not(.home):not(:nth-child(2)):last-child::after {
+  display: none !important;
+}
+/* 모바일에서는 브레드크럼을 아예 두지 않는다 (2026-08-26 사용자 확정).
+   좁은 폭에서 제목 위 한 줄을 통째로 잡아먹고, 뒤로가기·GNB 로 이동이 가능해 자리값이 없다 */
+@media (max-width: 767px) {
+  .krds-breadcrumb-wrap {
+    display: none;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   FileUpload (design.md §5 드롭존: 흰 배경 · 2px dashed gray-30 · 라운드 16 · 업로드 아이콘 · hover cobalt)
+   기능(파일 선택 버튼·리스트·상태)은 킷 그대로, 컨테이너·아이콘 디자인만 맞춘다.
+   -------------------------------------------------------------------------- */
+.krds-file-upload {
+  /* 드롭영역 — 흰 배경 · 라운드 16 · 2px 보더 · 세로 여백 40 · drag = cobalt-400 */
+  --krds-file-upload--file-color-surface: var(--krds-color-light-gray-0);
+  --krds-file-upload--file-radius: 1.6rem;
+  --krds-file-upload--file-padding-y: var(--krds-padding-10);
+  --krds-file-upload--border-width: 0.2rem;
+  --krds-file-upload--file-color-border-active: var(--krds-color-light-primary-40);
+  /* 폰트 — 킷 기본은 제목 19·드롭 19 로 크다. 제목 17 / 드롭 텍스트 15 로 (pc·mobile 둘 다) */
+  --krds-file-upload--head-pc-font-size: 1.7rem;
+  --krds-file-upload--head-mobile-font-size: 1.7rem;
+  --krds-file-upload--file-pc-font-size: 1.5rem;
+  --krds-file-upload--file-mobile-font-size: 1.5rem;
+  /* 파일 리스트 — 카드 보더 gray-20 · 라운드 12 */
+  --krds-file-upload--list-color-border: var(--krds-color-light-gray-20);
+  --krds-file-upload--list-radius: 1.2rem;
+}
+/* 설명(desc) — 14 · gray-50 (킷은 17·gray-90 으로 크고 진하다) */
+.krds-file-upload .file-head p,
+.krds-file-upload .file-upload .klid-file-upload-hint {
+  font-size: 1.4rem;
+  color: var(--krds-color-light-gray-50);
+}
+/* 드롭영역 안 안내 — 어떤 파일을 올리는지(형식·용량)는 드롭영역에 대한 말이라 칸 안에 둔다.
+   킷 uploadText 는 한 줄 자리라 둘째 줄을 이 클래스로 받아 안내 문구 바로 아래에 붙인다 */
+.krds-file-upload .file-upload .klid-file-upload-hint {
+  display: block;
+  margin-top: var(--krds-gap-2); /* 4 — 라벨→설명과 같은 밀착 급 */
+}
+/* 바깥 카드 보더 제거(line 변형). 드롭영역 자체가 테두리라 이중 상자를 없앤다. */
+.krds-file-upload.line {
+  border: 0;
+  border-radius: 0;
+}
+/* dashed 보더 상시 노출(킷은 border-color:transparent 하드코딩 → 오버라이드 예외) + 간격 정리 + hover cobalt */
+.krds-file-upload .file-upload {
+  gap: var(--krds-gap-4);
+  border-color: var(--krds-color-light-gray-30);
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.krds-file-upload .file-upload:hover {
+  border-color: var(--krds-color-light-primary-40);
+  background-color: var(--krds-color-light-primary-5);
+}
+/* 업로드 아이콘 — 드롭영역 상단 중앙. 킷엔 아이콘 슬롯이 없어 ::before 로 추가한다. gray-40 · 32px */
+.krds-file-upload .file-upload::before {
+  content: '';
+  display: block;
+  width: 3.2rem;
+  height: 3.2rem;
+  background-color: var(--krds-color-light-gray-40);
+  -webkit-mask: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M4%2014.899A7%207%200%201%201%2015.71%208h1.79a4.5%204.5%200%200%201%202.5%208.242'/%3e%3cpath%20d='M12%2012v9'/%3e%3cpath%20d='m16%2016-4-4-4%204'/%3e%3c/svg%3e")
+    no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M4%2014.899A7%207%200%201%201%2015.71%208h1.79a4.5%204.5%200%200%201%202.5%208.242'/%3e%3cpath%20d='M12%2012v9'/%3e%3cpath%20d='m16%2016-4-4-4%204'/%3e%3c/svg%3e")
+    no-repeat center / contain;
+}
+
+/* -----------------------------------------------------------------------------
+   아이콘 — lucide 스왑 (2026-07-29 결정: 조립·킷 내장 모두 lucide 라인 세트로 통일)
+   킷 아이콘은 .svg-icon.ico-* 클래스에 마스크가 한 곳씩 정의돼 클래스당 한 줄로 교체된다.
+   ★ 킷 선언(mask-image) 덮어쓰기 — 문서화 예외. 원칙:
+   - 라인 아이콘만 교체. fill 상태 아이콘(success·error·info)·SNS 로고·로그인 유형 픽토그램은 킷 유지
+   - 방향 회전(.up/.left/.right)은 킷 규칙을 그대로 타므로 기본 방향(chevron-down)으로 넣는다
+   - 새 화면에서 어긋나는 아이콘을 만나면 이 섹션에 한 줄씩 추가
+   -------------------------------------------------------------------------- */
+:root {
+  --klid-ico-search: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3ccircle%20cx='11'%20cy='11'%20r='8'/%3e%3cpath%20d='m21%2021-4.3-4.3'/%3e%3c/svg%3e");
+  --klid-ico-chevron-down: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='m6%209%206%206%206-6'/%3e%3c/svg%3e");
+  --klid-ico-x: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M18%206%206%2018'/%3e%3cpath%20d='m6%206%2012%2012'/%3e%3c/svg%3e");
+  --klid-ico-eye: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M2.062%2012.348a1%201%200%200%201%200-.696%2010.75%2010.75%200%200%201%2019.876%200%201%201%200%200%201%200%20.696%2010.75%2010.75%200%200%201-19.876%200'/%3e%3ccircle%20cx='12'%20cy='12'%20r='3'/%3e%3c/svg%3e");
+  --klid-ico-eye-off: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M10.733%205.076a10.744%2010.744%200%200%201%2011.205%206.575%201%201%200%200%201%200%20.696%2010.747%2010.747%200%200%201-1.444%202.49'/%3e%3cpath%20d='M14.084%2014.158a3%203%200%200%201-4.242-4.242'/%3e%3cpath%20d='M17.479%2017.499a10.75%2010.75%200%200%201-15.417-5.151%201%201%200%200%201%200-.696%2010.75%2010.75%200%200%201%204.446-5.143'/%3e%3cpath%20d='m2%202%2020%2020'/%3e%3c/svg%3e");
+  --klid-ico-arrow-up-right: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M7%207h10v10'/%3e%3cpath%20d='M7%2017%2017%207'/%3e%3c/svg%3e");
+  --klid-ico-plus: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M5%2012h14'/%3e%3cpath%20d='M12%205v14'/%3e%3c/svg%3e");
+  --klid-ico-calendar: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M8%202v4'/%3e%3cpath%20d='M16%202v4'/%3e%3crect%20width='18'%20height='18'%20x='3'%20y='4'%20rx='2'/%3e%3cpath%20d='M3%2010h18'/%3e%3c/svg%3e");
+  --klid-ico-help: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3ccircle%20cx='12'%20cy='12'%20r='10'/%3e%3cpath%20d='M9.09%209a3%203%200%200%201%205.83%201c0%202-3%203-3%203'/%3e%3cpath%20d='M12%2017h.01'/%3e%3c/svg%3e");
+  --klid-ico-upload: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M21%2015v4a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2v-4'/%3e%3cpolyline%20points='17%208%2012%203%207%208'/%3e%3cline%20x1='12'%20x2='12'%20y1='3'%20y2='15'/%3e%3c/svg%3e");
+  --klid-ico-menu: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cline%20x1='4'%20x2='20'%20y1='6'%20y2='6'/%3e%3cline%20x1='4'%20x2='20'%20y1='12'%20y2='12'/%3e%3cline%20x1='4'%20x2='20'%20y1='18'%20y2='18'/%3e%3c/svg%3e");
+  --klid-ico-trash: url("data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3e%3cpath%20d='M10%2011v6'/%3e%3cpath%20d='M14%2011v6'/%3e%3cpath%20d='M19%206v14a2%202%200%200%201-2%202H7a2%202%200%200%201-2-2V6'/%3e%3cpath%20d='M3%206h18'/%3e%3cpath%20d='M8%206V4a2%202%200%200%201%202-2h4a2%202%200%200%201%202%202v2'/%3e%3c/svg%3e");
+}
+.svg-icon.ico-sch {
+  -webkit-mask-image: var(--klid-ico-search);
+  mask-image: var(--klid-ico-search);
+}
+.svg-icon.ico-angle,
+.svg-icon.ico-toggle {
+  -webkit-mask-image: var(--klid-ico-chevron-down);
+  mask-image: var(--klid-ico-chevron-down);
+}
+.svg-icon.ico-popup-close,
+.svg-icon.ico-modal-close {
+  -webkit-mask-image: var(--klid-ico-x);
+  mask-image: var(--klid-ico-x);
+}
+.svg-icon.ico-pw-visible {
+  -webkit-mask-image: var(--klid-ico-eye-off);
+  mask-image: var(--klid-ico-eye-off);
+}
+.svg-icon.ico-pw-visible-on {
+  -webkit-mask-image: var(--klid-ico-eye);
+  mask-image: var(--klid-ico-eye);
+}
+.svg-icon.ico-go {
+  -webkit-mask-image: var(--klid-ico-arrow-up-right);
+  mask-image: var(--klid-ico-arrow-up-right);
+}
+
+/* 정렬 셀렉트(variant="sorting")의 화살표.
+   이 아이콘만 `.svg-icon.ico-*` 가 아니라 셀렉트 자체의 background-image 로 박혀 있어
+   위 스왑에서 빠져 있었다. `<select>` 는 ::before/::after 를 못 그리므로 mask 로 못 바꾸고
+   같은 lucide chevron-down 을 배경으로 바꿔 끼운다 (모양만 통일, 색은 SVG 안에 고정).
+   크기는 킷 기본 24 → 인라인 16 (15px 글자보다 큰 화살표가 글자를 누른다. CLAUDE.md 아이콘 규칙).
+   ★ 킷 선언(background-image) 덮어쓰기 — 위 섹션과 같은 문서화 예외 */
+.krds-form-select-sort {
+  --krds-form-select-sorting--icon-size-small: 1.6rem;
+  --krds-form-select-sorting--icon-size-medium: 1.6rem;
+  --krds-form-select-sorting--icon-size-large: 1.6rem;
+  background-image: var(--klid-ico-chevron-down);
+}
+.svg-icon.ico-plus {
+  -webkit-mask-image: var(--klid-ico-plus);
+  mask-image: var(--klid-ico-plus);
+}
+.svg-icon.ico-calendar {
+  -webkit-mask-image: var(--klid-ico-calendar);
+  mask-image: var(--klid-ico-calendar);
+}
+.svg-icon.ico-help {
+  -webkit-mask-image: var(--klid-ico-help);
+  mask-image: var(--klid-ico-help);
+}
+.svg-icon.ico-upload {
+  -webkit-mask-image: var(--klid-ico-upload);
+  mask-image: var(--klid-ico-upload);
+}
+/* 컴포넌트 인라인 마스크 (svg-icon 미사용 자리): 헤더 검색·전체메뉴 버튼, GNB 드롭다운 캐럿 */
+#krds-header .header-container .btn-navi.sch::before {
+  -webkit-mask-image: var(--klid-ico-search);
+  mask-image: var(--klid-ico-search);
+}
+#krds-header .header-container .btn-navi.all::before {
+  -webkit-mask-image: var(--klid-ico-menu);
+  mask-image: var(--klid-ico-menu);
+}
+.krds-main-menu .gnb-menu .gnb-main-trigger::after {
+  -webkit-mask-image: var(--klid-ico-chevron-down);
+  mask-image: var(--klid-ico-chevron-down);
+}
+
+/* -----------------------------------------------------------------------------
+   Header · MainMenu (GNB) — 포털 타이포·상호작용 (기준: /style 헤더 GNB 실측)
+   항목 15/500 · 높이 40 · 패딩 14 · 라운드 8 · hover 회색 필 · 활성 코발트 텍스트(밑줄 없음)
+   패널: 제목 17/800 + 밑줄 · 항목 15 gray-50 · 불릿 없음 · hover 는 배경 대신 코발트 글자색
+   ----------------------------------------------------------------------------- */
+/* 컨테이너 컴팩트 (킷 padding-5 → 1.2rem) */
+#krds-header {
+  --krds-header--container-padding-top: var(--krds-padding-5);
+  --krds-header--container-padding-bottom: var(--krds-padding-5);
+}
+.krds-main-menu {
+  --krds-main-menu--main-trigger-color-text: var(--krds-color-light-gray-60);
+  --krds-main-menu--main-trigger-color-text-active: var(--krds-color-light-primary-60);
+  --krds-main-menu--main-trigger-color-border-selected: transparent;
+  --krds-main-menu--main-trigger-color-action-hover: var(--krds-color-light-gray-5);
+  --krds-main-menu--main-trigger-color-action-pressed: var(--krds-color-light-gray-10);
+  --krds-main-menu--main-trigger-font-size: 1.5rem;
+  --krds-main-menu--main-trigger-padding-x: 1.4rem;
+  --krds-main-menu--main-trigger-size-height: 4rem;
+  --krds-main-menu--sub-menu-title-font-size: 1.7rem;
+  --krds-main-menu--sub-menu-trigger-color-font-size: 1.5rem;
+  --krds-main-menu--sub-menu-color-action-hover: transparent;
+}
+/* 항목 굵기 500·라운드 8. 굵기는 킷이 bold 프리미티브를 참조해 속성으로 덮는다(문서화 예외) */
+.krds-main-menu .gnb-menu .gnb-main-trigger {
+  font-weight: 500;
+  border-radius: 0.8rem;
+}
+/* 지금 보고 있는 영역 — 코발트 글자만. 밑줄도 면도 두지 않는다 (design.md §11).
+   면을 주면 hover 필과 같은 얼굴이 되어 "지금 여기" 와 "누르면 되는 곳" 이 구분되지 않는다.
+   킷은 활성 자리를 안 주므로 AppHeader 가 `aria-current` 를 직접 단다 (그쪽 주석 참조).
+   hover 보다 뒤에 서야 이기므로 `#krds-header` 로 조준한다 (킷 헤더는 ID 스코프) */
+#krds-header .krds-main-menu .gnb-menu .gnb-main-trigger[aria-current] {
+  color: var(--krds-color-light-primary-60);
+}
+/* 푸터 배경: 본문 canvas(#f4f6fa)와 구분되는 진한 밴드 (기준: /style 푸터 slate-200 + 상단 보더).
+   킷 배경은 시맨틱(surface-gray-subtler) 참조라 푸터 스코프에서만 갈라친다 */
+#krds-footer {
+  --krds-light-color-surface-gray-subtler: var(--krds-color-light-gray-20);
+  border-top: 0.1rem solid var(--krds-color-light-gray-30);
+}
+
+/* 푸터: 킷이 .inner 패딩을 0 으로 리셋해 본문 정렬선(1200+24)과 어긋난다 —
+   컨테이너 패딩 복원 (선언 덮음 — 예외. quick 밴드는 킷 특이도가 높아 별도 조준) */
+#krds-footer .inner,
+#krds-footer .foot-quick .inner {
+  padding-inline: var(--krds-padding-8);
+}
+
+/* ★★ 푸터 본체 로고 — 킷의 KRDS 배경 로고를 **끈다**. `logo.src` 로 기관 로고 img 를 넣어도
+   킷이 같은 자리에 제 배경이미지를 그대로 깔아 둬서 **두 로고가 겹쳐 보인다**.
+   img 에는 킷이 인라인으로 100%/contain 을 박아 두어 img 선택자로는 손댈 수 없다 — 컨테이너
+   크기로 제어한다. 높이 2.8 · 폭 8.8 은 KLID.png 비율(147×47)에서 여백 없이 떨어지는 값이다.
+   ★ 킷 선언 속성(background-image·width·height) 덮어쓰기 예외.
+   ★ 자리 — 앱 셸(shell.css)이 아니라 **여기**다 (2026-08-25 이동). 셸 파일은 데모 앱만 읽고
+     스토리북은 안 읽어서, 같은 푸터가 스토리북에서만 로고 두 개로 겹쳐 있었다. 이건 앱 배치가
+     아니라 **컴포넌트 스킨**이라 테마가 가질 자리다 */
+#krds-footer .f-logo {
+  background-image: none;
+  width: 8.8rem;
+  height: 2.8rem;
+}
+
+/* 푸터 하단 링크(개인정보처리방침 · 이용약관 · 저작권 정책) 사이 구분선.
+   킷은 링크를 간격(0.8)만으로 늘어놓아 세 개가 한 덩어리로 붙어 읽힌다.
+   선은 링크 앞머리에 세우고 그만큼 안쪽 여백을 줘서 앞뒤 간격을 같게 맞춘다 (0.8 · 선 · 0.8).
+   색은 공용 구분선(gray-20)보다 한 칸 진한 gray-30 — 푸터는 흰 바닥이 아니라 회색 띠라
+   같은 칸을 쓰면 바닥에 묻힌다.
+   ★ 높이는 **글자 높이(1em)** 다. 테두리로 그으면 줄상자(글자 높이의 1.5배)만큼 길어져
+     글자보다 위아래로 삐져나온다 — 그래서 조각을 따로 세우고 세로 가운데에 맞춘다 */
+#krds-footer .f-menu > a + a {
+  position: relative;
+  padding-inline-start: var(--krds-padding-3);
+}
+#krds-footer .f-menu > a + a::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.1rem;
+  height: 1em;
+  background-color: var(--krds-color-light-gray-30);
+}
+
+/* Identifier — 상위기관(행정안전부) 심벌 + 운영기관 문구 조합. 소속기관 누리집 관례다.
+   킷은 `identifier` prop 의 logo.src 로 img 를 그리지 않고 sr-only 텍스트(logo.alt)만 반영한다 —
+   낭독은 prop("행정안전부")이 맡고, 눈에 보이는 심벌은 여기서 KRDS 배경을 MOIS.svg 로 갈아 끼운다.
+   ★ 킷 선언 속성 덮어쓰기 예외. 위와 같은 이유로 셸이 아니라 테마에 둔다 */
+.krds-identifier .logo {
+  width: 9.9rem; /* MOIS.svg 비율 212×60 */
+  height: 2.8rem;
+  background-image: url('../assets/MOIS.svg');
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: contain;
+}
+
+/* 패널 경계·그림자 (킷 미선언 추가) */
+.krds-main-menu .gnb-toggle-wrap {
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+  box-shadow: 0 2rem 2.5rem -0.5rem rgba(15, 23, 42, 0.1);
+}
+/* 패널 제목·항목 (제목 굵기·항목 글자색·불릿은 킷 선언 덮음 — 문서화 예외) */
+.krds-main-menu .gnb-toggle-wrap .gnb-sub-list .gnb-sub-content .sub-title {
+  font-weight: 600;
+  height: auto;
+  padding-bottom: var(--krds-padding-6);
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.krds-main-menu .gnb-toggle-wrap .gnb-sub-list .gnb-sub-content > ul a {
+  color: var(--krds-color-light-gray-50);
+  transition: color 0.15s;
+}
+.krds-main-menu .gnb-toggle-wrap .gnb-sub-list .gnb-sub-content > ul a::before {
+  display: none;
+}
+.krds-main-menu .gnb-toggle-wrap .gnb-sub-list .gnb-sub-content > ul a:hover {
+  color: var(--krds-color-light-primary-60);
+}
+
+/* 드로어(1024 미만) 상단 줄 — **화면 헤더 줄과 같은 높이로 선다.**
+   서랍은 헤더 위로 미끄러져 들어오므로 두 줄의 아래 경계선이 어긋나면 서랍이 열리는 순간
+   가로줄이 위아래로 튄다. 그래서 두 줄이 **같은 값 하나**를 읽게 묶는다 — 한쪽만 옮기는
+   일이 생기지 않는다. 값은 줄 안에 서는 조작(≡ · ✕)의 누르는 칸에 위아래 여백을 더한 것이다.
+   ✕ 는 줄 높이를 통째로 쓴다 — 줄이 어느 폭에서 몇이 되든 글리프가 그 가운데에 선다
+   (킷은 위 여백만큼 내려 찍어서, 폰에서 커진 ✕ 가 아래 경계선을 넘어 삐져나왔다) */
+@media (max-width: 1023px) {
+  :root {
+    --klid-gnb-row-height: calc(var(--krds-padding-3) * 2 + var(--klid-control-height-sm));
+  }
+  /* 화면 헤더 줄 (닫혀 있을 때) */
+  #krds-header .header-container .inner {
+    height: var(--klid-gnb-row-height);
+  }
+  /* 서랍 상단 줄 (열렸을 때) */
+  /* 경계선 몫을 더한다 — 헤더는 줄 아래에 선을 얹고(높이 밖), 서랍 줄은 선을 높이 안에
+     안고 있다. 더하지 않으면 두 줄의 **선 자리**가 1 어긋난다 */
+  .krds-main-menu-mobile .gnb-wrap .gnb-header {
+    min-height: calc(
+      var(--klid-gnb-row-height) + var(--krds-main-menu-mobile--header-border-width)
+    );
+  }
+  .krds-main-menu-mobile .gnb-wrap #close-nav {
+    top: 0;
+    height: var(--klid-gnb-row-height);
+  }
+}
+
+/* ★ 서랍이 열려 있는 동안 헤더를 층 위로 올린다.
+   킷 서랍은 헤더 안으로 포털돼 그려진다(shell.css §헤더 blur 주석과 같은 사정). 헤더가
+   자기 층(70)을 여는 탓에 서랍의 층수는 헤더 안에서만 통하고, 화면 층 지도에서 헤더보다
+   위에 선 것들 — LNB 열기 버튼(94) · LNB 딤(95) · LNB 서랍(96) — 이 서랍 **위로** 떠올랐다.
+   층 지도: 헤더 70 · 하단 고정 줄 90 · LNB 94·95·96 · [열린 GNB 서랍 98] · 데모 상태 바 100 */
+#krds-header:has(.krds-main-menu-mobile.is-open) {
+  z-index: 98;
+}
+
+/* 드로어(1024 미만) 하단 링크 — 회원가입·로그인은 좌측 메뉴 열(하늘색) 안 맨 밑에 선다.
+   킷은 이 자리를 목록 아래 전폭으로 깔아 흰 바닥 위에 놓지만, 이 포털에서는 메뉴 열의
+   연장으로 읽혀야 한다. 그래서 본문을 두 칸 격자로 다시 짜고 왼쪽 칸에 이어 붙인다.
+   ★ 킷 선언 속성(display) 오버라이드 — 문서화 예외. 폭·색은 킷 토큰 그대로 쓴다 */
+/* ★ 왼쪽 열 폭은 **가장 긴 메뉴 이름(워크스페이스)이 좌우 여백을 온전히 갖는 폭**이다.
+   킷은 12.4rem 으로 못 박아 둬서 워크스페이스가 좌우 여백(padding-8)을 다 못 받고
+   글자가 칸에 꽉 끼었다. 못 박은 수를 내용에 맡겨 여백이 늘 지켜지게 한다 —
+   메뉴 이름이 길어져도 좌우가 같이 따라온다 (2026-09-07 사용자 확정) */
+.krds-main-menu-mobile {
+  --krds-main-menu-mobile--menu-left-width: max-content;
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body {
+  display: grid;
+  grid-template-columns: var(--krds-main-menu-mobile--menu-left-width) 1fr;
+  grid-template-rows: auto 1fr;
+  /* 스크롤은 오른쪽 패널이 혼자 진다 — 왼쪽 열이 서랍 높이에 맞아야 두 링크가 바닥에 선다
+     (킷 선언 overflow-y:auto 덮음 — 예외) */
+  overflow: hidden;
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-menu {
+  display: contents;
+}
+/* 열 배경은 .gnb-menu 가 지고 있었다 — 격자로 풀면서 두 칸이 나눠 진다 */
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-menu .menu-wrap,
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-bottom {
+  background-color: var(--krds-main-menu-mobile--menu-color-surface);
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-menu .menu-wrap {
+  grid-area: 1 / 1;
+  min-height: 0;
+  overflow-y: auto; /* 메뉴가 서랍보다 길어지는 작은 화면 대비 */
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-menu .submenu-wrap {
+  grid-area: 1 / 2 / span 2;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* 계정 두 줄(로그인 전 회원가입·로그인 / 로그인 후 마이페이지·로그아웃)은 하늘색 열
+   **맨 아래**에 붙는다 (킷은 목록 바로 밑).
+   두 줄 사이는 킷 기본(gap-5)에서 두 칸 좁힌다 — 누르는 칸이 44 라 그 자체로 이미 벌어진다.
+   ★ 두 줄은 위 메뉴 이름과 **같은 왼쪽 선**에서 시작한다 (2026-09-07 사용자 확정).
+   그 선은 메뉴 이름이 쓰는 값을 그대로 읽는다 — 한쪽만 옮겨져 선이 어긋나는 일이 없다.
+   킷 기본은 제 여백(padding-6)에 글자만큼만 넓은 상자라 두 줄의 왼쪽이 서로도, 위 메뉴와도
+   안 맞았다: 여백을 메뉴 것으로 바꾸고 상자를 열 폭까지 펴서 셋을 한 선에 세운다 */
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-bottom {
+  grid-area: 2 / 1;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: var(--krds-gap-3);
+  padding-inline: var(--krds-main-menu-mobile--main-trigger-padding-x);
+}
+/* 이 두 줄은 **보조**다 — 글자는 메뉴 이름(label-medium)에서 한 칸 내린 label-small.
+   (두 칸 내린 xsmall 은 폰에서 너무 작았다 — 2026-09-07 사용자 확정)
+   ★ 킷이 자동으로 붙이는 화살표(>)는 걷어낸다: 이동 표시가 필요한 자리가 아니고,
+      글리프가 제 상자 안에서 한쪽으로 쏠려 있어 글자와의 좌우 간격이 어긋나 보였다.
+   ★ 앞 아이콘은 킷이 글줄 밑선에 맞추려고 아래로 한 칸(-0.3rem) 내려 둔다. 그 보정은
+      글자와 나란히 흐르는 글자 버튼용이라, 가운데로 세운 이 상자 안에서는 아이콘만
+      글자보다 내려앉는다 — 되돌려 글자와 같은 가운데에 세운다 */
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-bottom a {
+  font-size: var(--krds-mobile-font-size-label-small);
+  /* 왼쪽 선은 바깥 여백이 혼자 진다 — 킷이 글자 버튼에 주는 좌우 여백은 그 선을 밀어낸다 */
+  justify-content: flex-start;
+  padding-inline: 0;
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-bottom a .svg-icon {
+  margin-bottom: 0;
+}
+.krds-main-menu-mobile .gnb-wrap .gnb-body .gnb-bottom a .svg-icon.ico-angle {
+  display: none;
+}
+
+/* -----------------------------------------------------------------------------
+   SideNavigation (LNB) — 포털 스킨 (기준: /style LNB 실측)
+   카드 셸(라운드 16·보더) · 제목 13/700 gray-50 자간 · 항목 15/500 필(라운드 12)
+   hover gray-5 · 활성 primary-5 틴트 + primary-60/600 · 항목 구분 보더 없음
+   -------------------------------------------------------------------------- */
+.krds-side-navigation {
+  --krds-side-navigation--padding: var(--krds-padding-4);
+  --krds-side-navigation--title-font-size: 1.3rem;
+  --krds-side-navigation--title-padding-x: var(--krds-padding-5);
+  --krds-side-navigation--title-padding-bottom: var(--krds-padding-4);
+  --krds-side-navigation--title-color-border: var(--krds-color-light-gray-10);
+  --krds-side-navigation--btn-font-size: 1.5rem;
+  --krds-side-navigation--btn-padding-x: var(--krds-padding-5);
+  --krds-side-navigation--btn-padding-y: var(--krds-padding-4);
+  --krds-side-navigation--color-action-hover: var(--krds-color-light-gray-5);
+  --krds-side-navigation--color-action-pressed: var(--krds-color-light-gray-10);
+  --krds-side-navigation--color-action-selected: var(--krds-color-light-primary-5);
+  --krds-side-navigation--color-text-selected: var(--krds-color-light-primary-60);
+  --krds-side-navigation--item-border-width: 0;
+  --krds-side-navigation--item-color-border: transparent;
+  --krds-side-navigation--item-color-border-selected: transparent;
+  --krds-side-navigation--color-border-selected: transparent;
+  /* 카드 셸 (킷 미선언 추가) */
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-gray-0);
+}
+/* 제목: 소구획 라벨 톤 (색·자간 킷 미선언 추가) */
+.krds-side-navigation .lnb-tit {
+  color: var(--krds-color-light-gray-50); /* 대비 하한 (design.md §8) */
+  letter-spacing: 0.05em;
+}
+/* 항목: 필 형태. 라운드·색·전환은 미선언 추가, 정렬 center·굵기 500(활성 600)은 킷 선언 덮음 — 예외 */
+.krds-side-navigation .lnb-list .lnb-item .lnb-btn {
+  align-items: center;
+  border-radius: 1.2rem;
+  font-weight: 500;
+  color: var(--krds-color-light-gray-60);
+  transition: background-color 0.15s, color 0.15s;
+}
+.krds-side-navigation .lnb-list .lnb-item .lnb-btn:hover {
+  color: var(--krds-color-light-gray-90);
+}
+/* 킷 결함 보완: Link 의 current prop 은 aria-current 만 붙이고 .selected 클래스를 안 붙인다.
+   aria-current 도 같은 활성 스타일을 받게 한다 */
+.krds-side-navigation .lnb-list .lnb-item .lnb-btn.selected,
+.krds-side-navigation .lnb-list .lnb-item .lnb-btn[aria-current] {
+  background-color: var(--krds-side-navigation--color-action-selected);
+  color: var(--krds-side-navigation--color-text-selected);
+  font-weight: 600;
+}
+/* 하위 메뉴: 불릿(•) 대신 좌측 보더 트리 (::before 는 킷 선언 덮음 — 예외) */
+.krds-side-navigation .lnb-list .lnb-item .lnb-submenu > ul {
+  margin-left: 1.6rem;
+  padding-left: var(--krds-padding-4);
+  border-left: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.krds-side-navigation .lnb-list .lnb-item .lnb-submenu .lnb-btn::before {
+  display: none;
+}
+
+/* -----------------------------------------------------------------------------
+   MainMenu 드롭다운형 GNB — .klid-gnb-dropdown 래퍼 (Header className 로 옵트인)
+   킷은 확장형(좌측 섹션 레일 + 우측 패널)만 구현한다. 섹션이 하나뿐인 메뉴는
+   공식 KRDS 사이트의 드롭다운형(레일 없는 풀폭 패널: 제목 + 3열 리스트)으로 편다.
+   ★ 킷 선언 속성(display·position·width) 오버라이드 — 문서화 예외.
+   섹션 2개 이상인 메뉴는 래퍼가 있어도 확장형 그대로 둔다.
+   krds-react 1.1.1 기준, 업그레이드 시 재검증.
+   -------------------------------------------------------------------------- */
+/* 단일 섹션일 때만 좌측 레일 배경 제거 */
+.klid-gnb-dropdown .gnb-main-list[data-has-submenu='true']:has(> ul > li:only-child)::before {
+  display: none;
+}
+/* 단일 섹션: 레일 폭 제한 해제 + 섹션 트리거 숨김 + 패널을 흐름 배치로 풀폭 전개 */
+.klid-gnb-dropdown .gnb-main-list > ul > li:only-child {
+  width: 100%;
+}
+.klid-gnb-dropdown .gnb-main-list > ul > li:only-child .gnb-sub-trigger {
+  display: none;
+}
+.klid-gnb-dropdown .gnb-main-list > ul > li:only-child .gnb-sub-list {
+  position: static;
+  min-height: 0;
+}
+/* 패널 타이포·그림자는 위 "Header · MainMenu (GNB)" 전역 섹션이 담당한다 */
+
+/* -----------------------------------------------------------------------------
+   결합형 헤더 — .klid-gnb-union 래퍼 (Header className 로 옵트인)
+   KRDS 헤더 유형(가로형·세로형·결합형) 중 결합형: 유틸 줄 아래 로고와 메인 메뉴가 같은 줄.
+   킷은 메인 메뉴를 로고 아래 별도 밴드로만 그리므로 래퍼로 재배열한다.
+   기준: KRDS 피그마 정본 Header 페이지 Type=union (node 2099:96400).
+   ★ 예외(선언 속성 덮어쓰기): container·inner·branding 을 display:contents 로 해체.
+   킷이 #krds-header ID 스코프로 선언해 전부 #id.클래스(1-2-0)로 조준한다.
+   1024 미만은 킷 기본(모바일 드로어) 그대로 둔다.
+   -------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  #krds-header.klid-gnb-union .header-in {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--krds-gap-7);
+    max-width: var(--krds-contents-size, 120rem);
+    margin-inline: auto;
+    padding-inline: var(--krds-padding-8);
+    padding-block: var(--krds-header--container-padding-top) var(--krds-header--container-padding-bottom);
+  }
+  #krds-header.klid-gnb-union .header-container,
+  #krds-header.klid-gnb-union .header-container .inner,
+  #krds-header.klid-gnb-union .header-branding {
+    display: contents;
+  }
+  /* 유틸 줄은 그대로 전용 윗줄 유지 */
+  #krds-header.klid-gnb-union .header-utility {
+    order: 0;
+    flex-basis: 100%;
+  }
+  #krds-header.klid-gnb-union .logo,
+  #krds-header.klid-gnb-union .klid-header-logo {
+    order: 1;
+  }
+  #krds-header.klid-gnb-union .krds-main-menu {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    --krds-main-menu--color-surface: transparent;
+    --krds-main-menu--color-border: transparent;
+  }
+  #krds-header.klid-gnb-union .header-actions {
+    order: 3;
+  }
+  /* 결합형 기본 정렬은 우측 (피그마 스펙). 중앙 배치가 필요하면 호출부에서 덮는다 */
+  #krds-header.klid-gnb-union .gnb-menu {
+    justify-content: flex-end;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Calendar 기간 모드 — 시작일·종료일 칸을 카드 안으로 (.klid-calendar-inset-range 래퍼)
+   킷이 주는 기본 모양은 두 칸이 달력 카드 **바깥 아래**에 붙어 있다. 이 래퍼를 씌우면
+   달력을 펼친 동안 두 칸이 **카드 안(확인 버튼 위)** 으로 들어간다.
+   ★ 짝이 되는 JS 가 있다 — `useCalendarInsetRange` 훅. 좌표를 재서 아래 변수로 넘긴다.
+     클래스만 붙이고 훅을 안 부르면 fallback 값(첫 그림 한 프레임용)에 멈춰 어긋난다.
+   기준: 내 학습데이터(SCREEN-013) 조회 기간 필터 · 2026-08-25 사용자 확정.
+   -------------------------------------------------------------------------- */
+
+/* ★★★ 두 칸은 달력을 펼친 동안만 카드 안에 보인다.
+   킷 마크업에서 이 칸은 카드의 **자식이 아니라 형제**라, 카드 "안"으로 보이게 하려면
+   좌표로 띄워 놓고 카드 쪽에 그만큼 빈자리를 뚫어 주는 수밖에 없다.
+
+   ★★ 좌표를 CSS 에 숫자로 박지 않는다 (2026-08-25 — 이 자리를 세 번 고치고 세 번 다시
+   깨진 뒤 방식을 바꿨다). 박아야 할 숫자가 셋인데 셋 다 **서로 다른 것에 딸려 있었다**:
+     · 내려오는 거리 → 요일 줄 여백·글자 크기에 딸림 (요일 여백 줄였을 때 깨짐)
+     · 빈자리 크기   → 입력칸 높이에 딸림       (이름표 붙였을 때 깨짐)
+     · 오른쪽 거리   → 어느 상자에 매달렸나에 딸림 (× 를 칩 안에 넣었을 때 깨짐)
+   하나를 손보면 나머지가 어긋나므로, 셋 다 **훅이 카드를 직접 재서** 넘겨 준다.
+   여기 적힌 fallback 값은 첫 그림 한 프레임용이다.
+
+   ★ `.calendar-input` 의 z-index 는 **반드시 이 달력을 얹은 판보다 높아야 한다.** 이 칸이
+   카드 위에 보이는 것은 이 상자가 만드는 층 덕분이다 — static 으로 바꿔 층을 없애 봤더니
+   칸이 통째로 카드 뒤에 깔려 아예 안 보였다(실측 2026-08-25). 칸 자신의 z-index 를 5000
+   까지 올려도 소용없었다. 그러니 이 상자는 건드리지 않는다.
+   ※ 그래서 이 칸의 기준 상자는 카드가 아니라 `.calendar-input` 이다 — 쓰는 화면에 따라 그
+     상자 폭이 달라지므로, 훅이 **기준 상자를 실제로 재서**(`row.offsetParent`) 그 차이를
+     흡수한다. CSS 는 숫자를 모른다 */
+.klid-calendar-inset-range .calendar-input {
+  z-index: 1002;
+}
+.klid-calendar-inset-range .calendar-input:has(.form-btn-datepicker[aria-expanded='true']) .input-group {
+  display: flex;
+  position: absolute;
+  top: var(--klid-range-row-top, 47.4rem);
+  right: var(--klid-range-row-right, 1.6rem);
+  width: var(--klid-range-row-width, 35rem);
+  z-index: 1001;
+}
+/* 입력 칸이 앉을 자리를 확인 버튼 위에 비워 둔다 — 값은 위와 같은 곳에서 재서 넘어온다 */
+.klid-calendar-inset-range .calendar-footer {
+  padding-top: var(--klid-range-row-hole, 9.3rem);
+}
+
+/* ★ 입력 칸이 크게 나오는 원인 — 사이즈가 하나뿐인 게 아니라(design.md §3 은 36·44·52
+   세 급을 정해 뒀다), 이 칸은 킷 달력이 직접 그리는 마크업이라 `class="krds-input"` 에
+   sm·md 급 클래스가 붙지 않는다. 클래스 없는 `.krds-input` 은 킷 기본값이 large(52) 라
+   여기서만 늘 52 로 나온 것이다. 마크업을 못 고치므로(클래스를 못 붙이므로) large 슬롯이
+   읽는 값 자체를 small(36) 걸로 다시 선언한다 — 킷의 3단 참조(컴포넌트 변수 → 사이즈 토큰)
+   를 그대로 타고 내려가므로 매직 넘버 없이 small 과 완전히 같은 값이 된다.
+   ★★ 선언 위치는 반드시 `.krds-input` 자신이어야 한다(실측 2026-08-25 — 부모 `.input-group`
+   에 걸었더니 안 먹었다). 킷이 이 변수들을 `.krds-input` 자기 자신에도 다시 선언해 두므로
+   (컴포넌트 변수 관행), 그게 부모에서 물려받는 값을 도로 덮어 버린다 */
+.klid-calendar-inset-range .input-group .krds-input {
+  --krds-input--size-height-large: var(--krds-size-height-6);
+  --krds-input--radius-large: var(--krds-radius-medium1);
+  --krds-input--pc-font-size-large: var(--krds-pc-font-size-label-small);
+  --krds-input--mobile-font-size-large: var(--krds-mobile-font-size-label-small);
+}
+/* 오른쪽 여백만 64 로 유독 넓다 — 킷이 입력 안에 아이콘이 얹히는 경우를 상정해 아이콘 자리를
+   비워 두는 값인데, 이 칸엔 아이콘이 없다. 그 여백 그대로 두면 "YYYY.MM.DD" 열 글자가 잘려
+   보인다(실측 2026-08-25). design.md §3 "입력은 좌우 14 고정" 대로 되돌린다 */
+.klid-calendar-inset-range .input-group .krds-input {
+  padding-right: 1.4rem;
+}
+/* 가운데 「-」칸은 컴포넌트 변수가 아니라 킷이 직접 높이를 박아 둔 자리라(마찬가지로 사이즈
+   클래스가 안 붙어 large 급 56 으로 나온다) 변수가 아니라 속성 자체를 다시 잰다.
+   입력 칸과 같은 바닥선에 서므로(`.input-group.range` 는 align-items:flex-end) 높이가
+   달라도 눈에 크게 안 띄지만, 정확한 높이를 맞춰 둔다 */
+.klid-calendar-inset-range .input-group.range > li.mark {
+  height: var(--krds-size-height-6);
+}
+
+/* ★ 「시작일」·「종료일」을 눈에 보이는 이름표로 (2026-08-25 확정 — 처음엔 title 속성(마우스
+   올리면 뜨는 설명)으로 넣었는데 화면엔 안 보인다고 다시 요청받았다).
+   킷 마크업엔 이 낱개 입력칸에 이름표를 넣을 자리가 없다(전체를 묶는 라벨 하나뿐이다) —
+   `<input>` 은 대체 요소라 그 자신에 `::before` 를 못 붙이므로 한 단 위 `<li>` 에 붙인다.
+   `<li>` 는 이미 세로로 쌓는 상자라(킷 기본) 이름표가 그 위에 자연히 얹힌다.
+   폼 라벨 값(14·600·gray-70)은 이 테마 § 폼 라벨 과 같은 값 */
+.klid-calendar-inset-range .input-group li:not(.mark):first-child::before {
+  content: '시작일';
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+}
+.klid-calendar-inset-range .input-group li:not(.mark):last-child::before {
+  content: '종료일';
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+}
+
+/* =============================================================================
+   모바일에서만 갈리는 나머지 — 크기가 아니라 **성질**이 바뀌는 자리들
+
+   높이·글자·여백은 위 § 컨트롤 사다리 가 이미 폭에 따라 바꿔 준다. 여기 남은 것은
+   사다리로 표현되지 않는 셋뿐이고, 셋 다 미디어 쿼리 없이 사다리 토큰만 읽는다.
+   ============================================================================= */
+
+/* 킷이 그리는 아이콘 버튼 — 모달 닫기 ✕ · 비밀번호 보기 눈 · 검색어 지우기.
+   킷은 박스와 글리프를 한 값으로 묶어(`.svg-icon{width:100%}`) 24 정사각으로 그린다.
+   손가락에 24 는 작으므로 **박스만** 사다리의 최소치까지 넓히고 글리프는 따로 잡는다.
+   `max()` 라 PC(최소치 0)에서는 킷 값 그대로 24 다 — 데스크톱은 한 픽셀도 안 바뀐다.
+   푸터 SNS 아이콘(.xlarge.border)은 정보성 링크 갈래라 대상이 아니다 */
+.krds-btn.icon.medium {
+  width: max(var(--krds-button--icon-size-medium), var(--klid-tap-floor));
+  height: max(var(--krds-button--icon-size-medium), var(--klid-tap-floor));
+}
+.krds-btn.icon.medium .svg-icon,
+.krds-btn.icon.medium > svg {
+  /* 박스가 넓어져도 글리프는 킷 값(24) 그대로다 — 보이는 크기는 안 바뀌고 누르는 자리만 넓어진다 */
+  width: var(--klid-kiticon-glyph);
+  height: var(--klid-kiticon-glyph);
+}
+
+/* 면이 없는 글자 조작(로그인·초기화 등) — 글자 크기·모양은 그대로 두고 누르는 자리만 넓힌다.
+   `.krds-btn.text` 는 위 § 버튼 에서 inline-flex + 가운데 정렬이라 글자가 그대로 중앙에 선다.
+   푸터 링크는 촘촘히 선 정보성 링크라 44 를 주면 푸터가 두 배로 길어진다 — 제외한다 */
+.krds-btn.text {
+  min-height: var(--klid-tap-min);
+}
+#krds-footer .krds-btn.text {
+  min-height: auto;
+}
+
+/* lg 제출 버튼의 가로 (§ 컨트롤 사다리 --klid-btn-lg-width).
+   창 아랫동(.modal-btn)은 걸음이 둘 나란히 서는 자리라 제외한다 */
+.krds-btn.large {
+  width: var(--klid-btn-lg-width);
+}
+.modal-btn .krds-btn.large {
+  width: auto;
+}

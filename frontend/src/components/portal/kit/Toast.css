@@ -1,0 +1,53 @@
+@charset "utf-8";
+/* 토스트 알림. 생김새는 안내 띠(Alert.css)가 갖고, 여기는 떠 있는 자리 · 층 · 등장만 둔다.
+   기준: design.md §5 (떠 있는 레이어만 그림자) · §6 */
+
+/* 화면 아래 가운데. 바닥에서 24 띄우고 여러 개면 8 사이로 위로 쌓인다.
+   폭 48rem — 한 줄 알림이 한두 줄로 서는 폭이다 (척도가 아니라 알림 판의 폭).
+   좁은 화면에서는 좌우 16 을 남기고 줄어든다.
+   층 1040 — 킷 창(1010 · 1020)과 드롭다운 시트(1030) 위다: 창을 닫는 순간 뜨는 결과가 딤 뒤로 숨지 않는다 */
+.klid-toaster {
+  position: fixed;
+  left: 50%;
+  bottom: var(--krds-gap-7);
+  z-index: 1040;
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  width: min(48rem, calc(100% - var(--krds-gap-5) * 2));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 한 장 — 안내 띠에 떠 있는 층의 그림자만 더한다. 그림자는 킷 창과 같은 두 겹(가까운 윤곽 + 먼 번짐)을
+   한 단 낮춰 쓴다 — 창보다 가벼운 층이다. 색은 킷 그림자 토큰이다 */
+.klid-toast {
+  border-radius: var(--krds-radius-medium3);
+  box-shadow:
+    0 0 var(--krds-number-2) 0 var(--krds-light-color-alpha-shadow2),
+    0 var(--krds-number-5) var(--krds-number-8) 0 var(--krds-light-color-alpha-shadow3);
+  pointer-events: auto;
+  animation: klid-toast-in 0.2s ease-out;
+}
+/* 면 · 선은 성격과 상관없이 알림(회색) 한 벌이다 — 표식 색만 성격을 말한다 (2026-09-14).
+   떠 있는 한마디라 면까지 물들면 화면 위에서 너무 튄다. 표식 색은 안내 띠가 성격별로 준 그대로 쓴다.
+   속성 선택자까지 물어 안내 띠의 성격별 면 · 선보다 한 급 세게 건다 (파일 읽는 순서에 기대지 않는다) */
+.klid-toast .klid-alert[data-tone] {
+  background-color: var(--krds-color-light-gray-5);
+  border-color: var(--krds-color-light-gray-20);
+}
+@keyframes klid-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--krds-gap-3));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klid-toast {
+    animation: none;
+  }
+}

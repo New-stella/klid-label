@@ -1,0 +1,52 @@
+@charset "utf-8";
+/* 조건 칩 줄. 기준: design.md §2 (보조 14) · §4 (배지 · 칩 캡슐) · §6 */
+
+.klid-condition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--krds-gap-2) var(--krds-gap-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 캡슐 한 개 — 옅은 면 · 옅은 테. 높이 24 는 컨트롤 높이 척도 한 칸(배지 급) */
+.klid-condition-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  height: var(--krds-size-height-4);
+  padding: 0 var(--krds-padding-3);
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-gray-5);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1;
+  white-space: nowrap;
+}
+.klid-condition-chip-label {
+  color: var(--krds-color-light-gray-60);
+}
+.klid-condition-chip-value {
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+/* 글자 모양 — 면 · 테를 걷고 낱개 사이를 공용 세로선이 가른다 (선이 양옆 여백을 준다).
+   이름 → 값 사이는 칩과 같은 간격을 이름 쪽 여백으로 옮긴다 — 낱개 간격으로 두면 선 양옆이 짝짝이가 된다 */
+.klid-condition-chips[data-look='text'] {
+  column-gap: 0;
+}
+.klid-condition-chips[data-look='text'] .klid-condition-chip {
+  gap: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  line-height: 1.5;
+}
+.klid-condition-chips[data-look='text'] .klid-condition-chip-label {
+  margin-right: var(--krds-gap-2);
+}
+.klid-condition-chips-empty {
+  font-size: var(--krds-pc-font-size-body-small);
+  color: var(--krds-color-light-gray-60);
+}

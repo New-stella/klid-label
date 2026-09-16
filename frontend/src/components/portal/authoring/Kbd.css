@@ -1,0 +1,40 @@
+@charset "utf-8";
+/* 키 이름표. 높이 24 · 글자 13 · 라운드 4 — 배지(24 · 13)와 같은 높이 칸이라 한 줄에 서도 밑선이 맞는다 */
+
+.klid-kbd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--krds-size-height-4); /* 한 글자 키도 네모로 — 폭 하한 = 높이 24 */
+  height: var(--krds-size-height-4);
+  padding-inline: var(--krds-padding-3);
+  /* 아래 선만 한 겹 두껍게 — 눌리는 키 모양이 이것 하나로 읽힌다. 면에 색을 깔면 배지로 읽힌다 */
+  border: 0.1rem solid var(--krds-color-light-gray-30);
+  border-bottom-width: 0.2rem;
+  border-radius: var(--krds-radius-small1);
+  background-color: var(--krds-color-light-gray-0);
+  font-family: inherit; /* 브라우저 기본 고정폭을 끊는다 */
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-70);
+  white-space: nowrap;
+}
+
+/* 함께 누르는 키 — 이름표 사이 「+」 는 이름표보다 한 단 물러난다 */
+.klid-kbd-combo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.klid-kbd-plus {
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  line-height: 1;
+  color: var(--krds-color-light-gray-50);
+}

@@ -1,0 +1,81 @@
+@charset "utf-8";
+/* 영상 자리. 기준: design.md §5 (카드 안 대표 이미지는 가장자리까지 · 빈 상태) */
+
+/* 16:9 — 영상 비율이라 척도가 아니다. 판은 어두운 회색이다: 영상이 서는 동안 가장자리가
+   흰 카드와 갈려야 한다. 영상이 없는 두 상태는 아래 안내 판이 이 색을 덮는다 */
+.klid-video-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background-color: var(--krds-color-light-gray-90);
+}
+/* 영상이 없는 두 상태 — 어두운 색을 뺀다. 남겨 두면 카드가 둥글게 자르는 모서리에 실처럼 비친다 */
+.klid-video-stage[data-status='loading'],
+.klid-video-stage[data-status='unavailable'] {
+  background-color: transparent;
+}
+.klid-video-stage > img,
+.klid-video-stage > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 안내 판 — 판 전체를 덮는 층. 빈 화면 안내(sm)가 그 층을 꽉 채우고 아이콘·글을 가운데에 모은다 */
+.klid-video-stage-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+/* 테두리·모서리는 영상 자리를 담은 쪽(카드)이 이미 갖는다 — 판이 또 그으면 선이 두 겹이 된다.
+   세로 여백은 판 높이가 영상 비율로 정해져 있어 가운데 맞춤이 대신한다 */
+.klid-video-stage-message > .klid-empty-state[data-size] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-block: var(--krds-padding-8);
+  border: 0;
+  border-radius: 0;
+}
+
+/* 끊김 대기 — 멈춘 장면을 흐리게 비친다. 판 색을 반쯤만 깔아 장면이 보이되 글이 읽힌다.
+   70% 는 색이 아니라 비침 정도 */
+.klid-video-stage[data-status='buffering'] .klid-video-stage-message > .klid-empty-state[data-size] {
+  background-color: color-mix(in srgb, var(--krds-color-light-gray-5) 70%, transparent);
+}
+/* 흐림은 덮개 뒤가 아니라 장면 자체에 건다 — 덮개 뒤를 흐리면 카드의 둥근 모서리에 잘리지 않고
+   모서리 밖으로 뾰족하게 넘친다. 장면을 살짝 키워 흐림에 섞여 드는 가장자리 바깥을 잘라 낸다.
+   흐림 1.2rem 은 셸 헤더 흐림과 같은 값, 1.1 은 배율이다 (둘 다 척도가 없다) */
+.klid-video-stage[data-status='buffering'] > img,
+.klid-video-stage[data-status='buffering'] > video {
+  filter: blur(1.2rem);
+  transform: scale(1.1);
+}
+/* 끊김 대기의 모서리 — 장면·덮개·바탕이 층마다 따로 둥글게 잘리면 경계 점에 아래층이 겹쳐 비쳐
+   곡선을 따라 진한 실이 생긴다. 어두운 바탕을 빼고(장면이 판을 다 덮는다) 판을 한 장으로 묶어
+   카드가 한 번에 자르게 한다 */
+.klid-video-stage[data-status='buffering'] {
+  background-color: transparent;
+  transform: translateZ(0);
+}
+
+/* 고리 — 기다리는 두 상태만 돈다. 재생할 수 없음은 고리 대신 경고 삼각형이 선다. 움직임이 「아직 하는 중」과
+   「끝났다」를 가른다. 0.9s 는 포털의 다른 도는 고리와 같은 빠르기 */
+.klid-video-stage[data-status='loading'] .klid-empty-state .icon,
+.klid-video-stage[data-status='buffering'] .klid-empty-state .icon {
+  animation: klid-video-stage-spin 0.9s linear infinite;
+}
+@keyframes klid-video-stage-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 움직임을 줄여 달라고 한 사용자에게는 돌리지 않는다 — 기다림은 글이 이미 말하고 있다 */
+@media (prefers-reduced-motion: reduce) {
+  .klid-video-stage .klid-empty-state .icon {
+    animation: none;
+  }
+}

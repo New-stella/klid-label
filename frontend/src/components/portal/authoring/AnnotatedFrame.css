@@ -1,0 +1,85 @@
+@charset "utf-8";
+/* 라벨 캔버스. 기준: design.md §2 (배지 급 글자 13) · §7 (라운드) */
+
+/* 칸을 다 채우는 그릇 — 제 크기를 재서 안의 그림 판을 비율대로 세운다. 안쪽 여백 24 는 그림이 칸 테에 붙지 않게 */
+.klid-annotated-frame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--krds-padding-8);
+  container-type: size;
+}
+/* 그림 판 — 16:9. 칸의 폭 · 높이 중 먼저 닿는 쪽에 맞춘다 (그림 비율이라 척도가 아니다) */
+.klid-annotated-frame-box {
+  position: relative;
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+}
+/* 옆으로 누운 보기(90 · 270) — 판이 돌면 폭이 높이가 된다. 칸 높이에 판 폭을, 칸 폭에 판 높이를 맞춘다 */
+.klid-annotated-frame-box[data-sideways] {
+  width: min(100cqh, 100cqw * 16 / 9);
+}
+.klid-annotated-frame-box > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.klid-annotated-frame-layer,
+.klid-annotated-frame-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 도형 — 라벨 색 테 2 + 같은 색 옅은 면. 테 굵기는 화면 픽셀로 고정한다 (획이라 척도가 아니다) */
+.klid-annotated-frame-layer .shape {
+  fill: color-mix(in srgb, var(--shape-color) 16%, transparent);
+  stroke: var(--shape-color);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.klid-annotated-frame-layer .shape[data-selected] {
+  fill: color-mix(in srgb, var(--shape-color) 28%, transparent);
+  stroke-width: 3;
+}
+/* 격자 — 흰 선을 반만 비치게. 그림 어느 색 위에서도 보이고 도형보다 앞서지 않는다 */
+.klid-annotated-frame-layer .grid line {
+  stroke: color-mix(in srgb, var(--krds-color-light-gray-0) 45%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+/* 영역 확대 점선 — 흰 점선 + 옅은 면 */
+.klid-annotated-frame-layer .marquee {
+  fill: color-mix(in srgb, var(--krds-color-light-gray-0) 12%, transparent);
+  stroke: var(--krds-color-light-gray-0);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 이름표 — 도형 왼쪽 위 바깥에 붙는다. 라벨 색 면 + 흰 글 */
+.klid-annotated-frame-marks .tag {
+  position: absolute;
+  padding: 0 var(--krds-padding-2);
+  border-radius: var(--krds-radius-xsmall1);
+  background-color: var(--shape-color);
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--krds-color-light-gray-0);
+  white-space: nowrap;
+  transform: translateY(-100%);
+}
+/* 손잡이 — 모서리 · 꼭짓점의 흰 네모 + 라벨 색 테. 8 은 누르는 자리가 아니라 보이는 표식 크기 */
+.klid-annotated-frame-marks .handle {
+  position: absolute;
+  width: var(--krds-number-5);
+  height: var(--krds-number-5);
+  border: 0.2rem solid var(--shape-color);
+  background-color: var(--krds-color-light-gray-0);
+  transform: translate(-50%, -50%);
+}

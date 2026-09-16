@@ -1,0 +1,28 @@
+@charset "utf-8";
+/* 저작도구 · 증강 탭. 짜임(사이 · 폭)만 둔다 — 겉모습은 전부 부품이 갖는다.
+   기준: design.md §5 표면 · §6 세로 리듬 */
+
+/* 미리보기 — 창 폭을 다 쓴다 (2026-09-14 사용자 지시 · 저작도구 원본도 가로 전체다) */
+.klid-augment-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9; /* 영상 판 비율 — 그림이 늦게 와도 자리가 먼저 선다 */
+  object-fit: cover;
+  border-radius: var(--krds-radius-medium3);
+  background-color: var(--krds-color-light-gray-10);
+}
+/* 내려받기 줄 — 창 맨 위. 안내 글이 왼쪽, 걸음 묶음이 오른쪽 끝이고 둘의 높이 가운데를 맞춘다 */
+.klid-augment-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--krds-gap-5);
+}
+.klid-augment-action-row > .form-hint {
+  margin: 0;
+}
+.klid-augment-action-steps {
+  display: flex;
+  flex: none;
+  gap: var(--krds-gap-3);
+}

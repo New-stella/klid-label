@@ -16,6 +16,8 @@
  * @design DS-002
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
 
@@ -78,7 +80,8 @@ describe('포털 내 작업 — 안내 말투', () => {
     mount([work()]);
     const body = document.body.textContent ?? '';
     expect(body).toContain('보존기간이 지나면');
-    expect(body).toContain('내려받아 두세요');
+    // ⚠ 2026-09-16 — 부모 포털 문구에 맞춰 「두세요」 → 「주세요」. 뜻은 같고 말투만 통일했다.
+    expect(body).toContain('내려받아 주세요');
   });
 
   /**
@@ -103,10 +106,16 @@ describe('포털 내 작업 — 표 짜임', () => {
   it('★열_폭을_표에_맡기지_않는다_고정_배분과_열_수가_맞는다', () => {
     mount([work()]);
     const table = screen.getByRole('table');
-    expect(table.className).toContain('table-fixed');
-    expect(table.querySelectorAll('colgroup > col')).toHaveLength(
-      within(table).getAllByRole('columnheader').length,
-    );
+    // ⚠ 2026-09-16 — 고정 배분을 **Tailwind `table-fixed` 가 아니라 킷 CSS 가** 건다
+    //   (`krds-react/dist/index.css` 의 `table{table-layout:fixed}`). 그래서 클래스 이름으로는
+    //   확인할 수 없고, **우리가 책임지는 몫인 「폭을 명시했는가」**를 본다.
+    const cols = table.querySelectorAll('colgroup > col');
+    // 열 수와 칸 수가 맞는다 — 어긋나면 폭 배분이 통째로 밀린다
+    expect(cols).toHaveLength(within(table).getAllByRole('columnheader').length);
+    // 값이 짧은 칸은 폭을 못 박는다(남는 폭은 이름 칸이 먹으므로 첫 칸만 비운다)
+    const widths = [...cols].map((c) => (c as HTMLElement).style.width);
+    expect(widths[0]).toBe('');
+    expect(widths.slice(1).every((w) => w !== '')).toBe(true);
   });
 
   /** 이름은 길이가 제각각이다 — 자르되 전문은 말풍선에 남긴다(둘은 짝이다). */
@@ -114,7 +123,18 @@ describe('포털 내 작업 — 표 짜임', () => {
     const longName = '아주-긴-영상이름-'.repeat(6) + '.mp4';
     mount([work({ videoName: longName })]);
     const cell = within(screen.getByTestId('portal-work-row-10')).getByTitle(longName);
-    expect(cell.className).toContain('truncate');
+    // ⚠ 2026-09-16 — 자르는 일을 Tailwind `truncate` 가 아니라 **우리 포털 CSS 의 이름 칸 규칙**이
+    //   맡는다. jsdom 은 CSS 를 적용하지 않으므로 ①칸이 그 클래스를 달았는지와 ②그 클래스가
+    //   실제로 말줄임을 선언하는지를 **함께** 본다 — 한쪽만 보면 클래스만 남고 규칙이 사라져도 통과한다.
+    expect(cell.className).toContain('klid-authoring-cell-name');
+    const css = readFileSync(
+      path.resolve(__dirname, '../../../styles/portal/authoring-layout.css'),
+      'utf-8',
+    );
+    const rule = css.slice(css.indexOf('.klid-authoring-cell-name {'));
+    const body = rule.slice(0, rule.indexOf('}'));
+    expect(body).toContain('text-overflow: ellipsis');
+    expect(body).toContain('white-space: nowrap');
   });
 
   /**

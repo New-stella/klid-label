@@ -4,6 +4,13 @@
 // - 본문 상단 이동 탭으로 목적지를 오간다 (아래 ★★★)
 // - 모바일 친화 (Tailwind md:* 분기, WCAG 2.1 AA)
 
+// ★★ 포털 모습 — KRDS 킷 + 부모 포털 토큰을 **맨 먼저** 불러온다 (2026-09-16).
+//   부품 CSS 가 이보다 앞서 실리면 같은 무게의 규칙에서 킷 기본값에 져 창 안 여백·컨트롤
+//   높이가 조용히 달라진다. 이 셸이 포털 화면의 유일한 뿌리라 여기가 그 한 자리다.
+//   ⚠ 관제 산출물에 실리면 안 된다 — 그래서 이 셸 자체를 라우터가 **지연 로드**한다
+//     (`router/index.tsx` 의 `PortalLayout` 주석). 이 파일을 정적으로 import 하지 말 것.
+import '@/styles/portalLook';
+
 import { Link, Outlet } from 'react-router-dom';
 
 import { PortalContentTabs } from '@/components/layout/PortalContentTabs';

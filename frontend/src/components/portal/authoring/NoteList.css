@@ -1,0 +1,44 @@
+@charset "utf-8";
+/* 안내 사항 — 불렛 목록. 면·선·표식 없이 회색 글로만 물러난다 (2026-09-11 면 걷어냄).
+   상자가 아니라 글이라 안쪽 여백이 없다 — 위아래 간격은 놓이는 자리가 준다 */
+
+.klid-note-list {
+  /* 불렛 한 변 6 — 그래픽 치수라 척도 밖이다. 글 14 곁에서 네모 모서리가 읽히는 가장 작은 크기
+     (4 면 라운드 2 가 모서리를 다 먹어 점으로 보인다) */
+  --klid-note-list-bullet: 0.6rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3); /* 줄 사이 8 — 한 덩어리로 읽히는 목록 (창 안 목록과 같은 급) */
+  list-style: none;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 목록 기본 여백을 걷는다 — ★ 무게 0(:where)으로 둔다. 놓이는 자리가 주는 여백(화면 CSS 의
+   클래스)이 CSS 를 읽는 순서와 상관없이 이겨야 한다. 같은 무게로 두면 이 파일이 나중에 읽힐 때
+   화면이 준 위 여백·구분선 여백이 0 으로 지워진다 (2026-09-11 저작도구 안내 사항에서 실제로 났다) */
+:where(.klid-note-list) {
+  margin: 0;
+  padding: 0;
+}
+
+/* 들여쓰기 12 = 불렛 6 + 사이 6. 접힌 둘째 줄은 글 시작점에 맞춰 선다 */
+.klid-note-list > li {
+  position: relative;
+  padding-left: var(--krds-padding-5);
+}
+
+/* ★ 불렛은 **그린 네모**다 — 글자(•·▪)로 두면 폰트마다 크기·기준선이 달라진다.
+   첫 줄 한가운데(0.5lh)에 앉힌다. 글자 크기·줄간이 바뀌어도 따라온다 */
+.klid-note-list > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(0.5lh - var(--klid-note-list-bullet) / 2);
+  width: var(--klid-note-list-bullet);
+  height: var(--klid-note-list-bullet);
+  border-radius: var(--krds-radius-xsmall1);
+  background-color: var(--krds-color-light-gray-40);
+}

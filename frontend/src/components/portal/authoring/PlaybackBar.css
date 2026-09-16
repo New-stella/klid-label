@@ -1,0 +1,23 @@
+@charset "utf-8";
+/* 재생 줄. 재생 버튼 · 앞말 · 막대 · 뒷말이 한 줄로 서고 막대가 남는 폭을 먹는다 */
+
+.klid-playback {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-4);
+  min-width: 0;
+}
+.klid-playback-seek {
+  flex: 1 1 auto;
+}
+.klid-playback-lead,
+.klid-playback-trail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums; /* 재생 중 숫자가 바뀌어도 막대가 흔들리지 않게 */
+  color: var(--krds-color-light-gray-60);
+}

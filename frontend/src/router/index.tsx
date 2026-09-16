@@ -6,7 +6,6 @@ import { AppErrorPage } from '@/components/common/AppErrorPage';
 import { ForbiddenPage } from '@/components/common/ForbiddenPage';
 import { Spinner } from '@/components/common/Spinner';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
 import { IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
@@ -82,6 +81,20 @@ const AugmentResultPage = /* @__PURE__ */ lazyWithRetry(() =>
 );
 
 // Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
+/**
+ * 포털 셸 — **지연 로드한다.** 이 모듈이 포털 모습 CSS(KRDS 킷 + 부모 포털 토큰)를 끌고 오는데,
+ * 그 킷은 `html{font-size:62.5%}` 를 전역에 깔아 **관제 축 Tailwind 치수를 전부 줄인다.**
+ * 정적 import 로 두면 CSS 는 부수효과라 나무흔들기에 걸리지 않아 **관제 산출물에도 실려 나간다.**
+ * 지연 로드로 두면 이 호출이 아래 `IS_PORTAL_CHANNEL_BUILD` 가지 안에만 있어(산출 시점에 접히는
+ * 상수다) 관제 빌드에서 통째로 사라진다.
+ *
+ * ⚠ `isDevLoginEnabled()` 처럼 **함수 호출**로 가른 자리는 접히지 않는다(router 아래 ★★ 참조).
+ *   이 자리는 접히는 상수라 접힌다 — 둘을 같은 것으로 다루지 말 것.
+ */
+const PortalLayout = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/components/layout/PortalLayout').then((m) => ({ default: m.PortalLayout })),
+);
+
 const PortalHomePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 );
@@ -706,7 +719,7 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
       // PORTAL 채널 — 별도 PortalLayout (LNB 없음, 모바일 친화)
       {
         path: '/portal',
-        element: <PortalLayout />,
+        element: withSuspense(<PortalLayout />),
         errorElement: <AppErrorPage status={500} />,
         children: [
           {

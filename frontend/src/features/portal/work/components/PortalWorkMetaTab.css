@@ -1,0 +1,8 @@
+@charset "utf-8";
+/* 포털 라벨링 '메타' 탭 — 옆 칸 본문의 안쪽 여백.
+   ★ 포털 시안에서 이 여백은 **편집기 뼈대**(킷 `EditorLayout` 의 `.klid-editor-panel-body`)가 준다.
+     그 뼈대는 관제 라벨링 화면(`pages/label/LabelingPage`)이 소유해 우리가 세울 수 없으므로,
+     탭 본문이 같은 값을 스스로 갖는다. 뼈대가 포털 부품으로 바뀌는 날 이 규칙을 지운다. */
+.klid-portal-meta-tab {
+  padding: var(--krds-padding-6);
+}

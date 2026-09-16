@@ -1,0 +1,111 @@
+@charset "utf-8";
+/* 마킹 지점 줄. 기준: design.md §2 (보조 본문 14) · §6 (라벨 밀착) · §7 (안쪽 라운드는 바깥보다 작다) */
+
+/* 머리 줄 → 막대는 8 — 이름표와 그 대상이라 붙인다 (§6 「한 요소 안의 조각」) */
+.klid-mark-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  min-width: 0;
+}
+
+/* 이름 · 건수. 값은 연속 값 막대(RangeSlider)의 이름 줄과 같다 — 같은 카드 안에서 이름표 두 벌이
+   다른 무게로 서지 않게 한다 */
+.klid-mark-timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--krds-gap-3);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+}
+.klid-mark-timeline-label {
+  font-weight: 600;
+  color: var(--krds-color-light-gray-80);
+}
+.klid-mark-timeline-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 막대 — 영상 한 편의 길이. 옅은 면 + 입력 칸급 보더라 흰 카드 위에서 「칸」으로 선다.
+   높이 32 는 컨트롤 높이 척도의 한 칸이다 — 눈금이 그림으로 읽힐 만큼 길고, 재생 줄의 막대보다
+   무겁지 않게 둔다 */
+.klid-mark-timeline-track {
+  position: relative;
+  height: var(--krds-size-height-5);
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: var(--krds-radius-medium3);
+  background-color: var(--krds-color-light-gray-5);
+}
+
+/* 눈금이 서는 판. 위아래 4 · 좌우 8 들여 — 눈금이 테두리에 닿지 않고, 0 과 끝 지점 눈금이
+   반쪽만 보이지 않는다 */
+.klid-mark-timeline-rail {
+  position: absolute;
+  inset: var(--krds-gap-2) var(--krds-gap-3);
+}
+
+/* 눈금 하나 — **누르는 폭 16 · 보이는 선 2.** 선은 가상 요소가 그리고 요소 자체는 과녁이다.
+   지점에 가운데를 맞춘다 (`--at` 은 부품이 지점 ÷ 전체 길이로 넘긴다) */
+.klid-mark-timeline-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--at);
+  width: var(--krds-size-height-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--krds-radius-small1);
+  background: none;
+  transform: translateX(-50%);
+}
+.klid-mark-timeline-tick::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0.2rem; /* 선 굵기 — 간격 척도가 아니라 획이다 */
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-primary-50);
+  transform: translateX(-50%);
+}
+
+/* 누르는 눈금만 반응한다 — 그림으로만 선 눈금이 얹을 때 바뀌면 누를 수 있는 것으로 읽힌다 */
+button.klid-mark-timeline-tick {
+  cursor: pointer;
+}
+/* 얹었을 뿐 — 선이 한 칸 짙어지고 과녁 면이 옅게 깔린다 (§3 칩 사다리의 얹음 틴트) */
+button.klid-mark-timeline-tick:hover {
+  background-color: var(--krds-color-light-primary-10);
+}
+button.klid-mark-timeline-tick:hover::before {
+  background-color: var(--krds-color-light-primary-60);
+}
+/* 맨 요소라 킷 포커스 링이 안 따라온다 — 포털 공통 링을 직접 건다 (krds-focus.css 의 토큰) */
+button.klid-mark-timeline-tick:focus-visible {
+  box-shadow: var(--krds-box-shadow-outline);
+}
+
+/* 고른 눈금 — 선이 한 획 굵어지고 한 칸 짙어진다. 옆 목록의 고른 알약과 같은 지점이다.
+   0.3rem 은 획 굵기다 (간격 척도가 아니다) */
+.klid-mark-timeline-tick[data-selected]::before {
+  width: 0.3rem;
+  background-color: var(--krds-color-light-primary-70);
+}
+
+/* 재생 머리 선 — 지금 재생 위치. 누를 수 없는 선이라 눈금보다 옅은 회색으로 막대 위아래를 다 긋고,
+   눈금(코발트)과 색으로 갈린다. 눈금 위에 겹쳐도 가리지 않게 누르는 자리를 받지 않는다 */
+.klid-mark-timeline-playhead {
+  position: absolute;
+  top: calc(-1 * var(--krds-gap-2));
+  bottom: calc(-1 * var(--krds-gap-2));
+  left: var(--at);
+  width: 0.2rem; /* 선 굵기 — 획이다 */
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-gray-70);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
