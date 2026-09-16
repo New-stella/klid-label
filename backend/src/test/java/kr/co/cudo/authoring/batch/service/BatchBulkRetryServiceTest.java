@@ -228,4 +228,98 @@ class BatchBulkRetryServiceTest {
         // then
         verify(reprocessService).retry(9L);
     }
+
+    // ── 선두 비식별 실패 영상 혼합 [@design API-199] [@design AC-1133] [@design AC-1134] ──
+
+    /**
+     * 실제 건별 서비스·실제 판정 서비스로 일괄을 돌린다 — 일괄에 별도 분기가 없고 건별 판정을 그대로
+     * 탄다는 것을 결과로 확인한다.
+     */
+    @Test
+    @DisplayName("★일괄에_선두비식별_실패·배치실패·미실패·신고표식_영상이_섞여도_건별과_같은_결과")
+    void 혼합일괄() {
+        DeidentRetryLockFixture locks = new DeidentRetryLockFixture();
+        VideoRepository videos = mock(VideoRepository.class);
+        LsDataRaw deidFailed = rawOf(31L, "F", LsDataRaw.STATUS_PENDING);
+        LsDataRaw batchFailed = rawOf(32L, "Y", LsDataRaw.DATA_STTS_FAILED);
+        LsDataRaw healthy = rawOf(33L, "Y", LsDataRaw.DATA_STTS_COMPLETED);
+        LsDataRaw reported = rawOf(34L, "F", LsDataRaw.STATUS_PENDING);
+        for (LsDataRaw r : List.of(deidFailed, batchFailed, healthy, reported)) {
+            when(videos.findById(r.getRawSn())).thenReturn(Optional.of(r));
+            when(videos.existsById(r.getRawSn())).thenReturn(true);
+        }
+        kr.co.cudo.authoring.label.repository.LsDeidentReportRepository reports =
+                mock(kr.co.cudo.authoring.label.repository.LsDeidentReportRepository.class);
+        when(reports.findAllByDataRawSnAndReportSttsCd(34L,
+                kr.co.cudo.authoring.label.entity.LsDeidentReport.REPORT_OPEN))
+                .thenReturn(List.of(mock(kr.co.cudo.authoring.label.entity.LsDeidentReport.class)));
+        LeadDeidentRetryService lead = new LeadDeidentRetryService(videos,
+                mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class), reports,
+                mock(kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository.class),
+                locks.workLockService);
+        kr.co.cudo.authoring.batch.status.BatchTransitionService transition =
+                mock(kr.co.cudo.authoring.batch.status.BatchTransitionService.class);
+        when(transition.tryClaimReprocessFromFailed(32L)).thenReturn(true);
+        when(transition.tryClaimReprocessFromFailed(33L)).thenReturn(false);
+        kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner batchRunner =
+                mock(kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner.class);
+        BatchReprocessService single = new BatchReprocessService(videos, transition,
+                mock(kr.co.cudo.authoring.batch.status.BatchStatusService.class), batchRunner,
+                mock(kr.co.cudo.authoring.batch.retry.BatchRetryQueue.class), lead);
+        BatchBulkRetryService bulk = new BatchBulkRetryService(videos, single);
+
+        BatchBulkRetryResponse res = bulk.retryAll(new BatchBulkRetryRequest(List.of(31L, 32L, 33L, 34L)));
+
+        assertThat(res.successCount()).isEqualTo(2);
+        assertThat(res.results()).extracting(BatchBulkRetryResponse.Item::rawSn)
+                .containsExactly(31L, 32L, 33L, 34L);
+        assertThat(res.results()).extracting(BatchBulkRetryResponse.Item::success)
+                .containsExactly(true, true, false, false);
+        assertThat(res.results().get(2).reason()).isEqualTo(BatchReprocessService.NOT_CLAIMABLE_REASON);
+        assertThat(res.results().get(3).reason()).isEqualTo(LeadDeidentRetryService.OPEN_REPORT_REASON);
+        // 선두 비식별 재수행은 31 한 건만, 마킹 이후 재기동은 32 한 건만.
+        verify(batchRunner, times(1)).runLeadDeidentRetryAsync(anyLong());
+        verify(batchRunner).runLeadDeidentRetryAsync(31L);
+        verify(batchRunner, times(1)).runAsync(anyLong(), org.mockito.ArgumentMatchers.anyString());
+        verify(batchRunner).runAsync(32L, LsDataRaw.DATA_STTS_FAILED);
+        // 선두 비식별 재시작 잠금은 31 에만, 신고 표식 영상에는 남지 않는다.
+        assertThat(locks.activeRetryLocks(31L)).isEqualTo(1);
+        assertThat(locks.activeOf(34L)).isEmpty();
+        verify(transition, org.mockito.Mockito.never()).tryClaimReprocessFromFailed(31L);
+        verify(transition, org.mockito.Mockito.never()).tryClaimReprocessFromFailed(34L);
+    }
+
+    @Test
+    @DisplayName("★일괄에서_파생_선두비식별_실패영상은_기존_파생거부_사유가_먼저_걸린다")
+    void 파생은_기존사유() {
+        VideoRepository videos = mock(VideoRepository.class);
+        LsDataRaw derived = mock(LsDataRaw.class);
+        when(derived.isDerivative()).thenReturn(true);
+        when(videos.findById(41L)).thenReturn(Optional.of(derived));
+        BatchReprocessService single = mock(BatchReprocessService.class);
+
+        BatchBulkRetryResponse res = new BatchBulkRetryService(videos, single)
+                .retryAll(new BatchBulkRetryRequest(List.of(41L)));
+
+        assertThat(res.successCount()).isZero();
+        assertThat(res.results().get(0).reason()).isEqualTo(BatchBulkRetryService.DERIVATIVE_REASON);
+        verify(single, org.mockito.Mockito.never()).retry(anyLong());
+    }
+
+    private static LsDataRaw rawOf(long rawSn, String deIdntfYn, String dataSttsCd) {
+        LsDataRaw raw = LsDataRaw.createFromIngest("clip-" + rawSn, "cctv", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/raw/" + rawSn + ".mp4", null, 60);
+        try {
+            Field sn = LsDataRaw.class.getDeclaredField("rawSn");
+            sn.setAccessible(true);
+            sn.set(raw, rawSn);
+            Field st = LsDataRaw.class.getDeclaredField("dataSttsCd");
+            st.setAccessible(true);
+            st.set(raw, dataSttsCd);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        raw.markDeidentified(deIdntfYn);
+        return raw;
+    }
 }

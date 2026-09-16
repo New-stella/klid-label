@@ -63,6 +63,8 @@ public class AsyncBatchReprocessRunner {
     private final BatchOrchestrator orchestrator;
     private final BatchTransitionService transitionService;
     private final BatchStatusService batchStatusService;
+    /** 선두 비식별 본체 — 수동 재시작 진입에서 {@code runNow} 만 부른다(비동기 재디스패치 금지). */
+    private final AsyncDeidentifyRunner deidentifyRunner;
 
     /**
      * 선점된 클레임을 인계받아 파이프라인을 실행한다 — 호출자 스레드로 예외를 돌려보내지 않는다.
@@ -113,6 +115,25 @@ public class AsyncBatchReprocessRunner {
         run(rawSn, claimOriginStatus,
                 () -> orchestrator.processBundleRerun(
                         rawSn, stageToggles, claimOriginStatus, preserveReviewOwnedStatus));
+    }
+
+    /**
+     * <b>선두 비식별 실패 영상의 배치 재시작</b> 진입. [@design API-167] [@design API-199] [@design AC-1133]
+     *
+     * <p>요청({@code BatchReprocessService})은 판정과 영상 단위 작업 잠금 선점까지만 끝내고 여기로 넘긴다.
+     * 이 풀(포화 시 거부)을 쓰는 이유는 위 두 진입과 같다 — 선두 비식별 풀은 포화 시 <b>호출 스레드에서
+     * 실행</b>하므로 일괄 재시작 포화 때 제외 복사가 요청 스레드에서 돌고, 일괄 분량이 적재 직후 비식별을
+     * 굶긴다. 거부({@link org.springframework.core.task.TaskRejectedException})는 호출자에게 전파돼 잠금
+     * 해제 + 503 으로 처리된다.
+     *
+     * <p>본체는 {@code AsyncDeidentifyRunner#runNow} 를 <b>이 스레드에서</b> 그대로 부른다 — 같은 러너의
+     * 비동기 진입을 부르면 선두 비식별 풀로 재디스패치된다. 배치 단계 선점이 없으므로 선점 표식·보상 롤백은
+     * 타지 않으며, 잠금 해제는 러너와 외부 위탁 종결 지점이 맡는다.
+     */
+    @Async("batchReprocessExecutor")
+    public void runLeadDeidentRetryAsync(Long rawSn) {
+        log.info("[AsyncBatchReprocess] starting lead deident retry rawSn={}", rawSn);
+        deidentifyRunner.runNow(rawSn);
     }
 
     /**

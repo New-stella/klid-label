@@ -476,10 +476,16 @@ public class VideoQueryService {
      * 영상 1건의 비식별 상태 파생 (우선순위 — 'Y' 최우선):
      * <ol>
      *   <li>deIdntfYn=='Y' → DONE (완료, 마킹 진입 가능)</li>
+     *   <li>최신 procLog 진행중(REQUESTED / POLL WAITING|POLLING, 처리상태 FAILED 아님) → IN_PROGRESS</li>
      *   <li>deIdntfYn=='F' 또는 최신 procLog FAILED → FAILED</li>
-     *   <li>최신 procLog 진행중(REQUESTED / POLL WAITING|POLLING) → IN_PROGRESS</li>
      *   <li>그 외(procLog 없음 & deIdntfYn=='N') → NONE</li>
      * </ol>
+     *
+     * <p><b>진행 중이 'F' 보다 앞이다</b> [@design AC-1133] — 선두 비식별 실패 영상을 배치 재시작으로 다시
+     * 태우는 동안 영상 비식별 여부는 'F' 그대로다(재시작은 'N' 으로 되돌리지 않는다). 'F' 를 먼저 보면
+     * 재수행 중인 영상이 목록에서 계속 「실패」로 보인다. 최신 회차가 진행 중이면 그 회차가 현재 상태다.
+     * 신고 표식 'F' 는 최신 회차가 성공 행이라 여기에 걸리지 않고 그대로 FAILED 다. 재시작 접수 직후
+     * 위탁 원장이 생기기 전의 짧은 창에는 직전 실패 회차가 최신이라 FAILED 로 보인다(인지·수용).
      *
      * <p>SUCCEEDED/DOWNLOADED procLog + deIdntfYn='N' 비정상 상태도 NONE 에 해당하나, 정상
      * 트랜잭션(markDeidentified('Y')+procLog.succeed() 동일 커밋)에서는 발생하지 않는다.
@@ -489,17 +495,21 @@ public class VideoQueryService {
         if ("Y".equals(yn)) {
             return VideoSummaryResponse.DeidentStatus.DONE;
         }
-        if ("F".equals(yn) || (latestLog != null && LsDeidentProcLog.FAILED.equals(latestLog.getProcSttsCd()))) {
-            return VideoSummaryResponse.DeidentStatus.FAILED;
-        }
         if (latestLog != null && isDeidentInProgress(latestLog)) {
             return VideoSummaryResponse.DeidentStatus.IN_PROGRESS;
+        }
+        if ("F".equals(yn) || (latestLog != null && LsDeidentProcLog.FAILED.equals(latestLog.getProcSttsCd()))) {
+            return VideoSummaryResponse.DeidentStatus.FAILED;
         }
         return VideoSummaryResponse.DeidentStatus.NONE;
     }
 
     /** 최신 procLog 가 진행 중인지: PROC_STTS=REQUESTED 또는 POLL_STTS=WAITING/POLLING. */
     private boolean isDeidentInProgress(LsDeidentProcLog log) {
+        // 종결된 회차는 폴링 값이 무엇이든 진행 중이 아니다 — 진행 중이 'F' 보다 앞서므로 방어적으로 끊는다.
+        if (LsDeidentProcLog.FAILED.equals(log.getProcSttsCd())) {
+            return false;
+        }
         if (LsDeidentProcLog.REQUESTED.equals(log.getProcSttsCd())) {
             return true;
         }

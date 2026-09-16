@@ -26,6 +26,22 @@ public class LsAuthWorkLock {
     /** Phase 4 트랙 병합 배타 락 사유. */
     public static final String REASON_MERGE = "MERGE";
 
+    /**
+     * 선두 비식별 실패 영상의 배치 재시작이 잡은 락을 가리는 식별자 접두. [@design AC-1135]
+     *
+     * <p>같은 {@code TARGET_RAW} 락을 트랙 병합·검수완료 재비식별도 쓰는데, 이 엔티티에는 락 종류를 담는
+     * 컬럼이 없다(생성 팩토리의 사유 인자는 저장되지 않는다). 스키마를 바꾸지 않고 종류를 가리기 위해
+     * 락 식별자({@code LCK_ID}, 유일·64자) 앞에 이 접두를 붙인다 — 해제는 이 접두를 가진 락에만 한정된다.
+     * 접두 10자 + UUID 36자 = 46자로 컬럼 폭 안이다.
+     */
+    public static final String LOCK_ID_PREFIX_DEIDENT_RETRY = "DEIDRETRY-";
+
+    /**
+     * 선두 비식별 재시작 락 만료 — 외부 위탁의 폴링 시한(기본 180분)보다 길게 둔다. 만료 회수는 안전망일 뿐이며
+     * 정상 해제는 재수행의 종결 지점이 한다. 만료로 회수돼도 진행 중 위탁 원장 검사가 이중 수락을 막는다.
+     */
+    static final long DEIDENT_RETRY_LOCK_HOURS = 6;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "WORK_LOCK_SN")
@@ -105,6 +121,30 @@ public class LsAuthWorkLock {
         lock.regId = ownerId;
         lock.regDt = lock.lockDt;
         return lock;
+    }
+
+    /**
+     * 선두 비식별 실패 영상의 배치 재시작 락. [@design API-167] [@design AC-1135]
+     * {@code TARGET_RAW} 라 다른 기능의 {@code isRawLocked} 로 함께 관측되고, 같은 영상의 활성 락
+     * 유일 인덱스가 동시 선점을 1건으로 막는다. 식별자 접두로 이 기능이 잡은 락임을 가린다.
+     */
+    public static LsAuthWorkLock lockRawForDeidentRetry(Long rawSn, String ownerId) {
+        LsAuthWorkLock lock = new LsAuthWorkLock();
+        lock.lockTargetCd = TARGET_RAW;
+        lock.dataRawSn = rawSn;
+        lock.lockSttsCd = STATUS_LOCKED;
+        lock.lockId = LOCK_ID_PREFIX_DEIDENT_RETRY + UUID.randomUUID();
+        lock.lockOwnerId = ownerId;
+        lock.lockDt = LocalDateTime.now();
+        lock.expireDt = lock.lockDt.plusHours(DEIDENT_RETRY_LOCK_HOURS);
+        lock.regId = ownerId;
+        lock.regDt = lock.lockDt;
+        return lock;
+    }
+
+    /** 선두 비식별 재시작이 잡은 락인가 — 해제 범위를 이 기능의 락으로 한정하는 판정. */
+    public boolean isDeidentRetryLock() {
+        return lockId != null && lockId.startsWith(LOCK_ID_PREFIX_DEIDENT_RETRY);
     }
 
     public void release(String actorId, String reason) {
