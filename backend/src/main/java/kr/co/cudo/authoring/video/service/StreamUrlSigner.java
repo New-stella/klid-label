@@ -14,10 +14,18 @@ import java.time.Instant;
 import java.util.HexFormat;
 
 /**
- * 영상 스트리밍 단기 서명 URL 발급/검증기.
+ * 영상 스트리밍 주소의 서명 쿼리 발급기.
+ *
+ * <h3>⚠ 재생 인증 판정에는 더 이상 쓰이지 않는다 (ADR-071)</h3>
+ * <p>재생 요청({@code /stream})의 인증은 발급자에게 봉인된 재생 인증 쿠키 하나로 판정한다
+ * ({@code StreamSignatureFilter}). 구 동작은 이 서명(기본 60초)과 쿠키(1시간)를 함께 요구했는데, 서명이 먼저
+ * 만료돼 재생 도중 부분 요청이 401 로 끊겼다. 이 클래스는 발급 창구({@code /stream-url})가 주소 형태와
+ * 응답 계약({@code expiresAt}·{@code ttlSeconds})을 유지하도록, 그리고 되돌리기 여지를 남기도록 존치한다.
+ * 따라서 {@code authoring.stream.url-ttl-seconds}(기본값·5~600초 클램프 무변경)는 이제 <b>인증 유효 시간이
+ * 아니라 주소에 실리는 만료 표식</b>의 길이다. {@link #verify} 는 재생 경로에서 호출되지 않는다.
+ * 아래 서술 중 "검증"·"재사용 차단"은 구 판정 시절의 설계 기록이다.
  *
  * <p>&lt;video&gt; 네이티브 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림을 재생하지 못한다.
- * 이를 해결하기 위해 BE 가 짧은 TTL(기본 60초) HMAC 서명 쿼리를 발급하고, &lt;video src&gt; 는 서명 URL 로 재생한다.
  * JWT 본문은 URL 에 노출되지 않는다.
  *
  * <h3>서명 포맷</h3>
@@ -75,7 +83,7 @@ public class StreamUrlSigner {
             this.secretBytes = bytes;
             this.configured = true;
         }
-        // TTL 은 5초~600초 사이로 클램프 (단기 서명 원칙).
+        // TTL 은 5초~600초 사이로 클램프. 재생 판정에 쓰이지 않으므로(ADR-071) 주소 만료 표식의 길이일 뿐이다.
         this.ttlSeconds = Math.min(600L, Math.max(5L, ttlSeconds));
     }
 

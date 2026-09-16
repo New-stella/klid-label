@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -215,5 +215,213 @@ describe('VideoPlayer ↔ <video> 이음매', () => {
 
     // then: 아직 재생 가능하다고 볼 수 없다 — 여기서 예산을 되돌리면 폭주 보호가 약해진다
     expect(onSrcRecovered).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 재발급 시 재생 위치 보존. [@design SCREEN-006] [@design API-114]
+ *
+ * jsdom 의 <video> 는 실제로 로드하지 않으므로, 브라우저가 소스 교체 때 하는 일(위치 0 으로 되돌림 ·
+ * timeupdate · pause)을 시험이 직접 흘린다. 그 흘림이 없으면 「기억값을 덮지 않는다」 축이 검증되지 않는다.
+ */
+describe('VideoPlayer 재발급 시 재생 위치 보존', () => {
+  const playSpy = window.HTMLMediaElement.prototype.play as ReturnType<typeof vi.fn>;
+
+  function stubTiming(video: HTMLVideoElement) {
+    const state = { time: 0, duration: 0 };
+    Object.defineProperty(video, 'currentTime', {
+      configurable: true,
+      get: () => state.time,
+      set: (v: number) => {
+        state.time = v;
+      },
+    });
+    Object.defineProperty(video, 'duration', {
+      configurable: true,
+      get: () => state.duration,
+    });
+    return state;
+  }
+
+  /** 사용자가 그 시각까지 재생해 둔 상태를 만든다. */
+  function playTo(video: HTMLVideoElement, state: { time: number }, sec: number) {
+    fireEvent.play(video);
+    state.time = sec;
+    fireEvent.timeUpdate(video);
+  }
+
+  /** 브라우저가 소스 교체 때 하는 일 — 위치 0 · timeupdate · pause. */
+  function browserResetsOnSrcSwap(video: HTMLVideoElement, state: { time: number }) {
+    state.time = 0;
+    fireEvent.timeUpdate(video);
+    fireEvent.pause(video);
+  }
+
+  beforeEach(() => {
+    playSpy.mockClear();
+    playSpy.mockResolvedValue(undefined);
+  });
+
+  it('★같은_영상의_src_교체_뒤_loadedmetadata_에서_직전_위치로_복원되고_재생을_잇는다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    // when: 재생 실패 → 상위가 재발급해 src 를 바꾼다
+    fireEvent.error(video);
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    playSpy.mockClear();
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+
+    // then: 처음(0)으로 돌아가지 않는다 — 요소와 화면 표시 둘 다
+    expect(state.time).toBe(42);
+    expect(screen.getByText('00:42 / 01:40')).toBeInTheDocument();
+    // then: 교체 직전 재생 중이었으므로 이어서 재생한다
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('★복원은_loadedmetadata_에서_일어난다_재생_신호를_기다리지_않는다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    // 교체만으로는 아직 0 이다.
+    expect(state.time).toBe(0);
+
+    // play/playing 신호 없이 메타데이터만 와도 복원된다(교체 뒤 요소는 일시정지다).
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+    expect(state.time).toBe(42);
+  });
+
+  it('일시정지_상태에서_교체되면_위치만_복원하고_재생하지_않는다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 30);
+    fireEvent.pause(video);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    playSpy.mockClear();
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+
+    expect(state.time).toBe(30);
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('복원_위치는_새_소스의_길이를_넘지_않는다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    state.duration = 30;
+    fireEvent.loadedMetadata(video);
+
+    expect(state.time).toBe(30);
+  });
+
+  it('복원_전에_재발급이_한번_더_일어나도_처음_기억한_위치로_복원한다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    fireEvent.error(video);
+    rerender(<VideoPlayer src="/s?sig=3" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+
+    expect(state.time).toBe(42);
+  });
+
+  it('복원은_한번뿐이다_이후_loadedmetadata_는_위치를_건드리지_않는다', () => {
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+    expect(state.time).toBe(42);
+
+    // 사용자가 옮긴 뒤 메타데이터 이벤트가 다시 와도 옛 위치로 끌려가지 않는다
+    state.time = 5;
+    fireEvent.timeUpdate(video);
+    fireEvent.loadedMetadata(video);
+    expect(state.time).toBe(5);
+  });
+
+  it('★최초_로드에서는_복원하지_않는다', () => {
+    render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    const setter = vi.fn((v: number) => {
+      state.time = v;
+    });
+    Object.defineProperty(video, 'currentTime', {
+      configurable: true,
+      get: () => state.time,
+      set: setter,
+    });
+
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+
+    expect(setter).not.toHaveBeenCalled();
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('★다른_영상으로_바뀌면_위치를_이어받지_않는다', () => {
+    const { rerender } = render(<VideoPlayer src="/v42?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    // when: 다른 영상(sourceKey 변경)의 주소로 바뀐다
+    rerender(<VideoPlayer src="/v43?sig=1" sourceKey={43} />);
+    browserResetsOnSrcSwap(video, state);
+    playSpy.mockClear();
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+
+    // then: 새 영상은 처음부터다
+    expect(state.time).toBe(0);
+    expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('이어_재생이_브라우저에_거부돼도_오류를_올리지_않고_위치는_복원된다', async () => {
+    playSpy.mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
+    const { rerender } = render(<VideoPlayer src="/s?sig=1" sourceKey={42} />);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    const state = stubTiming(video);
+    playTo(video, state, 42);
+
+    rerender(<VideoPlayer src="/s?sig=2" sourceKey={42} />);
+    browserResetsOnSrcSwap(video, state);
+    state.duration = 100;
+    fireEvent.loadedMetadata(video);
+    // 거부 Promise 가 처리되지 않으면 러너가 unhandled rejection 으로 실패시킨다.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(state.time).toBe(42);
+    expect(playSpy).toHaveBeenCalled();
   });
 });

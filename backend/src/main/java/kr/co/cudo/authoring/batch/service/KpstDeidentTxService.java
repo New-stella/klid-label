@@ -57,6 +57,12 @@ public class KpstDeidentTxService {
      * 이 서비스의 {@code REQUIRES_NEW} 안에서 불리므로 훅이 스스로 {@code afterCommit} 으로 미룬다.
      */
     private final DeidentReservationHook deidentReservationHook;
+    /**
+     * 재생 인덱스 재배치 (ADR-072). 완료 전이를 기록한 자리에서 불리며 스스로 {@code afterCommit} 으로
+     * 미룬다 — 완료 선점을 얻어 <b>실제로 커밋한 노드</b>에서만 실행되고, 롤백되면 실행되지 않는다.
+     * 파일 입출력은 이 트랜잭션 밖(전용 실행기)에서 하며 실패해도 완료 전이를 되돌리지 않는다.
+     */
+    private final DeidentFaststartService deidentFaststartService;
 
     /**
      * 폴링 대상 <b>원자 클레임</b> — 이 호출이 {@code true} 를 받은 노드만 해당 위탁 건을 폴링한다
@@ -385,7 +391,7 @@ public class KpstDeidentTxService {
         if (redeident) {
             applyRedeidentCompletion(rawSn, deidFilePath);
         } else {
-            applyBatchCompletion(rawSn);
+            applyBatchCompletion(rawSn, deidFilePath);
         }
     }
 
@@ -397,12 +403,16 @@ public class KpstDeidentTxService {
      * 않는다. 이 경로와 무관한 영상에서는 보류가 애초에 서 있지 않아 no-op 이다
      * ({@link DeidentApprovalHoldReleaser}).
      *
+     * <p>완료가 커밋된 뒤 산출물의 재생 인덱스 재배치를 넘긴다(ADR-072) — 경로·파일명·완료 상태는 불변이다.
+     *
      * @design ADR-048
-     * @design AC-046
+     * @design AC-1063
+     * @design AC-1064
      * @design ADR-052
      * @design SEQ-030
+     * @design ADR-072
      */
-    private void applyBatchCompletion(Long rawSn) {
+    private void applyBatchCompletion(Long rawSn, String deidFilePath) {
         LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
         if (managed == null) {
             log.warn("[KpstDeid] raw not found rawSn={} (complete) — skip", rawSn);
@@ -446,6 +456,8 @@ public class KpstDeidentTxService {
         //   ★ 재비식별(REDEIDENT) 경로에는 붙이지 않는다 — 그쪽은 APPROVED 유지 경로라 마킹 단계로의
         //     재진입을 만들지 않으며(R1), 승인된 영상에 예약이 존재할 수 없다.
         deidentReservationHook.activateAfterCommit(rawSn);
+        // ADR-072 — 커밋 이후 재생 인덱스 재배치(인덱스가 이미 앞이거나 판정 불가면 무동작, 실패는 fail-open).
+        deidentFaststartService.scheduleAfterCommit(rawSn, managed.getRawFilePathNm(), deidFilePath);
         log.info("[KpstDeid] completed rawSn={}", rawSn);
     }
 
@@ -491,6 +503,9 @@ public class KpstDeidentTxService {
         // 5) 스트림 메타 캐시 무효화 (HIGH — 무결성/privacy) — 재비식별로 비식별본이 교체(동일 경로
         //    in-place 교체 시 옛 contentLength 로 Range 경계 오류·재생 잘림 가능)되었으므로 커밋 후 무효화.
         streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        // 6) ADR-072 — 재비식별 회차도 같은 완료 경로라 커밋 이후 재생 인덱스 재배치를 넘긴다
+        //    (프레임 attach 는 위에서 이미 끝났다 — 재배치는 영상 내용을 바꾸지 않는다).
+        deidentFaststartService.scheduleAfterCommit(rawSn, managed.getRawFilePathNm(), deidFilePath);
         log.info("[KpstDeid] redeident completed rawSn={}", rawSn);
     }
 

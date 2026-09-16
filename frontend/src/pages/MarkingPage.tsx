@@ -380,6 +380,7 @@ export function MarkingPage() {
         <VideoPlayer
           ref={videoRef}
           src={videoSrc}
+          sourceKey={rawSn}
           onSrcError={handleStreamError}
           onSrcRecovered={handlePlaybackRecovered}
           onDurationChange={handleDurationChange}

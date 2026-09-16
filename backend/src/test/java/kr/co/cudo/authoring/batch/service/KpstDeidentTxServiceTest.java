@@ -71,6 +71,8 @@ class KpstDeidentTxServiceTest {
     /** ADR-052 — 예약 마킹 활성화·마감의 실제 전이 주체(마킹 도메인 소유). 훅은 실물, 이쪽만 mock 이다. */
     private MarkingActivationTxService markingActivationTxService;
     private DeidentReservationHook reservationHook;
+    /** ADR-072 — 재생 인덱스 재배치. 이 시험은 「언제 넘기는가」만 보므로 mock 이다. */
+    private DeidentFaststartService faststartService;
     private KpstDeidentTxService tx;
 
     @BeforeEach
@@ -91,9 +93,10 @@ class KpstDeidentTxServiceTest {
         markingActivationTxService = mock(MarkingActivationTxService.class);
         when(markingActivationTxService.activateReserved(anyLong())).thenReturn(Optional.empty());
         reservationHook = new DeidentReservationHook(markingActivationTxService);
+        faststartService = mock(DeidentFaststartService.class);
         tx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                streamMetaCacheEvictor, deidentApprovalHoldReleaser, reservationHook);
+                streamMetaCacheEvictor, deidentApprovalHoldReleaser, reservationHook, faststartService);
         // B-ISSUE-82 — 완료 처리는 조건부 UPDATE 클레임(1행)을 얻은 호출만 진행한다. 단위 테스트의
         // 기본은 "이 호출이 선점에 성공" 이며, 중복 완료(0행) 시나리오는 개별 테스트가 재정의한다.
         when(procLogRepository.claimDownloadCompletion(anyLong(), anyString(), any(LocalDateTime.class)))
@@ -210,7 +213,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook, faststartService);
 
         LsDeidentProcLog p = submitted();
         LsDataRaw raw = newRaw();
@@ -244,7 +247,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook, faststartService);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -275,7 +278,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook, faststartService);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -310,7 +313,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook, faststartService);
         LsDeidentProcLog p = submitted(); // REQ_KIND null = 배치 경로
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -807,6 +810,67 @@ class KpstDeidentTxServiceTest {
 
         assertThat(applied).isFalse();
         verify(markingActivationTxService, never()).closeReservations(anyLong(), anyString());
+    }
+
+    // ── ADR-072 재생 인덱스 재배치 배선 ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("ADR072_배치_완료는_기록된_산출물_경로로_재생인덱스_재배치를_넘긴다")
+    void batchCompletionSchedulesFaststartWithRecordedPath() {
+        LsDeidentProcLog p = submitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        String deid = realDeidFile();
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, deid);
+
+        verify(faststartService).scheduleAfterCommit(9001L, "/raw/clip.mp4", deid);
+        // 기록 경로·완료 상태는 재배치와 무관하게 그대로다.
+        assertThat(p.getDeIdntfFilePathNm()).isEqualTo(deid);
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(raw.getDataSttsCd()).isEqualTo("MARKING_READY");
+    }
+
+    @Test
+    @DisplayName("ADR072_재비식별_완료도_같은_경로로_재생인덱스_재배치를_넘긴다")
+    void redeidentCompletionSchedulesFaststart() {
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        String deid = realDeidFile();
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, deid);
+
+        verify(faststartService).scheduleAfterCommit(9001L, "/raw/clip.mp4", deid);
+    }
+
+    @Test
+    @DisplayName("ADR072_완료_선점을_얻지_못한_노드는_재배치를_넘기지_않는다")
+    void duplicateCompletionDoesNotScheduleFaststart() {
+        when(procLogRepository.claimDownloadCompletion(anyLong(), anyString(), any(LocalDateTime.class)))
+                .thenReturn(0);
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        verify(faststartService, never()).scheduleAfterCommit(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("ADR072_재비식별_후처리가_실패해_롤백되면_재배치를_넘기지_않는다")
+    void redeidentAttachFailureDoesNotScheduleFaststart() {
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        when(deidentFrameAttacher.attachDeidentFrames(eq(raw), any(), eq(true)))
+                .thenThrow(new CustomException(ErrorCode.INVALID_INPUT, "해상도 불일치"));
+
+        assertThatThrownBy(() -> tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile()))
+                .isInstanceOf(CustomException.class);
+
+        verify(faststartService, never()).scheduleAfterCommit(any(), any(), any());
     }
 
     /** 운영과 동일한 캐시 스펙(CacheConfig)으로 실제 Caffeine 캐시매니저를 만든다(초기화 포함). */
