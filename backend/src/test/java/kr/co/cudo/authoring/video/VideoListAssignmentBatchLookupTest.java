@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -123,7 +124,7 @@ class VideoListAssignmentBatchLookupTest {
         Pageable pageable = PageRequest.of(0, size);
         Page<LsDataRaw> page = new PageImpl<>(rows, pageable, size);
         given(videoRepository.searchOriginals(any(), any(), any(), any(), anyInt(), anyCollection(),
-                any(), any(), any(), any(), any(), any(), any(Pageable.class))).willReturn(page);
+                any(), any(), any(), any(), any(), any(), anyBoolean(), any(Pageable.class))).willReturn(page);
 
         // frameCount batch: rawSn i → count i*10 (리스트 선생성 — 중첩 stubbing 회피)
         List<Object[]> frameCounts = IntStream.rangeClosed(1, size)
@@ -166,7 +167,7 @@ class VideoListAssignmentBatchLookupTest {
         Pageable pageable = PageRequest.of(0, size);
         Page<LsDataRaw> page = new PageImpl<>(rows, pageable, size);
         given(videoRepository.searchOriginals(eq("COMPLETED"), any(), any(), any(), anyInt(), anyCollection(),
-                any(), any(), any(), any(), any(), any(), any(Pageable.class))).willReturn(page);
+                any(), any(), any(), any(), any(), any(), anyBoolean(), any(Pageable.class))).willReturn(page);
 
         List<LsTaskAssignment> assignments = IntStream.rangeClosed(1, size)
                 .mapToObj(i -> assignment(1000 + i, i, 100 + i)).toList();

@@ -99,6 +99,28 @@ public class LsTaskEventLog {
      * 코드값 길이는 표준도메인 {@code VARCHAR(20)} 이내여야 한다.
      */
     public static final String EVENT_START_VERSION_APPLY = "START_VERSION_APPLY";
+    /**
+     * <b>영상 제외</b> — 그 영상을 저작도구 화면 목록에서 뺀다 (13자). [@design ADR-069] [@design ERD-014]
+     *
+     * <p>이 종류를 더하는 데 마이그레이션이 필요 없다 — {@code EVNT_TYPE_CD} 에 값 제약({@code CHECK})이
+     * 없고 표준도메인 폭 {@code VARCHAR(20)} 안에 들어간다. 누가·그 시점 역할·언제·왜를 담을 칸도 이미
+     * 다 있다.
+     *
+     * <p><b>사유({@code RSN})가 필수</b>이며 <b>자유 문구</b>다 — 프레임 폐기 계열
+     * ({@link #EVENT_FRAME_DISCARD})이 식별자 한 토큰만 싣고 자유 문구를 금지하는 것과 <b>다르다.</b>
+     * 감추는 행위라 「왜 뺐는가」가 확정 요구이고, 그것이 없으면 나중에 되돌릴지 판단할 근거가 없다.
+     * 두 관례를 통일하지 말 것.
+     */
+    public static final String EVENT_VIDEO_EXCLUDE = "VIDEO_EXCLUDE";
+    /**
+     * <b>영상 복원</b> — 제외했던 영상을 다시 보이게 한다 (14자). {@link #EVENT_VIDEO_EXCLUDE} 의 역방향.
+     *
+     * <p><b>사유를 받지 않는다</b> — 감추는 쪽만 사유를 남긴다. 되돌리는 쪽은 사유가 없어도 사실이
+     * 왜곡되지 않는다(감춰졌던 것이 제자리로 돌아올 뿐이다). 사유 칸을 다시 붙이지 말 것.
+     *
+     * @design ADR-069
+     */
+    public static final String EVENT_VIDEO_RESTORE = "VIDEO_RESTORE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -385,6 +407,50 @@ public class LsTaskEventLog {
      */
     public static LsTaskEventLog frameRestored(Long rawDataId, Long srcSn, Long actorUserNo) {
         return frameDiscardEvent(EVENT_FRAME_RESTORE, rawDataId, srcSn, actorUserNo);
+    }
+
+    /**
+     * <b>영상 제외</b> 감사 (OWASP A09) — 그 영상을 저작도구 화면 목록에서 뺐다.
+     * [@design ADR-069] [@design ERD-014] [@design API-260]
+     *
+     * <p>담는 것: 영상 · 행위자 · <b>행위 시점의 실제 역할</b> · 발생일시 · <b>사유</b>.
+     * 담지 않는 것: 대상/이전 사용자(제외는 사람을 대상으로 하지 않는다).
+     *
+     * <p>★사유는 <b>자유 문구</b>이고 <b>필수</b>다 — {@link #frameDiscarded} 계열이 식별자 한 토큰만
+     * 싣는 것과 다르다. 호출부가 개행·제어문자를 제거하고 {@code RSN} 칸 폭 안으로 길이를 제한한 값을
+     * 넘긴다(CWE-117 · DB 오류 차단). 개인정보를 적지 않도록 화면이 입력 칸에서 안내한다.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할. 관리자가 제외했으면 {@link Role#ADMIN} 이다
+     * @param rsn       정규화·절단이 끝난 제외 사유
+     */
+    public static LsTaskEventLog videoExcluded(Long rawDataId, Long actorUserNo, Role actorRole, String rsn) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_VIDEO_EXCLUDE)
+                .actorUserNo(actorUserNo)
+                .rsn(rsn)
+                .actorRoleCd(roleCodeOf(actorRole))
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * <b>영상 복원</b> 감사 (OWASP A09) — 제외했던 영상을 다시 보이게 했다.
+     * [@design ADR-069] [@design ERD-014] [@design API-261]
+     *
+     * <p>{@link #videoExcluded} 와 같은 것을 담되 <b>사유는 담지 않는다</b> — 감추는 쪽만 사유를 남긴다.
+     * 사유 인자를 다시 붙이지 말 것.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할
+     */
+    public static LsTaskEventLog videoRestored(Long rawDataId, Long actorUserNo, Role actorRole) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_VIDEO_RESTORE)
+                .actorUserNo(actorUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
+                .ocrnDt(LocalDateTime.now())
+                .build();
     }
 
     /** 폐기/복원 공통 조립 — 두 방향이 같은 형식을 갖도록 한 곳에서만 만든다. */

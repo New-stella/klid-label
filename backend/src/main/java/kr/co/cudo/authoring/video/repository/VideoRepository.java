@@ -65,6 +65,67 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<String> findDataSttsCdByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 제외여부({@code EXCL_YN}) 단일 컬럼 projection. [@design ADR-069]
+     *
+     * <p>아래 두 원자 갱신이 <b>0행</b>을 돌려줬을 때 그 원인을 가르는 데 쓴다 — 「이미 그 상태였다」
+     * (멱등 성공)와 「배정이 있어 막혔다」(409)와 「행이 없다」(404)는 서로 다른 사건이다.
+     * <b>빈 {@code Optional} 이 곧 행 부재</b>다(컬럼이 {@code NOT NULL} 이라 값이 비지 않는다).
+     *
+     * <p>전체 row 를 로드하지 않는다 — 영속 컨텍스트에 엔티티를 들이면 벌크 갱신 결과와 어긋난 스냅샷을
+     * 쥐게 되고, 그 인스턴스가 flush 되면 함께 로드된 다른 컬럼을 stale 값으로 덮어쓴다(CWE-362).
+     */
+    @Query("SELECT r.exclYn FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<String> findExclYnByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * <b>영상 제외 원자 갱신</b> — 배정 부재 조건을 <b>갱신 문장 자체에</b> 함께 건다.
+     * [@design ADR-069] [@design API-260] [@design AC-1127]
+     *
+     * <p>★사전 조회로 배정을 확인한 뒤 갱신하면 <b>그 사이에 배정이 새로 생긴다</b>(CWE-367 TOCTOU).
+     * 단일 UPDATE 에 조건을 실으면 DB 가 그 창을 닫는다. 프레임 폐기({@code FrameDiscardApplier})가
+     * 조건부 UPDATE 의 <b>반환 행수</b>로 "실제로 바뀌었는가"를 판정하는 것과 같은 관례이며, 여기서는
+     * 거기에 배정 조건 한 겹이 더 붙는다.
+     *
+     * <p>{@code r.exclYn <> :excluded} 가 <b>멱등</b>을 만든다 — 이미 제외된 영상은 0행이 되고 호출부가
+     * {@link #findExclYnByRawSn} 로 그것이 멱등인지 배정 충돌인지 가른다.
+     *
+     * <p>배정 판정 축은 목록의 {@link #ASSIGNED_ONLY_PREDICATE}·단건 가드
+     * ({@code LabelAccessGuard.verifyRawAccess})와 <b>같은</b> {@link #LABELER_TASK_TYPE_CD} 다 —
+     * 축이 갈리면 목록에는 배정이 보이는데 제외는 통과하는 비대칭이 생긴다.
+     *
+     * <p>★<b>{@code MDFCN_DT} 를 건드리지 않는다.</b> 그 컬럼은 고착 회수 스윕
+     * ({@code ProcessingStaleReclaimSweeper})의 1차 필터라, 제외가 그 값을 밀면 고착된 영상이 <b>방금
+     * 선점된 것처럼 보여 회수에서 빠진다</b>. 제외는 화면 시야만 바꾸고 배치를 조금도 건드리지 않는다는
+     * 경계(AC-1121)가 이 한 줄에 걸려 있다.
+     *
+     * @return 영향 행수 (1=제외됨, 0=이미 제외 / 배정 존재 / 행 부재)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.exclYn = :excluded "
+            + "WHERE r.rawSn = :rawSn AND r.exclYn <> :excluded "
+            + "AND NOT EXISTS (SELECT 1 FROM LsTaskAssignment a "
+            + "                 WHERE a.rawDataId = r.rawSn AND a.taskTypeCd = :labelerTaskTypeCd)")
+    int markExcluded(@Param("rawSn") Long rawSn,
+                     @Param("excluded") String excluded,
+                     @Param("labelerTaskTypeCd") String labelerTaskTypeCd);
+
+    /**
+     * <b>영상 복원 원자 갱신</b> — 제외 표시를 되돌린다. [@design ADR-069] [@design API-261]
+     *
+     * <p><b>배정 조건이 없는 것은 누락이 아니라 의도</b>다 — 배정이 있는 영상은 제외 자체가 거부되므로
+     * 제외된 영상에는 배정이 존재할 수 없고, 그 조건이 성립할 자리가 없다. 「일관성」을 이유로 여기에
+     * 배정 조건을 붙이지 말 것.
+     *
+     * <p>{@code MDFCN_DT} 를 건드리지 않는 이유는 {@link #markExcluded} 와 같다.
+     *
+     * @return 영향 행수 (1=복원됨, 0=이미 보이는 영상 / 행 부재)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.exclYn = :visible "
+            + "WHERE r.rawSn = :rawSn AND r.exclYn <> :visible")
+    int markRestored(@Param("rawSn") Long rawSn, @Param("visible") String visible);
+
+    /**
      * <b>배치 파이프라인 진입 원자 클레임</b> (B-ISSUE-01 / 1차 B-ISSUE-22, CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 아직 {@code processingStatus}(PROCESSING)가 <b>아닐 때만</b>
@@ -319,6 +380,35 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             Collection<String> vlmFailureReasons,
                                             Long assignedToUserNo,
                                             Pageable pageable) {
+        return searchOriginals(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
+                eventFilterOn, eventCodes, from, to, skippedBundle,
+                failedBundleStages, vlmFailureReasons, assignedToUserNo, false, pageable);
+    }
+
+    /**
+     * 제외분 보기까지 받는 <b>최종 진입점</b> — 위 오버로드들은 여기로 위임한다(하위호환).
+     * [@design API-042] [@design ADR-069]
+     *
+     * @param excludedOnly {@code false}(기본)면 <b>제외되지 않은 영상만</b>, {@code true} 면 <b>제외된
+     *                     영상만</b> 남긴다. 값역은 이 두 갈래뿐이며 섞어 보는 갈래는 두지 않는다.
+     *                     보내지 않던 기존 호출은 위 오버로드로 들어와 {@code false} 가 되므로 결과가
+     *                     조금도 달라지지 않는다(하위호환 계약). 배제 술어의 소유자는
+     *                     {@link VideoExclusionScope} 이며 목록과 건수에 <b>같은 문자열</b>이 붙는다.
+     */
+    default Page<LsDataRaw> searchOriginals(String dataSttsCd,
+                                            String reviewStatusCd,
+                                            String keyword,
+                                            Long keywordRawSn,
+                                            int eventFilterOn,
+                                            Collection<String> eventCodes,
+                                            java.time.LocalDateTime from,
+                                            java.time.LocalDateTime to,
+                                            String skippedBundle,
+                                            Collection<String> failedBundleStages,
+                                            Collection<String> vlmFailureReasons,
+                                            Long assignedToUserNo,
+                                            boolean excludedOnly,
+                                            Pageable pageable) {
         boolean failedOn = failedBundleStages != null && !failedBundleStages.isEmpty();
         boolean vlmReasonOn = failedOn && vlmFailureReasons != null && !vlmFailureReasons.isEmpty();
         return searchOriginalsInternal(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
@@ -336,6 +426,7 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                 assignedToUserNo != null ? 1 : 0,
                 assignedToUserNo != null ? assignedToUserNo : NO_USER_MATCH,
                 LABELER_TASK_TYPE_CD,
+                excludedOnly ? 1 : 0,
                 withDefaultRegDtDesc(pageable));
     }
 
@@ -521,7 +612,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             """
             + SKIPPED_BUNDLE_PREDICATE
             + FAILED_BUNDLE_PREDICATE
-            + ASSIGNED_ONLY_PREDICATE,
+            + ASSIGNED_ONLY_PREDICATE
+            + VideoExclusionScope.EXCLUSION_TOGGLE_JPQL_V,
             countQuery = """
             SELECT COUNT(v) FROM LsDataRaw v
             LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
@@ -537,7 +629,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             """
             + SKIPPED_BUNDLE_PREDICATE
             + FAILED_BUNDLE_PREDICATE
-            + ASSIGNED_ONLY_PREDICATE)
+            + ASSIGNED_ONLY_PREDICATE
+            + VideoExclusionScope.EXCLUSION_TOGGLE_JPQL_V)
     Page<LsDataRaw> searchOriginalsInternal(@Param("dataSttsCd") String dataSttsCd,
                                             @Param("reviewStatusCd") String reviewStatusCd,
                                             @Param("keyword") String keyword,
@@ -562,6 +655,7 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             @Param("assignedOnlyOn") int assignedOnlyOn,
                                             @Param("actorUserNo") Long actorUserNo,
                                             @Param("labelerTaskTypeCd") String labelerTaskTypeCd,
+                                            @Param("excludedOnlyOn") int excludedOnlyOn,
                                             Pageable pageable);
 
     /**

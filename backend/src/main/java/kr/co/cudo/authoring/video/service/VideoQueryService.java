@@ -30,6 +30,7 @@ import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntTypeRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
+import kr.co.cudo.authoring.video.dto.VideoListPage;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
@@ -40,6 +41,7 @@ import kr.co.cudo.authoring.video.repository.VideoExportProjection;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -204,7 +206,7 @@ public class VideoQueryService {
      * 이 오버로드를 쓰면 안 된다 — 컨트롤러는 {@link #listForActor(Pageable, VideoListFilter, TokenClaims)} 로만
      * 들어온다. [@design API-042]
      */
-    public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
+    public VideoListPage list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
         return list(pageable, VideoListFilter.ofStatus(dataSttsCd, reviewStatusCd));
     }
 
@@ -214,7 +216,7 @@ public class VideoQueryService {
      * <p>필터는 <b>전부 DB 조건</b>으로 내려간다(페이징 후 Java 필터 금지) — 그래야 {@code totalElements}
      * 와 페이지 수가 필터 적용 후 전체 기준이 된다.
      */
-    public Page<VideoSummaryResponse> list(Pageable pageable, VideoListFilter filter) {
+    public VideoListPage list(Pageable pageable, VideoListFilter filter) {
         return listScoped(pageable, filter, null);
     }
 
@@ -229,7 +231,7 @@ public class VideoQueryService {
      * 영상이 나오는데 그 영상을 열면 403 인 비대칭이 있었다(CWE-639 IDOR — 촬영지·이벤트·비식별 상태가
      * 그대로 노출됐다). 단건의 403 은 그대로 둔다 — 직접 URL 입력·외부 클라이언트를 막는 별개 방어선이다.
      */
-    public Page<VideoSummaryResponse> listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
+    public VideoListPage listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
         return listScoped(pageable, filter, scopeUserNoFor(actor));
     }
 
@@ -294,7 +296,7 @@ public class VideoQueryService {
         }
     }
 
-    private Page<VideoSummaryResponse> listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
+    private VideoListPage listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
         VideoListFilter cond = filter != null ? filter : VideoListFilter.ofStatus(null, null);
         String normalizedDataStts = trimToNull(cond.dataSttsCd());
         String normalizedReviewStts = normalizeReviewStatusCd(cond.reviewStatusCd());
@@ -325,28 +327,70 @@ public class VideoQueryService {
         // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임한다(기본 regDt DESC) —
         // 조인 alias 를 통한 검수 완료 시각(reviewCompletedAt → s.updDt) 정렬은 usesReviewStatusJoin 이
         // 참인 호출에서만 allowlist 를 통과한다.
+        // [design: ADR-069] 기본은 「제외되지 않은 영상만」이고, 제외분만 보기는 선택 파라미터다.
+        //   배제 술어의 소유자는 VideoExclusionScope 이며 목록 쿼리와 count 쿼리에 <b>같은 문자열</b>이
+        //   붙는다 — 한쪽에만 붙으면 화면의 건수와 그 건수를 눌러 얻는 목록이 어긋난다.
+        boolean excludedOnly = cond.excludedOnlyOn();
         Page<LsDataRaw> page = videoRepository.searchOriginals(
                 normalizedDataStts, normalizedReviewStts,
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
                 from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
-                assignedToUserNo, pageable);
+                assignedToUserNo, excludedOnly, pageable);
+        // 「제외됨 N건」 — 현재 페이지가 아니라 <b>지금 걸린 필터 범위 전체</b>다(0건이어도 싣는다).
+        //   같은 조건을 「제외분만」으로 한 번 더 세며, 그 값은 이 숫자를 눌러 제외분 목록으로 전환했을
+        //   때의 전체 건수와 정확히 같아야 한다.
+        long excludedCount = excludedOnly ? page.getTotalElements() : countExcluded(
+                normalizedDataStts, normalizedReviewStts, keywordPattern, keywordRawSn,
+                eventFilterOn, eventCodes, from, to, skippedBundle,
+                failedBundleStages, vlmFailureReasons, assignedToUserNo);
         Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
         Map<Long, VideoSummaryResponse.AssignmentInfo> assignmentMap = lookupCurrentAssignments(page.getContent());
         Map<Long, VideoSummaryResponse.DeidentInfo> deidentMap = lookupDeidentInfos(page.getContent());
-        return page.map(e -> VideoSummaryResponse.from(
-                e,
-                cctvNameMap.get(e.getRawSn()),
-                null,
-                frameCountMap.getOrDefault(e.getRawSn(), 0L),
-                exportInfoMap.get(e.getRawSn()),
-                reviewCompletedAtMap.get(e.getRawSn()),
-                assignmentMap.get(e.getRawSn()),
-                deidentMap.get(e.getRawSn())
-        ));
+        List<VideoSummaryResponse> content = page.getContent().stream()
+                .map(e -> VideoSummaryResponse.from(
+                        e,
+                        cctvNameMap.get(e.getRawSn()),
+                        null,
+                        frameCountMap.getOrDefault(e.getRawSn(), 0L),
+                        exportInfoMap.get(e.getRawSn()),
+                        reviewCompletedAtMap.get(e.getRawSn()),
+                        assignmentMap.get(e.getRawSn()),
+                        deidentMap.get(e.getRawSn())))
+                .toList();
+        return new VideoListPage(content, page.getPageable(), page.getTotalElements(), excludedCount);
+    }
+
+    /**
+     * 「제외됨 N건」 — <b>같은 필터 조건</b>을 제외분만 보기로 한 번 더 세어 얻는다.
+     * [@design API-042] [@design ADR-069] [@design AC-1124]
+     *
+     * <p>★<b>세 번째 WHERE 절을 만들지 않는다.</b> 목록 쿼리와 count 쿼리가 이미 같은 술어 상수를
+     * 공유하는데 전용 집계 쿼리를 새로 적으면 <b>세 번째 드리프트 면</b>이 생겨, 필터가 하나 늘 때 한
+     * 곳만 빠뜨리면 건수가 조용히 어긋난다. 그래서 <b>같은 메서드</b>를 「제외분만」으로 호출하고 전체
+     * 건수만 읽는다 — 조건이 늘어도 자동으로 따라온다.
+     *
+     * <p>한 행만 요청하는 이유는 건수만 필요하기 때문이다. 결과가 0건이면 Spring Data 가 count 쿼리를
+     * 생략하고 0 을 돌려주며, 그 밖에는 같은 count 쿼리가 돌아 <b>어느 경우에도 값이 정확하다</b>.
+     *
+     * <p>정렬은 주지 않는다 — 건수는 순서에 좌우되지 않고, 조인 별칭을 참조하는 정렬 키가 이 경로로
+     * 흘러가면 불필요한 제약이 생긴다({@code withDefaultRegDtDesc} 가 기본 정렬을 채운다).
+     */
+    private long countExcluded(String dataSttsCd, String reviewStatusCd,
+                               String keywordPattern, Long keywordRawSn,
+                               int eventFilterOn, Collection<String> eventCodes,
+                               LocalDateTime from, LocalDateTime to, String skippedBundle,
+                               Collection<String> failedBundleStages,
+                               Collection<String> vlmFailureReasons,
+                               Long assignedToUserNo) {
+        return videoRepository.searchOriginals(
+                dataSttsCd, reviewStatusCd, keywordPattern, keywordRawSn,
+                eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
+                from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
+                assignedToUserNo, true, PageRequest.of(0, 1)).getTotalElements();
     }
 
     /**

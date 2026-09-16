@@ -28,6 +28,11 @@ import java.time.LocalDate;
  *                        없다</b>(일괄 건너뛰기가 쓰이는 바로 그 자리다). 지원하지 않는 값은 400 이며
  *                        {@code skippedStage} 와 <b>함께</b> 지정할 수 있다(축이 다르다 — 한쪽은 「사람이
  *                        건너뛴 상태」, 다른 쪽은 「실패한 상태」). [@design API-042] [@design ADR-050]
+ * @param excludedOnly    <b>제외분만 보기</b>. {@code null}·{@code false} 면 제외 표시가 붙지 않은 영상만
+ *                        보는 기본 목록이고, {@code true} 면 제외된 영상만 남는다. 값역은 이 두 갈래뿐이며
+ *                        표시분과 제외분을 <b>섞어 보는 갈래는 두지 않는다</b> — 섞이면 어느 것이 제외분인지
+ *                        행마다 구분해야 한다. 선택 항목이라 보내지 않던 기존 호출의 결과가 달라지지
+ *                        않는다. [@design API-042] [@design ADR-069]
  */
 public record VideoListFilter(
         String dataSttsCd,
@@ -37,11 +42,22 @@ public record VideoListFilter(
         LocalDate from,
         LocalDate to,
         String skippedStage,
-        String failedStage
+        String failedStage,
+        Boolean excludedOnly
 ) {
 
     /** 상태 2종만 지정하는 축약 생성 — 기존 호출(검색어·이벤트·기간 미사용)과 동일한 조건. */
     public static VideoListFilter ofStatus(String dataSttsCd, String reviewStatusCd) {
-        return new VideoListFilter(dataSttsCd, reviewStatusCd, null, null, null, null, null, null);
+        return new VideoListFilter(dataSttsCd, reviewStatusCd, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 「제외분만 보기」 해석 — 보내지 않으면({@code null}) <b>기본 목록</b>이다. [@design ADR-069]
+     *
+     * <p>이 한 곳에서만 해석한다 — 호출부가 {@code Boolean.TRUE.equals(...)} 를 각자 적으면 한 곳만
+     * 빠뜨렸을 때 목록과 건수가 다른 갈래를 보게 된다.
+     */
+    public boolean excludedOnlyOn() {
+        return Boolean.TRUE.equals(excludedOnly);
     }
 }
