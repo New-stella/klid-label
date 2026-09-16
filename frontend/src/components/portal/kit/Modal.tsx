@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Modal as KitModal } from 'krds-react'
 import { glued } from './util'
 import { StepButton, type Step } from './modal-step'
+import { useWindowScrollLockRelease } from './windowScrollLock'
 import './Modal.css'
 
 /**
@@ -77,6 +78,8 @@ export function Modal({
    */
   note?: ReactNode
 }) {
+  // 열린 채 언마운트돼도 문서(임베드에서는 Host 문서)의 스크롤 잠금이 남지 않게 한다.
+  useWindowScrollLockRelease(open)
   const mainButton = main ? <StepButton step={main} onClose={() => onOpenChange(false)} /> : null
   const subButton = sub ? (
     <StepButton step={sub} variant="secondary" onClose={() => onOpenChange(false)} />

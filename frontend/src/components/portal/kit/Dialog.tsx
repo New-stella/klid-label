@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Modal } from 'krds-react'
 import { glued } from './util'
 import { StepButton, type Step } from './modal-step'
+import { useWindowScrollLockRelease } from './windowScrollLock'
 import './Dialog.css'
 
 /**
@@ -129,6 +130,8 @@ export function Dialog({
   /** **서브 버튼** — 테두리(secondary). 없으면 걸음이 하나뿐인 창이 된다 */
   sub?: Step
 }) {
+  // 열린 채 언마운트돼도 문서(임베드에서는 Host 문서)의 스크롤 잠금이 남지 않게 한다.
+  useWindowScrollLockRelease(open)
   const mainButton = main ? <StepButton step={main} onClose={() => onOpenChange(false)} /> : null
   const subButton = sub ? (
     <StepButton step={sub} variant="secondary" onClose={() => onOpenChange(false)} />
