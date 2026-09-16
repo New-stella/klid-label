@@ -282,6 +282,118 @@ class KpstDeidentServiceTest {
         assertThat(captor.getValue().projectName()).isEqualTo("raw9001");
     }
 
+    // ────────────────────── 재위탁 프로젝트 이름 (INT-004 · AC-1133) ──────────────────────
+
+    /**
+     * 원장 선발급을 실제처럼 흉내 낸다 — 호출마다 번호가 커지고, "앞선 이력 존재" 판정은 이미 발급된
+     * 번호 중 이번 번호보다 작은 것이 있는지로 답한다(리포지토리 파생 쿼리와 같은 의미).
+     */
+    private void stubSequentialLedger(long firstSn) {
+        java.util.List<Long> issued = new java.util.ArrayList<>();
+        java.util.concurrent.atomic.AtomicLong next = new java.util.concurrent.atomic.AtomicLong(firstSn);
+        // doAnswer 형식 — when(mock.call()) 로 덮으면 setUp 의 기존 스텁 응답이 null 인자로 실행된다.
+        org.mockito.Mockito.doAnswer(inv -> {
+                    LsDeidentProcLog p = LsDeidentProcLog.request(
+                            inv.getArgument(0), null, inv.getArgument(1), "batch");
+                    if (Boolean.TRUE.equals(inv.getArgument(2))) {
+                        p.markRedeident();
+                    }
+                    p.markKpstSubmitPending();
+                    long sn = next.getAndIncrement();
+                    setField(p, "procLogSn", sn);
+                    issued.add(sn);
+                    return p;
+                }).when(txService).issueSubmitLedger(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        org.mockito.Mockito.doAnswer(inv -> {
+                    long cur = inv.getArgument(1);
+                    return issued.stream().anyMatch(sn -> sn < cur);
+                }).when(procLogRepository).existsByDataRawSnAndProcLogSnLessThan(eq(9001L), any());
+    }
+
+    /** 주어진 순서대로 위탁하고 KPST 에 나간 프로젝트 이름을 호출 순으로 돌려준다. */
+    private List<String> submitAndCaptureNames(boolean... redeidentFlags) {
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
+        for (boolean redeident : redeidentFlags) {
+            service.submit(raw, redeident);
+        }
+        ArgumentCaptor<KpstProjectRequest> captor = ArgumentCaptor.forClass(KpstProjectRequest.class);
+        verify(kpstClient, org.mockito.Mockito.times(redeidentFlags.length)).createProject(captor.capture());
+        return captor.getAllValues().stream().map(KpstProjectRequest::projectName).toList();
+    }
+
+    @Test
+    @DisplayName("그_영상의_첫_위탁은_종전대로_raw_영상번호_이름을_쓴다")
+    void firstSubmitUsesPlainName() {
+        stubSequentialLedger(57L);
+
+        List<String> names = submitAndCaptureNames(false);
+
+        assertThat(names).containsExactly("raw9001");
+    }
+
+    @Test
+    @DisplayName("다시_위탁하면_이번_회차_원장_번호가_접미로_붙어_첫_이름과_다르다")
+    void secondSubmitAppendsLedgerNumber() {
+        stubSequentialLedger(57L);
+
+        List<String> names = submitAndCaptureNames(false, false);
+
+        assertThat(names).containsExactly("raw9001", "raw9001r58");
+        assertThat(names.get(1)).isNotEqualTo(names.get(0));
+    }
+
+    @Test
+    @DisplayName("세_번째_위탁_이름은_앞의_두_이름과_모두_다르다")
+    void thirdSubmitDiffersFromPreviousTwo() {
+        stubSequentialLedger(57L);
+
+        List<String> names = submitAndCaptureNames(false, false, false);
+
+        assertThat(names).containsExactly("raw9001", "raw9001r58", "raw9001r59");
+        assertThat(names).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("검수완료_재비식별_위탁도_앞선_이력이_있으면_접미를_붙인다")
+    void redeidentSubmitAlsoAppendsSuffix() {
+        stubSequentialLedger(57L);
+
+        List<String> names = submitAndCaptureNames(false, true);
+
+        assertThat(names).containsExactly("raw9001", "raw9001r58");
+    }
+
+    @Test
+    @DisplayName("위탁_프로젝트_이름은_영문과_숫자만으로_이루어진다")
+    void projectNameIsAlphanumericOnly() {
+        stubSequentialLedger(57L);
+
+        List<String> names = submitAndCaptureNames(false, true, false);
+
+        assertThat(names).allMatch(n -> n.matches("[A-Za-z0-9]+"));
+    }
+
+    @Test
+    @DisplayName("접미_번호는_이번_회차에_선발급된_원장_번호_그대로다")
+    void suffixIsTheIssuedLedgerNumber() {
+        // 원장 번호가 크게 튀어도(다른 영상 행이 사이에 끼는 실제 상황) 그 번호가 그대로 실린다.
+        stubSequentialLedger(1000L);
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
+
+        service.submit(raw);
+        LsDeidentProcLog second = service.submit(raw);
+
+        ArgumentCaptor<KpstProjectRequest> captor = ArgumentCaptor.forClass(KpstProjectRequest.class);
+        verify(kpstClient, org.mockito.Mockito.times(2)).createProject(captor.capture());
+        assertThat(captor.getAllValues().get(1).projectName())
+                .isEqualTo("raw9001r" + second.getProcLogSn());
+        verify(procLogRepository).existsByDataRawSnAndProcLogSnLessThan(9001L, second.getProcLogSn());
+    }
+
     // ────────────────────── R9 마스킹 옵션(설정 연동) ──────────────────────
 
     /** 위탁 요청 캡처 헬퍼 — createProject 스텁 + 제출 후 요청 DTO 반환. */

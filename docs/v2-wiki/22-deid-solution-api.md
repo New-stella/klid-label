@@ -31,7 +31,7 @@
 | 파일 전달 | **업로드 없음** — `POST /project` 에 `input_path`=원본 디렉터리(공유 마운트), `files`=[원본 파일명] 을 직접 참조 |
 | 결과 파일 | KPST 가 `export_path` 에 직접 산출. 저작도구는 `export_path`=`{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/` 로 지정해 **우리 저장소에 바로 쓰게** 하고, 완료 응답 `fileName` 으로 그 경로를 `DE_IDNTF_FILE_PATH_NM` 에 기록(복사 없음) |
 
-→ ✅ **공유 마운트 단일 모델 확정(2026-06-30)**: 저작도구의 KPST 연동은 **공유 마운트 경로 참조**(『API 연동 테스트』 v1.0 2026.06.17, 테스트 서버 기준)로 단일화됐다. `KpstDeidentifyClient` 는 **핵심 4 엔드포인트(`GET /`·`POST /project`·`GET /retrieve_progress`·`POST /delete_project_id`)** 만 사용한다 — `POST /upload`·`GET /download` 는 KPST 서버에 존재하나 **저작도구는 사용하지 않는다**(공유 마운트로 입력 참조·결과 직접 산출). `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 비식별 확정 경로다.
+→ ✅ **공유 마운트 단일 모델 확정(2026-06-30)**: 저작도구의 KPST 연동은 **공유 마운트 경로 참조**(『API 연동 테스트』 v1.0 2026.06.17, 테스트 서버 기준)로 단일화됐다. `KpstDeidentifyClient` 는 **핵심 4 엔드포인트(`GET /`·`POST /project`·`GET /retrieve_progress`·`POST /delete_project_id`)** 만 사용한다(⚠ 2026-09-17 정정 — `delete_project_id` 는 클라이언트에 메서드만 있고 **호출처가 0건**이다. 재위탁 전 이전 프로젝트 삭제는 두지 않는다 → 22.3.3 「저작도구 프로젝트 이름 규칙」) — `POST /upload`·`GET /download` 는 KPST 서버에 존재하나 **저작도구는 사용하지 않는다**(공유 마운트로 입력 참조·결과 직접 산출). `KpstDeidentService`/`KpstDeidentTxService` + `KpstDeidentPollJob`(Quartz)가 비식별 확정 경로다.
 - **입력**: `input_path` = 원본(`rawFilePathNm`, 관제 NAS 절대경로)의 부모 디렉터리(끝 `/`) — KPST 가 공유 마운트에서 READ.
 - **출력(no-copy)**: `export_path` = `{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`(submit 전 기존 산출물 정리 `cleanExportDir` + `createDirectories`) → KPST 가 결과를 우리 base 에 직접 WRITE. **결과 파일명 계약(실서버 실측 2026-07-21)**: 완료(`procState=2`) 응답 `dsStatus.fileName` 은 **원본 입력파일의 절대경로**(예 `/nas-storage-prod2/klid_at_test/raw/001.mp4`, = `input_path`+원본명)이며 **비식별 결과가 아니다**. 실제 산출물은 `export_path` 에 **`{원본stem}-mask{ext}`**(예 `001-mask.mp4`) 로 생성된다. 따라서 회수 경로 = `{base}/videos/{rawSn}/` + `{stem(basename(fileName))}-mask{ext}` 를 1차로 시도하고(외부값 → basename 추출로 경로 정화 CWE-22 + base 하위 단언), 미사용 시 export 디렉터리 스캔(단일 산출물)으로 폴백한 뒤 `DE_IDNTF_FILE_PATH_NM` 에 기록한다. 산출 경로가 base 하위라 스트리밍(`VideoStreamService.resolveSafe`)·프레임추출(`FfmpegFrameExtractor`, 컬럼 READ) 정합. **`/download` 는 미사용**(구 서술 "`-mask` 구성 없음"은 오기 — KPST 는 `-mask` 접미사로 산출한다).
 - `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**). 레거시 동기 SPI(`DeidentifyClient`)·결과 콜백 수신 경로는 제거됐다(폴백 없음). stg/prd 는 공유 마운트 실연동이며, **local/dev 도 자체 채움이 아니라 목 서버(:9400)로 실제 HTTP 위탁**한다. ⚠ **구 서술 폐기(2026-09-03)** — *"local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본"*. **두 가지가 동시에 거짓이다** — ①그 복사 경로는 폐지됐다(그 모드에는 **자체 산출 경로가 없다** — 남은 자리는 **판정뿐**이다) ②그 설정 키는 **어느 프로파일에도 설정돼 있지 않다**(꺼짐). 막을 산출 지점이 실재하지 않으므로 남은 토글은 **위탁 요청층에서 거부**한다 — 그 형상에서 비식별은 **전건 실패**하며 기동 기록과 상태로 드러난다. ⚠ **되살아나면 이 배선으로는 막히지 않는다** — 다시 만든다면 **산출 지점에 별도 차단**이 필요하다. 매핑은 `LS_DEIDENT_PROC_LOG`(V64 도입, V83 rename: DE_IDNTF_PJT_ID/DE_IDNTF_DATST_ID/POLL_STTS_CD). 본 페이지는 명세 정본 역할.
@@ -110,6 +110,12 @@ curl --cacert ca.crt -X POST https://<IP>:<Port>/upload \
 ### 22.3.3 프로젝트 생성 — `POST /project`
 
 프로젝트를 생성하고 파일별 데이터셋과 작업을 등록. **동일 이름 프로젝트가 있으면 409**. 요청 형식 `application/json`.
+
+> **★저작도구 프로젝트 이름 규칙 (2026-09-17 사용자 확정 · `INT-004` v18 정본)** — 그 영상의 **첫 위탁은 `raw{영상번호}`**,
+> **다시 위탁할 때(선두 비식별 재시작 · 검수완료 재비식별)는 `raw{영상번호}r{이번 회차 비식별 이력 번호}`**(예 `raw44r57`, 영문·숫자만).
+> 불변식은 **KPST 에 같은 이름을 두 번 보내지 않는다**이다. 이름이 `raw{영상번호}` 고정이던 때는 위탁이 한 번 나간 영상의
+> 재위탁이 **영원히 409** 였다(246 실측 — 재시작 2회차가 `Project 'raw44' already exists` 로 거부).
+> ⚠ 기각안: 재위탁 전 이전 프로젝트 삭제 — 확인 응답 누락처럼 이전 번호를 모르는 경우 불가하고 외부 산출물·이력이 함께 지워진다.
 
 **요청 파라미터**
 | 필드 | 타입 | 필수 | 설명 |

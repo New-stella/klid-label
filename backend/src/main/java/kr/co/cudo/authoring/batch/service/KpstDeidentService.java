@@ -256,7 +256,8 @@ public class KpstDeidentService {
     /**
      * KPST 위탁 — 공유 마운트 원본 경로 참조 → 원장 선커밋 → {@code createProject} <b>논블로킹 제출</b>.
      *
-     * <p>영상 1건 = 프로젝트 1개. project_name 은 rawSn 기반 유니크. DE_IDNTF_YN 은 아직 미전이
+     * <p>위탁 1회차 = 프로젝트 1개. project_name 은 회차마다 겹치지 않는다(첫 위탁 {@code raw{rawSn}},
+     * 다시 위탁은 {@code raw{rawSn}r{이번 회차 원장 번호}} — {@link #projectName}). DE_IDNTF_YN 은 아직 미전이
      * (완료 대기). MARKING_READY 미전이.
      *
      * @return 위탁 원장(선커밋). 반환 시점에는 {@code prjId} 가 아직 없다(ACK 미도착).
@@ -307,7 +308,8 @@ public class KpstDeidentService {
 
         KpstProjectRequest projectReq;
         try {
-            projectReq = buildProjectRequest(raw, rawSn);
+            // 원장 번호(procLogSn)가 이미 확정된 뒤에 조립한다 — 재위탁 이름의 접미가 그 번호다(INT-004).
+            projectReq = buildProjectRequest(raw, rawSn, procLogSn);
         } catch (RuntimeException e) {
             // 제출 이전 사전 조건 실패 — 외부에 아무것도 나가지 않았다. 원장을 별도 트랜잭션으로 종결
             // ('F' 커밋)한 뒤 기존 계약대로 동기 예외를 전파한다.
@@ -326,7 +328,7 @@ public class KpstDeidentService {
      * {@code POST /project} 요청 바디 구성 — shared-mount 모델(규격 §22.3.3)의 경로 도출·검증·정리.
      * 외부 호출 <b>전</b> 단계이므로 실패는 동기 예외로 전파된다(호출측이 원장을 종결한다).
      */
-    private KpstProjectRequest buildProjectRequest(LsDataRaw raw, Long rawSn) {
+    private KpstProjectRequest buildProjectRequest(LsDataRaw raw, Long rawSn, Long procLogSn) {
         // shared-mount 모델(규격 §22.3.3): 업로드 없이 원본 파일 경로를 직접 /project 에 전달한다.
         String rawFilePathNm = raw.getRawFilePathNm();
         if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
@@ -364,7 +366,7 @@ public class KpstDeidentService {
         // exp_quality / exp_format 은 벤더 미지원이라 설정으로 열지 않고 규격 기본값 그대로 싣는다.
         MaskingOptions opts = resolveMaskingOptions();
         return new KpstProjectRequest(
-                projectName(rawSn), creatorId,
+                projectName(rawSn, procLogSn), creatorId,
                 exportDir + "/",    // export_path = 우리 base/videos/{rawSn}/ (KPST 결과 WRITE 대상)
                 dir + "/",          // input_path  = 원본 부모디렉터리, 끝 슬래시 필수(규격 §22.3.3)
                 files,
@@ -1068,9 +1070,30 @@ public class KpstDeidentService {
 
     // ────────────────────────────── helpers ──────────────────────────────
 
-    /** project_name = rawSn 기반 유니크. 숫자만이라 KPST 허용 문자 규칙 충족. */
-    private String projectName(Long rawSn) {
-        return "raw" + rawSn;
+    /**
+     * 위탁 프로젝트 이름 — <b>KPST 에 같은 이름을 두 번 보내지 않는다</b>(KPST 는 동일 이름 생성을 409 로 거부).
+     *
+     * <ul>
+     *   <li>그 영상의 첫 위탁: {@code raw{rawSn}} (종전 그대로)</li>
+     *   <li>다시 위탁(선두 비식별 재시작 · 검수완료 재비식별 공통): {@code raw{rawSn}r{procLogSn}} —
+     *       접미는 이번 회차에 선커밋된 원장 행 번호라 회차마다 다르다.</li>
+     * </ul>
+     *
+     * <p>첫 위탁 판정은 여기 한 곳이다 — 그 영상에 이번 회차보다 <b>앞선 비식별 이력 행이 하나라도</b> 있으면
+     * 다시 위탁으로 본다. 요청 종류(REQ_KND_CD)로 거르지 않는다: 제출 이전 실패·비식별 제외·신고 해소·
+     * 반입 행처럼 KPST 에 나가지 않은 이력이 있어 접미가 붙어도 불변식은 지켜진다(과잉 접미는 무해,
+     * 누락 접미는 409). 이전 프로젝트 삭제는 호출하지 않는다. 문자는 영문·숫자만 쓴다.
+     *
+     * @design INT-004
+     * @design AC-1133
+     */
+    private String projectName(Long rawSn, Long procLogSn) {
+        String base = "raw" + rawSn;
+        if (procLogSn != null
+                && procLogRepository.existsByDataRawSnAndProcLogSnLessThan(rawSn, procLogSn)) {
+            return base + "r" + procLogSn;
+        }
+        return base;
     }
 
     private KpstProgressResponse.DsStatus firstDataset(KpstProgressResponse progress) {

@@ -83,6 +83,7 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신�
   - ⚠ **자동 재시도는 여전히 없다** — 사람이 누르는 수동 재시작이라 「자동 재비식별 큐 없음」(`ADR-006` ③)과 양립한다. 외부 재비식별 후 해소는 **열린 신고 영상**의 경로로 한정된다.
   - 목록 비식별 배지는 최신 회차가 진행 중이면 `'F'` 보다 **진행 중**을 먼저 보인다.
   - 진단 쿼리: `deploy/onprem/scripts/verify/verify-queries.sql` 14절.
+  - **재위탁 이름은 회차마다 다르다 (2026-09-17)** — 첫 위탁 `raw{영상번호}`, 이후 `raw{영상번호}r{이력 번호}`. 고정 이름이면 위탁이 나간 뒤 실패한 영상의 재시작이 KPST 의 동일 이름 409 로 영원히 막힌다(246 실측). 상세 [22](22-deid-solution-api.md) 22.3.3.
 - 코드(폴링 경로): `KpstDeidentifyClient`(`createProject` → `Mono`), `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`/`KpstSubmitOutcomeRecorder`, `batch/scheduler/KpstDeidentPollJob`
 - 코드(트리거/mock): `batch/step/DeidentifyStep`(mock/KPST/설정오류 3분기)
 - 공유 인프라: `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/callback`) 콜백은 그대로 유지. 증강 콜백은 2026-07-27 Phase 7-A2 에서 무서명 `/v1/genai/callback` 으로 교체됐다(→ [14](14-augmentation.md))

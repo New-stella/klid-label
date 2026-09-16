@@ -121,6 +121,34 @@ class KpstSubmitAsyncCommitIT {
         return saved;
     }
 
+    // ────────────────────────── 재위탁 프로젝트 이름 (INT-004 · AC-1133) ──────────────────────────
+
+    @Test
+    @DisplayName("실DB_같은_영상을_다시_위탁하면_KPST에_나가는_프로젝트_이름이_회차마다_다르다")
+    void resubmitUsesDistinctProjectNamesOnRealLedger() {
+        // given — 첫 위탁이 폴링에서 실패해 종결된 뒤 재시작으로 다시 위탁되는 상황(246 raw44 실측)
+        LsDataRaw raw = persistRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(Mono.just(new KpstProjectResponse("success", 101L)));
+
+        // when
+        LsDeidentProcLog first = kpstDeidentService.submit(raw);
+        LsDeidentProcLog second = kpstDeidentService.submit(raw);
+        LsDeidentProcLog third = kpstDeidentService.submit(raw, true);
+
+        // then — 첫 이름은 종전 그대로, 이후는 그 회차 원장 번호 접미(실제 선커밋 번호)
+        org.mockito.ArgumentCaptor<KpstProjectRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(KpstProjectRequest.class);
+        org.mockito.Mockito.verify(kpstClient, org.mockito.Mockito.times(3)).createProject(captor.capture());
+        List<String> names = captor.getAllValues().stream().map(KpstProjectRequest::projectName).toList();
+        assertThat(names).containsExactly(
+                "raw" + raw.getRawSn(),
+                "raw" + raw.getRawSn() + "r" + second.getProcLogSn(),
+                "raw" + raw.getRawSn() + "r" + third.getProcLogSn());
+        assertThat(names).doesNotHaveDuplicates();
+        assertThat(first.getProcLogSn()).isLessThan(second.getProcLogSn());
+    }
+
     // ────────────────────────── 선커밋 원장 ──────────────────────────
 
     @Test
