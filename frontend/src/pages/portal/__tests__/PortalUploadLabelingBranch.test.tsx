@@ -411,11 +411,11 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
 
     const toolbar = screen.getByRole('toolbar', { name: '라벨링 도구' });
     // 노출 도구: 선택 / 바운딩 박스 / 폴리곤(사양 §좌측 도구바 「그리기」).
-    expect(within(toolbar).getByRole('button', { name: /바운딩 박스/ })).toBeInTheDocument();
-    expect(within(toolbar).getByRole('button', { name: /폴리곤/ })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('radio', { name: /바운딩 박스/ })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('radio', { name: /폴리곤/ })).toBeInTheDocument();
     // ★반전(2026-09-15 · SCREEN-029) — 업로드 자산에도 AI 보조 세 기능이 선다(자산 출처 무관).
     //   구 단언(AI 분할·AI 탐지·자동 추적 미노출)만 뒤집고 나머지 미노출 단언은 그대로 둔다.
-    expect(within(toolbar).getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('radio', { name: 'AI 분할' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: 'AI 탐지' })).toBeInTheDocument();
     expect(
       within(toolbar).getByRole('button', { name: 'AI 자동 추적 패널로 이동' }),

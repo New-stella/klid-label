@@ -142,7 +142,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     expect(shell.getAttribute('data-edit-blocked')).toBe('true');
     expect(shell.getAttribute('data-read-only')).toBe('true');
     // then: 그리기 도구와 저장이 함께 잠긴다 — 버튼만 남으면 차단이 그대로 우회된다.
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).toBeDisabled();
     expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
   });
 
@@ -168,7 +168,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     await waitFor(() =>
       expect(screen.getByTestId('canvas-shell').getAttribute('data-edit-blocked')).toBe('false'),
     );
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).not.toBeDisabled();
     // 취소는 "저장됨" 이 아니다 — 미저장 표시가 남아야 사용자가 다시 저장할 수 있다.
     expect(useLabelStore.getState().dirtyLabels.size).toBeGreaterThan(0);
   });
@@ -214,7 +214,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
 
       // AI 보조 진입점은 서지만, 다른 작업(저장)이 진행 중이라 새 AI 작업을 시작할 수 없다.
       expect(screen.getByRole('button', { name: 'AI 탐지' })).toBeDisabled();
-      expect(screen.getByRole('button', { name: 'AI 분할' })).toBeDisabled();
+      expect(screen.getByRole('radio', { name: 'AI 분할' })).toBeDisabled();
       expect(screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' })).toBeDisabled();
       // 선택 객체 AI 추적·키포인트 진입점은 계속 없다.
       expect(screen.queryByRole('button', { name: /^AI 추적$|키포인트|스켈레톤/ })).not.toBeInTheDocument();
