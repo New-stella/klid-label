@@ -201,9 +201,17 @@ export const PORTAL_KEYS = {
    */
   datasetMaterials: (datasetId: number) =>
     [...PORTAL_KEYS.all, 'dataset-materials', datasetId] as const,
+  /**
+   * 한 데이터셋의 영상 목록 **전 페이지**를 덮는 접두 키 — 등록 재착수 뒤 무효화의 대상. @design API-262
+   *
+   * ★ 아래 `datasetVideos` 가 이 키 뒤에 페이지를 붙이는 구조라 접두 일치가 **구조적으로** 성립한다.
+   *   두 팩토리가 각자 리터럴을 들면 한쪽만 바뀌어도 타입 오류가 없고 무효화만 조용히 빗나간다.
+   */
+  datasetVideosOf: (datasetId: number) =>
+    [...PORTAL_KEYS.all, 'dataset-videos', datasetId] as const,
   /** 데이터셋 영상 목록 — 데이터셋·페이지가 조건 축이다. @design API-253 */
   datasetVideos: (datasetId: number, page: number) =>
-    [...PORTAL_KEYS.all, 'dataset-videos', datasetId, page] as const,
+    [...PORTAL_KEYS.datasetVideosOf(datasetId), page] as const,
 };
 
 export const SYSCONFIG_KEYS = {

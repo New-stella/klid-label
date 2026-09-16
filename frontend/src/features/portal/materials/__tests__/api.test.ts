@@ -14,7 +14,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getDatasetMaterials, startDatasetMaterials } from '../api';
+import { getDatasetMaterials, restartDatasetRegistration, startDatasetMaterials } from '../api';
 import { PortalMaterialsState } from '../types';
 
 // ⚠ `as const` 를 붙이지 않는다 — 모의 어댑터의 콜백 반환 타입이 **가변 배열**이라 readonly 튜플이
@@ -83,5 +83,19 @@ describe('포털 소재 조달 api', () => {
       '/portal/datasets/11/materials',
       '/portal/datasets/22/materials',
     ]);
+  });
+  it('등록_재착수는_데이터셋_경로의_registration_을_POST_하고_본문을_싣지_않는다', async () => {
+    // [@design API-262]
+    mock.onPost('/portal/datasets/4704/registration').reply(() =>
+      ok({ registrationState: 'IN_PROGRESS', registrationFailureReason: null }),
+    );
+
+    const result = await restartDatasetRegistration(4704);
+
+    expect(result.registrationState).toBe('IN_PROGRESS');
+    expect(result.registrationFailureReason).toBeNull();
+    // ★주소 축 — 조달 착수 창구(materials)와 다른 창구다.
+    expect(mock.history.post.map((r) => r.url)).toEqual(['/portal/datasets/4704/registration']);
+    expect(mock.history.post[0].data).toBeUndefined();
   });
 });
