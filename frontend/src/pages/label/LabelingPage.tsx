@@ -87,6 +87,8 @@ import {
   summarizeDiscardSave,
 } from '@/features/label/discardSaveSummary';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
+
+import { cn } from '@/lib/cn';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useToolLabelPicker } from '@/features/label/hooks/useToolLabelPicker';
@@ -2263,7 +2265,17 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }
                 : {})}
             >
-              <div className="flex min-h-[160px] flex-1 flex-col overflow-hidden">
+              {/* ★최소 높이가 채널마다 다르다 — 줄 높이가 다르기 때문이다.
+                  관제 줄은 한 줄(약 30)이라 160 이면 다섯 줄이 보인다. 포털 줄은 시안대로
+                  **두 줄 + 도구**(실측 88)라 같은 160 에서는 한 줄 반밖에 못 보고, 목록이
+                  거의 스크롤 상자가 된다. 세 줄이 보이도록 머리 줄(40)까지 더해 304 로 둔다.
+                  ⚠ 값을 줄이려면 줄 높이를 함께 재고 줄여야 한다 — 숫자만 되돌리면 다시 막힌다. */}
+              <div
+                className={cn(
+                  'flex flex-1 flex-col overflow-hidden',
+                  portalMode ? 'min-h-[304px]' : 'min-h-[160px]',
+                )}
+              >
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
                     `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
                 <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">

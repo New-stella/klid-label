@@ -20,6 +20,11 @@ import {
 
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { cn } from '@/lib/cn';
+
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 부품. 관제 렌더 경로는 거치지 않는다.
+import { Badge } from 'krds-react';
+
+import { IconButton } from '@/components/portal/kit';
 import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -201,7 +206,13 @@ export function ObjectClassTree({
 
   return (
     <>
-      <div className="overflow-y-auto flex-1 text-body-md">
+      <div
+        className={cn(
+          'overflow-y-auto flex-1',
+          // 포털은 킷 목록 꼴 — 무리 머리·줄 짜임을 킷 CSS 가 진다.
+          portalMode ? 'klid-object-list' : 'text-body-md',
+        )}
+      >
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         // 그룹 점 = **라벨 마스터 색상**. 판정은 공용 단일 진실원(getLabelDisplayColor)을 재사용한다 —
@@ -221,23 +232,41 @@ export function ObjectClassTree({
         const displayName = resolveLabelDisplayName(className);
 
         return (
-          <div key={className}>
-            <button
-              type="button"
-              onClick={() => toggleGroup(className)}
-              className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-50 text-gray-700 text-label font-semibold"
-            >
-              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: color }}
-              />
-              {displayName}
-              <span className="ml-auto text-gray-600">({items.length})</span>
-            </button>
+          <div key={className} className={portalMode ? 'klid-object-group' : undefined}>
+            {portalMode ? (
+              /* 킷 무리 머리 — 꺾쇠 · 라벨 색 점 · 이름 · 개수. 접고 펴는 동작은 관제와 같다. */
+              <button
+                type="button"
+                className="klid-object-group-head"
+                aria-expanded={!isCollapsed}
+                onClick={() => toggleGroup(className)}
+              >
+                <ChevronDown className="chevron" aria-hidden />
+                <span className="dot" style={{ backgroundColor: color }} aria-hidden />
+                <span className="name">{displayName}</span>
+                <span className="count">({items.length})</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleGroup(className)}
+                className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-50 text-gray-700 text-label font-semibold"
+              >
+                {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                {displayName}
+                <span className="ml-auto text-gray-600">({items.length})</span>
+              </button>
+            )}
 
             {!isCollapsed &&
-              items.map((obj, idx) => {
+              (() => {
+                /* ★포털은 줄이 `<li>` 라 목록 감싸개가 필요하다 — 킷이 그 감싸개에 줄 사이
+                   구분선과 간격을 건다. 관제는 종전대로 감싸개 없이 `<div>` 줄을 늘어놓는다. */
+                const rows = items.map((obj, idx) => {
                 const isSelected = selectedId === obj.id;
                 const shapeType = obj.shape?.type ?? '-';
                 const isInterpolated = obj.lblSrcCd === 'INTERPOLATED';
@@ -262,6 +291,110 @@ export function ObjectClassTree({
                 // Phase 3 R6 — 개별 표시/숨김·잠금 상태.
                 const isHidden = hiddenLabelIds.has(obj.id);
                 const isLocked = lockedLabelIds.has(obj.id);
+                const rowName = `${displayName} #${objNumber}`;
+
+                /* ── 포털 줄 ───────────────────────────────────────────────────
+                   시안(`ObjectList`)의 **두 줄** 꼴로 그린다 — 윗줄은 트랙 번호 | 형태,
+                   아랫줄은 이름 · 만든 방식 배지. 오른쪽에 눈 · 자물쇠 · 휴지통.
+
+                   ★부품을 갈아끼우는 것이 아니라 **생김새만 입힌다.** 고르기 · 숨김 · 잠금 ·
+                     삭제 배선과 잠금 판정은 관제와 **같은 것을 그대로 쓴다.**
+                   ★트랙 이름 바꾸기 · 트랙 삭제 · 분할은 여기에 없다 — 포털에 애초에 제공하지
+                     않는 기능이라(`!portalMode` 가드) 이 꼴로 바꿔도 잃는 것이 없다.
+                   ★도구는 **늘 보인다**(시안) — 관제는 삭제만 얹었을 때 드러나는데, 얹어야
+                     드러나는 조작은 손가락 입력에 닿지 않는다. */
+                if (portalMode) {
+                  return (
+                    <li
+                      key={obj.id}
+                      className="klid-object-row"
+                      data-selected={isSelected || undefined}
+                      data-hidden={isHidden || undefined}
+                    >
+                      <div className="lines">
+                        <div className="line facts">
+                          <span
+                            className="track"
+                            data-testid={trackId != null ? 'object-track-id' : undefined}
+                            title={trackId != null ? `트랙 ID ${trackId}` : '트랙 ID 미부여'}
+                            aria-label={trackId != null ? `트랙 ID ${trackId}` : '트랙 ID 미부여'}
+                          >
+                            T:{trackId ?? '—'}
+                          </span>
+                          <span className="klid-meta-div" aria-hidden />
+                          <span className="shape">{shapeType}</span>
+                        </div>
+                        <div className="line">
+                          <button
+                            type="button"
+                            className="name"
+                            aria-pressed={isSelected}
+                            aria-label={`${rowName} 선택`}
+                            disabled={editBlocked}
+                            onClick={() => {
+                              if (editBlocked) return;
+                              selectLabel(obj.id);
+                            }}
+                          >
+                            {rowName}
+                          </button>
+                          {/* 만든 방식 — 출처 판정은 관제와 같은 값(`sourceKind`)을 쓴다.
+                              코발트를 쓰지 않는다: 고른 줄의 면과 배지 면이 같아 배지가 사라진다. */}
+                          <Badge
+                            variant="light"
+                            color={
+                              sourceKind === 'AUTO'
+                                ? 'success'
+                                : sourceKind === 'INTERPOLATED'
+                                  ? 'point'
+                                  : 'gray'
+                            }
+                            className="klid-badge-tint klid-badge-square"
+                            data-label-source={sourceKind}
+                            title={sourceTitle}
+                          >
+                            {sourceKind === 'AUTO' ? '자동' : sourceKind === 'INTERPOLATED' ? '보간' : '수동'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <span className="tools">
+                        <IconButton
+                          size="sm"
+                          tone={isHidden ? 'primary' : 'default'}
+                          aria-label={`${rowName} ${isHidden ? '표시' : '숨김'}`}
+                          aria-pressed={isHidden}
+                          onClick={() => toggleLabelVisibility(obj.id)}
+                        >
+                          {isHidden ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                        </IconButton>
+                        <IconButton
+                          size="sm"
+                          tone={isLocked ? 'primary' : 'default'}
+                          aria-label={`${rowName} ${isLocked ? '잠금 해제' : '잠금'}`}
+                          aria-pressed={isLocked}
+                          onClick={() => toggleLabelLock(obj.id)}
+                        >
+                          {isLocked ? <Lock aria-hidden /> : <Unlock aria-hidden />}
+                        </IconButton>
+                        {/* 잠긴 객체는 지울 수 없다 — 관제와 같은 판정(가드는 스토어에도 있다). */}
+                        <IconButton
+                          size="sm"
+                          tone="danger"
+                          aria-label="객체 삭제"
+                          title="객체 삭제"
+                          disabled={isLocked || editBlocked}
+                          onClick={() => {
+                            if (isLocked || editBlocked) return;
+                            removeLabel(obj.id);
+                          }}
+                        >
+                          <Trash2 aria-hidden />
+                        </IconButton>
+                      </span>
+                    </li>
+                  );
+                }
+
                 return (
                   <div
                     key={obj.id}
@@ -494,7 +627,9 @@ export function ObjectClassTree({
                     </button>
                   </div>
                 );
-              })}
+                });
+                return portalMode ? <ul className="klid-object-rows">{rows}</ul> : rows;
+              })()}
           </div>
         );
       })}
