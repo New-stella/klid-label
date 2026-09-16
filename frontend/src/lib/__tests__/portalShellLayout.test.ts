@@ -57,25 +57,35 @@ describe('포털 셸 가로 정렬선', () => {
     });
   });
 
-  describe('② 두 채널이 같은 정렬선을 쓴다', () => {
-    it('★임베드와 독립 앱의 정렬선이 같다 — Host 화면과 시작선이 어긋나지 않게', () => {
-      expect(PORTAL_SHELL_ALIGN_EMBED).toBe(PORTAL_SHELL_ALIGN_STANDALONE);
+  describe('② 최대폭은 같고 거터만 갈린다', () => {
+    it('★읽기 폭(최대폭 1200)은 두 채널이 같다 — Host 판과 폭이 어긋나지 않게', () => {
+      expect(PORTAL_SHELL_ALIGN_EMBED).toContain('max-w-wrap');
+      expect(PORTAL_SHELL_ALIGN_STANDALONE).toContain('max-w-wrap');
     });
 
-    it('두 채널에서 함수가 같은 값을 돌려준다', () => {
+    it('★임베드 거터가 독립 앱보다 한 단 좁다 — 흰 카드 안이라 여백이 겹쳐 보인다', () => {
+      // 사용자 판단(2026-09-16): 24 는 카드 안에서 깊다 → 토큰 한 칸 아래인 16.
+      expect(PORTAL_SHELL_ALIGN_EMBED).toContain('px-4');
+      expect(PORTAL_SHELL_ALIGN_EMBED).not.toContain('px-column');
+      expect(PORTAL_SHELL_ALIGN_STANDALONE).toContain('px-column');
+    });
+
+    it('★★거터를 0 으로 되돌리지 않는다 — 그 동작이 「딱 달라붙었다」 신고의 원인이었다', () => {
       stubChannel('portal');
-      const embed = portalShellAlign();
-      vi.unstubAllEnvs();
-      stubChannel('control');
-      expect(portalShellAlign()).toBe(embed);
+      expect(portalShellAlign()).toMatch(/\bpx-/);
+      expect(PORTAL_SHELL_ALIGN_EMBED.trim()).not.toBe('w-full');
     });
   });
 
   describe('③ 탭 줄 윗 여백은 임베드에만 붙는다', () => {
-    it('★임베드는 24를 뗀다 — Host 의 `padding-block-start: 24` 와 같은 자리', () => {
+    it('★윗 여백이 좌우 거터와 «같은 값»이다 — 한쪽만 줄면 탭이 비뚤어 보인다', () => {
       stubChannel('portal');
       expect(portalTabsTopPadding()).toBe(PORTAL_TABS_TOP_EMBED);
-      expect(PORTAL_TABS_TOP_EMBED).toBe('pt-column');
+      // 값을 옮겨 적지 않고 «같은 칸인가»로 본다 — 거터를 바꾸면 이 단언이 함께 따라온다.
+      const gutter = /\bpx-([\w.[\]]+)\b/.exec(PORTAL_SHELL_ALIGN_EMBED)?.[1];
+      const top = /\bpt-([\w.[\]]+)\b/.exec(PORTAL_TABS_TOP_EMBED)?.[1];
+      expect(gutter).toBeDefined();
+      expect(top).toBe(gutter);
     });
 
     it('★독립 앱은 주지 않는다 — 위에 자체 머리 영역이 있어 머리와 탭이 멀어진다', () => {

@@ -301,10 +301,15 @@ describe('PortalLayout', () => {
       expect(content.className).toMatch(/\bpb-page-section\b/);
     });
 
-    it('★탭 줄은 임베드에서만 윗 여백을 뗀다 — Host 의 padding-block-start 24 와 같은 자리', () => {
+    it('★탭 줄은 임베드에서만 윗 여백을 뗀다 — 좌우 거터와 같은 칸', () => {
+      // 값을 옮겨 적지 않는다 — 거터를 바꾸면 이 단언이 함께 따라온다(단일 진실원은
+      // `lib/portalShellLayout`, 그 둘이 같은 칸인지는 그쪽 시험이 못 박는다).
       vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
       renderLayoutAt('/portal/uploads');
-      expect(shellBoxes().nav.className).toMatch(/\bpt-column\b/);
+      const { nav } = shellBoxes();
+      const gutter = /\bpx-([\w.[\]]+)\b/.exec(nav.className)?.[1];
+      expect(gutter).toBeDefined();
+      expect(nav.className).toMatch(new RegExp(`\\bpt-${gutter}\\b`));
     });
 
     it('control_채널이면_최대폭_1200과_좌우거터를_그대로_세운다', () => {
