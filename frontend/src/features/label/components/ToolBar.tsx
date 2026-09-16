@@ -60,6 +60,12 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
 import { getPortalOverlayRoot } from '@/lib/portalOverlayRoot';
+
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 부품. 관제 렌더 경로는 이것들을 거치지 않는다.
+//   (포털 채널 산출물에만 실리도록 하는 것은 라우터의 `PortalLayout` 지연 로드가 맡는다.)
+import { Button } from 'krds-react';
+
+import { ToolAction, ToolList, ToolPanel, ToolSwitch, type ToolListItem } from '@/components/portal/authoring';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
@@ -585,6 +591,227 @@ export function ToolBar({
     );
   };
 
+  /**
+   * 단축키 도움말 미리 보기 패널 — **두 채널이 한 벌을 나눠 쓴다.**
+   * 표 본문은 `ShortcutCheatSheetContent` 단일 출처를 그대로 담는다(표기 복제 금지).
+   */
+  const renderHelpPanel = () => {
+    if (helpAnchor === null) return null;
+    return createPortal(
+          <div
+            id="toolbar-shortcut-help"
+            ref={helpPanelRef}
+            role="tooltip"
+            data-testid="label-toolbar-shortcut-panel"
+            // pl-2 = 버튼과의 시각적 간격(투명 영역). 요소 자체는 버튼에 붙어 있어야
+            // 포인터가 끊김 없이 패널로 넘어와 스크롤할 수 있다.
+            className="fixed z-[60] pl-2"
+            style={{ bottom: helpAnchor.bottom, left: helpAnchor.left }}
+            onMouseLeave={closeHelp}
+          >
+            <div
+              data-testid="label-toolbar-shortcut-panel-box"
+              // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
+              // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
+              className="w-[704px] max-w-[calc(100vw-80px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
+              // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
+              style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
+            >
+              <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
+              <ShortcutCheatSheetContent portalMode={portalMode} />
+            </div>
+          </div>,
+          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
+          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+      getPortalOverlayRoot(),
+    );
+  };
+
+  /* ── 포털 채널 레일 ───────────────────────────────────────────────────────
+     부모 포털 시안(`AuthoringLabelingView` 의 `rail`)을 그대로 옮긴다 — 묶음 카드는 `ToolPanel`,
+     고르는 도구는 `ToolList`(라디오 묶음), 누르는 조작은 `ToolAction`, 켜고 끄는 조작은
+     `ToolSwitch`(오른쪽 끝 On·Off)다.
+
+     ★관제 렌더 경로는 아래 그대로 두고 **이 분기만 새로 선다** — 같은 파일 안 두 벌이지만
+       항목 정의(`drawItems`·`aiItems`·`viewItems`)와 잠금 판정은 **한 벌을 나눠 쓴다.**
+       그래서 도구가 늘거나 잠금 규칙이 바뀌어도 한쪽만 갱신되지 않는다.
+
+     ★말풍선(`tooltip`)을 포털 줄에는 달지 않는다 — 킷 줄은 이름과 단축키를 **늘 보여** 주므로
+       얹어야만 뜻이 통하는 자리가 없다. 사유가 있는 비활성만 `title` 로 남긴다.
+     ⚠ 단축키 도움말은 **미리 보기 패널을 그대로 쓴다**(시안은 창을 연다). 그 패널은 키보드로도
+       열리게 만든 접근성 보정이라 모양만 킷 버튼으로 갈아끼우고 동작은 유지한다. */
+  if (portalMode) {
+    const selectTool = onSelectTool ?? setActiveTool;
+    /** 킷 도구 목록의 한 줄 — 잠금·사유는 관제와 같은 판정(`itemState`)에서 가져온다. */
+    const toKitItem = (item: ToolItem): ToolListItem<ToolType> => {
+      const st = itemState(item);
+      return {
+        value: item.tool,
+        label: item.label,
+        icon: item.icon as NonNullable<ToolListItem<ToolType>['icon']>,
+        shortcut: item.shortcut || undefined,
+        disabled: st.disabled,
+        title: st.title,
+      };
+    };
+    /**
+     * 줄 하나 — 고르는 도구는 바깥에서 묶어 세우므로 여기는 누르는 조작만 다룬다.
+     *
+     * ⚠ **누르는 조작에는 키 이름표를 달지 않는다.** 킷 줄은 `shortcut` 을 오른쪽 끝 **키 배지**로
+     *   그리는데, 이 화면의 액션에는 실제 키가 하나도 없고(`shortcut: ''`) 회전만 그 칸을
+     *   「현재 N도」라는 **상태 안내**로 빌려 쓴다. 그대로 넘기면 배지 자리에 문장이 들어가
+     *   존재하지 않는 단축키를 광고하고, 그 폭에 밀려 이름이 두 줄로 접힌다(실측).
+     *   상태 안내는 말풍선(`title`)이 이미 나른다 — 관제 렌더 경로와 같은 자리다.
+     *
+     * ★**접근성 이름·보조문·시험 후크가 필요한 줄은 킷 부품을 쓰지 않는다.**
+     *   킷 `ToolAction`·`ToolSwitch` 는 `aria-label`·`aria-describedby`·`data-testid` 를 받지
+     *   않는데, 이 화면에는 그 셋이 **확정 사양**인 줄이 있다 — 도구바의 「AI 자동 추적」은
+     *   패널의 실행 버튼과 **같은 이름이면 보조기술 사용자가 둘을 구별할 수 없어** 이름을
+     *   달리 하고, 비활성 사유는 `aria-describedby` 로 화면 보조문과 이어야 한다.
+     *   그래서 그 줄만 킷과 **같은 클래스·같은 속**을 쓰는 우리 줄로 그린다(킷 원본은 고치지
+     *   않는다 — 킷 폴더 주석의 규약). 나머지는 킷 부품 그대로다.
+     */
+    const renderKitAction = (item: ActionItem, key: number) => {
+      const st = itemState(item);
+      const label = item.shortLabel ?? item.label;
+      const needsOwnRow =
+        item.accessibleName !== undefined ||
+        item.describedById !== undefined ||
+        item.testId !== undefined;
+
+      if (item.pressed !== undefined && !needsOwnRow) {
+        return (
+          <ToolSwitch
+            key={key}
+            icon={item.icon as NonNullable<ToolListItem['icon']>}
+            label={label}
+            checked={item.pressed}
+            disabled={st.disabled}
+            onChange={item.action}
+          />
+        );
+      }
+      if (!needsOwnRow) {
+        return (
+          <ToolAction
+            key={key}
+            icon={item.icon as NonNullable<ToolListItem['icon']>}
+            label={label}
+            disabled={st.disabled}
+            title={st.title}
+            onClick={item.action}
+          />
+        );
+      }
+
+      const Icon = st.Icon;
+      return (
+        <button
+          key={key}
+          type="button"
+          className="klid-tool-item"
+          aria-label={st.accessibleName}
+          aria-describedby={st.describedBy}
+          aria-pressed={item.pressed}
+          data-testid={item.testId}
+          disabled={st.disabled}
+          title={st.title}
+          onClick={item.action}
+        >
+          <Icon className="icon" aria-hidden />
+          <span className="label">{label}</span>
+          {item.pressed !== undefined && (
+            <span className="state" aria-hidden>
+              {item.pressed ? 'On' : 'Off'}
+            </span>
+          )}
+        </button>
+      );
+    };
+    /**
+     * 묶음 하나를 줄들로 편다 — **차례를 지킨다.**
+     * 고르는 도구가 이어지는 구간은 라디오 묶음 하나로 합치고, 그 사이의 누르는 조작은 제자리에
+     * 둔다. 차례를 무시하고 종류별로 몰아 세우면 시안·사양이 정한 순서가 무너진다.
+     */
+    const renderKitGroup = (items: Item[], label: string) => {
+      const out: React.ReactNode[] = [];
+      let run: ToolItem[] = [];
+      const flush = (key: number) => {
+        if (run.length === 0) return;
+        const items = run.map(toKitItem);
+        run = [];
+        out.push(
+          <ToolList
+            key={`tools-${key}`}
+            label={label}
+            items={items}
+            value={activeTool}
+            onChange={selectTool}
+          />,
+        );
+      };
+      items.forEach((item, i) => {
+        if (item.kind === 'tool') {
+          run.push(item);
+          return;
+        }
+        flush(i);
+        if (item.kind === 'action') out.push(renderKitAction(item, i));
+      });
+      flush(items.length);
+      return out;
+    };
+
+    return (
+      <div className="klid-labeling-rail" role="toolbar" aria-label="라벨링 도구">
+        <ToolPanel title="그리기 도구">{renderKitGroup(drawItems, '그리기 도구')}</ToolPanel>
+
+        {aiItems.length > 0 && (
+          <ToolPanel title="AI 보조">
+            <div className="klid-tool-list" data-testid="label-toolbar-ai-group">
+              {renderKitGroup(aiItems, 'AI 보조 도구')}
+            </div>
+            {/* ★사유 보조문을 킷 `note` 로 넘기지 않는다 — 그 자리는 id 를 받지 않는데,
+                비활성 버튼이 `aria-describedby` 로 **이 문장을 가리켜야** 보조기술에 사유가
+                닿는다. 킷과 같은 클래스를 써서 생김새는 그대로 두고 id 만 우리가 단다. */}
+            {autoTrackUnavailableReason && (
+              <p id={autoTrackReasonId} className="klid-tool-panel-note">
+                {autoTrackUnavailableReason}
+              </p>
+            )}
+          </ToolPanel>
+        )}
+
+        <ToolPanel title="보기" note="회전 중에는 그리기 도구가 잠깁니다.">
+          <div className="klid-tool-list">{renderKitGroup(viewItems, '보기 도구')}</div>
+        </ToolPanel>
+
+        {/* 도구를 다 훑고 난 자리에서 단축키로 넘어가는 길(시안). 동작은 관제와 같은 미리 보기 패널. */}
+        <Button
+          size="small"
+          variant="tertiary"
+          className="klid-labeling-help"
+          aria-label="단축키 도움말 미리 보기"
+          aria-expanded={helpAnchor !== null}
+          aria-describedby={helpAnchor !== null ? 'toolbar-shortcut-help' : undefined}
+          data-testid="label-toolbar-shortcut-help"
+          title="단축키 도움말 미리 보기"
+          onMouseEnter={(e: React.MouseEvent<HTMLElement>) => openHelp(e.currentTarget)}
+          onFocus={(e: React.FocusEvent<HTMLElement>) => openHelp(e.currentTarget)}
+          onMouseLeave={(e: React.MouseEvent<HTMLElement>) =>
+            closeHelpUnlessEnteringPanel(e.relatedTarget)
+          }
+          onBlur={closeHelp}
+        >
+          <Keyboard aria-hidden />
+          단축키 안내
+        </Button>
+
+        {helpAnchor !== null && renderHelpPanel()}
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-gray-50"
@@ -676,35 +903,7 @@ export function ToolBar({
           <span className="truncate">단축키 안내</span>
         </button>
       </div>
-      {helpAnchor !== null &&
-        createPortal(
-          <div
-            id="toolbar-shortcut-help"
-            ref={helpPanelRef}
-            role="tooltip"
-            data-testid="label-toolbar-shortcut-panel"
-            // pl-2 = 버튼과의 시각적 간격(투명 영역). 요소 자체는 버튼에 붙어 있어야
-            // 포인터가 끊김 없이 패널로 넘어와 스크롤할 수 있다.
-            className="fixed z-[60] pl-2"
-            style={{ bottom: helpAnchor.bottom, left: helpAnchor.left }}
-            onMouseLeave={closeHelp}
-          >
-            <div
-              data-testid="label-toolbar-shortcut-panel-box"
-              // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
-              // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
-              className="w-[704px] max-w-[calc(100vw-80px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
-              // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
-              style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
-            >
-              <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
-              <ShortcutCheatSheetContent portalMode={portalMode} />
-            </div>
-          </div>,
-          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
-          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
-          getPortalOverlayRoot(),
-        )}
+      {renderHelpPanel()}
 
       {/* Tooltip — 스크롤 상자(overflow) 밖에서 그려야 잘리지 않으므로 body 로 portal 한다.
           위치는 버튼 rect 기준 뷰포트 좌표(position: fixed). */}

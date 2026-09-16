@@ -67,9 +67,11 @@ describe('ToolBar — 키포인트 도구', () => {
   it('포털_사용자도_AI분할_도구를_AI_보조_묶음에서_쓴다', () => {
     // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「포털_사용자는_AI분할_도구를_사용할_수_없다」.
     //   포털도 AI 분할을 포털 전용 창구로 쓴다. 그리기 묶음이 아니라 「AI 보조」 묶음에 선다.
+    // ⚠ 포털 줄은 킷 도구 목록이라 **라디오**로 읽힌다(하나만 켜지는 도구의 올바른 의미).
+    //   관제 줄은 그대로 버튼이다 — 두 채널의 역할이 갈리는 것이 확정 사양이다.
     renderWithProviders(<ToolBar portalMode />);
     const aiGroup = screen.getByTestId('label-toolbar-ai-group');
-    const btn = within(aiGroup).getByRole('button', { name: 'AI 분할' });
+    const btn = within(aiGroup).getByRole('radio', { name: 'AI 분할' });
     fireEvent.click(btn);
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
   });
@@ -80,20 +82,23 @@ describe('ToolBar — 키포인트 도구', () => {
     //   포털 미제공(ADR-013)은 도구바 구성과 **다른 축**이라, 도구바에 되살아나더라도 포털에서는
     //   반드시 빠져 있어야 한다는 계약을 이 케이스가 계속 고정한다.
     renderWithProviders(<ToolBar portalMode />);
+    // 역할을 가리지 않고 본다 — 어떤 모양으로 되살아나도 잡히게.
+    expect(screen.queryByRole('radio', { name: 'AI 추적' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI 추적' })).not.toBeInTheDocument();
   });
 
   it('포털_사용자는_스켈레톤_도구를_사용할_수_없다', () => {
     renderWithProviders(<ToolBar portalMode />);
+    expect(screen.queryByRole('radio', { name: '스켈레톤' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '스켈레톤' })).not.toBeInTheDocument();
   });
 
   it('포털_모드에서도_수동_라벨링_도구는_그대로_노출된다', () => {
     // 포털 사용자는 BBOX/POLYGON 수동 라벨링을 계속 제공받는다(ADR-013 예외) — 과잉 차단 회귀 가드.
     renderWithProviders(<ToolBar portalMode />);
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '선택' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '폴리곤' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '선택' })).toBeInTheDocument();
   });
 
   it('내부_라벨링_화면의_SAM2_도구는_기존과_동일하게_노출된다', () => {
@@ -149,17 +154,34 @@ describe('ToolBar — 포털 채널 묶음 구성 (SCREEN-029)', () => {
     useLabelStore.getState().reset();
   });
 
-  const cardTitles = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+  /**
+   * 묶음 제목 — **층을 가리지 않는다.**
+   * 관제 레일은 h2, 포털 레일은 킷 도구 판이라 h3 다. 이 가드가 지키는 것은 「어떤 묶음이
+   * 어떤 차례로 서는가」이지 제목 층이 아니다.
+   */
+  const cardTitles = () =>
+    screen
+      .getAllByRole('heading')
+      .filter((h) => h.className.includes('klid-tool-panel-title') || h.tagName === 'H2')
+      .map((h) => h.textContent);
+  /**
+   * 묶음 안 줄 이름 — **역할을 가리지 않는다.**
+   * 관제 레일은 전부 버튼이고, 포털 레일은 고르는 도구가 라디오(하나만 켜지는 도구의 올바른
+   * 의미)라 둘이 섞인다. 이 가드가 지키는 것은 「어떤 줄이 어떤 차례로 서는가」다.
+   */
   const namesIn = (el: HTMLElement) =>
-    within(el)
-      .getAllByRole('button')
-      .map((b) => b.getAttribute('aria-label'));
+    Array.from(el.querySelectorAll('button')).map((b) => {
+      const explicit = b.getAttribute('aria-label');
+      if (explicit !== null) return explicit;
+      // 킷 줄은 이름 옆에 키 이름표(`G`)·상태 글자(`Off`)를 함께 담는다 — 이름 칸만 읽는다.
+      return (b.querySelector('.label') ?? b).textContent?.trim() ?? '';
+    });
 
   it('포털은_그리기_AI보조_보기_세_묶음이고_AI보조에_세_버튼이_순서대로_선다', () => {
     renderWithProviders(
       <ToolBar portalMode onAutolabel={vi.fn()} onFocusAutoTrack={vi.fn()} onToggleGrid={vi.fn()} />,
     );
-    expect(cardTitles()).toEqual(['그리기', 'AI 보조', '보기']);
+    expect(cardTitles()).toEqual(['그리기 도구', 'AI 보조', '보기']);
     expect(namesIn(screen.getByTestId('label-toolbar-ai-group'))).toEqual([
       'AI 탐지',
       'AI 분할',
@@ -167,7 +189,9 @@ describe('ToolBar — 포털 채널 묶음 구성 (SCREEN-029)', () => {
       'AI 자동 추적 패널로 이동',
     ]);
     // 그리기 묶음에는 AI 기능이 섞이지 않는다.
-    const drawCard = screen.getByRole('heading', { name: '그리기' }).closest('section') as HTMLElement;
+    const drawCard = screen
+      .getByRole('heading', { name: '그리기 도구' })
+      .closest('section') as HTMLElement;
     expect(namesIn(drawCard)).toEqual(['선택', '바운딩 박스', '폴리곤']);
     // 스켈레톤·선택 객체 AI 추적은 계속 없다.
     expect(screen.queryByRole('button', { name: '스켈레톤' })).toBeNull();
