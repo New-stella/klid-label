@@ -73,7 +73,9 @@ describe('데이터셋 영상 구역', () => {
     expect(screen.getByRole('heading', { name: '데이터셋 영상' })).toBeInTheDocument();
     expect(screen.getByText(DATASET_VIDEOS_LEAD)).toBeInTheDocument();
     expect(DATASET_VIDEOS_LEAD).toContain('저장해야 내 작업에 남습니다');
-    expect(screen.getByText('1건')).toBeInTheDocument();
+    // 건수는 목록 바로 위 킷 건수 줄이 그린다(「총 N건」) — 굵은 숫자가 별개 조각이라
+    // 텍스트 노드 하나로는 잡히지 않는다. 줄 전체를 후크로 집어 본문으로 본다.
+    expect(screen.getByTestId('dataset-videos-count')).toHaveTextContent('총 1건');
   });
 
   it('★응답이_준_프레임으로_라벨링을_연다_저장_전이면_라벨링', () => {

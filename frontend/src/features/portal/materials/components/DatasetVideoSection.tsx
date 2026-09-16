@@ -15,25 +15,34 @@
  * 어느 프레임으로 열지는 응답의 `entrySrcSn` 이 정한다. 비어 있으면 진입을 두지 않고 사유를 한 줄로
  * 보인다 — 「첫 프레임으로 대신 연다」로 때우지 않는다.
  *
+ * <h3>모양 — 부모 포털의 저작도구 화면을 그대로 입혔다 (2026-09-16)</h3>
+ * 형제 화면(내 업로드 · 증강)과 **같은 줄 카드 목록**이다.
+ *   · 영상 하나가 카드 한 장(`RecordRow`) — 왼쪽은 이름 → 영상 정보 → 저장 시각, 오른쪽 끝이 걸음
+ *   · 프레임 수·기존 라벨은 **이름 흐리게 · 값 진하게**인 조각 줄(`ConditionChips look="text"`)
+ *   · 건수는 목록 바로 위 왼쪽(`ResultCount`) — 형제 화면과 같은 자리
+ *   · 조회 실패·등록 중·영상 없음이 전부 **빈 판**(`EmptyState`)으로 서서 목록이 올 자리를 지킨다
+ *   · 페이저는 킷 것(`PageNav`)이고 **1부터** 센다 — 우리 창구는 0부터라 경계에서 한 번만 옮긴다
+ *
+ * ⚠ 관제 공통 부품(`components/common/*`)을 쓰지 않는다 — 관제 화면 여럿이 함께 쓰므로 포털 모양을
+ *   넣으면 관제 화면이 같이 바뀐다(사용자 확정 구속: **관제향 화면·컴포넌트 불변**).
+ *   그래서 구 `Pagination` 도 킷 `PageNav` 로 바뀌었다.
+ *
  * 보안: 영상 이름은 텍스트 노드로만 렌더한다(자동 escape). 사용자 격리는 서버가 토큰 주체로 한다.
  */
 
 import { useState } from 'react';
-import { CircleAlert, Inbox } from 'lucide-react';
+import { Badge, Button } from 'krds-react';
+import { CircleAlert, Inbox, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { Pagination } from '@/components/common/Pagination';
-import { PortalAlert } from '@/components/portal/ui/PortalAlert';
-import { PortalBadge } from '@/components/portal/ui/PortalBadge';
-import { PortalEmptyState } from '@/components/portal/ui/PortalEmptyState';
-import { PortalListSkeleton } from '@/components/portal/ui/PortalListSkeleton';
 import {
-  PortalFactChip,
-  PortalRecordList,
-  PortalRecordRow,
-} from '@/components/portal/ui/PortalRecordRow';
-import { PortalSectionHead } from '@/components/portal/ui/PortalSectionHead';
-import { portalButtonSm } from '@/components/portal/ui/portalControl';
+  EmptyState,
+  PageNav,
+  RecordRow,
+  ResultCount,
+  StepHeading,
+} from '@/components/portal/kit';
+import { ConditionChips } from '@/components/portal/authoring';
 import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 import { buildPortalDatamartLabelPath } from '@/features/portal/labelingEntry';
 
@@ -60,99 +69,101 @@ export function DatasetVideoSection({ datasetId }: DatasetVideoSectionProps) {
   /** 등록이 끝난 응답만 목록으로 믿는다 — 그 밖의 상태는 목록이 완전하지 않다. */
   const done = data !== undefined && state === PortalDatasetVideoRegistrationState.DONE ? data : undefined;
 
+  /** 다시 확인 걸음 — 여러 자리가 같은 모양·같은 문구로 쓴다. */
+  const retryAction = (label: string) => (
+    <Button variant="secondary" size="medium" onClick={() => void query.refetch()}>
+      <RotateCcw aria-hidden />
+      {label}
+    </Button>
+  );
+
   return (
-    <section aria-labelledby={SECTION_ID} className="flex flex-col gap-in-component">
-      <PortalSectionHead
-        id={SECTION_ID}
-        title="데이터셋 영상"
-        lead={DATASET_VIDEOS_LEAD}
-        count={done ? `${done.totalElements.toLocaleString()}건` : undefined}
-      />
+    <section aria-labelledby={SECTION_ID} className="klid-authoring-block">
+      <StepHeading size="md" id={SECTION_ID} title="데이터셋 영상" desc={DATASET_VIDEOS_LEAD} />
 
       {query.isLoading ? (
-        <>
-          <p role="status" className="text-body-sm text-gray-600">
-            영상 목록을 불러오고 있습니다.
-          </p>
-          <PortalListSkeleton />
-        </>
+        /* 불러오는 동안 목록이 올 자리를 그대로 지킨다 — 비워 두면 실패한 것으로 읽힌다.
+           도는 고리와 낭독은 킷 빈 판이 `busy` 로 갖는다. */
+        <EmptyState busy title="영상 목록을 불러오고 있습니다." />
       ) : query.isError ? (
-        <PortalAlert
-          live
-          tone="error"
-          title="영상 목록을 불러오지 못했습니다"
-          description="잠시 후 다시 시도해 주세요. 가져온 소재가 사라진 것은 아닙니다."
-          action={
-            <button
-              type="button"
-              onClick={() => void query.refetch()}
-              className={portalButtonSm('secondary')}
-            >
-              다시 시도
-            </button>
-          }
-          data-testid="dataset-videos-error"
-        />
+        /* ★「조회 실패」와 「실제로 0건」을 반드시 가른다 — 서버 오류를 영상이 없는 것으로 오해하면
+           사용자가 데이터셋을 잘못 골랐다고 판단한다. 판은 빈 목록과 같고 느낌표·제목·걸음이 가른다.
+           ★싸개가 `role="alert"` 를 갖는다 — 킷 빈 판은 `busy` 일 때만 읽어 주므로 그대로 두면
+             실패 사실이 보조기술에 한 마디도 가지 않는다(형제 화면 증강과 같은 처리). */
+        <div role="alert" data-testid="dataset-videos-error">
+          <EmptyState
+            icon={CircleAlert}
+            title="영상 목록을 불러오지 못했습니다"
+            desc="잠시 후 다시 시도해 주세요. 가져온 소재가 사라진 것은 아닙니다."
+            action={retryAction('다시 시도')}
+          />
+        </div>
       ) : state === PortalDatasetVideoRegistrationState.IN_PROGRESS ? (
-        <>
-          <p role="status" className="text-body-sm text-gray-700" data-testid="dataset-videos-registering">
-            영상을 등록하고 있습니다. 끝나면 이 자리에 목록이 나타납니다.
-          </p>
-          <PortalListSkeleton />
-        </>
+        <div data-testid="dataset-videos-registering">
+          <EmptyState busy title="영상을 등록하고 있습니다. 끝나면 이 자리에 목록이 나타납니다." />
+        </div>
       ) : state === PortalDatasetVideoRegistrationState.FAILED ? (
-        <PortalAlert
-          live
-          tone="error"
-          title="영상을 등록하지 못했습니다"
-          description="가져온 소재는 그대로 남아 있습니다. 잠시 후 다시 확인해 주세요."
-          action={
-            <button
-              type="button"
-              onClick={() => void query.refetch()}
-              className={portalButtonSm('secondary')}
-            >
-              다시 확인
-            </button>
-          }
-          data-testid="dataset-videos-registration-failed"
-        />
+        <div role="alert" data-testid="dataset-videos-registration-failed">
+          <EmptyState
+            icon={CircleAlert}
+            title="영상을 등록하지 못했습니다"
+            desc="가져온 소재는 그대로 남아 있습니다. 잠시 후 다시 확인해 주세요."
+            action={retryAction('다시 확인')}
+          />
+        </div>
       ) : done === undefined ? (
         /* 서버가 값역을 넓혔을 때 — 모르는 값을 완료로 읽지 않는다. */
-        <PortalAlert
-          tone="warning"
-          title="영상 등록 상태를 확인할 수 없습니다"
-          description="잠시 후 다시 확인해 주세요."
-          action={
-            <button
-              type="button"
-              onClick={() => void query.refetch()}
-              className={portalButtonSm('secondary')}
-            >
-              다시 확인
-            </button>
-          }
-          data-testid="dataset-videos-unknown-state"
-        />
+        <div role="alert" data-testid="dataset-videos-unknown-state">
+          <EmptyState
+            icon={CircleAlert}
+            title="영상 등록 상태를 확인할 수 없습니다"
+            desc="잠시 후 다시 확인해 주세요."
+            action={retryAction('다시 확인')}
+          />
+        </div>
       ) : done.content.length === 0 ? (
-        <PortalEmptyState
-          icon={Inbox}
-          title="영상이 없습니다."
-          description="이 데이터셋에는 라벨링할 영상이 없습니다. 포털에서 다른 학습데이터를 골라 주세요."
-          data-testid="dataset-videos-empty"
-        />
+        /* ★싸개가 `role="status"` 를 갖는다 — 조회가 끝나고 0건이라는 것은 **방금 일어난 일**이라
+           알린다(`alert` 가 아니다 — 끼어들 만큼 급한 소식이 아니다).
+           ★조작을 두지 않는다 — 다른 학습데이터를 고르는 자리가 **이 배포본 바깥**(Host 화면)이라
+             여기서 갈 수 있는 곳이 없다. 누를 수 없는 버튼을 두면 막다른 길이 하나 더 는다. */
+        <div role="status" data-testid="dataset-videos-empty">
+          <EmptyState
+            icon={Inbox}
+            title="영상이 없습니다."
+            desc="이 데이터셋에는 라벨링할 영상이 없습니다. 포털에서 다른 학습데이터를 골라 주세요."
+          />
+        </div>
       ) : (
-        <PortalRecordList aria-label="데이터셋 영상 목록" data-testid="dataset-videos-list">
-          {done.content.map((video) => (
-            <li key={video.rawSn}>
-              <DatasetVideoRow video={video} />
-            </li>
-          ))}
-        </PortalRecordList>
-      )}
+        <div className="klid-authoring-assets">
+          {/* 건수는 목록 바로 위 왼쪽 — 형제 화면(내 업로드·증강)과 같은 자리. 킷 건수 줄이
+              `role="status"` 로 「몇 건으로 좁혀졌는지」를 읽어 준다. */}
+          <div className="klid-result-head" data-testid="dataset-videos-count">
+            <ResultCount total={done.totalElements} />
+          </div>
 
-      {done !== undefined && done.totalPages > 1 && (
-        <Pagination page={page} totalPages={done.totalPages} onChange={setPage} />
+          {/* 영상 하나가 카드 한 장 */}
+          <ul
+            className="klid-authoring-records"
+            aria-label="데이터셋 영상 목록"
+            data-testid="dataset-videos-list"
+          >
+            {done.content.map((video) => (
+              <li key={video.rawSn} data-testid={`dataset-video-row-${video.rawSn}`}>
+                <DatasetVideoRow video={video} />
+              </li>
+            ))}
+          </ul>
+
+          {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다. */}
+          {done.totalPages > 1 && (
+            <PageNav
+              totalPages={done.totalPages}
+              /* 킷 페이저는 1부터 센다 — 우리 창구는 0부터라 경계에서 한 번만 옮긴다. */
+              currentPage={page + 1}
+              onChange={(oneBased) => setPage(Math.max(0, oneBased - 1))}
+            />
+          )}
+        </div>
       )}
     </section>
   );
@@ -165,34 +176,58 @@ function DatasetVideoRow({ video }: { video: PortalDatasetVideo }) {
   const actionLabel = saved ? '이어서 라벨링' : '라벨링';
 
   return (
-    <PortalRecordRow
-      data-testid={`dataset-video-row-${video.rawSn}`}
+    <RecordRow
+      /* 줄 짜임은 형제 화면(증강·내 업로드)과 같다 — 왼쪽은 이름 → 영상 정보 → 저장 시각 한 줄,
+         오른쪽 끝이 걸음. */
+      titleSize="large"
+      factsInline
+      factsBelow
       /* 영상 이름 — 텍스트 노드(자동 escape). 자르지 않고 줄바꿈한다. */
       title={video.videoName}
-      titleAside={saved ? <PortalBadge tone="primary">저장한 작업 있음</PortalBadge> : undefined}
-      body={
-        <span className="flex flex-wrap items-center gap-tight">
-          <PortalFactChip label="프레임" value={`${video.frameCount.toLocaleString()}장`} />
-          <PortalFactChip label="기존 라벨" value={`${video.labelCount.toLocaleString()}건`} />
-        </span>
+      badge={
+        saved ? (
+          <Badge variant="light" color="primary" className="klid-badge-tint">
+            저장한 작업 있음
+          </Badge>
+        ) : undefined
       }
-      meta={savedAt !== null ? <span>마지막 저장 {formatPortalDateTime(savedAt)}</span> : undefined}
-      actions={
+      facts={savedAt !== null ? [<>마지막 저장 {formatPortalDateTime(savedAt)}</>] : undefined}
+      /* 열 프레임이 없다는 사실은 걸음 자리 위에 경고 표식과 함께 선다(줄 카드가 표식을 붙인다).
+         ★걸음을 잠근 버튼으로 대신하지 않는다 — 이 사유는 사용자가 지금 풀 수 있는 것이 아니라
+           해당 영상에 열 프레임이 아직 없다는 사실이라, 누를 수 없는 버튼을 세우면 막다른 길이 는다. */
+      actionNote={entryPath === null ? NO_ENTRY_REASON : undefined}
+      action={
         entryPath !== null ? (
-          <Link
-            to={entryPath}
-            aria-label={`${video.videoName} ${actionLabel}`}
-            className={portalButtonSm('primary')}
-          >
-            {actionLabel}
-          </Link>
-        ) : (
-          <span className="flex items-center gap-tight text-caption text-gray-600">
-            <CircleAlert className="size-4 shrink-0" strokeWidth={2} aria-hidden />
-            {NO_ENTRY_REASON}
-          </span>
-        )
+          <div className="klid-authoring-row-actions" data-align="end">
+            {/* ★**링크로 남긴다** — 모양만 킷 버튼이고 실체는 이동이다. 킷 `Button` 은 `as` 로
+                어떤 요소로든 설 수 있어(다형 부품) 라우터 `Link` 를 끼우면 시안의 생김새와
+                링크의 성질(가운데 클릭 · 새 탭 · 주소 복사)을 둘 다 갖는다.
+                ⚠ 킷 버튼은 **무엇으로 서든 `role="button"` 을 박는다** — 그대로 두면 보조기술이
+                  「버튼」이라 읽어 링크로 남긴 뜻이 절반만 남는다. 역할을 되돌려 준다. */}
+            <Button
+              as={Link}
+              to={entryPath}
+              role="link"
+              size="small"
+              /* 같은 문구의 걸음이 줄마다 서므로 접근 이름에 영상 이름을 붙인다 — 그러지 않으면
+                 보조기술 사용자가 어느 줄의 걸음인지 가릴 수 없다. */
+              aria-label={`${video.videoName} ${actionLabel}`}
+            >
+              {actionLabel}
+            </Button>
+          </div>
+        ) : undefined
       }
-    />
+    >
+      {/* 영상 정보 — 이름은 흐리게 · 값은 진하게, 사이는 세로선(내 업로드 자산 줄과 같은 규칙). */}
+      <ConditionChips
+        look="text"
+        label="영상 정보"
+        items={[
+          { label: '프레임', value: `${video.frameCount.toLocaleString()}장` },
+          { label: '기존 라벨', value: `${video.labelCount.toLocaleString()}건` },
+        ]}
+      />
+    </RecordRow>
   );
 }
