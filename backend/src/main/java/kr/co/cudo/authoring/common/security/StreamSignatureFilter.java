@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.co.cudo.authoring.video.service.StreamUrlSigner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,7 +32,9 @@ import java.util.regex.Pattern;
  * <p>{@code u} 는 주소에 노출되는 값이지만 <b>쿠키 봉인이 그 값을 검증</b>한다 — 봉인은 서버 비밀과 발급자로
  * 계산되므로, {@code u} 를 바꾸거나 다른 사용자에게 발급된 쿠키를 쓰면 봉인 검증에 실패한다. 따라서 봉인 검증을
  * 통과했다는 것은 "서버가 이 {@code u} 에게 발급한 쿠키" 라는 뜻이고, 그 {@code u} 가 곧 발급자다.
- * 발급 수단({@code StreamUrlSigner})은 걷어내지 않는다 — 판정에 쓰지 않을 뿐이다.
+ * 발급 수단({@code StreamUrlSigner})은 걷어내지 않는다 — 판정에 쓰지 않을 뿐이다. 다만 그 수단의 <b>서버 비밀이
+ * 설정되지 않은 배포에서는 개입하지 않는다</b> — 그 경우 쿠키 봉인 키가 노드마다 다른 임시 키라 봉인의 의미가
+ * 없고, 발급 창구도 503 으로 닫혀 있어야 하는 형상이기 때문이다(fail-closed).
  *
  * @design ADR-071
  * @design API-084
@@ -83,11 +86,15 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
      */
     public static final String STREAM_SIGNED_PRINCIPAL = "stream-signed";
 
+    /** 서버 비밀 설정 여부 판정에만 쓴다 — 재생 판정에 서명 검증을 쓰지 않는다. */
+    private final StreamUrlSigner signer;
     private final StreamNonceCookie nonceCookie;
     private final UserRoleResolver userRoleResolver;
 
-    public StreamSignatureFilter(StreamNonceCookie nonceCookie,
+    public StreamSignatureFilter(StreamUrlSigner signer,
+                                 StreamNonceCookie nonceCookie,
                                  UserRoleResolver userRoleResolver) {
+        this.signer = signer;
         this.nonceCookie = nonceCookie;
         this.userRoleResolver = userRoleResolver;
     }
@@ -113,6 +120,12 @@ public class StreamSignatureFilter extends OncePerRequestFilter {
 
         Matcher m = STREAM_PATH.matcher(stripContext(request));
         if (!m.matches()) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        if (!signer.isConfigured()) {
+            // 서버 비밀 미설정 — 봉인 키가 JVM 임시 키라 봉인이 신뢰 근거가 되지 못한다. 개입하지 않음 → 401.
             chain.doFilter(request, response);
             return;
         }

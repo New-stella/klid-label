@@ -255,7 +255,12 @@ public class VideoStreamService {
         // Resource 는 재구성이 저렴하므로 캐시하지 않고 매 요청마다 만든다(스트림은 write 시점에 열린다).
         Resource videoResource = new NoFollowFileResource(target.path(), target.size());
         MediaType mediaType = meta.mediaType();
-        long contentLength = meta.contentLength();
+        // ★ 경계(Range 시작·끝)·416 판정·전체 길이는 캐시 값이 아니라 <b>이 요청에서 잰 실제 크기</b>로 계산한다.
+        //   비식별 완료 뒤 산출물이 무손실 재배치(moov 앞당김)로 교체되면 크기가 바뀔 수 있는데, 캐시는
+        //   노드 로컬이라 교체한 노드만 비운다. 다른 노드가 캐시의 옛 길이로 경계를 잡으면 파일이 커진 경우
+        //   끝 구간 요청이 416 이 되어 영상 끝이 재생되지 않는다. 크기는 위 재검증이 매 요청 stat 하므로
+        //   추가 비용이 없다. (meta.contentLength() 는 경계 판단에 쓰지 않는다.)
+        long contentLength = target.size();
 
         // 5) Range 헤더 파싱 (RFC 7233). 파싱 실패(역전/형식 오류)는 fail-secure → 416.
         List<HttpRange> ranges;
@@ -318,8 +323,9 @@ public class VideoStreamService {
      * 이득이 없으면서 마스킹 실패 영상이 디스크 캐시에 잔존하는 위험만 남는다. 따라서 프레임 비식별 이미지
      * 경로({@code FrameImageService#serveDeidentified})와 <b>동일하게</b> {@code no-store} 로 통일한다.
      *
-     * <p><b>성능 영향</b>: 시크(되감기)마다 Range 재요청이 BE 로 오지만, 경로/크기/MIME 해석은 서버측
-     * {@code stream-meta} 캐시가 흡수하므로 요청당 추가 비용은 로컬 NAS 파일 read 뿐이다. 청크 상한(기본
+     * <p><b>성능 영향</b>: 시크(되감기)마다 Range 재요청이 BE 로 오지만, 경로/MIME 해석은 서버측
+     * {@code stream-meta} 캐시가 흡수하고 크기는 실경로 재검증의 stat 한 번으로 얻으므로 요청당 추가 비용은
+     * 로컬 NAS stat·파일 read 뿐이다. 청크 상한(기본
      * 8MB)이 재요청 빈도를 억제한다.
      */
     private static CacheControl noStoreForGatedMedia() {
@@ -356,7 +362,10 @@ public class VideoStreamService {
     /**
      * 비식별 스트림 메타(해석된 파일 경로 + contentLength + mediaType)를 rawSn 키로 해석·캐싱.
      *
-     * <p>비식별 완료 파일은 <b>불변</b>이므로 경로·크기·MIME 을 안전하게 캐시할 수 있다. HTTP Range 요청은
+     * <p>비식별 완료 파일의 경로·MIME 은 캐시해도 안전하다. ⚠ <b>크기는 불변이 아니다</b> — 완료 뒤 무손실
+     * 재배치(moov 앞당김)로 산출물이 교체되면 크기가 바뀔 수 있고 캐시는 노드 로컬이다. 그래서 캐시에 실린
+     * {@code contentLength} 는 부분 요청 경계·416 판정에 쓰지 않고, {@link #stream} 이 요청마다 잰 실제 크기를
+     * 쓴다. HTTP Range 요청은
      * 재생/시크마다 수십~수백 회 발생하는데, 매번 {@code Files.exists}/{@code isRegularFile}/
      * {@code MediaTypeFactory}/{@code contentLength()}(파일 stat) 를 재계산하던 오버헤드를 제거한다.
      * 이는 4배속 시 재요청 빈도 폭증과 맞물려 버벅임을 유발했다.

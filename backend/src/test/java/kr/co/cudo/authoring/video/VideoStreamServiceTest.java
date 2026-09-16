@@ -1442,6 +1442,106 @@ class VideoStreamServiceTest {
                 .isEqualTo(deidFile.toRealPath());
     }
 
+    // ============ 캐시 길이 ≠ 실제 크기 — 경계는 요청마다 잰 크기로 (비식별 산출물 재배치 대응) ============
+
+    /**
+     * 캐시 적재 후 파일 크기가 바뀐 상황을 만든다 — 캐시 히트를 흉내 내려고 {@code self}(캐시 프록시 자리)에
+     * <b>옛 크기가 실린 메타</b>를 돌려주는 대역을 끼운다. 다른 노드가 캐시를 비우지 못한 형상과 같다.
+     *
+     * @return 실제 파일 경로
+     */
+    private Path stubStaleCachedMeta(Long rawSn, int cachedSize, int actualSize) throws IOException {
+        Path deidFile = legacyDeidFile(rawSn, "stale_" + rawSn + ".mp4");
+        Files.write(deidFile, new byte[cachedSize]);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+        VideoStreamService.StreamMeta cached = videoStreamService.resolveStreamMeta(rawSn);
+        assertThat(cached.contentLength()).isEqualTo(cachedSize); // 전제 — 캐시에는 옛 크기
+
+        VideoStreamService cacheProxy = org.mockito.Mockito.mock(VideoStreamService.class);
+        when(cacheProxy.resolveStreamMeta(rawSn)).thenReturn(cached);
+        ReflectionTestUtils.setField(videoStreamService, "self", cacheProxy);
+
+        Files.write(deidFile, new byte[actualSize]); // 재배치로 크기가 바뀜(같은 경로)
+        return deidFile;
+    }
+
+    private static String contentRangeOf(ResourceRegion region) throws IOException {
+        long end = region.getPosition() + region.getCount() - 1;
+        return "bytes " + region.getPosition() + "-" + end + "/" + region.getResource().contentLength();
+    }
+
+    @Test
+    @DisplayName("★캐시길이보다_파일이_커지면_끝구간_Range도_실제크기_기준_206 — 옛 길이로 416 내지 않음")
+    void stream_fileGrownAfterCache_tailRangeUsesActualSize() throws IOException {
+        Long rawSn = 70L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=3000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(resp.getBody().getPosition()).isEqualTo(3000L);
+        assertThat(resp.getBody().getCount()).isEqualTo(1096L);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 3000-4095/4096");
+    }
+
+    @Test
+    @DisplayName("캐시길이보다_파일이_커지면_접미_Range도_실제_끝을_가리킨다")
+    void stream_fileGrownAfterCache_suffixRangeUsesActualSize() throws IOException {
+        Long rawSn = 71L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=-100");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 3996-4095/4096");
+    }
+
+    @Test
+    @DisplayName("★캐시길이보다_파일이_줄면_열린_Range가_실제크기까지만_나간다")
+    void stream_fileShrunkAfterCache_openRangeCappedAtActualSize() throws IOException {
+        Long rawSn = 72L;
+        stubStaleCachedMeta(rawSn, 4096, 2048);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=1000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 1000-2047/2048");
+    }
+
+    @Test
+    @DisplayName("캐시길이보다_파일이_줄면_실제크기_밖_Range는_416이고_전체길이는_실제크기")
+    void stream_fileShrunkAfterCache_outOfActualRange_416() throws IOException {
+        Long rawSn = 73L;
+        stubStaleCachedMeta(rawSn, 4096, 2048);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=3000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        assertThat(resp.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE)).isEqualTo("bytes */2048");
+    }
+
+    @Test
+    @DisplayName("캐시길이와_파일크기가_달라도_Range없는_전체응답은_실제크기")
+    void stream_sizeChangedAfterCache_fullResponseUsesActualSize() throws IOException {
+        Long rawSn = 74L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, new HttpHeaders());
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().getCount()).isEqualTo(4096L);
+    }
+
     // ===================== API-114 — 스트림 주소는 배포 접두를 포함하지 않는다 =====================
 
     @Test

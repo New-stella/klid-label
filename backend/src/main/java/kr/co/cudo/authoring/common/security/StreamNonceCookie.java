@@ -188,8 +188,9 @@ public class StreamNonceCookie {
      * 봉인 전용 파생키. {@code authoring.stream.sign-secret} 을 그대로 쓰지 않고 라벨을 섞어 파생해
      * URL 서명 키와 용도를 분리한다(키 재사용 회피).
      *
-     * <p>시크릿 미설정 환경에서는 서명 발급/검증 자체가 비활성(503)이라 nonce 가 쓰이지 않는다. 그 경우
-     * JVM 기동 시 랜덤 키를 만들어 <b>봉인 없는 값이 통과하는 일이 절대 없게</b> 한다(fail-closed).
+     * <p>시크릿 미설정 환경에서는 재생 주소 발급이 비활성(503)이고 재생 필터도 개입하지 않아 쿠키가 재생 자격이
+     * 되지 않는다({@code StreamSignatureFilter} 가 비밀 설정 여부를 먼저 본다). 그래도 JVM 기동 시 랜덤 키를 만들어
+     * <b>봉인 없는 값이 통과하는 일이 절대 없게</b> 한다(fail-closed).
      */
     private static byte[] deriveSealKey(String signSecret) {
         if (signSecret == null || signSecret.isBlank()) {
