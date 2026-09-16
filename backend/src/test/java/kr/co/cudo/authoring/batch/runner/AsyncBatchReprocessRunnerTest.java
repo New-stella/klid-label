@@ -37,6 +37,7 @@ class AsyncBatchReprocessRunnerTest {
     private BatchOrchestrator orchestrator;
     private BatchTransitionService transitionService;
     private BatchStatusService batchStatusService;
+    private AsyncDeidentifyRunner deidentifyRunner;
     private AsyncBatchReprocessRunner runner;
 
     @BeforeEach
@@ -44,7 +45,23 @@ class AsyncBatchReprocessRunnerTest {
         orchestrator = mock(BatchOrchestrator.class);
         transitionService = mock(BatchTransitionService.class);
         batchStatusService = mock(BatchStatusService.class);
-        runner = new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService);
+        deidentifyRunner = mock(AsyncDeidentifyRunner.class);
+        runner = new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService,
+                deidentifyRunner);
+    }
+
+    @Test
+    @DisplayName("★선두비식별_재시작_진입은_러너의_동기본체만_부르고_선두비식별_풀로_재디스패치하지_않는다")
+    void 선두비식별_재시작진입() {
+        // [@design AC-1133] 비동기 진입(runAsync)을 부르면 선두 비식별 풀(호출자 실행)로 다시 넘어간다.
+        runner.runLeadDeidentRetryAsync(7L);
+
+        verify(deidentifyRunner).runNow(7L);
+        verify(deidentifyRunner, never()).runAsync(anyLong());
+        // 배치 단계 선점이 없는 갈래라 선점 표식·보상 롤백을 타지 않는다.
+        verify(batchStatusService, never()).recordReprocessClaimClosed(anyLong(), anyString());
+        verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
+        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
     }
 
     @Test

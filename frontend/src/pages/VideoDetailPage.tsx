@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMutationState } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Video as VideoIcon } from 'lucide-react';
 
@@ -19,11 +20,21 @@ import { BatchFailurePanel } from '@/features/video/components/BatchFailurePanel
 import { DeidentHistoryPanel } from '@/features/video/components/DeidentHistoryPanel';
 import {
   BATCH_PROCESSING_POLL_WINDOW_MS,
+  LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS,
   useVideoDetail,
+  type LeadDeidentAcceptWatch,
 } from '@/features/video/hooks/useVideoDetail';
+import {
+  batchRetryMutationKey,
+  type BatchRetryVariables,
+} from '@/features/video/hooks/useBatchRecovery';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
-import { isBatchProcessing } from '@/features/video/types';
-import type { FramePreview, VideoDetail } from '@/features/video/types';
+import {
+  BATCH_STATUS_PENDING,
+  isBatchProcessing,
+  isLeadDeidentRunning,
+} from '@/features/video/types';
+import type { BatchRetryResult, FramePreview, VideoDetail } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
 import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
@@ -522,17 +533,50 @@ export function VideoDetailPage() {
   //   로그가 아직 직전 실패 그대로라 기본 폴링 규칙(FAIL=종료)이 즉시 멈춘다 — 사용자에겐 화면이
   //   멈춘 것으로 보인다. 그래서 **영상 상태가 처리 중인 동안** 진행을 따라간다.
   const [batchPollUntil, setBatchPollUntil] = useState<number | null>(null);
-  const { data, isLoading, error } = useVideoDetail(validId, { pollUntil: batchPollUntil });
+  // [@design API-167] 선두 비식별 재시도 접수 직후 추적 — 아래 effect 가 접수 응답을 보고 무장한다.
+  const [leadDeidentAccept, setLeadDeidentAccept] = useState<LeadDeidentAcceptWatch | null>(null);
+  const { data, isLoading, error } = useVideoDetail(validId, {
+    pollUntil: batchPollUntil,
+    leadDeidentAccept,
+  });
 
   // ★ 창을 무장하는 축은 "버튼을 눌렀는가"가 아니라 **영상이 처리 중인가**다(구 동작 폐기).
   //   그래서 일괄 재시작 후 상세로 들어온 사람에게도 진행 추적이 열린다.
   // ⚠ 의존성은 **처리 중 여부의 전이**와 영상 식별자뿐이다 — 폴링이 돌 때마다 다시 무장하면
   //   상한이 사라져 PROCESSING 고착 영상에서 무한 폴링(self-DoS)이 된다. 상태가 바뀌지 않는 한
   //   이 effect 는 다시 돌지 않으므로, 한 번의 처리 중 구간에 창은 정확히 한 번만 열린다.
-  const batchProcessing = data ? isBatchProcessing(data) : false;
+  // ★ 선두 비식별 재시도는 배치 상태를 선점하지 않으므로 「진행 중」을 비식별 이력 최신 회차로 본다.
+  //   같은 상한 창을 쓰며, 무장 축은 역시 **상태 전이**다(폴링마다 다시 늘리지 않는다).
+  const batchProcessing = data ? isBatchProcessing(data) || isLeadDeidentRunning(data) : false;
   useEffect(() => {
     setBatchPollUntil(batchProcessing ? Date.now() + BATCH_PROCESSING_POLL_WINDOW_MS : null);
   }, [batchProcessing, validId]);
+
+  // [@design API-167] 재기동 접수 응답 — 패널(다른 컴포넌트)이 보낸 뮤테이션을 상태로 읽는다.
+  //   ★ 접수 단계가 대기(PENDING)면 선두 비식별 재시도다. 서버는 접수 뒤 비동기로 위탁하므로 새 이력
+  //     회차가 쌓이기 전 짧은 틈을 추적 창으로 메운다. 무장 축은 **접수 1건**(submittedAt)이다.
+  const lastRetryAccept = useMutationState({
+    filters: { mutationKey: batchRetryMutationKey(validId ?? -1), status: 'success' },
+    select: (m) => ({
+      submittedAt: m.state.submittedAt,
+      stage: (m.state.data as BatchRetryResult | undefined)?.stage,
+      baseline:
+        (m.state.variables as BatchRetryVariables | undefined)?.deidentBaselineProcLogSn ?? null,
+    }),
+  }).at(-1);
+  const leadAcceptAt =
+    lastRetryAccept?.stage === BATCH_STATUS_PENDING ? lastRetryAccept.submittedAt : null;
+  const leadAcceptBaseline = lastRetryAccept?.baseline ?? null;
+  useEffect(() => {
+    setLeadDeidentAccept(
+      leadAcceptAt
+        ? {
+            until: Date.now() + LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS,
+            baselineProcLogSn: leadAcceptBaseline,
+          }
+        : null,
+    );
+  }, [leadAcceptAt, leadAcceptBaseline]);
 
   // [@design SCREEN-009] '재비식별 요청' 버튼은 이 화면에 두지 않는다(확정 사양 — 헤더 카드
   //   컴포넌트 목록에 없다). 헤더에는 1차 액션이 없다(조회 화면). 서버 측 재비식별 경로는 그대로다.

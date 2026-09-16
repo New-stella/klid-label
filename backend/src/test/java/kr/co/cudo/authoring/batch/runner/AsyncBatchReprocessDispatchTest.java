@@ -66,6 +66,19 @@ class AsyncBatchReprocessDispatchTest {
         BatchStatusService batchStatusService() {
             return mock(BatchStatusService.class);
         }
+
+        /**
+         * 선두 비식별 재시작 진입의 협력자 — 이 시험은 쓰지 않는다. 비동기 후처리기가 프록시를 씌우므로
+         * 목 대신 빈 파이프라인의 실물을 둔다.
+         */
+        @Bean
+        AsyncDeidentifyRunner asyncDeidentifyRunner() {
+            return new AsyncDeidentifyRunner(
+                    new kr.co.cudo.authoring.batch.pipeline.BatchPipeline(java.util.List.of()),
+                    mock(BatchTransitionService.class),
+                    mock(kr.co.cudo.authoring.video.repository.VideoRepository.class),
+                    mock(kr.co.cudo.authoring.batch.service.DeidentReservationHook.class));
+        }
     }
 
     @Autowired private AsyncBatchReprocessRunner runner;

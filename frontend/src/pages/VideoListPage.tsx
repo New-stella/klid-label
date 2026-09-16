@@ -38,7 +38,6 @@ import {
 } from '@/features/video/parseVideoListParams';
 import {
   BULK_RETRY_MAX,
-  isBatchFailed,
   type BatchBulkRetryResult,
   type Video,
   type VideoListParams,
@@ -316,15 +315,16 @@ export function VideoListPage() {
   const overBulkRetryLimit = exceedsBulkRetryLimit(selected.size);
   const bulkBusy = bulkRetry.isPending || bulkSkip.isPending || bulkRerun.isPending;
 
-  /**
-   * 선택분 중 **지금 실패 상태**인 건수 — 일괄 재시작이 실제로 접수될 수 있는 대상 수다.
+  /*
+   * ⚠ **[폐기]** 구 `selectedFailedCount`(선택분 중 배치 상태가 실패인 건수를 안내에 싣던 값).
+   * [@design SCREEN-008] [@design API-199]
    *
-   * ⚠ 이 값으로 요청을 거르지 않는다. 재시작은 지금도 선택 전건을 보내고 **서버가 건별로 거부**하며,
-   * 화면이 미리 거르면 그 계약이 바뀐다. 여기서는 안내 문구에만 쓴다.
+   * 일괄 재시작의 접수 대상이 **선두 비식별이 실패한 영상**(배치 상태가 대기로 남는다)까지 넓어져,
+   * 배치 상태로 센 숫자는 그 영상을 빼고 세는 **틀린 대상 수**가 됐다(비식별 실패만 골랐을 때
+   * 「0건만 재시작 대상」이라고 말했다). 화면이 그 판정을 다시 세지 않고 — 서버가 형상 안에서도
+   * 건별로 막는 경우가 있어 화면 계산은 어차피 근사다 — **접수 건수는 결과 창이 서버 결과로** 말한다.
+   * 되살리지 말 것.
    */
-  // `rows` 는 매 렌더 새 배열이라 useMemo 로 감싸도 재계산을 막지 못한다(현재 페이지 한 벌 필터라
-  // 비용도 무시할 수준이다). 불필요한 의존성 경고만 남으므로 그대로 계산한다.
-  const selectedFailedCount = rows.filter((r) => selected.has(r.id) && isBatchFailed(r)).length;
 
   /** 일괄 조작 공통 가드 — 권한·빈 선택·상한·진행 중. */
   const canRunBulk = isReviewer && selected.size > 0 && !overBulkRetryLimit && !bulkBusy;
@@ -423,7 +423,7 @@ export function VideoListPage() {
                 {selected.size}건 일괄 재시작
               </Button>
 
-              {/* 구분 — 대상 범위가 다른 축(재시작=실패분 / 시계열=선택 전건)이라 시각적으로 가른다. */}
+              {/* 구분 — 접수 대상이 다른 축(재시작=배치·선두 비식별 실패 / 시계열=시계열 묶음)이라 시각적으로 가른다. */}
               <span className="h-4 w-px bg-primary-200" aria-hidden />
 
               {/*
@@ -483,15 +483,17 @@ export function VideoListPage() {
             </div>
           </div>
           {/*
-            두 조작의 **대상 범위가 다르다**는 사실을 미리 알린다 — 재시작은 실패 건만 접수되고
-            시계열 일괄 조작은 선택 전건에 적용되며 거부는 건별 사유로 돌아온다. 이 차이를 결과
-            모달에서야 알게 되면 사용자는 "왜 일부만 됐나"를 되짚어야 한다.
+            조작마다 **접수 대상이 다르다**는 사실을 미리 알린다 — 재시작은 배치 실패·선두 비식별
+            실패 영상, 시계열 건너뛰기는 시계열 실패 영상, 재수행은 건너뛴 적이 있는 영상이다. 셋 다
+            선택 전건을 보내고 서버가 건별로 판정해 사유를 돌려준다. 이 차이를 결과 모달에서야 알게
+            되면 사용자는 "왜 일부만 됐나"를 되짚어야 한다.
+            ⚠ 대상 **건수**는 여기서 세지 않는다 — 결과 창이 서버 결과로 말한다(구 건수 안내 폐기).
           */}
           <p className="text-caption text-gray-600" data-testid="bulk-scope-hint">
-            선택한 영상 중 배치가 실패한 {selectedFailedCount}건만 재시작 대상입니다. 시계열
-            건너뛰기는 시계열 작업이 실패한 영상에, 시계열 재수행은 건너뛴 적이 있는 영상에
-            접수됩니다. 이 두 조작은 화면이 대상을 미리 가르지 않고 선택한 {selected.size}건
-            전부를 보내 되는 것만 처리하고,{' '}
+            재시작은 배치가 실패한 영상과 비식별이 실패한 영상에, 시계열 건너뛰기는 시계열
+            작업이 실패한 영상에, 시계열 재수행은 건너뛴 적이 있는 영상에 접수됩니다. 세 조작
+            모두 화면이 대상을 미리 가르지 않고 선택한 {selected.size}건 전부를 보내 되는 것만
+            처리하고,{' '}
             {/* ⚠ 이 구절은 문구 가드(`uiWordingGuard`)의 허용 목록에 **줄 단위**로 올라 있다 —
                 줄바꿈으로 쪼개면 예외가 풀려 가드가 FAIL 한다. 한 줄로 유지할 것. */}
             거부된 건은 사유와 함께 돌려줍니다. 시계열 작업이 실패한 영상만 모으려면 위 「작업 묶음

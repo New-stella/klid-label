@@ -206,8 +206,10 @@ export function isBatchProcessing(video: Pick<Video, 'status'>): boolean {
 /**
  * 영상의 배치 단계 상태가 「실패」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_FAILED`.
  *
- * 전체 재기동(`POST /v1/videos/{rawSn}/batch/retry`)이 <b>유일하게 받는 상태</b>이며, 서버는 이
- * 값에서만 FAILED→PROCESSING 원자 클레임에 성공한다.
+ * 전체 재기동(`POST /v1/videos/{rawSn}/batch/retry`)이 받는 상태이며, 서버는 이 값에서만
+ * FAILED→PROCESSING 원자 클레임에 성공한다.
+ * ⚠ **[폐기]** 구 서술 「재기동이 <b>유일하게</b> 받는 상태」 — 같은 요청이 선두 비식별 실패 영상
+ *   (배치 상태 대기)도 받게 됐다({@link isLeadDeidentFailed}). 그 영상은 이 값을 거치지 않는다.
  */
 export const BATCH_STATUS_FAILED = 'FAILED';
 
@@ -225,6 +227,58 @@ export const BATCH_STATUS_FAILED = 'FAILED';
  */
 export function isBatchFailed(video: Pick<Video, 'status'>): boolean {
   return video.status === BATCH_STATUS_FAILED;
+}
+
+/**
+ * 영상의 배치 단계 상태가 「대기」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_PENDING`.
+ *
+ * 적재 직후의 값이며, 선두 비식별이 성공해야 마킹 대기(`MARKING_READY`)로 넘어간다.
+ */
+export const BATCH_STATUS_PENDING = 'PENDING';
+
+/**
+ * **선두 비식별이 실패해 멈춘 영상**인가. [@design API-167] [@design SCREEN-009] [@design AC-1133]
+ *
+ * ★ 왜 이 축이 따로 필요한가
+ *   선두 비식별은 배치 진행 로그를 남기지 않는다 — 그래서 이 영상은 `stages` 가 빈 배열이고
+ *   `batchFailureReason` 도 비어 있으며 배치 상태는 실패가 아니라 **대기**다. 배치 실패 신호만 보면
+ *   조치 영역이 통째로 사라져, 확정 사양(「선두 비식별 단계 실패도 배치 실패로 보아 이 영역과
+ *   재기동 버튼을 보인다」)이 서지 않는다.
+ *
+ * ★ 판정 모양은 서버가 재시작 요청을 선두 비식별 재시도로 돌리는 형상과 **같다**
+ *   (비식별 여부 `'F'` + 배치 상태 대기). 서버가 이 형상 안에서도 건별로 막는 경우(파생 · 승인 이력 ·
+ *   열린 비식별 누락 신고 · 진행 중 위탁 · 동시 요청)는 화면이 미리 거르지 않고 **서버 문구로** 알린다
+ *   — 과대 노출은 서버가 보정하지만 과소 노출은 보정되지 않는다(요청을 보낼 창구가 없다).
+ *
+ * ⚠ `'F'` 에는 「비식별 누락 신고」라는 두 번째 뜻이 있다. 그 구분은 서버가 하며(열린 신고면 409)
+ *   이 함수는 가르지 않는다.
+ */
+export function isLeadDeidentFailed(video: {
+  status?: Video['status'] | string | null;
+  deIdntfYn?: Video['deIdntfYn'] | string | null;
+}): boolean {
+  return video.deIdntfYn === 'F' && video.status === BATCH_STATUS_PENDING;
+}
+
+/** 비식별 이력의 처리 상태 중 「위탁이 아직 끝나지 않았다」를 뜻하는 코드 — BE `LsDeidentProcLog.REQUESTED`. */
+export const DEIDENT_PROC_REQUESTED = 'REQUESTED';
+
+/**
+ * 선두 비식별 실패 영상에 **다시 요청한 비식별이 지금 진행 중인가**. [@design API-167] [@design SCREEN-009]
+ *
+ * ★ 왜 배치 상태로 판정하지 못하는가 — 이 재시도는 배치 상태를 처리 중으로 선점하지 않고(대기 그대로),
+ *   비식별 여부도 성공 전까지 `'F'` 로 남는다. 진행 사실이 남는 곳은 **서버가 내려준 비식별 이력의
+ *   최신 회차**(서버 정렬 — 최신이 맨 앞)뿐이다.
+ * ⚠ 요청 직후에는 새 회차가 아직 적재되지 않았을 수 있다(서버는 접수 뒤 비동기로 위탁한다). 그 구간에
+ *   다시 누르면 서버가 동시 요청을 막고 그 문구를 화면이 그대로 보인다.
+ */
+export function isLeadDeidentRunning(video: {
+  status?: Video['status'] | string | null;
+  deIdntfYn?: Video['deIdntfYn'] | string | null;
+  deidentHistory?: ReadonlyArray<Pick<DeidentHistoryItem, 'procSttsCd'>> | null;
+}): boolean {
+  if (!isLeadDeidentFailed(video)) return false;
+  return video.deidentHistory?.[0]?.procSttsCd === DEIDENT_PROC_REQUESTED;
 }
 
 /**

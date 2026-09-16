@@ -17,7 +17,10 @@ import { act, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/api/client';
-import { BATCH_PROCESSING_POLL_WINDOW_MS } from '@/features/video/hooks/useVideoDetail';
+import {
+  BATCH_PROCESSING_POLL_WINDOW_MS,
+  LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS,
+} from '@/features/video/hooks/useVideoDetail';
 import { VideoDetailPage } from '@/pages/VideoDetailPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -155,6 +158,181 @@ describe('VideoDetailPage 「처리 중」 진행 추적', () => {
     });
     const settled = detailGets();
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(detailGets()).toBe(settled);
+  });
+});
+
+// [@design API-167] [@design SCREEN-009] [@design AC-1133]
+// ★ 선두 비식별 재시도 — 접수 응답의 단계가 대기(PENDING)이고 서버는 접수 뒤 비동기로 위탁한다.
+//   배치 상태도 진행 로그도 움직이지 않으므로, 접수 직후 틈과 새 회차 진행을 따로 따라가야 한다.
+describe('VideoDetailPage 선두 비식별 재시도 추적', () => {
+  let mock: MockAdapter;
+  /** 서버 상세 응답 — 시험이 국면마다 갈아 끼운다. */
+  let detail: Record<string, unknown>;
+
+  const detailGets = () => mock.history.get.filter((h) => h.url === '/videos/42').length;
+
+  function leadDetail(history: { procLogSn: number; procSttsCd: string }[], extra = {}) {
+    return {
+      rawSn: 42,
+      vmsCctvId: 'CCTV-42',
+      evntTypeCd: 'FIGHT',
+      status: 'PENDING',
+      dataSttsCd: 'PENDING',
+      deIdntfYn: 'F',
+      regDt: '2026-06-01T10:00:00',
+      framePreviews: [],
+      stages: [],
+      batchFailureReason: null,
+      skippedStages: [],
+      deidentHistory: history.map((h) => ({ ...h, reqKndCd: null })),
+      ...extra,
+    };
+  }
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    detail = leadDetail([{ procLogSn: 1, procSttsCd: 'FAILED' }]);
+    mock.onGet('/videos/42').reply(() => [
+      200,
+      { success: true, data: detail, message: null, errorCode: null },
+    ]);
+    mock.onPost('/videos/42/batch/retry').reply(200, {
+      success: true,
+      data: { rawSn: 42, stage: 'PENDING' },
+      message: null,
+      errorCode: null,
+    });
+    useAuthStore.setState({
+      token: 'placeholder-jwt',
+      claims: { sub: 'u-1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
+    });
+    useUiStore.setState({ toasts: [] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    mock.restore();
+    useAuthStore.getState().clear();
+  });
+
+  async function openAndAccept() {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderPage();
+    const button = await screen.findByRole('button', { name: /배치 재실행/ });
+    await act(async () => {
+      button.click();
+    });
+    await waitFor(() =>
+      expect(mock.history.post.map((h) => h.url)).toContain('/videos/42/batch/retry'),
+    );
+    // 접수 응답을 본 화면이 추적 창을 무장하는 렌더까지 흘려보낸다 — 이 틈 없이 시간을 크게 밀면
+    //   무장 전에 창이 이미 지난 것으로 계산된다(실사용에서는 렌더가 즉시 일어난다).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+  }
+
+  it('대조군_누르지_않으면_멈춘_실패를_폴링하지_않는다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderPage();
+    await screen.findByRole('button', { name: /배치 재실행/ });
+    const before = detailGets();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(detailGets()).toBe(before);
+  });
+
+  it('작업자에게는_선두_비식별_실패_영상에서도_조치_영역과_재실행_버튼을_보이지_않는다', async () => {
+    useAuthStore.setState({
+      token: 'placeholder-jwt',
+      claims: { sub: 'u-2', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
+    });
+    renderPage();
+
+    // 화면이 다 그려진 뒤에 부재를 본다 — 로딩 중의 부재는 아무것도 증명하지 않는다.
+    expect(await screen.findByRole('heading', { name: '비식별 이력' })).toBeInTheDocument();
+    expect(screen.queryByTestId('batch-failure-panel')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /배치 재실행/ })).not.toBeInTheDocument();
+  });
+
+  it('★접수_직후_새_회차가_쌓이기_전에도_폴링을_시작한다', async () => {
+    await openAndAccept();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    const before = detailGets();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+    expect(detailGets()).toBeGreaterThan(before);
+  });
+
+  it('새_회차가_진행_중이면_계속_따라가고_비식별이_성공하면_멈춘다', async () => {
+    await openAndAccept();
+    detail = leadDetail([
+      { procLogSn: 2, procSttsCd: 'REQUESTED' },
+      { procLogSn: 1, procSttsCd: 'FAILED' },
+    ]);
+    // 접수 창(60초)을 넘겨도 진행 중이면 처리 중 추적이 이어받는다.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS + 10_000);
+    });
+    expect(await screen.findByRole('heading', { name: '배치 처리 중' })).toBeInTheDocument();
+    const whileRunning = detailGets();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+    expect(detailGets()).toBeGreaterThan(whileRunning);
+
+    // 성공 — 비식별 'Y' + 마킹 대기. 패널이 사라지고 폴링이 멈춘다.
+    detail = leadDetail(
+      [
+        { procLogSn: 2, procSttsCd: 'SUCCEEDED' },
+        { procLogSn: 1, procSttsCd: 'FAILED' },
+      ],
+      { status: 'MARKING_READY', dataSttsCd: 'MARKING_READY', deIdntfYn: 'Y' },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    await waitFor(() => expect(screen.queryByTestId('batch-failure-panel')).not.toBeInTheDocument());
+    const settled = detailGets();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(detailGets()).toBe(settled);
+  });
+
+  it('새_회차가_실패로_끝나면_멈춘다', async () => {
+    await openAndAccept();
+    detail = leadDetail([
+      { procLogSn: 2, procSttsCd: 'FAILED' },
+      { procLogSn: 1, procSttsCd: 'FAILED' },
+    ]);
+    // 새 회차를 받아 오는 한 번의 조회와, 이미 걸려 있던 타이머의 마지막 한 번까지 흘려보낸다.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+    const settled = detailGets();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(detailGets()).toBe(settled);
+  });
+
+  it('새_회차가_끝내_안_쌓여도_접수_창이_지나면_멈춘다_무한_폴링_없음', async () => {
+    await openAndAccept();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS + 10_000);
+    });
+    const settled = detailGets();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });

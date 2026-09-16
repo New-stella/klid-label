@@ -263,6 +263,19 @@ PY
   probe "작업목록"  "/v1/tasks/board?page=0&size=3"
   probe "검수목록"  "/v1/reviews?page=0&size=3"
 fi
+
+sub "비식별 실패 영상 재시작 — 읽기 전용 확인 (상세 진단은 verify-queries.sql 14절)"
+# ⚠ 재시작 창구(POST)는 여기서 부르지 않는다 — 실제 외부 위탁이 나간다. DB 로만 본다.
+#   재시작 형상 = de_ident_yn='F' 이고 data_stts_cd='PENDING'.
+#   재시작 잠금 = ls_auth_work_lock 의 lck_id 가 'DEIDRETRY-' 로 시작하는 LOCKED 행.
+run_psql -tA -c \
+"SELECT '재시작 형상 영상=' || count(*) FROM ${SCHEMA}.ls_data_raw
+  WHERE de_ident_yn = 'F' AND data_stts_cd = 'PENDING'"
+run_psql -tA -c \
+"SELECT '남은 재시작 잠금=' || count(*) FROM ${SCHEMA}.ls_auth_work_lock
+  WHERE lck_target_cd = 'RAW' AND lck_stts_cd = 'LOCKED' AND lck_id LIKE 'DEIDRETRY-%'"
+echo "  판정: 남은 잠금은 위탁이 진행 중인 영상에만 있어야 한다. 종결됐는데 남아 있으면 14-3 을 돌린다."
+echo "        (새 코드 배포 전에는 잠금이 0 인 것이 정상이다)"
 fi
 
 printf '\n══ 끝 ══\n'

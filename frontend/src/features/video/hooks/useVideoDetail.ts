@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { VIDEO_KEYS } from '@/lib/queryKeys';
 
 import { getVideo } from '../api';
-import { isBatchProcessing } from '../types';
+import { isBatchProcessing, isLeadDeidentFailed, isLeadDeidentRunning } from '../types';
 import type { VideoDetail } from '../types';
 
 // 배치가 진행 중일 때만 상세를 재조회(폴링)할 간격(ms).
@@ -32,6 +32,24 @@ export const BATCH_POLL_INTERVAL_MS = 5000;
  */
 export const BATCH_PROCESSING_POLL_WINDOW_MS = 5 * 60_000;
 
+/**
+ * 선두 비식별 재시도 **접수 직후** 새 이력 회차가 쌓이기를 기다리는 상한(ms). [@design API-167]
+ *
+ * ★ 서버는 접수 뒤 비동기로 위탁을 시작하므로, 접수 직후의 상세에는 새 회차가 아직 없다 — 그
+ *   구간의 화면은 「직전 실패」와 구분되지 않는다. 이 창은 그 짧은 틈만 메운다(새 회차가 보이면
+ *   진행 중 판정({@link BATCH_PROCESSING_POLL_WINDOW_MS} 상한)이 이어받는다).
+ * ⚠ 상한이다 — 위탁 디스패치가 끝내 일어나지 않아도 최대 12회(60초/5초)에서 멈춘다.
+ */
+export const LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS = 60_000;
+
+/** 선두 비식별 재시도 접수 추적 입력 — 상세 화면이 접수 응답(stage=PENDING)을 관측했을 때 무장한다. */
+export interface LeadDeidentAcceptWatch {
+  /** 이 시각(epoch ms)이 지나면 추적을 멈춘다. */
+  until: number;
+  /** 접수 직전 화면이 본 비식별 이력 최신 회차 식별자(없으면 null). */
+  baselineProcLogSn: number | null;
+}
+
 /** {@link batchPollInterval} 판정 보조 입력. */
 export interface BatchPollOptions {
   /**
@@ -42,6 +60,8 @@ export interface BatchPollOptions {
   pollUntil?: number | null;
   /** 판정 기준 시각(epoch ms). 테스트가 시간을 고정하려고 주입한다. */
   now?: number;
+  /** 선두 비식별 재시도 접수 직후 추적 — null/미지정이면 없음. */
+  leadDeidentAccept?: LeadDeidentAcceptWatch | null;
 }
 
 /**
@@ -65,10 +85,31 @@ export function batchPollInterval(
   data: VideoDetail | undefined,
   options: BatchPollOptions = {},
 ): number | false {
-  const { pollUntil = null, now = Date.now() } = options;
+  const { pollUntil = null, now = Date.now(), leadDeidentAccept = null } = options;
 
   // 영상이 최종 완료 상태면 폴링 불필요 — 무엇보다 우선한다(이미 끝난 것을 따라갈 이유가 없다).
   if (data?.status === 'COMPLETED' || data?.status === 'APPROVED') return false;
+
+  // [@design API-167] [@design SCREEN-009] ★선두 비식별이 실패한 영상 — 배치 상태·진행 로그가 움직이지
+  //   않으므로(대기 그대로, 로그 없음) 아래 규칙으로는 따라갈 수 없다. 이 형상에서의 판정은 여기서 끝낸다.
+  //   ⚠ 성공하면 비식별이 'Y'·마킹 대기로 바뀌어 이 형상을 벗어나고, 아래 규칙(처리 중 아님 → 중지)이 멈춘다.
+  if (data && isLeadDeidentFailed(data)) {
+    // ① 다시 요청한 비식별이 진행 중(최신 회차 REQUESTED) — 처리 중 추적과 같은 상한 창 안에서만 따라간다.
+    if (isLeadDeidentRunning(data)) {
+      return pollUntil !== null && now < pollUntil ? BATCH_POLL_INTERVAL_MS : false;
+    }
+    // ② 접수 직후 — 새 회차가 아직 쌓이지 않은 짧은 틈만 따라간다.
+    if (leadDeidentAccept && now < leadDeidentAccept.until) {
+      const latest = data.deidentHistory?.[0]?.procLogSn ?? null;
+      const newRoundSeen =
+        latest !== null &&
+        (leadDeidentAccept.baselineProcLogSn === null || latest > leadDeidentAccept.baselineProcLogSn);
+      // 새 회차가 보였는데 진행 중이 아니다 = 이미 종결(실패)됐다 → 멈춘다.
+      return newRoundSeen ? false : BATCH_POLL_INTERVAL_MS;
+    }
+    // ③ 그 밖은 멈춰 있는 실패다 — 따라갈 것이 없다.
+    return false;
+  }
 
   // 처리 중(접수·대기 포함)이면서 상한 창이 열려 있을 때만, 멈춰 보이는 로그를 계속 따라간다.
   //   ★ 상태 조건이 없으면 "실패로 끝난 영상"까지 창 동안 따라가게 된다 — 창은 상한이지 판정이 아니다.
@@ -91,13 +132,14 @@ export function batchPollInterval(
 }
 
 export function useVideoDetail(id: number | null, options: BatchPollOptions = {}) {
-  const { pollUntil = null } = options;
+  const { pollUntil = null, leadDeidentAccept = null } = options;
   return useQuery({
     queryKey: VIDEO_KEYS.detail(id ?? -1),
     queryFn: () => getVideo(id as number),
     enabled: id !== null && id > 0,
     // 배치 진행 중에만 최신 단계를 폴링. 종료 시 false 반환으로 자동 중지.
     //   `pollUntil` 은 「처리 중」 추적의 상한이며, 창이 닫히면 다음 판정에서 스스로 멈춘다.
-    refetchInterval: (query) => batchPollInterval(query.state.data, { pollUntil }),
+    refetchInterval: (query) =>
+      batchPollInterval(query.state.data, { pollUntil, leadDeidentAccept }),
   });
 }

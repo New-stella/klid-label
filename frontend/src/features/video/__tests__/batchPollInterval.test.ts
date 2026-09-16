@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BATCH_POLL_INTERVAL_MS,
   BATCH_PROCESSING_POLL_WINDOW_MS,
+  LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS,
   batchPollInterval,
 } from '../hooks/useVideoDetail';
 import type { BatchStageItem, VideoDetail } from '../types';
@@ -118,5 +119,86 @@ describe('batchPollInterval — 「처리 중」 추적과 그 상한', () => {
   it('창을 지정하지 않으면 처리 중이어도 폴링하지 않는다', () => {
     const stages = [stage('VLM', 'FAIL')];
     expect(batchPollInterval(makeDetail(stages), { now: NOW })).toBe(false);
+  });
+});
+
+// [@design API-167] [@design SCREEN-009] 선두 비식별 재시도 — 배치 상태·진행 로그가 움직이지 않으므로
+// 「진행 중」은 비식별 이력 최신 회차로, 「접수 직후」는 짧은 상한 창과 이력 기준선으로 판정한다.
+describe('batchPollInterval — 선두 비식별 재시도', () => {
+  const NOW = 1_000_000;
+
+  function leadDetail(
+    history: { procLogSn: number; procSttsCd: string }[],
+    overrides: Record<string, unknown> = {},
+  ): VideoDetail {
+    return {
+      status: 'PENDING',
+      deIdntfYn: 'F',
+      stages: [],
+      deidentHistory: history,
+      ...overrides,
+    } as unknown as VideoDetail;
+  }
+
+  const failedOnce = [{ procLogSn: 1, procSttsCd: 'FAILED' }];
+  const acceptWatch = { until: NOW + LEAD_DEIDENT_ACCEPT_POLL_WINDOW_MS, baselineProcLogSn: 1 };
+
+  it('대조군_접수_추적이_없는_멈춘_실패는_폴링하지_않는다', () => {
+    expect(batchPollInterval(leadDetail(failedOnce), { now: NOW })).toBe(false);
+  });
+
+  it('접수_직후_새_회차가_아직_없으면_따라간다', () => {
+    expect(
+      batchPollInterval(leadDetail(failedOnce), { now: NOW, leadDeidentAccept: acceptWatch }),
+    ).toBe(BATCH_POLL_INTERVAL_MS);
+  });
+
+  it('이력이_하나도_없던_영상도_접수_직후면_따라간다', () => {
+    expect(
+      batchPollInterval(leadDetail([]), {
+        now: NOW,
+        leadDeidentAccept: { ...acceptWatch, baselineProcLogSn: null },
+      }),
+    ).toBe(BATCH_POLL_INTERVAL_MS);
+  });
+
+  it('접수_추적_창이_지나면_새_회차가_없어도_멈춘다_무한_폴링_없음', () => {
+    expect(
+      batchPollInterval(leadDetail(failedOnce), {
+        now: acceptWatch.until,
+        leadDeidentAccept: acceptWatch,
+      }),
+    ).toBe(false);
+  });
+
+  it('새_회차가_진행_중이면_상한_창_안에서_따라간다', () => {
+    const running = leadDetail([{ procLogSn: 2, procSttsCd: 'REQUESTED' }, ...failedOnce]);
+    expect(
+      batchPollInterval(running, { now: NOW, pollUntil: NOW + BATCH_PROCESSING_POLL_WINDOW_MS }),
+    ).toBe(BATCH_POLL_INTERVAL_MS);
+    // 상한이 지나면 진행 중이 고착돼도 멈춘다.
+    expect(batchPollInterval(running, { now: NOW, pollUntil: NOW })).toBe(false);
+    expect(batchPollInterval(running, { now: NOW, pollUntil: null })).toBe(false);
+  });
+
+  it('새_회차가_실패로_종결되면_접수_창_안이어도_멈춘다', () => {
+    const failedAgain = leadDetail([{ procLogSn: 2, procSttsCd: 'FAILED' }, ...failedOnce]);
+    expect(
+      batchPollInterval(failedAgain, { now: NOW, leadDeidentAccept: acceptWatch }),
+    ).toBe(false);
+  });
+
+  it('비식별이_성공해_마킹_대기가_되면_멈춘다', () => {
+    const succeeded = leadDetail([{ procLogSn: 2, procSttsCd: 'SUCCEEDED' }, ...failedOnce], {
+      status: 'MARKING_READY',
+      deIdntfYn: 'Y',
+    });
+    expect(
+      batchPollInterval(succeeded, {
+        now: NOW,
+        leadDeidentAccept: acceptWatch,
+        pollUntil: NOW + BATCH_PROCESSING_POLL_WINDOW_MS,
+      }),
+    ).toBe(false);
   });
 });

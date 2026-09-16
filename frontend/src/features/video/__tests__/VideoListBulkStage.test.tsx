@@ -201,13 +201,15 @@ describe('VideoListPage 시계열 일괄 조작', () => {
   });
 
   it('안내는_재시작_대상과_시계열_대상_범위를_구분해_알린다', async () => {
-    // 2건 선택 중 실패는 1건 — 두 조작의 대상 수가 다르다는 사실을 문구가 직접 말해야 한다.
+    // 조작마다 접수 대상이 다르다는 사실을 문구가 직접 말해야 한다.
+    // ⚠ 구 단언 「배치가 실패한 1건」 → **폐기**. 재시작 대상에 선두 비식별 실패 영상(배치 상태 대기)이
+    //   더해져 배치 상태로 센 숫자가 틀린 대상 수가 됐다 — 건수는 결과 창이 서버 결과로 말한다.
     mockVideos(mock, 2, [1]);
     renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     await selectFirstTwo();
 
     const hint = await screen.findByTestId('bulk-scope-hint');
-    expect(hint).toHaveTextContent('배치가 실패한 1건');
+    expect(hint).toHaveTextContent('재시작은 배치가 실패한 영상과 비식별이 실패한 영상에');
     expect(hint).toHaveTextContent('선택한 2건');
   });
 

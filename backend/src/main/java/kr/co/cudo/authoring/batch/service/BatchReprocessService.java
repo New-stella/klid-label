@@ -77,6 +77,14 @@ import org.springframework.stereotype.Service;
  *       관측해 {@link BatchTransitionService#releaseReprocessClaim} 으로 되돌린다(권위는 여전히 진입 가드).</li>
  * </ul>
  *
+ * <h3>★선두 비식별 실패 영상도 받는다 — 두 갈래 [@design API-167] [@design AC-1133]</h3>
+ * <p>비식별 실패도 배치 실패로 본다. 존재 확인(404) 뒤 {@link LeadDeidentRetryService#tryClaim} 이 대상이
+ * 선두 비식별 실패 형상(영상 비식별 여부 'F' + 배치 단계 PENDING)인지 보고, 형상이면 그 안에서 거부 판정과
+ * 작업 잠금 선점을 끝낸다. 이 요청은 그 뒤 수동 재기동 전용 풀의
+ * {@link AsyncBatchReprocessRunner#runLeadDeidentRetryAsync} 로 넘기고(본체는 적재 직후와 같은 선두 비식별
+ * 러너 — 풀만 다르다) 접수 시점 단계 {@code PENDING} 을 돌려준다. 이 갈래는 배치 단계 선점·선점 표식·자동 재시도 대기 행 정리를
+ * 하지 않는다. 형상이 아니면 아래 기존 동작이 그대로다(판정·문구·상태코드 불변).
+ *
  * <p>보안: 호출 인가는 컨트롤러 {@code @PreAuthorize("hasRole('REVIEWER')")} 로 강제하며, 상태 판정은 JPA
  * 파라미터 바인딩 쿼리만 사용(SQL Injection 무관).
  */
@@ -103,6 +111,7 @@ public class BatchReprocessService {
     private final BatchStatusService batchStatusService;
     private final AsyncBatchReprocessRunner reprocessRunner;
     private final BatchRetryQueue retryQueue;
+    private final LeadDeidentRetryService leadDeidentRetryService;
 
     /**
      * FAILED 영상 배치 재처리 <b>접수</b>. 상태 판정·전이는 단일 원자 클레임으로 수행하고(트랜잭션 경계
@@ -118,6 +127,12 @@ public class BatchReprocessService {
         // 존재 검증(404) — 없는 영상은 재처리 대상이 아니다.
         if (!videoRepository.existsById(rawSn)) {
             throw new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다.");
+        }
+
+        // 선두 비식별 실패 형상이면 선두 비식별 재시도로 — 판정·잠금 선점은 tryClaim 의 트랜잭션에서 끝나
+        //   커밋된 뒤다. 형상이 아니면 false 라 아래 기존 경로가 그대로 돈다.
+        if (leadDeidentRetryService.tryClaim(rawSn)) {
+            return dispatchLeadDeidentRetry(rawSn);
         }
 
         // 검수 소유 작업 상태 사전 차단 — 실행이 비동기라 진입 가드의 SKIPPED 를 요청이 볼 수 없다.
@@ -166,6 +181,24 @@ public class BatchReprocessService {
         // 접수 시점 단계 — 위 클레임이 배치 단계를 PROCESSING 으로 선점했다. 파이프라인의 최종 결과가
         //   아니며(그건 영상 상세의 단계 표시로 확인한다) 여기서 결과를 기다리지 않는다.
         return new BatchReprocessResponse(rawSn, LsDataRaw.DATA_STTS_PROCESSING);
+    }
+
+    /**
+     * 선두 비식별 재시도 디스패치 — 잠금은 이미 커밋돼 있다. [@design API-167] [@design AC-1135]
+     *
+     * <p>디스패치가 거부되면 잡은 잠금을 풀고 기존과 같은 503 으로 알린다(안 풀면 그 영상은 이후 영구 409).
+     * 실행기가 실제로 돌면 잠금은 재수행의 성공·실패 종결 지점이 푼다.
+     */
+    private BatchReprocessResponse dispatchLeadDeidentRetry(Long rawSn) {
+        try {
+            reprocessRunner.runLeadDeidentRetryAsync(rawSn);
+        } catch (TaskRejectedException e) {
+            leadDeidentRetryService.releaseClaim(rawSn);
+            log.warn("[BatchReprocess] deident retry dispatch rejected — lock released rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE, DISPATCH_REJECTED_REASON);
+        }
+        // 접수 시점 실제 단계 — 이 갈래는 배치 단계를 선점하지 않으므로 형상 그대로 PENDING 이다(오류 아님).
+        return new BatchReprocessResponse(rawSn, LsDataRaw.STATUS_PENDING);
     }
 
     /**

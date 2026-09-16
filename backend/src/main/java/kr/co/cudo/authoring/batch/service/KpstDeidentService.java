@@ -665,8 +665,8 @@ public class KpstDeidentService {
         // 터미널-실패 우선 판정(완료보다 앞) — 다중 데이터셋이면 하나라도 실패면 즉시 'F' 종결.
         // 오류 sentinel(99 실측)·중지(3)·삭제중(4)를 진행중으로 보지 않아 타임아웃(180분) 대기를 끊는다.
         if (anyDatasetFailed(progress)) {
-            // REDEIDENT 는 락 해제 포함 종결(영구잠금 방지). 기존 배치는 위탁 시 작업락을 잡지 않으므로
-            // failPolling('F' 마킹 + terminal, 락 해제 없음)으로 종결해도 무해하다(잠글 락 자체가 없음).
+            // REDEIDENT 는 락 해제 포함 종결(영구잠금 방지). 배치 경로는 failPolling('F' 마킹 + terminal)으로
+            // 종결하며, 선두 비식별 재시작(배치 재시작)이 잡은 잠금만 그 안에서 한정 해제한다(AC-1135).
             if (procLog.isRedeident()) {
                 txService.failRedeidentCompletion(procLogSn, rawSn, "PROC_STATE_FAILED");
                 log.warn("[KpstDeid] poll terminal-failed (redeident) rawSn={} prjId={}", rawSn, prjId);

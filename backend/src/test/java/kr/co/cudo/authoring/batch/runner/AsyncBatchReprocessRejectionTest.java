@@ -62,7 +62,8 @@ class AsyncBatchReprocessRejectionTest {
         @Bean
         AsyncBatchReprocessRunner runner(BatchOrchestrator orchestrator, BatchTransitionService transitionService,
                                         BatchStatusService batchStatusService) {
-            return new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService);
+            return new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService,
+                    mock(AsyncDeidentifyRunner.class));
         }
 
         @Bean
