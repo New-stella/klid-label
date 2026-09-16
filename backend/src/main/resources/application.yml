@@ -389,6 +389,10 @@ authoring:
       #   초과하면 해제를 중단하고 작업 중 자리를 지운다(반쯤 풀린 결과를 공개하지 않는다).
       max-entries: ${PORTAL_MATERIALS_MAX_ENTRIES:200000}
       max-total-bytes: ${PORTAL_MATERIALS_MAX_TOTAL_BYTES:21474836480}
+      # 소재 준비 직후 데이터셋 영상을 원장에 등록할지(ADR-068). 끄면 등록이 멈추고 목록 창구는 FAILED 로 답한다.
+      #   ⚠ 되돌리기 손잡이다 — 이미 등록된 행을 지우지 않는다.
+      registration:
+        enabled: ${PORTAL_MATERIALS_REGISTRATION_ENABLED:true}
   jwt:
     # 서명 알고리즘은 설정값이 아니라 코드 상수다 — 발급은 Jwts.SIG.HS256, 검증은 SecretKeyResolver 의
     #   HMAC 키(Keys.hmacShaKeyFor)로 고정. alg 를 설정으로 뽑으면 alg=none/약한 알고리즘 주입 표면이 생긴다(CWE-347).

@@ -57,6 +57,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @design ADR-058
  * @design ERD-028
+ * @design ADR-068
  */
 class ChannelDiscriminatorSingleSourceGuardTest {
 
@@ -75,6 +76,14 @@ class ChannelDiscriminatorSingleSourceGuardTest {
      * 않는다)가 함께 걸려 <b>정상 코드가 위반으로 신고된다</b>. 실측으로 확인한 오탐이다.
      */
     private static final String VALUE_LITERAL = "\"PORTAL_ULD\"";
+
+    /**
+     * 포털 데이터셋 출처({@code PORTAL_DATASET}, ADR-068)의 <b>값 문자열</b> 리터럴 — 닫는 따옴표까지 포함한다.
+     *
+     * <p>포털 채널 출처가 둘이 됐으므로 값 단일 원천도 둘 다 지킨다. 클립 식별자 접두
+     * {@code "PORTAL_DATASET_"} 는 닫는 따옴표 때문에 걸리지 않는다.
+     */
+    private static final String DATASET_VALUE_LITERAL = "\"PORTAL_DATASET\"";
 
     /** 판별자 <b>상수 이름</b>. */
     private static final String CONSTANT_NAME = "SRC_TYPE_PORTAL_ULD";
@@ -124,6 +133,30 @@ class ChannelDiscriminatorSingleSourceGuardTest {
         // then
         assertThat(offenders)
                 .as("채널 판별자 값의 소유자는 %s 한 곳이다 — 값을 직접 박은 파일: %s", DEFINITION_FILE, offenders)
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("포털_데이터셋_출처_값_문자열도_정의_파일에만_있다")
+    void 포털_데이터셋_출처_값_문자열도_정의_파일에만_있다() {
+        // given / when — 포털 채널 출처를 가르는 자리가 값을 직접 박으면 한 값만 열거하다 다른 값을 놓친다.
+        List<String> offenders = new ArrayList<>();
+        for (Path p : mainSources()) {
+            if (p.getFileName().toString().equals(DEFINITION_FILE)) {
+                continue;
+            }
+            if (strippedSource(p).contains(DATASET_VALUE_LITERAL)) {
+                offenders.add(p.toString());
+            }
+        }
+
+        // then — 정의 파일이 실제로 보유해야 이 가드가 공허하지 않다.
+        assertThat(strippedSource(mainSource(DEFINITION_FILE)).contains(DATASET_VALUE_LITERAL))
+                .as("%s 가 포털 데이터셋 출처 값을 보유해야 단일원천 가드가 의미를 갖는다", DEFINITION_FILE)
+                .isTrue();
+        assertThat(offenders)
+                .as("포털 데이터셋 출처 값의 소유자는 %s 한 곳이다 — 값을 직접 박은 파일: %s",
+                        DEFINITION_FILE, offenders)
                 .isEmpty();
     }
 

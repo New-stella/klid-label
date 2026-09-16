@@ -30,7 +30,14 @@ import kr.co.cudo.authoring.video.entity.QLsDataRaw;
  * <p>과거 행은 출처 유형이 비어 있다({@code null}). 그래서 판정은 <b>「포털이 아니다」</b>로 적는다 —
  * 「관제다」로 적으면 값이 빈 정상 영상이 통째로 사라진다.
  *
+ * <h2>포털 채널 출처는 둘이다 — 집합으로 판정한다 (ADR-068)</h2>
+ * <p>본인 업로드({@code PORTAL_ULD})에 이어 데이터셋 소재에서 등록한 영상({@code PORTAL_DATASET})이
+ * 같은 원장에 앉는다. 이 영상은 <b>원본</b>이고(부모 참조가 비어 있다) <b>소유자도 없어</b> 파생 게이트도
+ * 소유자 조건도 막지 못한다. 그래서 세 형태 모두 {@link LsDataRaw#PORTAL_CHANNEL_SRC_TYPES} 의 원소를
+ * 빠짐없이 배제한다 — 한 값만 적으면 다른 값의 영상이 작업보드·배정·통계에 조용히 섞인다.
+ *
  * @design ADR-058
+ * @design ADR-068
  * @design ERD-028
  */
 public final class InternalWorkScope {
@@ -56,9 +63,14 @@ public final class InternalWorkScope {
      *
      * <p>판정을 <b>「포털이 아니다」</b>로 적는 이유는 {@link #internal(QLsDataRaw)} 와 같다 — 과거 행은
      * 출처 유형이 비어 있어({@code null}) 「관제다」로 적으면 정상 영상이 통째로 사라진다.
+     *
+     * <p>⚠ 애너테이션에 이어 붙이는 <b>컴파일 타임 상수</b>라 {@link LsDataRaw#PORTAL_CHANNEL_SRC_TYPES}
+     * 집합을 쓸 수 없어 두 상수를 직접 잇는다. 집합에 값이 늘면 여기도 늘려야 하며, 빠뜨리면 이 조각과
+     * 집합이 어긋났음을 시험이 잡는다.
      */
     public static final String INTERNAL_JPQL =
-            " and (r.srcType is null or r.srcType <> '" + LsDataRaw.SRC_TYPE_PORTAL_ULD + "') ";
+            " and (r.srcType is null or r.srcType not in ('" + LsDataRaw.SRC_TYPE_PORTAL_ULD
+                    + "', '" + LsDataRaw.SRC_TYPE_PORTAL_DATASET + "')) ";
 
     /**
      * {@code FROM LS_DATA_RAW} 인 경로(작업목록)용 — 그 영상이 내부 채널 자산인가.
@@ -66,7 +78,7 @@ public final class InternalWorkScope {
      * @param raw 조회 루트로 쓰인 영상 원장 별칭
      */
     public static BooleanExpression internal(QLsDataRaw raw) {
-        return raw.srcType.isNull().or(raw.srcType.ne(LsDataRaw.SRC_TYPE_PORTAL_ULD));
+        return raw.srcType.isNull().or(raw.srcType.notIn(LsDataRaw.PORTAL_CHANNEL_SRC_TYPES));
     }
 
     /**
@@ -84,7 +96,7 @@ public final class InternalWorkScope {
         return JPAExpressions.selectOne()
                 .from(SCOPE_RAW)
                 .where(SCOPE_RAW.rawSn.eq(rawSnRef),
-                        SCOPE_RAW.srcType.eq(LsDataRaw.SRC_TYPE_PORTAL_ULD))
+                        SCOPE_RAW.srcType.in(LsDataRaw.PORTAL_CHANNEL_SRC_TYPES))
                 .exists()
                 .not();
     }

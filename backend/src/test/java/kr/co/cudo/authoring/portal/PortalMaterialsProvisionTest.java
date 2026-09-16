@@ -56,6 +56,7 @@ class PortalMaterialsProvisionTest {
     private PortalMaterialsClient client;
     private PortalMaterialsWorkspace workspace;
     private PortalMaterialsProvisionState state;
+    private kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationService registrationService;
     private PortalMaterialsProvisionRunner runner;
     private Path repoRoot;
 
@@ -68,12 +69,15 @@ class PortalMaterialsProvisionTest {
         PortalStoragePathGuard storageGuard = new PortalStoragePathGuard(properties(storage));
         workspace = new PortalMaterialsWorkspace(storageGuard, new ObjectMapper().findAndRegisterModules());
         state = new PortalMaterialsProvisionState();
+        // 등록 단계는 이 시험의 대상이 아니다 — 공개 직후 호출되는지만 본다(PortalDatasetRegistrationIT 가 본체를 본다).
+        registrationService = mock(kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationService.class);
         runner = new PortalMaterialsProvisionRunner(
                 client,
                 new PortalMaterialsPathGuard(System.getProperty("java.io.tmpdir")),
                 new PortalMaterialsUnpacker(1000, 10L * 1024 * 1024),
                 workspace,
-                state);
+                state,
+                registrationService);
     }
 
     // ── 조달 본체 ────────────────────────────────────────────────────────────────
@@ -137,6 +141,46 @@ class PortalMaterialsProvisionTest {
         assertThat(workspace.isReady(DATASET_ID)).isFalse();
         assertThat(state.lastFailure(DATASET_ID).reason())
                 .isEqualTo(PortalMaterialsFailureReason.MATERIAL_PATH_REJECTED);
+    }
+
+    @Test
+    @DisplayName("★공개에_성공하면_같은_작업이_이어서_데이터셋_영상_등록을_부르고_조달_진행중은_먼저_놓는다")
+    void publishTriggersRegistrationAfterReleasingClaim() throws IOException {
+        Path zip = zip(repoRoot.resolve("deploy.zip"), Map.of("meta.json", "{}"));
+        when(client.fetch(DATASET_ID)).thenReturn(response(zip, 1));
+        org.mockito.Mockito.doAnswer(inv -> {
+            // 등록이 도는 동안 조달은 이미 「진행 중」이 아니어야 한다 — 준비 완료로 보인다.
+            assertThat(state.inProgress(DATASET_ID)).isFalse();
+            assertThat(workspace.isReady(DATASET_ID)).isTrue();
+            return null;
+        }).when(registrationService).registerAfterProvision(DATASET_ID);
+        state.claim(DATASET_ID);
+
+        runner.runAsync(DATASET_ID);
+
+        verify(registrationService).registerAfterProvision(DATASET_ID);
+    }
+
+    @Test
+    @DisplayName("★조달이_실패하면_등록을_부르지_않는다")
+    void failedProvisionDoesNotTriggerRegistration() {
+        when(client.fetch(DATASET_ID)).thenReturn(null);
+
+        runner.runAsync(DATASET_ID);
+
+        verify(registrationService, never()).registerAfterProvision(anyLong());
+    }
+
+    @Test
+    @DisplayName("★다른_노드가_먼저_공개했으면_등록을_부르지_않는다_그_노드가_한다")
+    void lostPublishDoesNotTriggerRegistration() throws IOException {
+        Files.createDirectories(workspace.readyDir(DATASET_ID));
+        Path zip = zip(repoRoot.resolve("deploy.zip"), Map.of("meta.json", "{}"));
+        when(client.fetch(DATASET_ID)).thenReturn(response(zip, 1));
+
+        runner.runAsync(DATASET_ID);
+
+        verify(registrationService, never()).registerAfterProvision(anyLong());
     }
 
     @Test

@@ -201,6 +201,9 @@ export const PORTAL_KEYS = {
    */
   datasetMaterials: (datasetId: number) =>
     [...PORTAL_KEYS.all, 'dataset-materials', datasetId] as const,
+  /** 데이터셋 영상 목록 — 데이터셋·페이지가 조건 축이다. @design API-253 */
+  datasetVideos: (datasetId: number, page: number) =>
+    [...PORTAL_KEYS.all, 'dataset-videos', datasetId, page] as const,
 };
 
 export const SYSCONFIG_KEYS = {

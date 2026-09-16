@@ -76,7 +76,8 @@ class PortalFrameImageServiceTest {
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
                 new com.fasterxml.jackson.databind.ObjectMapper(), null,
-                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class));
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class),
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(rawDataStatusRepository, org.mockito.Mockito.mock(kr.co.cudo.authoring.video.repository.VideoRepository.class)));
         ReflectionTestUtils.setField(service, "storageRawPath", tempDir.toString());
         // R17 이슈1 — 비식별 프레임 base 경로는 deidentified-path. 기본은 raw 와 동일 tempDir
         // (개별 테스트에서 deidentified 전용 디렉터리로 override).
@@ -109,7 +110,7 @@ class PortalFrameImageServiceTest {
     private void approve(Long rawSn) {
         LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
         setField(st, "dataSttsCd", LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findById(rawSn)).thenReturn(java.util.Optional.of(st));
+        when(rawDataStatusRepository.findAllById(java.util.List.of(rawSn))).thenReturn(java.util.List.of(st));
     }
 
     /**
@@ -254,7 +255,7 @@ class PortalFrameImageServiceTest {
     void serveFrameImage_notApproved_forbidden() {
         LsDataSrc s = src(10L, 100L, "frame0_raw.jpg", "frame0_deid.jpg");
         when(srcRepository.findById(10L)).thenReturn(Optional.of(s));
-        when(rawDataStatusRepository.findById(100L)).thenReturn(Optional.empty());
+        when(rawDataStatusRepository.findAllById(java.util.List.of(100L))).thenReturn(java.util.List.of());
 
         assertThatThrownBy(() -> service.serveFrameImage(10L, alice))
                 .isInstanceOf(CustomException.class)

@@ -1,10 +1,11 @@
 package kr.co.cudo.authoring.portal.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,7 +38,7 @@ import java.util.Set;
 
 /**
  * 포털 데이터마트 작업 데이터 ZIP 다운로드의 <b>DB 단계</b>(게이트 판정 + 조회 + 프레임별 어노테이션
- * 문서 직렬화). @design API-203, AC-034, AC-035
+ * 문서 직렬화). @design API-203, AC-034, AC-035, ADR-068
  *
  * <h3>산출 구조는 검수 승인 학습데이터와 같다</h3>
  * <p>프레임마다 자기완결 어노테이션 문서(NIA COCO 확장 9키)를 만들어 이미지와 <b>같은 자리에 이름만
@@ -79,8 +81,11 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PortalDatamartDownloadTxService {
 
-    /** 데이터마트 노출(검수 완료 APPROVED) 판정 <b>단일 원천</b> — 사설 복제 금지. */
-    private final ReviewApprovalGate approvalGate;
+    /**
+     * 포털 작업 가능 영상(검수 완료 APPROVED 또는 출처 PORTAL_DATASET) 판정 <b>단일 원천</b> — 사설 복제 금지.
+     * @design ADR-068
+     */
+    private final PortalWorkableVideoPolicy workablePolicy;
     /** 비식별 누락 신고 구간 게이트 <b>단일 원천</b>({@code DeidentReportGate} 위임). */
     private final LabelAccessGuard accessGuard;
     /** 라벨 병합(본인 저장분 우선) 판정 <b>단일 원천</b>. */
@@ -97,6 +102,8 @@ public class PortalDatamartDownloadTxService {
     private final LsDataLblRepository lblRepository;
     private final LsPortalUserLabelRepository userLabelRepository;
     private final ObjectMapper objectMapper;
+    /** 포털 데이터셋 영상의 문서 메타 조달처 — 등록 때 넣은 영상 메타(ADR-068). */
+    private final LsDataMetaRepository metaRepository;
 
     /**
      * ZIP 을 구성하는 데 필요한 <b>값만</b> 담은 계획서 — 엔티티·영속성 컨텍스트를 트랜잭션 밖으로
@@ -135,10 +142,11 @@ public class PortalDatamartDownloadTxService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
 
-        // ③ 데이터마트 노출(검수 완료 APPROVED). 미존재 rawSn 도 동일하게 403 — 존재 여부 오라클 차단.
-        if (!approvalGate.isApproved(rawSn)) {
-            log.warn("[PortalDownload] denied — video not approved rawSn={}", rawSn);
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        // ③ 포털 작업 가능 영상(검수 완료 APPROVED 또는 출처 PORTAL_DATASET — ADR-068).
+        //    미존재 rawSn 도 동일하게 403 — 존재 여부 오라클 차단. 판정 순서(③→④→⑤)는 불변이다.
+        if (!workablePolicy.isWorkable(rawSn)) {
+            log.warn("[PortalDownload] denied — video not workable rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
 
         // ④ 비식별 누락 신고 구간이면 412. resolveDeidPath 호출 <b>이전</b>에 독립 평가한다(클래스 주석).
@@ -188,10 +196,18 @@ public class PortalDatamartDownloadTxService {
             planned.add(new PlannedFrame(frame, frameNo, sources));
         }
 
-        // ⑥-2 메타 블록 조달 — 검수 승인 시점 동결 스냅샷이 조달처다. 활성 메타가 없으면 같은 구조의
-        //      문서를 만들 근거 자체가 없으므로 <b>라벨 없는 ZIP 을 조용히 내보내지 않는다</b>(fail-closed).
-        //      게이트 ③을 통과했으므로 정상 흐름에서는 항상 존재한다.
-        Optional<NiaExportContext> nia = niaExportContextAssembler.assemble(rawSn, labelMasterIds);
+        // ⑥-2 메타 블록 조달 — 조달 규칙 분기는 <b>이 한 곳</b>이다(ADR-068).
+        //      · 검수 승인 영상: 검수 승인 시점 동결 스냅샷이 조달처다(조달 순서 무변경). 활성 메타가 없으면
+        //        같은 구조의 문서를 만들 근거 자체가 없으므로 <b>라벨 없는 ZIP 을 조용히 내보내지 않는다</b>.
+        //      · 포털 데이터셋 영상: 동결 메타가 <b>구조적으로 없다</b>(승인 흐름이 없다). 등록 때 넣은 영상
+        //        메타로 <b>영속하지 않는</b> 스냅샷을 세워 같은 조립기에 넘긴다 — 동결 원장에 행을 쓰지 않는다.
+        LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
+        boolean datasetVideo = raw != null && raw.isPortalDataset();
+        Map<String, String> datasetMeta = datasetVideo ? loadDatasetDocumentMeta(rawSn) : Map.of();
+        Optional<NiaExportContext> nia = datasetVideo
+                ? Optional.of(niaExportContextAssembler.assemble(rawSn,
+                        PortalDatasetLedger.transientDocumentMeta(rawSn, datasetMeta), raw, labelMasterIds))
+                : niaExportContextAssembler.assemble(rawSn, labelMasterIds);
         if (nia.isEmpty()) {
             log.warn("[PortalDownload] no active video meta — cannot build annotation docs rawSn={}", rawSn);
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "다운로드 자료를 만들지 못했습니다.");
@@ -200,8 +216,10 @@ public class PortalDatamartDownloadTxService {
         // ⑥-3 프레임별 문서 조립·직렬화.
         List<FrameEntry> frameEntries = new ArrayList<>(planned.size());
         for (PlannedFrame p : planned) {
-            NiaAnnotationDoc doc =
-                    niaDocumentFactory.build(nia.get().videoContext(), p.frame(), p.sources());
+            NiaAnnotationDoc doc = datasetVideo
+                    ? niaDocumentFactory.buildForDatasetVideo(nia.get().videoContext(), p.frame(), p.sources(),
+                            datasetMeta.get(PortalDatasetLedger.KEY_ORIGINAL_FILENAME))
+                    : niaDocumentFactory.build(nia.get().videoContext(), p.frame(), p.sources());
             // 비식별 프레임 경로만 싣는다 — 원본(SRC_FILE_PATH_NM) 폴백 금지(AC-034 불변 규칙).
             String deid = p.frame().getDeidFilePath();
             frameEntries.add(new FrameEntry(
@@ -212,15 +230,27 @@ public class PortalDatamartDownloadTxService {
 
         // 비식별 영상 — 없으면 null 그대로 둔다(ZIP 에 video.* 엔트리를 만들지 않는다).
         String deidVideoPath = videoStreamService.resolveDeidPath(rawSn);
-        String rawFilePathNm = videoRepository.findById(rawSn)
-                .map(LsDataRaw::getRawFilePathNm)
-                .orElse(null);
+        String rawFilePathNm = raw == null ? null : raw.getRawFilePathNm();
 
         log.info("[PortalDownload] planned rawSn={} user={} frames={} images={} video={}",
                 rawSn, LogSanitizer.sanitize(actor.sub()), frameEntries.size(),
                 frameEntries.stream().filter(f -> f.deidImagePath() != null).count(),
                 deidVideoPath != null);
         return new DownloadPlan(rawSn, List.copyOf(frameEntries), deidVideoPath, rawFilePathNm);
+    }
+
+    /**
+     * 포털 데이터셋 영상의 문서 메타(원본 파일명 · 초당 프레임 수 · 가로 · 세로)를 한 번에 읽는다.
+     * 없는 키는 결과에 없다 — 호출부가 비워 둔다(지어내지 않는다).
+     */
+    private Map<String, String> loadDatasetDocumentMeta(Long rawSn) {
+        Map<String, String> map = new HashMap<>();
+        for (LsDataMeta m : metaRepository.findByRawSnAndMetaKeyIn(rawSn, PortalDatasetLedger.DOCUMENT_META_KEYS)) {
+            if (m.getMetaKey() != null && m.getMetaVl() != null) {
+                map.put(m.getMetaKey(), m.getMetaVl());
+            }
+        }
+        return map;
     }
 
     /** 병합 판정을 마친 프레임 — 문서 조립 입력이 확정된 상태. */

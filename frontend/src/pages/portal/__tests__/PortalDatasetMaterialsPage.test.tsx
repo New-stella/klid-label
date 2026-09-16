@@ -7,8 +7,9 @@
  *  ② <b>진입하면 스스로 착수한다</b>(이 주소로 들어온 것이 곧 그 의사다). 다만 <b>한 번만</b> —
  *     되풀이하면 확정 실패 사유에서 같은 요청이 끝없이 나간다.
  *  ③ 진행 중·준비 완료·실패가 <b>각각 다르게</b> 드러난다. 빈 화면으로 얼버무리지 않는다.
- *  ④ <b>다음 동선을 지어내지 않는다</b> — 이번 범위는 「소재가 준비됐다」까지고, 라벨링으로 잇는
- *     단계는 아직 없다. 눌러 봐야 아무 데도 닿지 않는 링크를 두면 회복 경로를 잘못 안내한다.
+ *  ④ <b>준비 완료일 때만 영상 구역을 연다</b> — 그 전에 영상 목록을 부르면 서버가 409 로 거부한다.
+ *     ⚠ 구 축 「다음 동선을 지어내지 않는다(준비 완료까지가 범위)」는 폐기 — 2026-09-15 영상 목록 →
+ *     라벨링 동선이 생겼다(SCREEN-046 · ADR-068). 되살리지 말 것.
  *  ⑤ <b>응답에 없는 값을 그리지 않는다</b> — 파일 경로는 응답에 담기지 않는다(CWE-209).
  *
  * ★ ④·⑤ 는 「없다」만 단언하면 화면이 통째로 아무것도 그리지 않아도 통과한다. 그래서 <b>존치 축을
@@ -36,6 +37,12 @@ const useStartDatasetMaterialsMock = vi.fn();
 
 vi.mock('@/features/portal/materials/hooks/useDatasetMaterials', () => ({
   useDatasetMaterials: (datasetId: unknown) => useDatasetMaterialsMock(datasetId),
+}));
+// 영상 구역은 자기 시험(DatasetVideoSection.test)이 따로 본다 — 여기서는 「언제 열리는가」만 본다.
+vi.mock('@/features/portal/materials/components/DatasetVideoSection', () => ({
+  DatasetVideoSection: ({ datasetId }: { datasetId: number }) => (
+    <div data-testid="dataset-video-section-mock">{datasetId}</div>
+  ),
 }));
 vi.mock('@/features/portal/materials/hooks/useStartDatasetMaterials', () => ({
   useStartDatasetMaterials: (datasetId: unknown) => useStartDatasetMaterialsMock(datasetId),
@@ -246,19 +253,28 @@ describe('포털 데이터셋 소재 조달 화면', () => {
       expect(screen.queryByText(/nas-storage|\/data\/|경로/)).not.toBeInTheDocument();
     });
 
-    it('★다음_동선을_지어내지_않는다_아직_없다고_말한다', () => {
+    /*
+     * ★ 준비 완료 뒤에는 영상 목록 구역이 열린다(SCREEN-046, 2026-09-15). 구 동작 「지금은 여기까지입니다」
+     *   안내는 폐기 — 그 자리를 영상을 골라 라벨링으로 들어가는 구역이 대신한다.
+     */
+    it('★준비_완료면_데이터셋_영상_구역을_연다', () => {
       mockStatus({ data: status({ state: PortalMaterialsState.READY, materials: summary() }) });
 
       renderAt();
 
-      // 존치 축 — 준비 완료라는 사실은 분명히 말한다.
       expect(screen.getByText('소재가 준비됐습니다.')).toBeInTheDocument();
-      expect(screen.getByTestId('materials-no-next-step')).toBeInTheDocument();
-      // 제거 축 — 라벨링·작업 화면으로 가는 링크를 만들지 않는다(눌러도 닿을 곳이 없다).
-      const hrefs = screen
-        .queryAllByRole('link')
-        .map((a) => a.getAttribute('href') ?? '');
-      expect(hrefs.filter((h) => h.includes('/label'))).toEqual([]);
+      expect(screen.getByTestId('dataset-video-section-mock')).toHaveTextContent('4704');
+      expect(screen.queryByText('지금은 여기까지입니다.')).not.toBeInTheDocument();
+    });
+
+    it('★준비_전에는_영상_구역을_열지_않는다_서버가_409로_거부한다', () => {
+      mockStatus({ data: status({ state: PortalMaterialsState.IN_PROGRESS }) });
+
+      renderAt();
+
+      // 존치 축 — 진행 중 안내는 선다(아래 부재 단언이 공짜로 통과하지 않게).
+      expect(screen.getByText(/소재를 가져오는 중입니다/)).toBeInTheDocument();
+      expect(screen.queryByTestId('dataset-video-section-mock')).not.toBeInTheDocument();
     });
 
     it('★요약을_못_읽어도_준비_완료는_그대로다', () => {

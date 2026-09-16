@@ -123,6 +123,23 @@ public class PortalUserWorkListRepository {
             )
             """;
 
+    /**
+     * 데이터마트 축의 <b>진입 프레임</b> 식 — 요청 사용자가 그 영상에 마지막으로 저장한 라벨의 프레임,
+     * 없으면 첫 프레임, 프레임이 0건이면 {@code NULL}. 바깥 질의가 {@code r}(영상 원장)과 {@code :owner} 를
+     * 제공한다. @design API-225, API-253
+     *
+     * <p>★ 「내 작업」 목록과 데이터셋 영상 목록({@link #findDatamartWorkByVideos})이 <b>이 식 하나</b>를
+     * 쓴다 — 두 목록이 같은 영상의 진입 프레임을 다르게 말하지 않게 한다.
+     */
+    private static final String DATAMART_ENTRY_SRC_SN = """
+                       COALESCE(
+                         (SELECT ul.src_data_src_sn FROM ls_portal_user_label ul
+                           WHERE ul.portal_user_no = :owner AND ul.src_raw_sn = r.raw_sn
+                           ORDER BY ul.mdfcn_dt DESC, ul.user_lbl_sn DESC LIMIT 1),
+                         (SELECT s.src_sn FROM ls_data_src s
+                           WHERE s.raw_sn = r.raw_sn
+                           ORDER BY s.frm_no ASC, s.src_sn ASC LIMIT 1))""";
+
     /** 축 이름 SQL 리터럴 — <b>열거에서 유도</b>한다. 손으로 적으면 열거를 고칠 때 한쪽만 바뀐다. */
     private static final String UPLOAD_AXIS = "'" + PortalWorkAssetSource.PORTAL_UPLOAD.name() + "'";
     private static final String DATAMART_AXIS = "'" + PortalWorkAssetSource.DATAMART.name() + "'";
@@ -179,13 +196,9 @@ public class PortalUserWorkListRepository {
                        (SELECT count(*) FROM ls_portal_user_label ul
                          WHERE ul.portal_user_no = :owner AND ul.src_raw_sn = r.raw_sn),
                        r.vms_clip_id,
-                       COALESCE(
-                         (SELECT ul.src_data_src_sn FROM ls_portal_user_label ul
-                           WHERE ul.portal_user_no = :owner AND ul.src_raw_sn = r.raw_sn
-                           ORDER BY ul.mdfcn_dt DESC, ul.user_lbl_sn DESC LIMIT 1),
-                         (SELECT s.src_sn FROM ls_data_src s
-                           WHERE s.raw_sn = r.raw_sn
-                           ORDER BY s.frm_no ASC, s.src_sn ASC LIMIT 1))
+            """
+            + DATAMART_ENTRY_SRC_SN + "\n"
+            + """
                   FROM dm
                   JOIN ls_data_raw r ON r.raw_sn = dm.raw_sn
                  WHERE NOT (r.src_type = :srcType AND r.portal_user_no IS NOT NULL)
@@ -287,6 +300,51 @@ public class PortalUserWorkListRepository {
         long total = ((Number) bind(em.createNativeQuery(SELECT_COUNT), portalUserNo, authoredKeys)
                 .getSingleResult()).longValue();
         return new PageImpl<>(content, pageable, total);
+    }
+
+    /**
+     * 데이터마트 축 저작 판정을 <b>지정한 영상들에 대해</b> 일괄로 돌려준다 — 데이터셋 영상 목록이 쓴다.
+     * @design API-253, API-225
+     *
+     * <h3>★ 판정을 복제하지 않는다</h3>
+     * <p>마지막 저장 시각은 「내 작업」 목록과 <b>같은 CTE</b>({@link #DATAMART_WORK} — 세 저작물 중 가장 늦은
+     * 저장 시각)에서, 진입 프레임은 <b>같은 식</b>({@link #DATAMART_ENTRY_SRC_SN})에서 온다. 따로 셈하면 두
+     * 목록이 같은 영상의 저장 여부를 다르게 말한다.
+     *
+     * <p>요청 사용자({@code :owner})가 격리 키다 — 다른 사용자의 저장 여부가 섞이지 않는다.
+     *
+     * @return 영상 식별자 → 저작 판정. <b>원장에 없는 영상은 결과에 없다</b>. 저장한 적이 없으면
+     *         {@code lastSavedAt} 이 비고, 프레임이 0건이면 {@code entrySrcSn} 이 빈다
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Map<Long, DatamartWork> findDatamartWorkByVideos(String portalUserNo, java.util.Collection<Long> rawSns) {
+        if (portalUserNo == null || portalUserNo.isBlank() || rawSns == null || rawSns.isEmpty()) {
+            return Map.of();
+        }
+        Query q = em.createNativeQuery("WITH " + DATAMART_WORK
+                + "SELECT r.raw_sn, dm.last_saved_at,\n" + DATAMART_ENTRY_SRC_SN + "\n"
+                + "  FROM ls_data_raw r LEFT JOIN dm ON dm.raw_sn = r.raw_sn\n"
+                + " WHERE r.raw_sn IN (:rawSns)");
+        q.setParameter("owner", portalUserNo);
+        q.setParameter("rawSns", rawSns);
+        Map<Long, DatamartWork> result = new java.util.HashMap<>();
+        for (Object row : q.getResultList()) {
+            Object[] c = (Object[]) row;
+            Long rawSn = toLong(c[0]);
+            if (rawSn != null) {
+                result.put(rawSn, new DatamartWork(toDateTime(c[1]), toLong(c[2])));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 데이터마트 축 저작 판정 한 건.
+     *
+     * @param lastSavedAt 세 저작물 중 가장 늦은 저장 시각. 저장한 적이 없으면 {@code null}
+     * @param entrySrcSn  마지막 저장 라벨의 프레임 → 첫 프레임 → 프레임 0건이면 {@code null}
+     */
+    public record DatamartWork(LocalDateTime lastSavedAt, Long entrySrcSn) {
     }
 
     private Query bind(Query q, String portalUserNo, List<String> authoredKeys) {
