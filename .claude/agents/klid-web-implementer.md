@@ -822,6 +822,21 @@ package 'vitest'`), `npx tsc` 는 「This is not the tsc command you are looking
 ⇒ 진입 쪽 `aria-label` 을 **보이는 이름을 포함**해 가른다(「AI 자동 추적 패널로 이동」, WCAG 2.5.3). 조건부로 그리는 사유 문장을
 `aria-describedby` 로 잇는다면 **렌더 조건과 참조 조건을 한 변수로** 둔다(다르면 없는 id 를 가리킨다 — QA 지적 후 수정).
 
+### ★만료에 묶인 재조회는 조회 훅의 staleTime·재연결 재조회에 숨는다 — 공용 시험 클라이언트로는 안 보인다 (CO-20260916-마킹영상재생-차단결함)
+`useStreamUrl` 의 `staleTime 48_000`(서명 TTL 의 80%) 때문에, 운영 클라이언트에서 창 포커스 재조회는 꺼져 있어도 **재연결 재조회는 켜져 있어** 48초 뒤 네트워크가 재연결되면 주소를 조용히 새로 받아 `src` 를 갈았다(재생 위치 0).
+- **근거**: 공용 시험 클라이언트(`renderWithProviders`)는 staleTime 0 · 포커스 끔이라 이 경로를 재현하지 못했다. 운영 기본값(`lib/queryClient.ts`)으로 만든 클라이언트 시험을 두고 48초로 되돌리는 변이를 주자 잡혔다.
+- **재발 조건**: 조회 훅에서 시간 기반 재조회를 없앨 때. ⇒ **운영 클라이언트 기본값과 재연결 경로**까지 확인한다.
+
+### ★미디어 요소의 `src` 를 바꾸면 그 순간 재생 위치는 이미 0 이다 — 위치는 따로 추적한 값에서 읽어라 (CO-20260916-마킹영상재생-차단결함)
+로드 알고리즘이 `src` 변경 시 재생 위치를 **동기적으로** 초기화하고 `timeupdate`·`pause` 는 뒤에 태스크로 온다. 그래서 교체 직전 위치를 요소에서 읽으면 0 이다. 복원은 `play`/`playing` 이 아니라 `loadedmetadata` 에 건다(교체된 요소는 일시정지 상태).
+- **근거**: `VideoPlayer` 가 마지막 위치를 ref 로 들고 `useLayoutEffect` 에서 교체를 감지해 보관한다. jsdom 은 이 초기화를 재현하지 않아 시험이 초기화(위치 0 · timeupdate · pause)를 직접 발생시킨다.
+- **재발 조건**: video/audio 요소에서 `src` 교체를 넘어 재생 상태를 유지하는 컴포넌트 전부.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], screens_covered: [SCREEN-0NN], summary: ...}

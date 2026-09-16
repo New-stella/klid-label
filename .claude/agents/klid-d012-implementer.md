@@ -141,6 +141,21 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
+### ★이 코드베이스의 ffmpeg 실행은 net.bramp 가 아니라 ProcessBuilder 다 (CO-20260916-마킹영상재생-차단결함)
+「net.bramp.ffmpeg 배선 재사용」이라는 지시가 흔히 나오지만, 변환·추출 실행은 `authoring.ffmpeg.binary` 를 **ProcessBuilder 고정 인자 리스트**로 부르고(`batch/step/BrampFfmpegFrameWriter`), net.bramp 는 ffprobe(`FFprobe`)에만 쓰인다.
+- **근거**: `grep 'net.bramp' src/main` → `PortalVideoProbeFfprobe`·`DurationProbeFfprobe` 뿐. 재배치 실행기(`FfmpegDeidentFaststartRemuxer`)도 같은 방식(고정 인자 · `destroyForcibly` 대기 상한)으로 만들었다.
+- **재발 조건**: ffmpeg 로 파일을 변환·추출하는 새 경로를 만들 때.
+
+### ★픽스처 `tiny-video.mp4` 는 moov 가 파일 끝이다 — 완료 경로 IT 에서 실제 재배치가 돈다 (CO-20260916-마킹영상재생-차단결함)
+`ftyp→free→mdat→moov` 순서라, 이 픽스처가 **비식별 산출 디렉터리 안에** 놓이는 Spring 통합시험은 완료 커밋 뒤 실제 ffmpeg 재배치(`DeidentFaststartService`)가 비동기로 실행된다. 다른 위치(@TempDir 루트 등)의 픽스처는 경로 검증에서 걸러져 돌지 않는다.
+- **근거**: `xxd src/test/resources/fixtures/tiny-video.mp4` → `ftypisom…free…mdat` · `TestVideoFixtures` javadoc(ftyp 32 + free 8 + mdat 717 + moov 789).
+- **재발 조건**: 완료 경로 IT 에서 산출물 파일 내용·수정 시각·크기를 단언하거나, 시험 도중 산출 디렉터리를 지울 때. ⇒ 재배치를 끄는 설정(`authoring.deidentify.faststart.enabled=false`)이나 완료 대기를 명시한다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

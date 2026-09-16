@@ -295,6 +295,11 @@ backend/gradlew -p backend cleanTest test --tests '...'` 처럼 **단일 명령*
 실행한다. 이 셸은 **zsh** 라 `${PIPESTATUS[0]}` 가 비어 성공처럼 읽힌다 — 종료코드는 파이프 없이 판정.
 워크트리에는 `frontend/node_modules` 도 없다(FE 시험이 원인 가려진 오류를 낸다 — lockfile 대조 후 `cp -Rc`).
 
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}
