@@ -1,0 +1,68 @@
+@charset "utf-8";
+/* 도구 판. 면 = 흰 바탕 · gray-20 선 · 라운드 8 · 패딩 12. 이름 → 내용 8 · 내용 → 안내 8 (§6 한 컴포넌트 안) */
+
+.klid-tool-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  min-width: 0;
+}
+.klid-tool-panel[data-surface] {
+  padding: var(--krds-padding-5);
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: var(--krds-radius-medium3);
+  background-color: var(--krds-color-light-gray-0);
+}
+
+.klid-tool-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--krds-gap-3);
+  /* 줄 높이는 두지 않는다 — 오른쪽에 작은 버튼(36)이 선 판만 그만큼 자란다. 모든 판을 36 에 맞추면
+     이름만 있는 판(속성 · 객체 속성)이 겹겹이 서는 속성 칸이 빈 띠로 벌어진다 */
+}
+.klid-tool-panel-title {
+  margin: 0;
+  font-size: var(--krds-pc-font-size-body-medium); /* 층 3 — 15 */
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-tool-panel[data-level='4'] .klid-tool-panel-title {
+  /* 층 4 — 13. 14 로는 층 3(15)과 한 끗이라 한 단 아래 이름으로 안 읽혔다 (2026-09-14 화면 검토) */
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  color: var(--krds-color-light-gray-80);
+}
+.klid-tool-panel-aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-60);
+}
+
+.klid-tool-panel-note {
+  margin: 0;
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  line-height: 1.5;
+  color: var(--krds-color-light-gray-60);
+  text-wrap: balance; /* 좁은 칸에서 끝줄에 한 어절만 남지 않게 (UX-writing.md §6) */
+}
+
+/* 판 안의 한 줄 — 이름 · 조작. 조작이 줄 높이를 정한다 */
+.klid-tool-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--krds-gap-3);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-80);
+}
+.klid-tool-row-label {
+  min-width: 0;
+}

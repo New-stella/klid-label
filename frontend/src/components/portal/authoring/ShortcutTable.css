@@ -1,0 +1,58 @@
+@charset "utf-8";
+/* 단축키 표. 이름 14 · 이름 밑 선 gray-20 · 줄 위아래 8 · 줄 사이 선 gray-10 · 키 → 하는 일 16 */
+
+.klid-shortcut-table {
+  min-width: 0;
+}
+.klid-shortcut-table-title {
+  margin: 0;
+  padding-bottom: var(--krds-padding-3);
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+  font-size: var(--krds-pc-font-size-body-small);
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-90);
+}
+
+/* 키 칸 폭을 표 전체가 나눠 쓴다 — 줄은 subgrid 로 바깥 두 칸을 그대로 받는다 */
+.klid-shortcut-table-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--krds-gap-5);
+  margin: 0;
+}
+.klid-shortcut-table-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding-block: var(--krds-padding-3);
+}
+.klid-shortcut-table-row + .klid-shortcut-table-row {
+  border-top: 0.1rem solid var(--krds-color-light-gray-10);
+}
+.klid-shortcut-table-row > dt,
+.klid-shortcut-table-row > dd {
+  margin: 0;
+}
+.klid-shortcut-table-row > dt {
+  display: flex;
+}
+.klid-shortcut-table-row > dd {
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-80);
+}
+
+/* 키를 오른쪽에 (keysAt="end") — 칸 순서만 뒤집는다. 짝은 dt → dd 순서로 두고 자리만 옮긴다.
+   키 칸은 여전히 가장 긴 조합이 폭을 정하고, 짧은 조합은 그 칸의 오른쪽 끝선에 붙는다 */
+.klid-shortcut-table[data-keys-at='end'] .klid-shortcut-table-rows {
+  grid-template-columns: minmax(0, 1fr) max-content;
+}
+.klid-shortcut-table[data-keys-at='end'] .klid-shortcut-table-row > dt {
+  grid-area: 1 / 2;
+  justify-content: flex-end;
+}
+.klid-shortcut-table[data-keys-at='end'] .klid-shortcut-table-row > dd {
+  grid-area: 1 / 1;
+}
