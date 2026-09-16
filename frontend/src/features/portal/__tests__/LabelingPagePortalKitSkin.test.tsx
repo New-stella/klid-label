@@ -183,4 +183,48 @@ describe('포털 라벨링 — 킷 부품 이관', () => {
       expect(container.querySelector('.klid-playback-trail')?.textContent).toBe('1 / 2 · 00:00');
     });
   });
+
+  describe('⑤ 우측 칸의 묶음 이름·빈 자리가 킷 것이다', () => {
+    it('★「객체 목록」이 킷 판 머리 줄이다 — 건수를 배지로 두르지 않는다', async () => {
+      await renderPortalLabel();
+      const count = screen.getByTestId('object-count-badge');
+      expect(count).toHaveClass('klid-tool-panel-aside');
+      // ⚠ 값은 그대로 선다 — 배지를 벗긴 것이지 건수를 없앤 것이 아니다.
+      expect(count).toHaveTextContent('0개 객체');
+      expect(count).toHaveAccessibleName('객체 수');
+      // 구 꼴(회색 알약)로 되돌아가지 않는다.
+      expect(count.className).not.toMatch(/rounded-full/);
+      expect(count.closest('.klid-tool-panel-head')).not.toBeNull();
+    });
+
+    it('★「속성」도 킷 판 이름이다', async () => {
+      await renderPortalLabel();
+      const head = screen.getByText('속성');
+      expect(head).toHaveClass('klid-tool-panel-title');
+    });
+
+    it('★「객체 속성」이 킷 판 머리 줄이다 — 식별자는 줄 끝에 선다', async () => {
+      await renderPortalLabel();
+      const title = screen.getByText('객체 속성');
+      expect(title).toHaveClass('klid-tool-panel-title');
+      expect(title.closest('[data-level="4"]')).not.toBeNull();
+    });
+
+    it('★빈 자리 안내가 킷 것이다 — 시안과 같은 문장(마침표까지)', async () => {
+      const { container } = await renderPortalLabel();
+      expect(screen.getByText('이 프레임에 객체가 없습니다.')).toBeInTheDocument();
+      expect(screen.getByText('선택된 객체가 없습니다.')).toBeInTheDocument();
+      expect(container.querySelectorAll('.klid-empty-state').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('★★시안에 없는 우리 기능은 그대로 선다 — 겉모습만 갈아입혔다', async () => {
+      await renderPortalLabel();
+      // AI 보조(좌측 도구 칸) · AI 자동 추적(우측 칸) 은 포털 확정 사양이다(ADR-013 v24).
+      expect(screen.getByTestId('auto-track-panel')).toBeInTheDocument();
+      const heading = screen.getByTestId('auto-track-panel-heading');
+      expect(heading).toHaveClass('klid-tool-panel-title');
+      // 도구 칸의 「AI 자동 추적」 버튼이 이 이름으로 포커스를 옮긴다 — 자리가 사라지면 길이 끊긴다.
+      expect(heading).toHaveAttribute('tabIndex', '-1');
+    });
+  });
 });
