@@ -260,8 +260,11 @@ describe('PortalLayout', () => {
    * Host 는 우리가 마운트되는 순간 슬롯 여백을 스스로 걷는다 —
    * `.klid-authoring-slot[data-state='mounted'] { padding: 0 }`. 그 규칙에 Host 가 붙인 주석이
    * 계약을 그대로 말한다: *"여백은 탭 줄 · 콘텐츠 자리가 각자 갖는다"*. Host 자신의 저작도구
-   * 화면도 같은 값을 쓴다(탭 줄 24 · 콘텐츠 24 · 판 1152) — 그 셋의 합이 우리 독립 앱 정렬선
-   * (최대폭 1200 + 거터 24 → 안쪽 1152)과 **같은 값**이라 두 채널이 같은 정렬선을 쓴다.
+   * 화면도 같은 값을 쓴다(탭 줄 24 · 콘텐츠 24).
+   *
+   * ★**폭은 반대로 Host 몫이다** — Host 는 슬롯 자체를 `max-width:1200` 으로 묶어 가운데
+   *   세운다(시안 실측). 우리가 한 번 더 묶으면 두 겹이 되어, 그보다 넓은 실배포 본문에서
+   *   화면이 가운데로 몰린다(2026-09-16 사용자 신고). 그래서 임베드는 **거터만** 갖는다.
    *
    * ⚠ **구 가드 폐기** — *"portal 채널이면 좌우거터도 최대폭도 두지 않는다"*. 그 근거였던
    *   2026-09-15 실측(*"Host 슬롯이 이미 좌우 24px 여백을 갖는다"*)은 **마운트 전** 슬롯을 잰
@@ -285,16 +288,19 @@ describe('PortalLayout', () => {
       return { nav, content: content as HTMLElement };
     }
 
-    it('★portal_채널도_최대폭과_좌우거터를_세운다_Host_가_마운트시_슬롯여백을_0으로_만든다', () => {
+    it('★portal_채널은_거터만_세우고_폭은_묶지_않는다', () => {
       vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
 
       renderLayoutAt('/portal/uploads');
       const { nav, content } = shellBoxes();
 
       for (const el of [nav, content]) {
-        expect(el.className).toMatch(/\bmax-w-wrap\b/);
+        // 여백은 우리 몫 — Host 가 마운트 시 슬롯 여백을 0 으로 만든다.
         expect(el.className).toMatch(/\bpx-/);
-        expect(el.className).toMatch(/\bmx-auto\b/);
+        // 폭은 Host 몫 — 슬롯이 이미 최대폭을 막고 가운데 세운다. 한 번 더 묶으면
+        // 그보다 넓은 실배포 본문에서 화면이 가운데로 몰린다.
+        expect(el.className).not.toMatch(/\bmax-w-/);
+        expect(el.className).not.toMatch(/\bmx-auto\b/);
       }
       // 세로 리듬은 그대로 — 가로 축만 바뀐다.
       expect(content.className).toMatch(/\bpt-section\b/);
