@@ -55,6 +55,16 @@ export interface TaskFilterValues {
   assigneeId: string;
   /** 이벤트유형 코드 — BE `eventTypeCd`. */
   eventTypeCd: string;
+  /**
+   * **제외분만 보기** — BE `excludedOnly`. [@design SCREEN-012] [@design ADR-069]
+   *
+   * ★<b>다른 필드와 성질이 다르다</b> — 나머지는 「무엇을 거를까」이고 이것은 <b>「어느 쪽을
+   * 볼까」</b>(가시 범위)다. 그래서 집계 요청에도 그대로 실린다(다른 필드는 카드 축이라 빠진다).
+   *
+   * ⚠ 켜지면 {@link buildBoardParams} 가 **작업 진행 상태 축을 빼고** 요청한다 — 아래 그 함수의
+   * 주석 참조. 검수자 축 전용이며 작업자 축에는 이 개념이 없다.
+   */
+  excludedOnly: boolean;
 }
 
 /** BE `@Size(max = 100)` 정합 — 초과분은 400 왕복 대신 FE 에서 자른다. */
@@ -71,6 +81,8 @@ export const DEFAULT_TASK_FILTERS: TaskFilterValues = {
   workStatus: '',
   assigneeId: '',
   eventTypeCd: '',
+  // ⚠ 기본값은 **거짓**이다 — 기본 목록이 이 축을 모르던 시절과 같은 집합이어야 한다.
+  excludedOnly: false,
 };
 
 /**
@@ -154,10 +166,22 @@ export function buildBoardParams(
 ): TaskBoardParams {
   return compactParams<TaskBoardParams>({
     status: BOARD_BATCH_STATUS,
-    workStatus: asWorkStatusParam(filters.workStatus),
+    // ★★제외분만 보는 동안에는 **작업 진행 상태 축을 보내지 않는다** — 구조적 보장이다.
+    //   「제외됨 N건」을 주는 집계 창구(`countExcluded`)는 이 축을 **반영하지 않고** 세는데,
+    //   목록에만 그 조건이 남으면 전환 결과가 **누른 숫자보다 적어져** 숫자와 결과가 어긋난다.
+    //   ⚠ 화면이 상태 선택을 함께 비우기도 하지만(UX), 그것만으로는 다음 사람이 이 상태에서
+    //     상태 값을 세우는 순간 어긋남이 되살아난다 — 그래서 조립 지점에서도 막는다.
+    //   ⚠⚠ **세 목록의 규칙이 서로 다르다**: 영상 처리 현황은 어떤 필터도 빼지 않고, 검수 목록은
+    //     검수 상태 축을 뺀다. 「일관성」을 이유로 하나로 맞추지 말 것 — 집계가 세는 방식이
+    //     화면마다 달라서 생긴 차이이고, 맞추는 순간 어느 한 화면이 반드시 어긋난다.
+    workStatus: filters.excludedOnly ? undefined : asWorkStatusParam(filters.workStatus),
     q: asKeyword(filters.q),
     eventTypeCd: asEventTypeCd(filters.eventTypeCd),
     workerId: asWorkerId(filters.assigneeId),
+    // 꺼져 있으면 **키 자체를 뺀다** — `compactParams` 는 `false` 를 보존하므로(page=0 을 지키려고)
+    // 여기서 명시적으로 undefined 로 접지 않으면 `excludedOnly=false` 가 그대로 나가, 이 축을
+    // 모르던 기존 호출과 요청 형태가 갈린다.
+    excludedOnly: filters.excludedOnly || undefined,
     page,
     size,
     sort: toBoardSortParams(sort.length ? sort : DEFAULT_BOARD_SORT),
@@ -178,6 +202,12 @@ export function buildBoardSummaryParams(
     q: asKeyword(filters.q),
     eventTypeCd: asEventTypeCd(filters.eventTypeCd),
     workerId: asWorkerId(filters.assigneeId),
+    // ★`workStatus` 와 달리 **이 축은 집계에도 싣는다** — 거르는 값이 아니라 가시 범위라,
+    //   목록이 제외분을 보는 동안 카드도 같은 범위를 세야 숫자와 목록이 어긋나지 않는다.
+    //   ⚠ 「제외됨 N건」 자체는 이 값에 **영향받지 않는다** — 서버가 그 숫자만은 지금 보는
+    //     갈래와 무관하게 언제나 제외분으로 세기 때문이다(`countExcluded` 가 값을 덮어쓴다).
+    //     그래서 전환 전후로 그 숫자가 흔들리지 않고, 눌렀을 때 나오는 건수와 계속 일치한다.
+    excludedOnly: filters.excludedOnly || undefined,
   }) as TaskBoardSummaryParams;
 }
 
@@ -235,6 +265,9 @@ export function searchParamsToFilters(sp: URLSearchParams): TaskFilterValues {
     workStatus: asUiWorkStatus(sp.get('status')),
     assigneeId: String(asWorkerId(sp.get('assigneeId')) ?? ''),
     eventTypeCd: (sp.get('eventTypeCd') ?? '').trim().slice(0, 20),
+    // ★`'true'` **정확히 그 문자열일 때만** 켠다 — URL 은 사람이 손으로 쓸 수 있는 입력이라
+    //   아무 문자열이나 truthy 로 받으면 `?excludedOnly=false` 에서 기본 목록으로 되돌아갈 수 없다.
+    excludedOnly: sp.get('excludedOnly') === 'true',
   };
 }
 
@@ -260,6 +293,9 @@ export function filtersToSearchParams(
     status: asUiWorkStatus(filters.workStatus),
     assigneeId: filters.assigneeId.trim(),
     eventTypeCd: filters.eventTypeCd.trim(),
+    // 켜졌을 때만 기록한다 — 빈 문자열은 `compactParams` 가 키째 지우므로 기본 목록 URL 에
+    // `?excludedOnly=false` 같은 잔재가 남지 않는다(기존 북마크와 형태가 갈리지 않게).
+    excludedOnly: filters.excludedOnly ? 'true' : '',
     sort: isDefaultSort ? [] : sortTokens,
   }) as Record<string, string | string[]>;
 }

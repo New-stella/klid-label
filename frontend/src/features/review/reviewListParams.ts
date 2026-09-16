@@ -86,12 +86,28 @@ export const DEFAULT_REVIEW_SORT: ReviewSortEntry = {
 export interface ReviewFilterValues {
   q: string;
   status: '' | ReviewStatus;
+  /**
+   * **제외분만 보기** — BE `excludedOnly`. [@design SCREEN-018] [@design ADR-069]
+   *
+   * ★<b>`status` 와 성질이 다르다</b> — 그쪽은 「무엇을 거를까」이고 이것은 <b>「어느 쪽을
+   * 볼까」</b>(가시 범위)다.
+   *
+   * ⚠ 켜지면 {@link buildReviewListParams} 가 **검수 상태 축을 빼고** 요청한다 — 「제외됨 건수」를
+   * 주는 집계 창구가 그 축을 반영하지 않고 세기 때문이다. 상태로 좁힌 채 그 숫자를 누르면
+   * 전환 결과가 누른 숫자보다 적어진다.
+   */
+  excludedOnly: boolean;
 }
 
-/** 진입 기본 필터 — **검수요청만**. "초기화" 도 전체가 아니라 이 값으로 되돌린다. */
+/**
+ * 진입 기본 필터 — **검수요청만**. "초기화" 도 전체가 아니라 이 값으로 되돌린다.
+ *
+ * ⚠ `excludedOnly` 기본값은 **거짓**이다 — 기본 목록이 종전과 같은 집합이어야 한다.
+ */
 export const DEFAULT_REVIEW_FILTERS: ReviewFilterValues = {
   q: '',
   status: 'REVIEW_PENDING',
+  excludedOnly: false,
 };
 
 export function isReviewSortColumn(value: string): value is ReviewSortColumn {
@@ -150,8 +166,17 @@ export function buildReviewListParams(
   { page, size }: ReviewPageOptions,
 ): ReviewListParams {
   return compactParams<ReviewListParams>({
-    status: filters.status || undefined,
+    // ★★제외분만 보는 동안에는 **검수 상태 축을 보내지 않는다** — 구조적 보장이다.
+    //   「제외됨 N건」을 주는 집계 창구(`countExcluded`)는 이 축을 **반영하지 않고** 세는데,
+    //   목록에만 상태 조건이 남으면 전환 결과가 **누른 숫자보다 적어져** 숫자와 결과가 어긋난다.
+    //   ⚠ 화면이 상태 선택을 함께 비우기도 하지만(UX), 그것만으로는 다음 사람이 이 상태에서
+    //     상태 값을 세우는 순간 어긋남이 되살아난다 — 그래서 조립 지점에서도 막는다.
+    //   ⚠⚠ **세 목록의 규칙이 서로 다르다**: 영상 처리 현황은 어떤 필터도 빼지 않고, 작업 목록은
+    //     작업 진행 상태 축을 뺀다. 「일관성」을 이유로 하나로 맞추지 말 것.
+    status: filters.excludedOnly ? undefined : filters.status || undefined,
     q: asKeyword(filters.q),
+    // 꺼져 있으면 키 자체를 뺀다 — `compactParams` 는 `false` 를 보존하므로 명시적으로 접는다.
+    excludedOnly: filters.excludedOnly || undefined,
     page,
     size,
     sort: toReviewSortParam(sort),
@@ -178,6 +203,8 @@ export function searchParamsToFilters(sp: URLSearchParams): ReviewFilterValues {
   return {
     q: (sp.get('q') ?? '').slice(0, MAX_SEARCH_KEYWORD_LENGTH),
     status: asUiReviewStatus(sp.get('status')),
+    // ★`'true'` **정확히 그 문자열일 때만** 켠다 — 수기 URL·구 북마크 방어(위 상태 축과 같은 규약).
+    excludedOnly: sp.get('excludedOnly') === 'true',
   };
 }
 
@@ -213,6 +240,10 @@ export function toReviewSearchParams(
   return compactParams<Record<string, string>>({
     q: filters.q.trim(),
     status: filters.status === '' ? REVIEW_STATUS_ALL : filters.status,
+    // 켜졌을 때만 기록한다 — 빈 문자열은 `compactParams` 가 키째 지운다. 이 화면은 URL 을
+    // 정규화 결과와 **키 개수까지** 대조하므로(`isSameSearch`), 꺼진 상태에서 키를 남기면
+    // 이 축을 모르던 기존 URL 이 매번 교정 대상이 되어 히스토리가 더러워진다.
+    excludedOnly: filters.excludedOnly ? 'true' : '',
     sort: toReviewSortParam(sort),
     page: String(page),
     size: String(size),

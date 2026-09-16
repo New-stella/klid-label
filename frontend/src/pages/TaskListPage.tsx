@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
+import { ExcludedCountToggle } from '@/components/common/ExcludedCountToggle';
 import { Pagination } from '@/components/common/Pagination';
 import {
   DEFAULT_TASK_FILTERS,
@@ -28,6 +29,7 @@ import {
 } from '@/features/task/boardSort';
 import { AssignModal } from '@/features/task/components/AssignModal';
 import { HistoryDrawer } from '@/features/task/components/HistoryDrawer';
+import { ReleaseConfirmDialog } from '@/features/task/components/ReleaseConfirmDialog';
 import {
   TaskBoardTable,
   type TaskRow,
@@ -40,6 +42,7 @@ import { useTaskBoard } from '@/features/task/hooks/useTaskBoard';
 import { useTaskBoardEventTypes } from '@/features/task/hooks/useTaskBoardEventTypes';
 import { useTaskBoardSummary } from '@/features/task/hooks/useTaskBoardSummary';
 import { useTasks } from '@/features/task/hooks/useTasks';
+import { useUnassignTask } from '@/features/task/hooks/useUnassignTask';
 import type {
   AssignmentStatus,
   Task,
@@ -50,9 +53,11 @@ import type {
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { type BadgeStatus } from '@/components/common/StatusBadge';
 import { type Video } from '@/features/video/types';
+import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
 import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 20;
 
@@ -140,6 +145,12 @@ export function TaskListPage() {
   const [historyVideoName, setHistoryVideoName] = useState<string | undefined>(
     undefined,
   );
+  /**
+   * 배정 해제 확인 대상 — **재배정 모달의 네 번째 모드로 합치지 않는다**(SCREEN-012).
+   * 재배정은 담당을 바꾸고 해제는 배정을 없앤다 — 뜻이 다르다는 것을 화면 구조로도 드러낸다.
+   */
+  const [releaseTarget, setReleaseTarget] = useState<TaskRow | null>(null);
+  const pushToast = useUiStore((s) => s.pushToast);
 
   // 데이터 fetch — 필터·페이징을 그대로 BE로 위임.
   // - WORKER 시각: BE 페이징+필터(/assignments) 사용
@@ -488,6 +499,49 @@ export function TaskListPage() {
     [pagedRows],
   );
 
+  /**
+   * [@design SCREEN-012] [@design AC-1124] 「제외됨 N건」 전환.
+   *
+   * ★★**작업 진행 상태 축만 뺀다.** 그 숫자를 주는 집계 창구가 이 축을 반영하지 않고 세므로,
+   * 상태로 좁힌 채 누르면 전환 결과가 누른 숫자보다 적어진다. 검색어·이벤트유형·작업자는 유지한다.
+   * ⚠ 영상 처리 현황은 어떤 필터도 빼지 않고, 검수 목록은 검수 상태 축을 뺀다 —
+   *   **「일관성」을 이유로 세 화면을 같게 만들지 말 것**(집계가 세는 방식이 화면마다 다르다).
+   *
+   * ⚠ 상태 선택을 **함께 비운다**. 조립 지점(`buildBoardParams`)이 구조적으로도 막지만, 비우지
+   *   않으면 select 에 값이 남아 「걸려 있는데 적용되지 않는」 어긋난 화면이 된다.
+   */
+  const toggleExcludedOnly = useCallback(() => {
+    setFilters((prev) => ({ ...prev, excludedOnly: !prev.excludedOnly, workStatus: '' }));
+    setPage(0);
+    clearSelection();
+  }, [clearSelection]);
+
+  /**
+   * [@design API-259] 배정 해제 — 확인 창을 거친 뒤 실행한다.
+   *
+   * 검수 단계에 들어간 배정은 표에서 버튼이 이미 비활성이라 이 지점에 **도달하지 않는다**.
+   * 그래도 판정과 요청 사이에 상태가 바뀔 수 있어 서버가 최종 판정하며, 그 문구를 그대로 보인다.
+   */
+  const unassign = useUnassignTask({
+    onSuccess: () => {
+      setReleaseTarget(null);
+      pushToast({ variant: 'success', message: '배정을 해제했습니다.' });
+    },
+    onError: (err) => {
+      setReleaseTarget(null);
+      pushToast({
+        variant: 'error',
+        message: extractBeMessage(err, '배정을 해제하지 못했습니다.'),
+      });
+    },
+  });
+
+  /** 행의 배정 해제 버튼 — 확인 창을 연다(곧바로 풀지 않는다). */
+  const handleUnassignRow = useCallback((row: TaskRow) => {
+    if (!row.task) return;
+    setReleaseTarget(row);
+  }, []);
+
   /** 배정/일괄배정 성공 — 모달을 닫고 선택을 비운 뒤 목록을 다시 읽는다. */
   const handleAssignSuccess = () => {
     setAssignModalOpen(false);
@@ -553,8 +607,10 @@ export function TaskListPage() {
         <TaskWorkerKpiCards rowStatuses={workerRowStatuses} />
       )}
 
-      {/* 일괄 배정 액션바 (REVIEWER만, 1건 이상 선택 시) */}
-      {isReviewer && selectedVideoIds.size > 0 && (
+      {/* 일괄 배정 액션바 (REVIEWER만, 1건 이상 선택 시)
+          ★제외분만 보는 목록에서는 두지 않는다 — 제외한 것을 배정 대상으로 담을 수 있으면
+            제외가 무의미해진다(선택 체크박스도 표에서 함께 사라진다). */}
+      {isReviewer && !filters.excludedOnly && selectedVideoIds.size > 0 && (
         <div
           data-testid="bulk-assign-bar"
           className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3"
@@ -588,9 +644,26 @@ export function TaskListPage() {
         </div>
       )}
 
+      {/*
+        [@design SCREEN-012] [@design AC-1124] 「제외됨 N건」 — **목록 표 바로 위**(세 화면 공통 자리).
+        ★0건이어도 사라지지 않는다. 숫자는 **KPI 집계 조회**가 싣는다 — 같은 숫자의 진실원을 둘로
+          두지 않기 위해 목록 조회는 이 값을 싣지 않는다.
+        ★<b>검수자 축에만 둔다</b>(AC-1126) — 작업자는 제외·복원을 하지 않으며, 제외된 영상에는
+          배정이 없어 그 목록에 나타날 일도 없다.
+      */}
+      {isReviewer && (
+        <ExcludedCountToggle
+          count={summary?.excludedCount}
+          active={filters.excludedOnly}
+          onToggle={toggleExcludedOnly}
+        />
+      )}
+
       <TaskBoardTable
         rows={pagedRows}
         isReviewer={isReviewer}
+        excludedOnly={filters.excludedOnly}
+        onUnassign={handleUnassignRow}
         isLoading={isLoading}
         refreshing={isReviewer && boardFetching && !boardLoading}
         totalElements={totalElements}
@@ -652,6 +725,18 @@ export function TaskListPage() {
         assignmentId={historyAssignmentId}
         videoName={historyVideoName}
       />
+
+      {/* 배정 해제 확인 (REVIEWER 전용) — 사유를 받지 않고 확인만 거친다. */}
+      {isReviewer && releaseTarget?.task && (
+        <ReleaseConfirmDialog
+          open
+          videoName={releaseTarget.videoName}
+          workerName={releaseTarget.task.workerName || '미상'}
+          loading={unassign.isPending}
+          onClose={() => setReleaseTarget(null)}
+          onConfirm={() => unassign.mutate(releaseTarget.task!.id)}
+        />
+      )}
     </div>
   );
 }
