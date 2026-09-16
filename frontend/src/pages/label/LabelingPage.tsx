@@ -2093,7 +2093,11 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
               ⚠ 아래 관제 블록은 **손대지 않는다**(관제향 화면 불변 구속).
             */
             <div className="krds-tab-area shrink-0">
-              <div className="tab line">
+              {/* ★`full` — 두 탭이 패널 폭을 **반씩 나눠 채운다**(킷 `<Tab size="full">` 과 같은 값).
+                  이 한 낱말이 빠져 있어 탭이 왼쪽에 몰려 서고 패널 오른쪽이 비어 있었다
+                  (2026-09-16 사용자 지적). 킷 규칙이 `.tab.full>ul{display:flex}` ·
+                  `.tab.full>ul>li{flex:1 1 0}` 로 폭을 나누므로 우리가 값을 적지 않는다. */}
+              <div className="tab line full">
                 <ul role="tablist" aria-label="우측 패널 탭">
                   {[
                     { key: 'objects' as const, label: '객체', show: true },
@@ -2408,9 +2412,10 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }}
                 />
               </div>
-              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
+              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함).
+                  ★포털은 킷 판·킷 막대를 입는다(부품만 갈리고 범위·배선·문구는 같다). */}
               <div className="shrink-0 border-t border-gray-200 p-2">
-                <ImageAdjustPanel />
+                <ImageAdjustPanel portalMode={portalMode} />
               </div>
             </div>
           )}
@@ -2506,9 +2511,15 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         onCancel={() => setRevertTarget(null)}
       />
 
-      {/* 하단 — 썸네일 strip + 슬라이더 */}
-      <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
-        <div style={{ height: 60 }}>
+      {/* 하단 — 썸네일 strip + 슬라이더
+          ★높이가 채널마다 다르다. 관제는 종전 고정 60+60 이고, <b>포털은 내용 높이</b>다 —
+            킷 낱장이 76×16:9 에 번호 줄을 그림 «아래» 두고 킷 재생 줄의 누르는 자리가 44 라,
+            60 에 밀어 넣으면 번호와 막대가 잘린다(시안도 이 줄을 내용 높이로 둔다). */}
+      <div
+        className={cn('shrink-0 flex flex-col border-t border-gray-200')}
+        style={portalMode ? undefined : { height: 120 }}
+      >
+        <div style={portalMode ? undefined : { height: 60 }}>
           <FrameFilmstrip
             frames={frames}
             currentIndex={frameIdx}
@@ -2521,13 +2532,17 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
             disabled={isEditBlocked}
           />
         </div>
-        <div style={{ height: 60 }}>
+        <div
+          className={portalMode ? 'border-t border-gray-200' : undefined}
+          style={portalMode ? undefined : { height: 60 }}
+        >
           <DarkFrameSlider
             currentIndex={frameIdx}
             totalFrames={Math.max(frames.length, 1)}
             onSelect={requestJumpTo}
             dirtyGuard={dirtyCount > 0}
             disabled={isEditBlocked}
+            portalMode={portalMode}
           />
         </div>
       </div>
