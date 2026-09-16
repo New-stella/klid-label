@@ -2080,7 +2080,56 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
           <div data-testid="keypoint-guide-slot" className="shrink-0 px-2">
             <KeypointGuide placingIndex={keypointPlacingIndex} />
           </div>
-          {hasTabs && (
+          {hasTabs && portalMode && (
+            /*
+              ★**KRDS 탭의 생김새를 그대로 쓴다** (2026-09-16 사용자 지적). 종전에는 같은 모양을
+                Tailwind 로 손수 그렸는데 밑줄 굵기·활성 글자색이 부모 포털과 갈려 있었다.
+                킷 클래스를 입으면 **토큰이 값을 정한다** — 우리 포털 테마가 그 토큰을 부모 포털과
+                같은 값으로 덮어 두었으므로 저절로 맞는다.
+              ★여기는 셸 이동 탭과 달리 **진짜 탭**이다(같은 문서 안의 tabpanel 을 가른다).
+                그래서 킷과 같은 ARIA(`tablist`/`presentation`/`tab`)를 그대로 쓴다.
+              ★이슈 탭은 포털에 오지 않는다(`showIssues` 가 내부 채널 전용) — 감추는 것이 아니라
+                값이 없어 서지 않는다.
+              ⚠ 아래 관제 블록은 **손대지 않는다**(관제향 화면 불변 구속).
+            */
+            <div className="krds-tab-area shrink-0">
+              <div className="tab line">
+                <ul role="tablist" aria-label="우측 패널 탭">
+                  {[
+                    { key: 'objects' as const, label: '객체', show: true },
+                    { key: 'meta' as const, label: '메타', show: showMeta },
+                  ]
+                    .filter((t) => t.show)
+                    .map((t) => {
+                      const on = rightTab === t.key;
+                      return (
+                        <li
+                          key={t.key}
+                          role="presentation"
+                          className={cn('tab-item', on && 'active')}
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            id={`right-tab-${t.key}`}
+                            aria-selected={on}
+                            aria-controls={`right-panel-${t.key}`}
+                            data-testid={`right-tab-${t.key}`}
+                            className="btn-tab"
+                            onClick={() => setRightTab(t.key)}
+                          >
+                            {t.label}
+                            {/* 지금 어느 탭인지는 색·밑줄로만 보인다 — 킷이 두는 화면 밖 글을 그대로 둔다. */}
+                            {on && <i className="sr-only">선택됨</i>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            </div>
+          )}
+          {hasTabs && !portalMode && (
             <div
               className="flex shrink-0 border-b border-gray-200"
               role="tablist"
