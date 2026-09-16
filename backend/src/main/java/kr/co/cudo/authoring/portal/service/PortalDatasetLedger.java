@@ -36,6 +36,19 @@ public final class PortalDatasetLedger {
      */
     public static final String KEY_DATASET_VIDEO_KEY = "portal.dataset_video_key";
 
+    /**
+     * 데이터셋 <b>배포 코드</b> — 포털 정리 삭제 트리거가 코드와 버전으로 대상을 가리킨다.
+     *
+     * <p>번호({@link #KEY_DATASET_ID})만 적어 두면 그 신호가 가리키는 등록 행을 찾을 수 없다. 두 값은
+     * 소재 조달 응답이 <b>이미 주므로</b> 포털에 더 요구하지 않고 해제본 옆 요약에서 읽는다.
+     *
+     * <p>⚠ 옛 데이터라 <b>비어 올 수 있다</b>. 비면 이 키를 쓰지 않는다 — 지어내지 않는다.
+     */
+    public static final String KEY_DATASET_CODE = "portal.dataset_code";
+
+    /** 데이터셋 <b>배포 버전</b> — {@link #KEY_DATASET_CODE} 와 짝이다. 비어 오면 쓰지 않는다. */
+    public static final String KEY_DATASET_VERSION = "portal.dataset_version";
+
     /** 원본 파일명 — 포털 업로드 원장과 같은 키다. 목록의 영상 이름과 문서 영상 블록 파일명의 조달처. */
     public static final String KEY_ORIGINAL_FILENAME = PortalUploadLedger.KEY_ORIGINAL_FILENAME;
 

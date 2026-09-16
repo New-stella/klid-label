@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.portal.service.PortalDatasetLayoutReader.DatasetLayout;
 import kr.co.cudo.authoring.portal.service.PortalDatasetLayoutReader.DatasetVideo;
 import kr.co.cudo.authoring.portal.service.PortalDatasetLayoutReader.LayoutMismatch;
+import kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationTxService.DatasetRef;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -185,10 +186,16 @@ public class PortalDatasetRegistrationService {
             skipped = layout.skippedVideos();
             List<Planned> plans = plan(datasetId, layout);
 
+            // ★ 해제본 옆 요약에서 배포 코드·버전을 <데이터셋당 한 번> 읽는다 — 정리 삭제 트리거가
+            //   그 두 값으로 대상을 가리키므로 등록 메타에 함께 남긴다. 요약이 없거나 읽히지 않으면
+            //   두 값이 비고, 그러면 그 키를 쓰지 않는다(등록 자체는 그대로 진행한다 — 부가 정보의
+            //   부재가 등록을 멈추게 하지 않는다).
+            DatasetRef dataset = datasetRef(datasetId);
+
             Path deidBase = Paths.get(deidentifiedPath).toAbsolutePath().normalize();
             for (Planned p : plans) {
                 // 새로 등록했든 이미 등록돼 있었든(멱등) 이 데이터셋의 등록 영상으로 센다.
-                registerVideo(datasetId, p, deidBase);
+                registerVideo(dataset, p, deidBase);
                 registered++;
                 writeStatus(datasetId, PortalDatasetRegistrationStatus.inProgress(registered, skipped,
                         clock.instant()));
@@ -206,6 +213,14 @@ public class PortalDatasetRegistrationService {
         } catch (RuntimeException e) {
             return fail(datasetId, PortalDatasetRegistrationFailureReason.PERSIST_FAILED, registered, skipped);
         }
+    }
+
+    /** 해제본 옆 요약에서 배포 코드·버전을 읽는다 — 요약이 없거나 손상됐으면 두 값이 빈 채로 돌려준다. */
+    private DatasetRef datasetRef(long datasetId) {
+        PortalMaterialsSummary summary = workspace.readSummary(datasetId);
+        return summary == null
+                ? new DatasetRef(datasetId, null, null)
+                : new DatasetRef(datasetId, summary.code(), summary.version());
     }
 
     /** 영상마다 클립 식별자·원천 위치를 <b>쓰기 전에</b> 확정한다. */
@@ -232,7 +247,8 @@ public class PortalDatasetRegistrationService {
      *
      * @return 새로 등록했으면 {@code true}, 이미 등록돼 있었으면 {@code false}
      */
-    private boolean registerVideo(long datasetId, Planned p, Path deidBase) throws IOException {
+    private boolean registerVideo(DatasetRef dataset, Planned p, Path deidBase) throws IOException {
+        long datasetId = dataset.datasetId();
         if (videoRepository.findByVmsClipId(p.clipId()).isPresent()) {
             return false; // 멱등 — 같은 데이터셋을 다시 등록해도 행이 늘지 않는다.
         }
@@ -241,7 +257,7 @@ public class PortalDatasetRegistrationService {
         boolean committed = false;
         try {
             PortalDatasetRegistrationTxService.Persisted persisted = txService.persist(
-                    datasetId, p.video(), p.clipId(), p.rawFilePath(), staging, deidBase, movedTo);
+                    dataset, p.video(), p.clipId(), p.rawFilePath(), staging, deidBase, movedTo);
             committed = true;
             log.info("[PortalDataset] 영상 등록 datasetId={} videoKeyHash={} rawSn={} frames={} labels={}",
                     datasetId, hash(p.video().videoKey()), persisted.rawSn(),

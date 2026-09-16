@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationService;
 import kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationStatus;
 import kr.co.cudo.authoring.portal.service.PortalDatasetVideoService;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
+import kr.co.cudo.authoring.portal.service.PortalMaterialsSummary;
 import kr.co.cudo.authoring.portal.service.PortalMaterialsUnpacker;
 import kr.co.cudo.authoring.portal.service.PortalMaterialsWorkspace;
 import kr.co.cudo.authoring.portal.service.PortalUserWorkService;
@@ -216,6 +217,22 @@ class PortalDatasetRegistrationIT {
                 LsDataRaw.portalDatasetClipId(datasetId, videoKey));
     }
 
+    /**
+     * 해제본 옆 요약을 공개 자리에 직접 쓴다 — 조달(포털 조회·압축 해제)은 이 시험의 대상이 아니므로
+     * 조달이 남겼을 파일만 같은 창구로 만들어 둔다.
+     */
+    private void writeSummary(long datasetId, String code, String version) throws IOException {
+        workspace.writeSummary(workspace.readyDir(datasetId),
+                new PortalMaterialsSummary(code, version, null, 0, 0L, 0, Instant.now()));
+    }
+
+    /** 그 영상 메타의 값 — 키가 없으면 {@code null}. */
+    private String meta(long rawSn, String key) {
+        List<String> values = jdbc.queryForList(
+                "select meta_vl from ls_data_meta where raw_sn = ? and meta_key = ?", String.class, rawSn, key);
+        return values.isEmpty() ? null : values.get(0);
+    }
+
     private List<Long> srcSnsOf(long rawSn) {
         return jdbc.queryForList("select src_sn from ls_data_src where raw_sn = ? order by frm_no", Long.class, rawSn);
     }
@@ -306,6 +323,53 @@ class PortalDatasetRegistrationIT {
         assertThat(count("select count(*) from ls_data_lbl l join ls_data_src s on s.src_sn = l.src_sn where s.raw_sn = ?",
                 camA)).isEqualTo(4);
         assertThat(workspace.readRegistration(datasetId).state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+    }
+
+    @Test
+    @DisplayName("★해제본_요약의_데이터셋_코드와_버전이_영상_메타로_남는다_정리_삭제_트리거가_그_두_값으로_온다")
+    void datasetCodeAndVersionAreRecordedInMeta() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        writeSummary(datasetId, "DS-FLOOD-2025-01", "16.0.0");
+
+        registrationService.registerAfterProvision(datasetId);
+
+        for (long rawSn : List.of(rawSnByKey(datasetId, "a.mp4"), rawSnByKey(datasetId, "b.mp4"))) {
+            assertThat(meta(rawSn, "portal.dataset_code")).isEqualTo("DS-FLOOD-2025-01");
+            assertThat(meta(rawSn, "portal.dataset_version")).isEqualTo("16.0.0");
+            assertThat(meta(rawSn, "portal.dataset_id")).as("번호 축은 그대로다")
+                    .isEqualTo(Long.toString(datasetId));
+        }
+    }
+
+    @Test
+    @DisplayName("★요약에_코드와_버전이_없으면_그_키를_쓰지_않는다_지어내지_않는다")
+    void blankCodeAndVersionLeaveKeysAbsent() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        writeSummary(datasetId, null, "   "); // 옛 데이터 — 코드가 없고 버전이 공백이다
+
+        registrationService.registerAfterProvision(datasetId);
+
+        long camA = rawSnByKey(datasetId, "a.mp4");
+        assertThat(meta(camA, "portal.dataset_code")).isNull();
+        assertThat(meta(camA, "portal.dataset_version")).isNull();
+        assertThat(meta(camA, "portal.dataset_id")).as("★두 값이 비어도 등록 자체는 그대로 끝난다")
+                .isEqualTo(Long.toString(datasetId));
+    }
+
+    @Test
+    @DisplayName("요약_파일이_아예_없어도_등록은_끝나고_코드_버전_키만_없다")
+    void missingSummaryStillRegisters() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId); // 요약을 쓰지 않는다
+
+        PortalDatasetRegistrationStatus marker = registerNow(datasetId);
+
+        assertThat(marker.state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        long camA = rawSnByKey(datasetId, "a.mp4");
+        assertThat(meta(camA, "portal.dataset_code")).isNull();
+        assertThat(meta(camA, "portal.dataset_version")).isNull();
     }
 
     /** 원본 이미지 바이트가 비식별 프레임 영역 어디에도 없다 — 원본 폴더를 읽지 않았다. */
