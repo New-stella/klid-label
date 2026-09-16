@@ -84,8 +84,11 @@ describe('PortalUploadPage 목록 페이지 이동', () => {
     mockPaged(3, 45);
     renderWithProviders(<PortalUploadPage />);
 
-    expect(screen.getByRole('navigation', { name: '페이지네이션' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '2페이지' })).toBeInTheDocument();
+    // ⚠ 2026-09-16 — 킷 페이저는 싸개에 `nav` 역할을 두지 않고 쪽 번호를 **버튼이 아니라
+    //   링크**(`a.page-link`)로 그린다. 구 기대값(`navigation · 페이지네이션` · `button · 2페이지`)
+    //   은 폐기. 지키는 축은 그대로다 — 여러 쪽이면 옮길 수단이 화면에 선다.
+    expect(screen.getByRole('link', { name: '2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다음' })).toBeInTheDocument();
   });
 
   it('다음_페이지로_이동하면_조회_파라미터의_page_가_증가한다', async () => {
@@ -96,7 +99,8 @@ describe('PortalUploadPage 목록 페이지 이동', () => {
 
     expect(usePortalUploadsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 0 }));
 
-    await user.click(screen.getByRole('button', { name: '다음 페이지' }));
+    // ⚠ 2026-09-16 — 킷 페이저의 다음 걸음은 글이 「다음」이다(구 기대값 「다음 페이지」 폐기).
+    await user.click(screen.getByRole('button', { name: '다음' }));
 
     await waitFor(() =>
       expect(usePortalUploadsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 1 })),
@@ -108,7 +112,9 @@ describe('PortalUploadPage 목록 페이지 이동', () => {
     mockPaged(1, 3);
     renderWithProviders(<PortalUploadPage />);
 
-    expect(screen.queryByRole('navigation', { name: '페이지네이션' })).toBeNull();
+    // ⚠ 2026-09-16 — 위와 같은 사유로 쪽 번호 링크가 없다는 것으로 부재를 본다.
+    expect(screen.queryByRole('link', { name: '2' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '다음' })).toBeNull();
   });
 });
 

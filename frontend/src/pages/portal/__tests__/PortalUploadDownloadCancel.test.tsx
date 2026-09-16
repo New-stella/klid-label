@@ -209,11 +209,28 @@ describe('포털 업로드 자산 목록 — 내려받기와 취소', () => {
     await user.click(screen.getByRole('button', { name: EXPORT_BTN }));
 
     // then: 진행 중이어도 취소 조작이 생기지 않는다
-    await waitFor(() => expect(screen.getByRole('button', { name: FILE_BTN })).toBeDisabled());
+    // ⚠ 2026-09-16 — 잠긴 걸음을 **속성으로 잠그지 않는다**(WCAG 2.1.1 — native `disabled` 는
+    //   Tab 순서에서 빠져 못 누르는 사유에 닿을 길이 사라진다). 구 기대값 `toBeDisabled()` 는
+    //   폐기하고 `aria-disabled` + 사유 도달성으로 바꾼다. 아래 「다시 누르면 다시 요청이
+    //   나간다」가 실제 차단(눌러도 아무 일도 없다)을 함께 지킨다.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: FILE_BTN })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      ),
+    );
+    expect(screen.getByRole('button', { name: FILE_BTN })).toHaveAccessibleDescription(
+      /다른 내려받기가 끝난 뒤에/,
+    );
     expect(
       screen.queryByRole('button', { name: new RegExp(`${FILE_NAME} 내보내기.*취소`) }),
     ).toBeNull();
     expect(screen.queryByRole('button', { name: CANCEL_BTN })).toBeNull();
+
+    // ★ 잠김이 표시가 아니라 **실제 차단**인지 눌러서 확인한다 — `aria-disabled` 는 눌림 자체를
+    //   막지 않으므로, 이 한 줄이 없으면 「모양만 잠긴 버튼」이 통과한다.
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
+    expect(downloadFileMock).not.toHaveBeenCalled();
   });
 
   it('내보내기는_export_엔드포인트를_호출한다', async () => {
