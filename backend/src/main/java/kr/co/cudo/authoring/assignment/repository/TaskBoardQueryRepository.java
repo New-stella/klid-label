@@ -268,9 +268,16 @@ public class TaskBoardQueryRepository {
         return buildWhere(raw, condition, true);
     }
 
+    /**
+     * 가시 범위 갈래는 <b>조건 객체가 싣고 온다</b>({@code excludedOnly}) — 목록·count·집계·옵션이 모두
+     * 이 길목을 지나므로 갈래가 한 곳에서 정해지고 네 경로가 갈라질 수 없다. [design: ADR-069]
+     *
+     * <p>「제외분 건수」({@link #countExcluded})만 이 값을 <b>덮어쓴다</b> — 그 숫자는 지금 보고 있는
+     * 갈래와 무관하게 언제나 제외분을 세야 하기 때문이다.
+     */
     private BooleanBuilder buildWhere(QLsDataRaw raw, TaskBoardSearchCondition condition,
                                       boolean includeWorkStatus) {
-        return buildWhere(raw, condition, includeWorkStatus, false);
+        return buildWhere(raw, condition, includeWorkStatus, condition.excludedOnlyOn());
     }
 
     /**

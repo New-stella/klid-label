@@ -97,11 +97,15 @@ public class TaskBoardController {
             @RequestParam(name = "workerId", required = false)
             @Positive(message = "workerId 는 양수여야 합니다") Long workerId,
             @PageableDefault(size = 20, sort = "regDt", direction = Sort.Direction.DESC) Pageable pageable,
+            @Parameter(description = "제외분만 보기 (선택, 기본 false). 보내지 않으면 제외 표시가 붙지 "
+                    + "않은 영상만 보는 기본 목록이고, true 면 제외된 영상만 남는다. 표시분과 제외분을 "
+                    + "섞어 보는 갈래는 없다.", example = "true")
+            @RequestParam(name = "excludedOnly", required = false) Boolean excludedOnly,
             @AuthenticationPrincipal TokenClaims actor) {
         // 정렬 키 화이트리스트 (CWE-20/CWE-209) — 미등록 키는 500(PropertyReferenceException) 이 아니라 400.
         Pageable safePageable = SortAllowlist.apply(pageable, SortAllowlist.TASK_BOARD, DEFAULT_BOARD_SORT);
         TaskBoardSearchCondition condition =
-                new TaskBoardSearchCondition(status, workStatus, q, eventTypeCd, workerId);
+                new TaskBoardSearchCondition(status, workStatus, q, eventTypeCd, workerId, excludedOnly);
         return ApiResponse.ok(taskBoardService.listBoard(condition, actor, safePageable));
     }
 

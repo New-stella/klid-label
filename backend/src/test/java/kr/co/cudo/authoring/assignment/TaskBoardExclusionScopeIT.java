@@ -7,6 +7,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.QLsDataSrc;
+import kr.co.cudo.authoring.assignment.dto.TaskBoardSearchCondition;
+import kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoExclusionScope;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -67,6 +69,7 @@ class TaskBoardExclusionScopeIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository videoRepository;
+    @Autowired private TaskBoardQueryRepository taskBoardQueryRepository;
 
     @PersistenceContext(unitName = "control")
     private EntityManager entityManager;
@@ -157,6 +160,12 @@ class TaskBoardExclusionScopeIT {
 
     private JsonNode board() throws Exception {
         return getJson("/v1/tasks/board?status=COMPLETED&q=" + tag + "&size=100");
+    }
+
+    /** 같은 목록을 「제외분만 보기」 갈래로 — 다른 축은 전부 동일하게 둔다. */
+    private JsonNode board(boolean excludedOnly) throws Exception {
+        return getJson("/v1/tasks/board?status=COMPLETED&q=" + tag + "&size=100"
+                + "&excludedOnly=" + excludedOnly);
     }
 
     private JsonNode boardSummary() throws Exception {
@@ -281,6 +290,113 @@ class TaskBoardExclusionScopeIT {
 
     private List<String> eventTypeOptions() throws Exception {
         return codesOf(getJson("/v1/tasks/board/event-types?status=COMPLETED"));
+    }
+
+    // ── 제외분만 보기 (excludedOnly) ──────────────────────────────────────────
+
+    /**
+     * ★<b>「제외됨 N건」을 눌러 전환할 곳이 실재한다</b> — 복원 동선의 마지막 칸.
+     * [@design API-073] [@design ADR-069] [@design AC-1124]
+     *
+     * <p>숫자만 뜨고 전환 수단이 없으면 <b>제외한 영상을 되돌릴 길이 없다</b>. 확정 요구가
+     * 「그 숫자를 누르면 제외분만 보는 목록으로 전환하고 거기서 복원한다」이므로, 이 갈래는 편의가 아니라
+     * <b>되돌리기의 필수 구간</b>이다.
+     *
+     * <h3>세 가지를 한 흐름에서 본다</h3>
+     * <ul>
+     *   <li><b>하위호환</b> — 보내지 않은 것과 {@code false} 로 보낸 것이 같다(기본값 불변).</li>
+     *   <li><b>전환</b> — {@code true} 면 제외분만 남는다.</li>
+     *   <li><b>숫자와 결과의 일치</b> — 그 총건수가 집계의 「제외됨 건수」와 같다. 이것이 없으면
+     *       「3건」을 눌렀는데 1건이 나오는 화면이 된다.</li>
+     * </ul>
+     *
+     * <h3>★픽스처가 자족한다</h3>
+     * <p>「이 검색어에 걸리지 않는 제외 영상」을 직접 심어, 제외분 보기가 <b>다른 축 필터를 여전히
+     * 적용하는지</b>를 스스로 가른다. 심지 않으면 「제외분 전체를 보여 주는 것」과 「필터 안의 제외분만
+     * 보여 주는 것」이 같은 결과를 내어 단언이 무력해진다.
+     */
+    @Test
+    @DisplayName("★제외분만_보기로_전환된다_안보내면_종전과_같고_총건수가_제외됨건수와_일치한다")
+    void excludedOnlySwitchesTheListAndMatchesTheCount() throws Exception {
+        Long kept1 = newVideo("EXCLA");
+        Long kept2 = newVideo("EXCLB");
+        Long excluded = newVideo("EXCLC");
+        // ★이 검색어에 걸리지 않는 제외 영상 — 제외분 보기에도 다른 축 필터가 살아 있음을 가른다.
+        excludeViaApi(newVideoWithOtherTag());
+        excludeViaApi(excluded);
+
+        // ① 하위호환 — 보내지 않은 것과 false 가 같다.
+        JsonNode omitted = board();
+        JsonNode explicitFalse = board(false);
+        assertThat(explicitFalse.path("totalElements").asLong())
+                .as("★보내지 않던 기존 호출의 결과가 달라지면 안 된다")
+                .isEqualTo(omitted.path("totalElements").asLong())
+                .isEqualTo(2L);
+        assertThat(videoIds(explicitFalse, "videoId")).containsExactlyInAnyOrder(kept1, kept2);
+
+        // ② 전환 — 제외분만 남는다.
+        JsonNode only = board(true);
+        assertThat(videoIds(only, "videoId"))
+                .as("★제외분만 남아야 한다 — 표시분이 섞이면 어느 것이 제외분인지 행마다 구분해야 한다")
+                .containsExactly(excluded);
+        assertThat(only.path("totalElements").asLong())
+                .as("★검색어 밖의 제외 영상까지 나오면 다른 축 필터가 죽은 것이다")
+                .isEqualTo(1L);
+
+        // ③ 숫자와 전환 결과가 일치한다 — 이 화면의 복원 동선이 성립하는 조건.
+        assertThat(only.path("totalElements").asLong())
+                .as("★집계의 「제외됨 건수」를 눌러 얻는 목록의 총건수가 그 숫자와 같아야 한다")
+                .isEqualTo(boardSummary().path("excludedCount").asLong());
+    }
+
+    /**
+     * ★<b>집계와 이벤트유형 옵션도 같은 갈래를 따른다</b> — 목록만 전환되고 나머지가 기본 갈래에
+     * 남으면 화면 안에서 두 시야가 섞인다. [@design API-073]
+     *
+     * <h3>왜 창구가 아니라 조립 지점에서 보나</h3>
+     * <p>집계·옵션 <b>창구</b>는 이 파라미터를 선언하지 않는다(설계에 없다). 그래서 HTTP 로는 이 성질을
+     * 관측할 수 없고, 갈래가 한 길목(조건 조립)에서 정해진다는 사실 자체를 여기서 고정한다 — 그래야
+     * 그 파라미터가 창구에 생기는 날 <b>저절로</b> 맞게 동작한다.
+     */
+    @Test
+    @DisplayName("★집계와_이벤트유형_옵션이_목록과_같은_갈래를_따른다")
+    void summaryAndOptionsFollowTheSameBranch() throws Exception {
+        // ★이벤트유형 코드는 이 실행에서만 쓰는 값으로 만든다 — 옵션 조회는 검색어 축을 <반영하지 않아>
+        //   (필터를 걸면 옵션이 사라져 되돌아갈 수 없기 때문) 검색어로 범위를 좁힐 수 없다. 고정 문자열을
+        //   쓰면 공유 컨테이너에 다른 시험이 남긴 같은 코드의 영상에 단언이 얹힌다.
+        String visibleCode = "EVA" + (System.nanoTime() % 1_000_000L);
+        String excludedCode = "EVX" + (System.nanoTime() % 1_000_000L);
+        newVideo(visibleCode);
+        newVideo(visibleCode);
+        Long excluded = newVideo(excludedCode);
+        excludeViaApi(excluded);
+
+        TaskBoardSearchCondition visible =
+                new TaskBoardSearchCondition("COMPLETED", null, tag, null, null, false);
+        TaskBoardSearchCondition excludedOnly =
+                new TaskBoardSearchCondition("COMPLETED", null, tag, null, null, true);
+
+        assertThat(totalOf(visible)).as("표시분 갈래의 집계").isEqualTo(2L);
+        assertThat(totalOf(excludedOnly))
+                .as("★집계가 갈래를 따르지 않으면 카드 숫자가 목록과 어긋난다")
+                .isEqualTo(1L);
+
+        assertThat(optionsOf(visible)).contains(visibleCode).doesNotContain(excludedCode);
+        assertThat(optionsOf(excludedOnly))
+                .as("★옵션이 갈래를 따르지 않으면 고른 값이 0건이 되는 선택지가 생긴다")
+                .contains(excludedCode)
+                .doesNotContain(visibleCode);
+    }
+
+    /** 그 조건의 KPI 버킷 합 — 집계 창구가 {@code total} 로 내보내는 값과 같은 것. */
+    private long totalOf(TaskBoardSearchCondition condition) {
+        return taskBoardQueryRepository.countByWorkStatus(condition).values().stream()
+                .mapToLong(Long::longValue).sum();
+    }
+
+    /** 그 조건의 이벤트유형 옵션 — 옵션 조회가 쓰는 조립 지점을 그대로 통과시킨다. */
+    private List<String> optionsOf(TaskBoardSearchCondition condition) {
+        return taskBoardQueryRepository.findDistinctEventTypes(condition, 500);
     }
 
     /** 옵션 응답은 코드 문자열 목록이다 — 그룹 접기를 거쳐도 값의 형태는 코드 그대로다. */
