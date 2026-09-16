@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button as KrdsButton } from 'krds-react';
 
 import { Button } from '@/components/common/Button';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
@@ -95,21 +96,49 @@ export function SaveCommitButton({
   }
 
   const saveKeys = formatBindingKeys('edit.save');
+  const saveTitle = saveKeys ? `저장 (${saveKeys})` : '저장';
+  const saveDisabled = srcSn === undefined || editBlocked || locked;
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleSave}
-        loading={loading}
-        disabled={srcSn === undefined || editBlocked || locked}
-        aria-label="저장"
-        title={saveKeys ? `저장 (${saveKeys})` : '저장'}
-        data-testid="label-toolbar-save"
-      >
-        저장 {dirtyCount > 0 && <span className="ml-1 text-caption">({dirtyCount})</span>}
-      </Button>
+      {/*
+        ★부품이 채널마다 갈린다 — <b>배선은 같다.</b> 포털은 시안대로 킷 기본 버튼(코발트 알약)이고
+          관제는 종전 공통 버튼 그대로다. 종전에는 두 채널이 같은 공통 버튼을 써서, 포털 화면에서만
+          이 자리가 부모 포털 톤과 갈려 보였다(2026-09-16 사용자 지적 — 「상단에 저장버튼」).
+        ★글·안내·시험 후크는 두 갈래가 <b>같은 값</b>을 받는다. 미저장 수를 괄호로 덧붙이는 것도
+          시안과 같다(`저장 (3)`).
+        ⚠ 진행 중 표시 축이 다르다 — 킷 버튼에는 로딩 표시가 없어 `aria-busy` 로 알린다. 그래서
+          <b>비활성 조건에 진행 중을 함께 넣는다</b>(공통 버튼은 `loading` 이 그 일을 겸했다).
+          빼면 저장 중에 한 번 더 눌려 같은 저장이 두 번 나간다.
+      */}
+      {portalMode ? (
+        <KrdsButton
+          type="button"
+          size="small"
+          variant="primary"
+          onClick={handleSave}
+          disabled={saveDisabled || loading}
+          aria-busy={loading || undefined}
+          aria-label="저장"
+          title={saveTitle}
+          data-testid="label-toolbar-save"
+        >
+          {dirtyCount > 0 ? `저장 (${dirtyCount})` : '저장'}
+        </KrdsButton>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSave}
+          loading={loading}
+          disabled={saveDisabled}
+          aria-label="저장"
+          title={saveTitle}
+          data-testid="label-toolbar-save"
+        >
+          저장 {dirtyCount > 0 && <span className="ml-1 text-caption">({dirtyCount})</span>}
+        </Button>
+      )}
       {error && (
         <span role="alert" className="text-caption text-danger">
           {error}
