@@ -35,11 +35,14 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-472"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:27:29.559Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -57,8 +60,8 @@
     "stale": true,
     "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
     "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 관리자가 계층으로 물려받은 검수자 권한으로 검수 전 과정을 수행하고 이력에 관리자로 남는다는 것을 검증하는 수용기준 신설.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T06:03:53.704Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:29.559Z",
     "created_at": "2026-09-15T06:03:53.704Z"
   }
 }

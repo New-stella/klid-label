@@ -35,11 +35,14 @@
       "is_negative": true,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-471"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:27:24.949Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -57,8 +60,8 @@
     "stale": true,
     "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
     "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 일괄 승인의 요청 단위 거부와 건별 실패가 다른 축이라는 것을 검증하는 수용기준 신설.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T06:03:53.526Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:24.949Z",
     "created_at": "2026-09-15T06:03:53.526Z"
   }
 }

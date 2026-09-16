@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-09-15T13:24:02.826Z |
+| Last sync | 2026-09-15T15:36:09.624Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 116 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 44건
-  ℹ️  api_endpoint: 이번 키트 16건 / 스코프 밖 218건
+  ℹ️  api_endpoint: 이번 키트 16건 / 스코프 밖 221건
   ℹ️  erd: 이번 키트 7건 / 스코프 밖 18건
   ℹ️  diagram_sequence: 이번 키트 3건 / 스코프 밖 33건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 35건
-  ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
+  ℹ️  use_case: 이번 키트 5건 / 스코프 밖 31건
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 7건 / 스코프 밖 101건 (그중 domain_id 없음 10건)
+  ℹ️  acceptance: 이번 키트 7건 / 스코프 밖 108건 (그중 domain_id 없음 13건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 11건 / 스코프 밖 50건 (그중 domain_id 없음 11건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 51건 (그중 domain_id 없음 11건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 13건 (그중 domain_id 없음 13건)
 ```
 
@@ -63,7 +63,7 @@
 | [[ADR-058]] | adr | 10 | UNCHANGED |
 | [[ADR-065]] | adr | 1 | UNCHANGED |
 | [[ADR-066]] | adr | 3 | UNCHANGED |
-| [[ADR-067]] | adr | 5 | UNCHANGED |
+| [[ADR-067]] | adr | 6 | UNCHANGED |
 | [[ADR-068]] | adr | 3 | UNCHANGED |
 | [[API-013]] | api_endpoint | 11 | UNCHANGED |
 | [[API-014]] | api_endpoint | 13 | UNCHANGED |
@@ -92,7 +92,7 @@
 | [[DFEAT-060]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-017]] | domain | 1 | UNCHANGED |
 | [[ERD-010]] | erd | 37 | UNCHANGED |
-| [[ERD-012]] | erd | 53 | UNCHANGED |
+| [[ERD-012]] | erd | 54 | UNCHANGED |
 | [[ERD-017]] | erd | 26 | UNCHANGED |
 | [[ERD-019]] | erd | 24 | UNCHANGED |
 | [[ERD-025]] | erd | 4 | UNCHANGED |
@@ -143,11 +143,11 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 33 | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 31 | UNCHANGED |
 | [[SCREEN-039]] | screen_spec | 45 | UNCHANGED |

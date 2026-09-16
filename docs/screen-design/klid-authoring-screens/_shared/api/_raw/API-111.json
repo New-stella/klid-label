@@ -28,7 +28,7 @@
             "type": "string",
             "format": "binary"
           },
-          "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지 바이너리. FE 는 Bearer 토큰 포함 axios fetch 후 blob URL 로 표시(<img> 직접 src 금지). 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 프레임이 계속 표시된다.",
+          "description": "포털 작업 가능 영상(검수 완료 영상 또는 포털 데이터셋에서 등록한 영상)의 비식별 프레임 이미지 바이너리. FE 는 Bearer 토큰 포함 axios fetch 후 blob URL 로 표시(<img> 직접 src 금지). 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 프레임이 계속 표시된다.",
           "content_type": "image/*"
         },
         "401": {
@@ -168,7 +168,8 @@
           "description": "프레임 PK (SRC_SN)"
         }
       ],
-      "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지를 서빙한다. 미승인 영상 403, 프레임/파일 부재 404, Path Traversal(CWE-22) 방어. PORTAL_USER 전용.",
+      "description": "포털 작업 가능 영상(검수 완료 영상 또는 포털 데이터셋에서 등록한 영상 — [[ADR-068]])의 비식별 프레임 이미지를 서빙한다. 작업 가능 영상이 아니면 403, 프레임/파일 부재 404, Path Traversal(CWE-22) 방어. PORTAL_USER 전용.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -178,7 +179,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:45.176Z"
+        "last_updated": "2026-08-29T01:23:45.176Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -186,12 +188,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "no-store 계약을 412 설명에서 200 성공 응답으로 옮긴다 — 캐시 대상은 이미지 바이너리를 돌려주는 200 이라 그쪽에 적혀야 계약으로 읽힌다. 프레임워크 반환형·프론트엔드 훅 표기도 걷어낸다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:45.176Z",
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "ADR-068의 data.consequences 변경 — references",
+    "change_summary": "포털 작업 가능 판정 확장 반영(ADR-068) — 허용 대상을 「검수 완료 영상」에서 「검수 완료 영상 또는 포털 데이터셋에서 등록한 영상」으로 넓힌 문구만 고쳤다. 포털향에는 검수·승인 흐름이 없어 데이터셋 영상은 출처로 허용된다(사용자 확인 2026-09-15). 그 밖의 필드·거부 순서·상태코드는 무변경.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T06:37:44.768Z",
     "created_at": "2026-06-19T00:59:05.589Z"
   }
 }

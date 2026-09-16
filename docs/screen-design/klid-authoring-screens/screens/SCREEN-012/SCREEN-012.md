@@ -1,21 +1,22 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 49
-last_updated_at: 2026-09-02T08:54:03.125Z
+version: 53
+last_updated_at: 2026-09-15T15:20:58.540Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T07:56:46.764Z
-sync_session: 41
+synced_at: 2026-09-15T15:41:05.726Z
+sync_session: 42
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-136]]", "[[API-137]]", "[[API-116]]", "[[API-187]]"]
+  consumes_apis: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-136]]", "[[API-137]]", "[[API-116]]", "[[API-187]]", "[[API-259]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
-  realizes_use_cases: ["[[UC-029]]"]
+  realizes_use_cases: ["[[UC-029]]", "[[UC-043]]"]
+  acceptance: ["[[AC-1122]]", "[[AC-1123]]", "[[AC-1124]]", "[[AC-1126]]", "[[AC-1127]]"]
 ---
 
 # 작업 목록 화면
@@ -268,7 +269,11 @@ _(empty)_
 
 _(empty)_
 
-- **description**: KPI 카드는 역할별로 분리된다 — REVIEWER 는 5장(전체/미배정/작업중/검수요청/반려, GET /v1/tasks/board/summary=API-136, 필터 결과 전체 기준 서버 집계). WORKER 는 4장(전체/진행중/검수대기/반려, 본인 배정 목록에서 클라이언트 집계, 별도 API 없음). ★REVIEWER '작업중' 카드는 workStatus=PENDING 을 집계하며 IN_PROGRESS 값은 BE 에 존재하지 않는다. ★'미배정' 카드는 workStatus=UNASSIGNED 로 전송된다(status=UNASSIGNED 가 아님). 카드 클릭은 workStatus 필터를 토글(같은 카드 재클릭 시 해제=전체)한다. 로딩/정상/실패 3상태 구분 렌더.
+**description**:
+
+KPI 카드는 역할별로 분리된다 — REVIEWER 는 5장(전체/미배정/작업중/검수요청/반려, GET /v1/tasks/board/summary=API-136, 필터 결과 전체 기준 서버 집계). WORKER 는 4장(전체/진행중/검수대기/반려, 본인 배정 목록에서 클라이언트 집계, 별도 API 없음). ★REVIEWER '작업중' 카드는 workStatus=PENDING 을 집계하며 IN_PROGRESS 값은 BE 에 존재하지 않는다. ★'미배정' 카드는 workStatus=UNASSIGNED 로 전송된다(status=UNASSIGNED 가 아님). 카드 클릭은 workStatus 필터를 토글(같은 카드 재클릭 시 해제=전체)한다. 로딩/정상/실패 3상태 구분 렌더.
+
+★제외 표시가 붙은 영상은 이 집계에서도 빠진다 — 목록과 같은 조건을 쓰므로 목록이 줄면 카드 숫자도 같이 줄어야 한다. 조건이 갈리면 목록은 줄었는데 카드 숫자는 그대로인 어긋남이 생긴다. 같은 응답이 「제외됨 건수」를 함께 싣고 목록 표 위의 「제외됨 N건」 표시가 그 값을 쓴다. 그 건수는 카드 합의 항이 아니다 — 제외분은 전체 건수에서도 이미 빠져 있는 별개 축이다. 카드 구성과 클릭 동작은 그대로다.
 
 **references_apis**:
 
@@ -366,7 +371,7 @@ _(empty)_
 
 - **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(증강 축 단일값(AUGMENT) 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다). 이미 만들어진 파생본에 남아 있는 WINTER/NIGHT/RAIN 값도 배지에 그대로 표시된다.
 - **type**: Table
-- **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/검수자/액션
+- **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/액션
 
 **columns**:
 
@@ -377,7 +382,6 @@ _(empty)_
 - 이벤트
 - 상태
 - 작업자
-- 검수자
 - 액션
 
 **options**:
@@ -509,7 +513,63 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 작업자는 본인 배정 작업을, 검수자는 처리 완료 영상과 배정 정보를 함께 조회한다. 컬럼: (검수자)선택 체크박스, 영상명+영상 ID, 이벤트(파생 영상은 파생 유형 배지 추가 표시), (검수자)촬영일시(서버 정렬 가능), 상태, 작업자, 검수자, 액션. ★일괄 선택 체크박스는 이미 배정된 행에서는 비활성화된다 — 일괄 배정은 미배정 행 전용이다. 액션 분기 — 검수자: 배정/재배정(완료 행 제외)+이력, 작업자: 라벨링 대상 프레임 유무에 따라 작업(라벨링 화면 이동) 또는 마킹(마킹 화면 이동) + 이력. 서버 페이징.
+#### [11]
+
+- **note**: 검수자 축에만 있다. 목록 표 위에 놓이며 제외 표시가 붙은 영상의 건수를 항상 보여준다 — 0건이어도 사라지지 않는다. 0건일 때 감추면 화면이 「제외된 것이 없다」와 「제외 기능이 없다」를 구분해 보여 주지 못하기 때문이다. 숫자는 목록 조회 응답이 아니라 KPI 집계 조회(API-136)에서 받는다 — 같은 숫자의 진실원을 둘로 두지 않기 위해 목록 조회(API-073)는 이 값을 싣지 않는다. 지금 걸린 필터 범위 안에서 센 값이라 눌렀을 때 나오는 건수와 일치한다. 누르면 제외분만 보는 목록으로 전환되고 다시 누르면 원래 목록으로 돌아온다. 작업자 축에는 이 표시가 없다.
+- **type**: Button
+- **label**: 제외됨 N건
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: ghost
+- **triggers_api**: API-136
+
+#### [12]
+
+- **note**: 검수자, 기존 배정 행 — 재배정 버튼과 같은 자리에 놓인다. 재배정은 담당을 바꾸고 배정 해제는 배정을 없앤다. 누르면 확인 단계를 거치며 사유는 받지 않는다. ★검수 단계에 들어간 배정(검수 대기·검수 중·승인)은 버튼이 미리 비활성화되고 그 사유가 함께 보인다 — 눌러서 거부를 받고 나서야 알게 되는 동선을 만들지 않는다. ★반려 상태의 배정은 그 셋에 들지 않아 버튼이 활성이다 — 반려도 검수 축이라는 이유로 함께 막지 않는다.
+- **type**: Button
+- **label**: 배정 해제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: ghost
+- **triggers_api**: API-259
+
+#### [13]
+
+- **note**: 배정 해제 버튼이 비활성화된 행에만 그 옆에 함께 보인다. 문구는 배정 해제 창구(API-259)가 거부할 때 내려보내는 문구와 같다.
+- **type**: Text
+- **label**: 검수에 들어간 배정은 해제할 수 없습니다.
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+**description**:
+
+작업자는 본인 배정 작업을, 검수자는 처리 완료 영상과 배정 정보를 함께 조회한다. 컬럼: (검수자)선택 체크박스, 영상명+영상 ID, 이벤트(파생 영상은 파생 유형 배지 추가 표시), (검수자)촬영일시(서버 정렬 가능), 상태, 작업자, 액션. ★일괄 선택 체크박스는 이미 배정된 행에서는 비활성화된다 — 일괄 배정은 미배정 행 전용이다. 액션 분기 — 검수자: 배정/재배정(완료 행 제외)+이력, 작업자: 라벨링 대상 프레임 유무에 따라 작업(라벨링 화면 이동) 또는 마킹(마킹 화면 이동) + 이력. 서버 페이징.
+
+★제외 표시가 붙은 영상은 이 목록에 나타나지 않는다 — 검수자 축과 작업자 축 둘 다 그렇다. 목록 표 위에는 검수자 축에 한해 「제외됨 N건」이 항상 보이며 0건이어도 사라지지 않는다. 그 숫자는 목록 조회 응답이 아니라 KPI 집계 조회(API-136)에서 받으며 지금 걸린 필터 범위 안에서 센 값이라, 눌렀을 때 나오는 건수와 일치한다. 누르면 제외분만 보는 목록으로 전환되고 다시 누르면 원래 목록으로 돌아온다. 작업자 축에는 「제외됨 N건」도 제외분 보기도 두지 않는다 — 작업자는 제외·복원을 하지 않으며 제외된 영상에는 배정이 없어 그 목록에 나타날 일도 없다.
+
+★제외분 보기에서는 배정·검수로 이어지는 동작을 노출하지 않는다 — 선택 체크박스, 일괄 배정 액션바, 배정·재배정·배정 해제 버튼이 모두 보이지 않는다. 제외한 것을 작업 대상으로 만들 수 있으면 제외가 무의미해진다.
+
+★검수자 액션에 배정 해제가 더해진다. 재배정과 같은 자리에 놓이되 뜻이 다르다 — 재배정은 담당을 바꾸고 배정 해제는 배정을 없앤다. 누르면 확인 단계를 거치며 사유는 받지 않는다. 검수 단계에 들어간 배정(검수 대기·검수 중·승인)은 버튼이 미리 비활성화되고 그 사유가 함께 보인다 — 눌러서 거부를 받고 나서야 알게 되는 동선을 만들지 않는다.
 
 **references_apis**:
 
@@ -561,22 +621,6 @@ _(empty)_
 
 #### [3]
 
-- **note**: 검수자 역할은 기본값=로그인 사용자, 작업자 역할은 읽기 전용. 검수자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다.
-- **type**: Select
-- **label**: 검수자
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **triggers_api**: API-001
-
-#### [4]
-
 - **type**: Button
 - **label**: 취소
 
@@ -590,7 +634,7 @@ _(empty)_
 
 - **variant**: outline
 
-#### [5]
+#### [4]
 
 - **note**: 신규 배정과 재배정은 서로 다른 API 를 호출한다 — 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071). 이 컴포넌트의 triggers_api 는 대표값(API-070)만 표기하며, 실제 호출 API 는 모드에 따라 다르다.
 - **type**: Button
@@ -607,7 +651,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-070
 
-#### [6]
+#### [5]
 
 - **note**: 재배정 모드에서 현재 배정된 작업자와 동일한 작업자를 다시 선택하면 저장 버튼이 비활성화되고 이 경고 문구가 노출된다.
 - **type**: Text
@@ -621,13 +665,12 @@ _(empty)_
 
 _(empty)_
 
-- **description**: assign/reassign/bulk 3모드. 영상 정보(단건/일괄 미리보기) + 작업자 select(필수) + 검수자 select(검수자 역할, 기본값=로그인 사용자) 또는 읽기 전용(작업자 역할). 작업자·검수자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다. 저장 시 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071)을 호출한다. 성공/실패 결과를 토스트로 안내한다.
+- **description**: assign/reassign/bulk 3모드. 영상 정보(단건/일괄 미리보기) + 작업자 select(필수)로 구성된다. 작업자 후보 목록은 검수자 역할이면서 모달이 열려 있을 때만 조회된다. 저장 시 신규 배정은 생성 요청(API-070), 재배정은 수정 요청(API-071)을 호출한다. 성공/실패 결과를 토스트로 안내한다.
 
 **references_apis**:
 
 - API-070
 - API-071
-- API-001
 - API-002
 
 **references_features**:
@@ -658,7 +701,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 배정/검수 워크플로 이벤트(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT) 6종과 개인정보 선언 변경·초기화 감사 이벤트(PRIVACY_META_UPDATE/PRIVACY_META_RESET) 2종, 총 8종을 조회한다(API-116). 이벤트별로 좌측 점 색상이 다르게 표시된다.
+- **note**: 타임라인 한 줄은 일시 + 행위자 이름 + 행위 시점 역할 + 설명(반려 사유 포함)으로 이루어지며 이벤트별로 좌측 점 색상이 다르게 표시된다. 행위 시점 역할은 값이 비어 있을 수 있고 그때는 역할을 비워 보인다. 조회하는 이벤트 종류는 ASSIGN(배정)·REASSIGN(재배정)·START_REVIEW(검수 시작)·SUBMIT(검수 제출)·CANCEL_SUBMIT(제출 취소)·APPROVE(승인)·REJECT(반려)·PRIVACY_META_UPDATE(개인정보 선언 변경)·PRIVACY_META_RESET(선언 리셋)·FRAME_DISCARD(프레임 폐기)·FRAME_RESTORE(프레임 복원)·START_VERSION_APPLY(시작 버전 적용)이다(API-116). 종류를 개수로 적지 않는다 — 열거가 곧 목록이며 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다.
 - **type**: Timeline
 - **label**: 배정 이력
 
@@ -670,12 +713,16 @@ _(empty)_
 
 - ASSIGN
 - REASSIGN
+- START_REVIEW
 - SUBMIT
 - CANCEL_SUBMIT
 - APPROVE
 - REJECT
 - PRIVACY_META_UPDATE
 - PRIVACY_META_RESET
+- FRAME_DISCARD
+- FRAME_RESTORE
+- START_VERSION_APPLY
 
 - **triggers_api**: API-116
 
@@ -722,7 +769,13 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(제목+닫기) + 대상 작업(영상명) + 타임라인(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT 워크플로 이벤트 6종 + PRIVACY_META_UPDATE/PRIVACY_META_RESET 개인정보 선언 변경·초기화 감사 이벤트 2종, 총 8종, 이벤트별 dot 색상 + 일시 + 설명 + 반려 사유). 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
+**description**:
+
+우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(제목+닫기) + 대상 작업(영상명) + 타임라인. 타임라인 한 줄은 이벤트별 dot 색상 + 일시 + 행위자 이름 + 행위 시점 역할 + 설명 + 반려 사유로 이루어진다. 조회 대상 이벤트 종류는 ASSIGN(배정)·REASSIGN(재배정)·START_REVIEW(검수 시작)·SUBMIT(검수 제출)·CANCEL_SUBMIT(제출 취소)·APPROVE(승인)·REJECT(반려)·PRIVACY_META_UPDATE(개인정보 선언 변경)·PRIVACY_META_RESET(선언 리셋)·FRAME_DISCARD(프레임 폐기)·FRAME_RESTORE(프레임 복원)·START_VERSION_APPLY(시작 버전 적용)이며, 종류를 개수로 적지 않는다 — 열거가 곧 목록이라 숫자로 적으면 값이 늘 때마다 그 숫자가 틀린다.
+
+★행위 시점 역할은 그 행위를 한 때 기록된 값이라, 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로 보인다. 관리자가 승인한 이벤트는 관리자로 보이며 검수자로 낮춰 보이지 않는다. 역할 칸이 생기기 전에 쌓인 이력은 값이 비어 있을 수 있고, 그때 화면은 역할을 비워 보인다 — 지어낸 값으로 채우지 않는다.
+
+개인정보 선언 변경·초기화 이벤트는 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
 
 **references_apis**:
 
@@ -758,6 +811,98 @@ _(empty)_
 **references_apis**:
 
 _(empty)_
+
+**references_features**:
+
+_(empty)_
+
+### 배정 해제 확인 (ReleaseConfirmDialog)
+
+- **role**: modal
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **type**: Heading
+- **label**: 배정을 해제할까요?
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: 해제 대상 영상과 지금 배정된 작업자를 보여준다.
+- **type**: Custom
+- **label**: 대상 영상 / 현재 작업자
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ReleaseTargetBox
+
+#### [3]
+
+- **note**: 해제가 배정만 푼다는 것을 확인 단계에서 알린다.
+- **type**: Alert
+- **label**: 해제해도 라벨과 그 이력은 남습니다. 되돌리려면 다시 배정하세요.
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **type**: Button
+- **label**: 취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+
+#### [5]
+
+- **note**: 배정 해제를 실행한다. 사유 입력칸은 두지 않는다. 성공·실패를 토스트로 알리고 목록과 KPI 집계를 다시 조회한다.
+- **type**: Button
+- **label**: 배정 해제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+- **triggers_api**: API-259
+
+- **description**: 목록에서 배정 해제를 누르면 열리는 확인 단계. 배정이 사라지는 작업이라 한 번 더 확인을 받으며 사유는 받지 않는다. 대상 영상과 지금 배정된 작업자를 보여주고, 해제해도 라벨과 그 이력은 남는다는 것과 되돌리려면 다시 배정한다는 것을 함께 알린다 — 해제를 취소하는 자리는 따로 두지 않는다. 확인 시 배정 해제(API-259)를 호출하고 결과를 토스트로 안내한 뒤 목록과 KPI 집계를 다시 조회한다. 검수 단계에 들어간 배정(검수 대기·검수 중·승인)은 목록에서 버튼이 이미 비활성화되어 이 확인 단계에 도달하지 않는다. 검수자 이상에게만 열리며 역할 계층으로 관리자도 그대로 쓴다. ESC·배경 클릭·취소로 닫힌다.
+
+**references_apis**:
+
+- API-259
 
 **references_features**:
 
@@ -811,6 +956,7 @@ web
 - API-137
 - API-116
 - API-187
+- API-259
 
 ## attached_files
 
@@ -829,6 +975,7 @@ _(empty)_
 ### records
 
 - IMPREC-333
+- IMPREC-465
 
 ### progress
 
@@ -840,7 +987,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-29T01:25:13.851Z
+2026-09-15T13:26:59.357Z
 
 ### module_paths
 
@@ -888,7 +1035,12 @@ _(empty)_
 ## realizes_use_cases
 
 - UC-029
+- UC-043
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-1122
+- AC-1123
+- AC-1124
+- AC-1126
+- AC-1127

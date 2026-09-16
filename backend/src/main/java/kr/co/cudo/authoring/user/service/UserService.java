@@ -171,14 +171,42 @@ public class UserService {
      * <p>자기호출(2-인자 → 3-인자)이라 이 메서드의 {@code @Transactional} 은 프록시를 타지 않지만,
      * 진입점 양쪽에 같은 선언이 있어 <b>어느 쪽으로 들어와도 트랜잭션이 열린다</b>.
      *
+     * <h3>★ 표시 이름은 별개 축이다 — 주체를 남기지 않는다</h3>
+     * <p>{@code actor} 는 <b>역할 축 전용</b>이다. 이름 수정의 감사는 {@code MDFCN_DT}(수정일시)
+     * 하나로 끝내고 수정자 칸을 두지 않는다(@design AC-1018). 이름을 로그로도 남기지 않는다 —
+     * 사람 이름은 개인정보라 로그에 실을 값이 아니다.
+     *
+     * <h3>★ 검증은 어느 쓰기보다 앞이다 — 롤백에 기대지 않는다</h3>
+     * <p>순서는 <b>존재 확인(404) → 이름 검증(400) → 역할 쓰기 → 이름 쓰기</b> 다. 이름 검증을 역할
+     * 분기 <i>뒤</i>에 두면 "역할은 유효하고 이름만 무효" 인 요청이 <b>역할 upsert 를 먼저 실행한 뒤</b>
+     * 400 을 던진다. 그 경우에도 결과는 안전하다 — {@code CustomException} 이 unchecked 라 트랜잭션이
+     * 롤백되고 캐시 무효화도 {@code AFTER_COMMIT} 이라 발화하지 않는다. 그러나 <b>그 안전이 롤백이라는
+     * 바깥 장치에 매달려 있다</b>: 트랜잭션 경계를 옮기거나 진입점을 하나 늘리면 아무 신호 없이 깨진다.
+     * 애초에 쓰지 않으면 그 의존이 사라진다.
+     *
+     * <p><b>404 는 검증보다 앞을 지킨다</b> — 없는 사용자에게 400 을 주면 응답이 존재 여부를 알려주는
+     * 창이 된다(CWE-203).
+     *
+     * <p>이름을 보내지 않은 요청({@code userNm == null})은 검증 자체를 타지 않는다. 저장된 이름이
+     * 무효하다는 이유로 <b>역할만 고치는 저장이 막히면 안 된다</b> — 인계 토큰에 이름 클레임이 없는
+     * 사용자의 저장값은 빈 문자열이라, 보내지 않은 축을 판정하면 그 사용자의 역할을 영영 못 바꾼다.
+     *
      * @param actor 역할을 바꾼 주체(인계 토큰 subject). 인증 컨텍스트가 없으면 null
      * @design AC-1018
+     * @design AC-1019
      */
     @Transactional("controlTransactionManager")
     public UserProfileResponse update(Long userNo, UserUpdateRequest req, String actor) {
         // 존재 여부 확인 — 갱신 전 검증으로 404 분기 및 응답 빌드용 baseline 확보.
         LsAcntUser user = userRepository.findByUserNo(userNo)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+
+        // ★이름 검증은 <어떤 쓰기보다도 앞>이다 — 역할 쓰기가 일어난 뒤 400 을 던지고 롤백에
+        //   기대는 구조를 만들지 않는다(메서드 javadoc 「검증은 어느 쓰기보다 앞이다」).
+        //   보내지 않은 축(null)은 판정하지 않는다 — 그래야 역할만 고치는 저장이 막히지 않는다.
+        //   requireValidUserName 은 null 을 돌려주지 않고 던지므로, 아래에서 이 값의 null 여부가
+        //   곧 「이름을 보냈는가」와 같다 — 분기 조건을 두 번 적지 않기 위한 구조다.
+        String validatedName = req.userNm() == null ? null : requireValidUserName(req.userNm());
 
         String currentRole = lsUserRoleRepository.findByUserNo(userNo)
                 .map(LsUserRole::getRoleCd)
@@ -201,11 +229,26 @@ public class UserService {
                     userNo, currentRole, nextRole, modifier);
         }
 
-        // 응답 — 갱신된 role 반영. channel 은 변경 대상 사용자의 컨텍스트 정보가 없어 빈 값.
+        // ★표시 이름 축 — 역할 축과 독립이다. 이름만 보낸 요청은 위 역할 분기에 애초에 들어가지
+        //   않으므로 마지막 관리자 보호에도 걸리지 않는다(@design AC-1019). 그 성질은 「이름만 보낸
+        //   요청을 따로 알아본다」가 아니라 <구조>에서 나온다 — 분기 조건을 풀어 쓰지 말 것.
+        String nextName = user.getUserNm();
+        if (validatedName != null) {
+            nextName = validatedName;
+            // 「같은 값이면 아무것도 바꾸지 않는다(수정일시 포함)」의 판정은 <문장 안>에 있다.
+            //   여기서 미리 비교해 거르지 않는 이유는 2노드가 같은 옛 값을 읽고 각각 쓰면 수정일시가
+            //   두 번 밀리기 때문이다. 반환값(바꿨는지)은 쓰지 않는다 — 이름은 로그에 싣지 않고
+            //   주체도 남기지 않는다(감사 주체는 역할 축이 소유한다).
+            userRepository.updateUserNm(userNo, nextName);
+        }
+
+        // 응답 — 갱신된 role·이름 반영. channel 은 변경 대상 사용자의 컨텍스트 정보가 없어 빈 값.
+        //   ★이름은 엔티티가 아니라 nextName 에서 읽는다: 위 native UPDATE 는 영속성 컨텍스트를
+        //   우회하므로 엔티티 스냅샷은 옛 이름 그대로다.
         return new UserProfileResponse(
                 user.getUserNo(),
                 user.getUserId(),
-                user.getUserNm(),
+                nextName,
                 user.getUserEmlAddr(),
                 nextRole,
                 ""
@@ -289,6 +332,41 @@ public class UserService {
         return sanitized.length() > MAX_ACTOR_LENGTH
                 ? sanitized.substring(0, MAX_ACTOR_LENGTH)
                 : sanitized;
+    }
+
+    /**
+     * <b>표시 이름 — 정규화한 <i>뒤</i> 판정한다. 폭을 넘으면 자르지 않고 거절한다.</b>
+     *
+     * <h3>왜 선언적 검증(@Size/@NotBlank)이 아닌가</h3>
+     * <p>판정 대상이 요청 원문이 아니라 <b>공백·제어문자를 걷어낸 결과</b>이기 때문이다. 원문을 보는
+     * 검증은 공백뿐인 이름을 통과시키고(정규화하면 빈 값이 된다), 반대로 앞뒤 공백 때문에 정상 이름을
+     * 거절한다. 부수 효과로 거부 응답이 필드 경로를 담지 않는다(@design AC-1019).
+     *
+     * <h3>★ 왜 상한을 {@link Integer#MAX_VALUE} 로 넘기나</h3>
+     * <p>정규화 규칙의 단일 진실원은 {@link UserDisplayNames#normalize} 다 — 여기에 다시 적으면 두
+     * 번째 진실원이 된다. 그런데 그 함수는 상한을 넘으면 <b>자른다</b>. 자른 값을 받으면 길이가 늘
+     * 상한 이하라 <b>초과 자체를 알아볼 수 없고</b>, 정확히 상한 길이인 정상 이름과도 구분되지 않는다.
+     * 그래서 절단이 개입하지 않는 상한으로 불러 <b>정규화만</b> 받고 길이는 여기서 직접 잰다. 그
+     * 결과 {@code normalize} 의 절단은 이 경로에서 <b>도달하지 않는 마지막 방어선</b>으로 남는다.
+     *
+     * <h3>왜 절단이 아니라 거절인가</h3>
+     * <p>이름은 사람을 알아보는 값이라 조용히 잘리면 <b>다른 사람으로 보인다</b>. 상위 시스템에서
+     * 이름을 인계받는 경로도 이미 입구에서 길이로 되돌려 보내므로, 두 입구의 판정이 갈리면 안 된다.
+     *
+     * @return 저장해도 되는 정규화된 이름 (null 아님)
+     * @throws CustomException 정규화 결과가 비었거나({@code INVALID_INPUT}) 저장 폭을 넘을 때
+     * @design API-004
+     * @design AC-1019
+     */
+    private static String requireValidUserName(String raw) {
+        String normalized = UserDisplayNames.normalize(raw, Integer.MAX_VALUE);
+        if (normalized == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "사용자 이름은 공백일 수 없습니다.");
+        }
+        if (normalized.length() > UserDisplayNames.MAX_USER_NM_LENGTH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "사용자 이름이 저장할 수 있는 길이를 넘습니다.");
+        }
+        return normalized;
     }
 
     private Long parseUserNo(String sub) {

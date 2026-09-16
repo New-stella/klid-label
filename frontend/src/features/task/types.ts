@@ -201,9 +201,26 @@ export interface TaskBoardParams {
   page?: number;
   size?: number;
   sort?: string[];
+  /**
+   * **제외분만 보기** — BE `excludedOnly`. [@design API-073] [@design ADR-069]
+   *
+   * 보내지 않거나 `false` 면 제외 표시가 붙지 않은 영상만 보는 기본 목록이고, `true` 면 제외된
+   * 영상만 남는다. **가시 범위 축이지 거르는 값이 아니다** — 그래서 집계 요청에도 그대로 실린다
+   * (아래 {@link TaskBoardSummaryParams} 가 이 키를 빼지 않는 이유).
+   *
+   * ⚠ 이 값이 켜지면 **작업 진행 상태 축(`workStatus`)을 함께 보내지 않는다** — 「제외됨 건수」를
+   * 주는 집계 창구가 그 축을 반영하지 않고 세기 때문이다. 상태로 좁힌 채 그 숫자를 누르면
+   * 전환 결과가 누른 숫자보다 적어진다. 배선은 `boardParams.buildBoardParams` 한 곳이 소유한다.
+   */
+  excludedOnly?: boolean;
 }
 
-/** `GET /v1/tasks/board/summary` 파라미터 — ★ workStatus 는 보내지 않는다(카드 자체가 선택지). */
+/**
+ * `GET /v1/tasks/board/summary` 파라미터 — ★ workStatus 는 보내지 않는다(카드 자체가 선택지).
+ *
+ * ⚠ `excludedOnly` 는 **뺀 목록에 넣지 않는다** — 그것은 거르는 값이 아니라 가시 범위라,
+ *   집계도 목록과 같은 범위를 봐야 카드 숫자와 목록이 어긋나지 않는다.
+ */
 export type TaskBoardSummaryParams = Omit<
   TaskBoardParams,
   'workStatus' | 'page' | 'size' | 'sort'
@@ -227,6 +244,23 @@ export interface TaskBoardSummary {
   reviewPending: number;
   completed: number;
   rejected: number;
+  /**
+   * **제외됨** — 화면 목록에서 뺀 영상 건수. [@design API-136] [@design AC-1124] [@design ADR-069]
+   *
+   * ★<b>위 불변식(버킷 합 = total)의 항이 아니다</b> — 제외분은 `total` 에서도 이미 빠져 있는
+   * **별개 축**이라 합에 더하면 불변식이 깨진다. KPI 카드로 그리지 않고 목록 표 위에 따로 둔다.
+   *
+   * ★<b>이 숫자의 진실원은 집계 창구 하나다</b> — 목록 응답(`GET /v1/tasks/board`)에는 이 키가
+   * 없다. 같은 숫자를 두 창구가 각각 계산하면 한쪽만 조건이 바뀌어도 드러나지 않는다.
+   *
+   * ⚠ <b>작업 진행 상태 축을 반영하지 않고 센다</b> — 상태에 가려진 제외분까지 세어야 감춰진
+   * 것이 있다는 사실 자체가 드러나기 때문이다. 그래서 화면은 이 숫자를 눌러 제외분 보기로
+   * 전환할 때 **그 상태 축 조건을 빼고** 요청한다(그러지 않으면 전환 결과가 누른 숫자보다 적다).
+   *
+   * 값이 `0` 이어도 응답에 실린다 — 0 이라고 키가 빠지면 화면이 「제외된 것이 없다」와
+   * 「제외 기능이 없다」를 구분해 보여 주지 못한다. 값을 못 내리는 구 응답만 `undefined` 다.
+   */
+  excludedCount?: number;
 }
 
 /**

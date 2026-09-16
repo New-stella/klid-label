@@ -168,6 +168,16 @@ public class LsDataRaw {
      */
     public static final String DATA_STTS_FAILED = "FAILED";
 
+    /**
+     * 제외여부 값역 — {@code Y}=저작도구 화면 목록에서 뺀다 / {@code N}=표시(기본값). [@design ADR-069]
+     *
+     * <p>비교는 <b>여기서 하지 않는다</b> — 배제 술어의 단일 소유자는
+     * {@code kr.co.cudo.authoring.video.repository.VideoExclusionScope} 이며 조회 경로는 그것만 쓴다.
+     * 호출부마다 이 상수로 비교를 다시 적으면 한 곳만 빠져도 제외한 영상이 그 화면에 그대로 뜬다.
+     */
+    public static final String EXCL_YES = "Y";
+    public static final String EXCL_NO = "N";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "RAW_SN")
@@ -327,6 +337,39 @@ public class LsDataRaw {
     @Column(name = "PORTAL_USER_NO", length = 100)
     private String portalUserNo;
 
+    /**
+     * <b>제외여부</b>(V39) — 이 영상을 저작도구 화면 목록에서 뺄지에 대한 사람의 판정. [@design ADR-069]
+     *
+     * <p><b>가시성 축</b>이며 개인정보 성질 축({@code PRVC_TYPE_CD}·{@code DE_IDENT_YN})과 무관하다 —
+     * 둘을 엮지 말 것.
+     *
+     * <p>★★<b>미치는 범위는 저작도구 화면 시야 하나다.</b> 배치 파이프라인 · 관제 통지 · 데이터마트
+     * 조회 뷰 · 학습데이터 산출물 · 관제 조회 창구 · 통계 · 포털 채널은 <b>전부 무변경</b>이고 제외된
+     * 영상도 그대로 흐른다. 「일관성」을 이유로 그쪽에 이 조건을 붙이면 관제가 보던 행이 예고 없이
+     * 사라져 ADR-037(검수 완료·통지 건의 관제 접근 무조건 보장)을 정면으로 깬다.
+     *
+     * <p>★<b>산출물 콘텐츠 해시의 입력이 아니다</b> — 넣으면 제외를 켰다 끄는 것만으로 산출물이
+     * 재생성되고 관제에 수정 통지가 나간다(내용은 하나도 바뀌지 않았는데).
+     *
+     * <p><b>비어 있을 수 없다</b>({@code NOT NULL DEFAULT 'N'}) — 빈값을 허용하면 모든 조회부가 빈값
+     * 처리를 각자 재구현해야 하고 한 곳만 빠뜨려도 제외한 영상이 그 화면에 그대로 뜬다.
+     *
+     * <p>★기본값을 <b>필드 선언에</b> 둔다 — 생성자에만 두면 <b>빌더를 거치지 않는 생성 경로</b>에서
+     * 비어 버린다. 이 엔티티는 증강·해상도 파생을 {@code new LsDataRaw()}(보호 생성자) + 필드 대입으로
+     * 만들어, 실제로 그 경로 전부가 {@code null} 로 INSERT 되어 파생 생성이 통째로 실패했다(실측).
+     * 필드 초기화는 <b>모든</b> 생성 경로가 지나가므로 누락이 구조적으로 불가능하다. Hibernate 는
+     * 보호 생성자로 만든 뒤 DB 값을 덮어쓰므로 조회에는 영향이 없다.
+     * <b>이 필드를 인자로 받는 팩토리를 만들지 않는다</b>(파생은 언제나 표시분으로 시작한다).
+     *
+     * <p>쓰기는 {@code VideoExclusionService} 한 곳이며 <b>조건부 원자 UPDATE</b>로만 바꾼다 —
+     * 엔티티 dirty checking 으로 쓰면 함께 로드된 다른 컬럼을 stale 값으로 덮어쓴다(클래스 주석 참조).
+     *
+     * @design ERD-012
+     */
+    @Column(name = "EXCL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String exclYn = EXCL_NO;
+
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
@@ -357,6 +400,8 @@ public class LsDataRaw {
         this.psdoInclYn = DEID_PSEUDONYMITY_ON_INSERT;
         this.prvcInclYn = DEID_PRIVACY_INCLUDED_ON_INSERT;
         this.dataSttsCd = STATUS_PENDING;
+        // ⚠ 제외여부는 여기서 대입하지 않는다 — <b>필드 선언</b>이 기본값을 갖는다. 이 생성자에만 두면
+        //   보호 생성자 + 필드 대입으로 만드는 파생 생성 경로가 비어 INSERT 가 실패한다(필드 javadoc).
         this.regDt = LocalDateTime.now();
     }
 
@@ -1017,6 +1062,17 @@ public class LsDataRaw {
      */
     public boolean needsDeidentify() {
         return PRVC_TYPE_PRVC.equals(this.prvcTypeCd) || PRVC_TYPE_PSDO.equals(this.prvcTypeCd);
+    }
+
+    /**
+     * 이 영상이 <b>저작도구 화면 목록에서 빠진 상태</b>인가. [@design ADR-069]
+     *
+     * <p>단건 판정 전용이다 — <b>조회 술어로 쓰지 말 것</b>. 목록·건수의 배제 조건은
+     * {@code VideoExclusionScope} 가 소유하며, 여기서 걸러 내면 페이징 이후 Java 필터가 되어
+     * {@code totalElements} 가 어긋난다.
+     */
+    public boolean isExcluded() {
+        return EXCL_YES.equals(this.exclYn);
     }
 
     /**

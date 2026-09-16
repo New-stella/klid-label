@@ -40,11 +40,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-357"
+          "IMPREC-357",
+          "IMPREC-459"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:20.543Z",
+        "last_updated": "2026-09-15T13:26:26.529Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -82,11 +83,11 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 13,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "API-008의 data.parameters 변경 — implements",
     "change_summary": "검수 시작 갈래의 서술을 닫힌 목록에서 판정 기준으로 바꾼다. 상태를 전이하는 갈래는 검수 대기에서 시작하는 하나뿐이고 그 밖의 갈래는 모두 상태 전이 없이 점유만 세운다고 적는다. 구 서술은 「두 갈래다」로 닫아 두어 유예가 만료된 검수 진행 영상을 이어받는 갈래와 본인 재진입을 빠뜨렸고, 갈래가 늘 때마다 다시 틀린다. 예시는 「예컨대」 꼴로 열어 두고 동시 경합의 결말 서술은 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T11:10:42.042Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:26:26.529Z",
     "created_at": "2026-05-29T06:31:03.092Z"
   }
 }

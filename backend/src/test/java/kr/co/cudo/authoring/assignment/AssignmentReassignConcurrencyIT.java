@@ -1,7 +1,11 @@
 package kr.co.cudo.authoring.assignment;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
@@ -64,6 +68,9 @@ class AssignmentReassignConcurrencyIT {
     @Autowired private LsTaskEventLogRepository taskEventLogRepository;
     @Autowired private LsRawDataStatusRepository dataSttsRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext(unitName = "control")
+    private EntityManager entityManager;
 
     private final TransactionTemplate txTemplate;
 
@@ -193,6 +200,103 @@ class AssignmentReassignConcurrencyIT {
             assertThat(elapsed).isGreaterThanOrEqualTo(400L);
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    /**
+     * ★<b>동시 이중 해제가 500 으로 나가지 않는다</b> — 진 쪽은 404 다.
+     * [@design ADR-069] [@design API-259]
+     *
+     * <h3>왜 이 클래스인가</h3>
+     * <p>해제도 같은 배정 원장의 {@code @Version} 을 타는 동시성 시험이라 이 클래스가 제자리다. 전용
+     * 클래스를 새로 만들면 <b>스프링 테스트 컨텍스트가 하나 늘어</b> 워커 힙에 영구히 상주하며,
+     * 이 클래스가 이미 갖고 있는 커넥션 풀 확장 설정을 그대로 쓸 수 있다.
+     *
+     * <h3>왜 404 인가</h3>
+     * <p>진 쪽이 마주한 사실은 「그 배정이 이미 없다」이고 그것이 해제 창구의 404 계약이다. 409 로 두면
+     * <b>같은 실제 상황이 타이밍에 따라 갈린다</b> — 순차로 두 번 누르면 404, 동시에 누르면 409.
+     * 재배정이 409 인 것과 다른 이유는 결말이 다르기 때문이다: 재배정은 요청이 이루지 못한 것이 남아
+     * 재시도가 뜻을 갖지만, 해제는 원하던 끝 상태가 이미 이뤄져 있다.
+     *
+     * <h3>왜 스레드 경주가 아니라 만들어 낸 충돌인가</h3>
+     * <p>여럿을 띄워 「하나만 성공」을 보는 방식은 스케줄러가 직렬화하면 낙관적 잠금이 <b>아예 발화하지
+     * 않아</b> 수정 없이도 통과한다(위 4병렬 시험이 그 이유로 거부 형태를 단정하지 못한다). 그래서
+     * 충돌을 만든다 — 해제가 배정을 읽은 <b>뒤</b> 작업 상태 행을 공유 잠금하려는 자리를 막아 세우고,
+     * 멈춘 사이에 배정 행의 판올림을 올린다.
+     */
+    @Test
+    @DisplayName("★동시_이중_해제는_500이_아니라_404다_낙관적잠금_충돌이_창구_계약으로_번역된다")
+    void concurrentDoubleUnassignMapsToNotFound() throws Exception {
+        // given — 영상 1000 배정(이 호출이 작업 상태 row 도 함께 만든다)
+        var created = assignmentService.assign(
+                new AssignmentCreateRequest(100L, List.of(1000L)), reviewer());
+        Long assignmentId = created.items().get(0).authrtSeq();
+
+        CountDownLatch holding = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // ① 작업 상태 행을 배타 잠금으로 붙잡는다 — 해제가 그 행을 공유 잠금하려다 여기서 멈춘다.
+            Future<?> holder = pool.submit(() -> txTemplate.executeWithoutResult(s -> {
+                entityManager.find(LsRawDataStatus.class, 1000L, LockModeType.PESSIMISTIC_WRITE);
+                holding.countDown();
+                awaitQuietly(release);
+            }));
+            assertThat(holding.await(30, TimeUnit.SECONDS)).isTrue();
+
+            // ② 해제를 시작한다 — 배정 엔티티를 이미 읽은 채로 ①의 잠금 앞에서 멈춘다.
+            Future<Throwable> loser = pool.submit(() -> {
+                try {
+                    assignmentService.unassign(assignmentId, reviewer());
+                    return null;
+                } catch (Throwable t) {
+                    return t;
+                }
+            });
+            assertThat(awaitBlockedOnLock())
+                    .as("해제가 잠금 앞에서 멈춰야 이 시험이 성립한다 — 안 멈추면 충돌을 만들 수 없다")
+                    .isTrue();
+
+            // ③ 멈춘 사이 배정 행을 남이 바꾼다 — 승자가 이미 해제한 상황과 같은 판올림 불일치를 만든다.
+            assertThat(jdbcTemplate.update(
+                    "UPDATE ls_task_altmnt SET ver = ver + 1 WHERE assignment_id = ?", assignmentId))
+                    .isEqualTo(1);
+
+            // ④ 잠금을 풀어 해제가 이어 달리게 한다 — 삭제가 판올림 불일치로 거부된다.
+            release.countDown();
+            holder.get(30, TimeUnit.SECONDS);
+
+            Throwable thrown = loser.get(60, TimeUnit.SECONDS);
+            assertThat(thrown)
+                    .as("★낙관적 잠금 예외가 그대로 새어 나가면 전역 핸들러에 매핑이 없어 500 이 된다")
+                    .isInstanceOf(CustomException.class);
+            assertThat(((CustomException) thrown).getErrorCode())
+                    .as("진 쪽이 마주한 사실은 「그 배정이 이미 없다」이고 그것이 해제 창구의 404 계약이다")
+                    .isEqualTo(ErrorCode.NOT_FOUND);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    /** 이 저장소의 어떤 세션이 잠금을 기다리고 있는가 — ②가 실제로 멈췄는지의 신호. */
+    private boolean awaitBlockedOnLock() throws InterruptedException {
+        for (int i = 0; i < 300; i++) {
+            Long waiting = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'", Long.class);
+            if (waiting != null && waiting > 0) {
+                return true;
+            }
+            Thread.sleep(100);
+        }
+        return false;
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            latch.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

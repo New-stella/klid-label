@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-09-15T13:24:13.129Z |
+| Last sync | 2026-09-15T15:36:19.753Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 209 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -20,14 +20,14 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 10건 / 스코프 밖 39건
-  ℹ️  api_endpoint: 이번 키트 62건 / 스코프 밖 172건
+  ℹ️  api_endpoint: 이번 키트 62건 / 스코프 밖 175건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 10건 / 스코프 밖 26건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 30건
-  ℹ️  use_case: 이번 키트 12건 / 스코프 밖 23건
+  ℹ️  use_case: 이번 키트 12건 / 스코프 밖 24건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 12건 / 스코프 밖 96건 (그중 domain_id 없음 10건)
-  ℹ️  adr: 이번 키트 20건 / 스코프 밖 41건 (그중 domain_id 없음 7건)
+  ℹ️  acceptance: 이번 키트 12건 / 스코프 밖 103건 (그중 domain_id 없음 13건)
+  ℹ️  adr: 이번 키트 20건 / 스코프 밖 42건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 5건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -208,7 +208,7 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |

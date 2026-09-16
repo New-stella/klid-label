@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
+import kr.co.cudo.authoring.video.dto.VideoListPage;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.AutoLabelSummaryService;
 import kr.co.cudo.authoring.video.service.FrameImageService;
@@ -84,7 +85,12 @@ public class VideoController {
                     "검색·필터 파라미터는 전부 선택이며, 하나도 보내지 않으면 기존과 동일한 목록·정렬이 반환된다. " +
                     "필터는 모두 DB 조건으로 적용되어 totalElements 도 필터 적용 후 전체 건수다. " +
                     "REVIEWER 는 전체 영상을, WORKER 는 본인에게 LABELER 로 배정된 영상만 조회한다 — " +
-                    "범위 제한은 거부가 아니라 결과 축소이며 배정이 없으면 403 이 아니라 빈 목록이다."
+                    "범위 제한은 거부가 아니라 결과 축소이며 배정이 없으면 403 이 아니라 빈 목록이다. " +
+                    "기본은 제외 표시가 붙지 않은 영상만 보는 목록이다 — 제외된 영상은 목록에서 빠지고 " +
+                    "totalElements 도 함께 줄어든다(목록과 건수는 언제나 같은 조건에서 나온다). " +
+                    "응답에는 excludedCount(제외됨 건수)가 키 하나로 더해지며 값이 0 이어도 실린다 — " +
+                    "현재 페이지가 아니라 지금 걸린 필터 범위 전체의 값이라 excludedOnly=true 로 전환했을 때의 " +
+                    "totalElements 와 일치한다. 기존 키의 이름·타입·뜻은 그대로다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -95,7 +101,7 @@ public class VideoController {
     @GetMapping
     // 관찰-1: 역할 미배정(role=null) INTERNAL 사용자의 영상 콘텐츠 노출 차단. REVIEWER/WORKER 만 허용.
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
-    public ApiResponse<Page<VideoSummaryResponse>> list(
+    public ApiResponse<VideoListPage> list(
             @PageableDefault(size = 20) Pageable pageable,
             @Parameter(description = "배치 단계 상태 필터 — LS_DATA_RAW.DATA_STTS_CD "
                     + "(PENDING / MARKING_READY / PROCESSING / COMPLETED / FAILED)")
@@ -125,6 +131,11 @@ public class VideoController {
                     + "배치 단계 상태는 완료로 남으므로 dataSttsCd=FAILED 로는 그 영상을 모을 수 없다. "
                     + "skippedStage 와 함께 지정할 수 있다(축이 다르다). 지원하지 않는 값은 400.")
             @RequestParam(required = false) String failedStage,
+            @Parameter(description = "제외분만 보기 — 보내지 않으면 제외 표시가 붙지 않은 영상만 보는 기본 목록이고, "
+                    + "true 면 제외된 영상만 남는다. 값역은 이 두 갈래뿐이며 표시분과 제외분을 섞어 보는 갈래는 "
+                    + "두지 않는다(섞이면 어느 것이 제외분인지 행마다 구분해야 한다). "
+                    + "목록과 전체 건수는 이 값이 무엇이든 같은 조건에서 나온다.")
+            @RequestParam(required = false) Boolean excludedOnly,
             @AuthenticationPrincipal TokenClaims actor) {
         // ★ 신규 파라미터는 전부 optional 이며 BE 기본값을 바꾸지 않는다 — 보내지 않던 기존 호출의
         //   결과가 조금도 달라지면 안 된다(하위호환 계약). [design: API-042]
@@ -133,7 +144,7 @@ public class VideoController {
         //   IDOR 입구이므로 VideoListFilter 에 넣지 않는다(CWE-639). [design: API-042] [design: ROLE-002]
         VideoListFilter filter = new VideoListFilter(
                 dataSttsCd, reviewStatusCd, cctvNameKeyword, eventTypeCd, from, to,
-                skippedStage, failedStage);
+                skippedStage, failedStage, excludedOnly);
         return ApiResponse.ok(videoQueryService.listForActor(safeSort(pageable, reviewStatusCd), filter, actor));
     }
 

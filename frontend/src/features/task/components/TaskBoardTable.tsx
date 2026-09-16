@@ -26,6 +26,10 @@ import {
 } from '@/features/task/boardSort';
 import { TASK_STATUS_LABEL, type RowStatus } from '@/features/task/statusLabels';
 import type { Task } from '@/features/task/types';
+import {
+  UNASSIGN_BLOCKED_REASON,
+  isUnassignBlocked,
+} from '@/features/task/unassignEligibility';
 import { isMarkingBlocked, type Video } from '@/features/video/types';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -251,6 +255,23 @@ export interface TaskBoardTableProps {
   onHistory: (row: TaskRow) => void;
   onOpenLabel: (srcSn: number) => void;
   onOpenMarking: (videoId: number) => void;
+  /**
+   * 지금 **제외분만** 보고 있는가 — 켜지면 배정·검수로 이어지는 동작을 전부 감춘다
+   * (선택 체크박스 · 배정/재배정 · 배정 해제). [@design SCREEN-012] [@design AC-1127]
+   *
+   * ⚠ **기본값이 종전 동작**이다(꺼짐) — 이 prop 을 모르는 기존 호출부의 화면이 그대로여야 한다.
+   *   기본값을 켜짐으로 두면 작업 목록의 배정 동선이 통째로 사라지는데, 그 회귀는 이 표를
+   *   직접 렌더하는 시험에서는 드러나지 않는다(그쪽은 제외 축을 보지 않는다).
+   */
+  excludedOnly?: boolean;
+  /**
+   * 배정 해제 — 재배정과 **같은 자리**에 놓이되 뜻이 다르다(담당 교체 ↔ 배정 제거).
+   * [@design API-259] [@design AC-1123]
+   *
+   * ⚠ 선택 prop 이지만 **버튼은 넘기지 않아도 그려진다** — 안 그리면 호출부가 배선을 빠뜨렸을 때
+   *   버튼이 조용히 사라져 아무도 모른다(그 실패는 화면에서 「원래 없는 기능」과 구분되지 않는다).
+   */
+  onUnassign?: (row: TaskRow) => void;
 }
 
 /**
@@ -279,6 +300,8 @@ export function TaskBoardTable({
   onHistory,
   onOpenLabel,
   onOpenMarking,
+  excludedOnly = false,
+  onUnassign,
 }: TaskBoardTableProps) {
   // 일괄 배정은 미배정 행 전용이다(사양 SCREEN-012 ★) — 이미 작업자가 배정된 행은
   // "전체 선택" 대상 집합에서 제외한다(개별 체크박스는 아래에서 별도로 disabled 처리).
@@ -296,7 +319,9 @@ export function TaskBoardTable({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2">
-        {isReviewer && pagedVideoIds.length > 0 && (
+        {/* ★제외분만 보는 동안에는 선택 수단을 두지 않는다 — 일괄 배정 액션바가 함께 사라져
+            아무 데도 닿지 않는 조작이 되고, 제외한 것을 배정 대상으로 담는 길처럼 보인다. */}
+        {isReviewer && !excludedOnly && pagedVideoIds.length > 0 && (
           <Field orientation="horizontal">
             <Checkbox
               checked={allPagedSelected ? true : somePagedSelected ? 'indeterminate' : false}
@@ -386,13 +411,17 @@ export function TaskBoardTable({
                   {isReviewer && (
                     <td className={TD_PAD}>
                       {/* 일괄 배정은 미배정 행 전용이다 — 이미 작업자가 배정된 행은
-                          선택 체크박스를 비활성화한다(사양 SCREEN-012 ★). */}
-                      <Checkbox
-                        aria-label={`${r.videoName} 선택`}
-                        checked={selectedVideoIds.has(r.video.id)}
-                        disabled={actionsDisabled || !!r.task?.workerId}
-                        onCheckedChange={() => onToggleRow(r.video.id)}
-                      />
+                          선택 체크박스를 비활성화한다(사양 SCREEN-012 ★).
+                          ★제외분만 보는 목록에서는 체크칸 자체를 두지 않는다. 칸(`<td>`)은 남겨
+                            열 수가 헤더·로딩 스켈레톤·빈 상태 colSpan 과 갈라지지 않게 한다. */}
+                      {!excludedOnly && (
+                        <Checkbox
+                          aria-label={`${r.videoName} 선택`}
+                          checked={selectedVideoIds.has(r.video.id)}
+                          disabled={actionsDisabled || !!r.task?.workerId}
+                          onCheckedChange={() => onToggleRow(r.video.id)}
+                        />
+                      )}
                     </td>
                   )}
                   <td className={TD_PAD}>
@@ -455,11 +484,14 @@ export function TaskBoardTable({
                   {/* 액션 버튼 라벨("배정"/"재배정"/"이력"/"작업"/"마킹")은 줄바꿈되면
                       버튼이 세로로 늘어나 행 높이를 무너뜨린다. */}
                   <td className={`whitespace-nowrap ${TD_PAD}`}>
-                    <div className="flex flex-nowrap gap-1">
+                    {/* 배정 해제와 그 비활성 사유가 더해져 한 줄에 들어가지 않을 수 있다 —
+                        `flex-wrap` 으로 접는다(구 `flex-nowrap` 은 표 최소 폭을 넘겨 밀어냈다). */}
+                    <div className="flex flex-wrap items-center gap-1">
                       {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼).
                           COMPLETED(검수 승인 완료) 행은 재배정 불가 — 버튼 자체를 가린다.
                           BE 가드(ASSIGNMENT_ALREADY_COMPLETED)와 짝을 이루는 UI 정합. */}
                       {isReviewer &&
+                        !excludedOnly &&
                         !(r.task?.workerId && r.rowStatus === 'COMPLETED') && (
                           <Button
                             variant="ghost"
@@ -480,6 +512,38 @@ export function TaskBoardTable({
                             {r.task?.workerId ? '재배정' : '배정'}
                           </Button>
                         )}
+                      {/*
+                        [@design API-259] [@design AC-1123] 배정 해제 — **재배정과 같은 자리**에 두되
+                        뜻이 다르다(담당 교체 ↔ 배정 제거). 배정이 있는 행에만 선다.
+                        ★검수 단계에 들어간 배정(검수 대기·검수 중·승인)은 **미리 비활성 + 사유**를
+                          함께 보인다 — 눌러서 물리쳐진 뒤에야 아는 동선을 만들지 않는다.
+                        ★반려는 그 셋에 들지 않아 **활성**이다(`unassignEligibility` 가 그 판정을 소유한다).
+                        ⚠ 사유를 `title` 로만 두지 않는다 — 비활성 버튼은 초점을 받지 못해 보조기술이
+                          그 속성에 닿지 못한다.
+                        ⚠ 제외분만 보는 목록에서는 두지 않는다(배정 동선 전체와 함께 사라진다).
+                      */}
+                      {isReviewer && !excludedOnly && r.task?.workerId && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={actionsDisabled || isUnassignBlocked(r.rowStatus)}
+                            onClick={() => onUnassign?.(r)}
+                            aria-label={`${r.videoName} 배정 해제`}
+                            data-testid={`task-unassign-${r.video.id}`}
+                          >
+                            배정 해제
+                          </Button>
+                          {isUnassignBlocked(r.rowStatus) && (
+                            <span
+                              className="text-caption text-gray-600"
+                              data-testid={`task-unassign-blocked-${r.video.id}`}
+                            >
+                              {UNASSIGN_BLOCKED_REASON}
+                            </span>
+                          )}
+                        </>
+                      )}
                       {/* 이력 — task가 있을 때만 (REVIEWER) */}
                       {isReviewer && r.task && (
                         <Button variant="ghost" size="sm" onClick={() => onHistory(r)}>

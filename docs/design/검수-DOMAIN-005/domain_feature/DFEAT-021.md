@@ -4,11 +4,11 @@ type: domain_feature
 version: 13
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-15T13:21:55.597Z
+synced_at: 2026-09-15T15:34:18.607Z
 status: CHANGED
-prev_version: 9
-content_hash: ad792f9e6333ca6403c450c34f4bd12da372530c18537bbac2bfed43e39b18d9
-stale: false
+prev_version: 13
+content_hash: b472b5cd399434160f9b2a5dfd326f9dd42af807703dd24a7d582a86b113dd38
+stale: true
 raw: ./_raw/DFEAT-021.json
 links:
   based_on: ["[[ADR-002]]"]
@@ -134,6 +134,7 @@ _(empty)_
 ### records
 
 - IMPREC-357
+- IMPREC-459
 
 ### progress
 
@@ -145,7 +146,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-29T01:26:20.543Z
+2026-09-15T13:26:26.529Z
 
 ### module_paths
 

@@ -128,8 +128,16 @@ public class UserController {
     }
 
     /**
-     * 사용자 역할 변경 — <b>관리자 권한에 관리자 유효창이 가산된다.</b>
+     * 사용자 역할·표시 이름 변경 — <b>관리자 권한에 관리자 유효창이 가산된다.</b>
      * [@design API-004] [@design ADR-046] [@design ADR-055] [@design AC-056]
+     * [@design AC-1018] [@design AC-1019]
+     *
+     * <p>★ <b>쓰기 축이 둘이다</b> — 역할과 표시 이름. 각각 선택이며 보내지 않은 축은 바꾸지 않는다.
+     * 계정 활성 여부는 외부(관제) 소유값이라 이 창구의 쓰기 대상이 아니다.
+     *
+     * <p>★ <b>유효창은 창구 전체에 걸린다</b> — {@link RequiresAdminSession} 은 메서드 단위 표식이라
+     * 이름만 보낸 요청에도 그대로 요구된다. 요청 내용에 따라 요구를 가르지 말 것: 그러면 판정이 이
+     * 창구로 복제되고, 「이름만 보낸 것처럼 꾸민 요청」이 유효창을 우회하는 자리가 생긴다.
      *
      * <p>역할을 바꾸는 것은 운영·관리 성격의 쓰기다. 유효창은 관리자 권한을 <b>대체하지 않고 가산</b>된다
      * — {@code @PreAuthorize} 는 그대로 필요하며 유효창이 역할을 승격시키지도 않는다.
@@ -151,15 +159,21 @@ public class UserController {
      * {@link UserUpdateRequest} 에 주체 필드를 추가하지 말 것.
      */
     @Operation(
-            summary = "사용자 역할 변경 (ADMIN + 관리자 유효창)",
-            description = "ADMIN 전용. role(ADMIN|REVIEWER|WORKER|PORTAL_USER)을 저작도구 소유 LS_USER_ROLE 에 변경한다. " +
-                    "화이트리스트 정규식으로 검증되며 role 미제공 시 변경되지 않는다. (활성/비활성 토글은 관제 소유라 제외) " +
-                    "역할 변경은 운영·관리 성격의 쓰기라 관리자 권한에 더해 유효한 관리자 유효창(X-Admin-Session)을 함께 요구한다. " +
-                    "마지막 남은 ADMIN 을 다른 역할로 내리는 요청은 409 로 거절된다."
+            summary = "사용자 역할·표시 이름 변경 (ADMIN + 관리자 유효창)",
+            description = "ADMIN 전용. 쓰기 축은 둘이다 — role(ADMIN|REVIEWER|WORKER|PORTAL_USER)을 저작도구 소유 " +
+                    "LS_USER_ROLE 에, userNm(표시 이름)을 사용자 마스터에 쓴다. 두 축 모두 선택이며 보내지 않은 축은 " +
+                    "바꾸지 않는다. role 은 화이트리스트 정규식으로 검증된다. (활성/비활성 토글은 관제 소유라 제외) " +
+                    "userNm 은 저장 직전 공백·제어문자를 걷어낸 값으로 판정하며, 그 뒤 남는 것이 없거나 저장 폭을 넘으면 " +
+                    "400 이다 — 잘라 담지 않는다. 같은 이름을 다시 보내면 아무것도 바꾸지 않고 수정일시도 밀지 않는다. " +
+                    "이 쓰기는 관리자 권한에 더해 유효한 관리자 유효창(X-Admin-Session)을 함께 요구하며, 그 요구는 " +
+                    "이름만 보낸 요청에도 똑같이 걸린다. 마지막 남은 ADMIN 을 다른 역할로 내리는 요청은 409 로 거절되며, " +
+                    "그 판정은 role 을 보낸 요청에만 적용된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "입력값 검증 실패 — role 화이트리스트 위반, 또는 userNm 이 정규화 후 비거나 저장 폭 초과. "
+                            + "거부 응답은 어느 칸이 틀렸는지 필드 경로나 배열 순번을 담지 않는다."),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
                     description = "ADMIN 권한이 없거나, 유효한 관리자 유효창이 없다(미제출·만료 포함). 두 사유를 응답으로 구분하지 않는다."),

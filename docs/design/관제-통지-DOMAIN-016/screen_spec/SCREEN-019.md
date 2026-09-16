@@ -4,10 +4,10 @@ type: screen_spec
 version: 56
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-15T13:21:53.436Z
+synced_at: 2026-09-15T15:34:16.482Z
 status: CHANGED
-prev_version: 43
-content_hash: 6a0bd535aa5ca84e15342e7d05101072e40eea790d40106e145793bab7bbfd0e
+prev_version: 56
+content_hash: 12fea8eed3ec057b4d0998c4f04adb6e9411a7dc3362b3cf5793fa2965317d90
 stale: true
 raw: ./_raw/SCREEN-019.json
 links:
@@ -1142,6 +1142,7 @@ _(empty)_
 ### records
 
 - IMPREC-108
+- IMPREC-464
 
 ### progress
 
@@ -1153,7 +1154,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T01:21:33.608Z
+2026-09-15T13:26:52.912Z
 
 ### module_paths
 

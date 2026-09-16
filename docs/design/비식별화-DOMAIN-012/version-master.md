@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-09-15T13:24:15.145Z |
+| Last sync | 2026-09-15T15:36:21.768Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 123 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 44건
-  ℹ️  api_endpoint: 이번 키트 11건 / 스코프 밖 223건
+  ℹ️  api_endpoint: 이번 키트 11건 / 스코프 밖 226건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 24건
   ℹ️  diagram_sequence: 이번 키트 8건 / 스코프 밖 28건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 6건 / 스코프 밖 33건
-  ℹ️  use_case: 이번 키트 5건 / 스코프 밖 30건
+  ℹ️  use_case: 이번 키트 5건 / 스코프 밖 31건
   ℹ️  domain_event: 이번 키트 3건 / 스코프 밖 9건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 103건 (그중 domain_id 없음 10건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 110건 (그중 domain_id 없음 13건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 20건 / 스코프 밖 41건 (그중 domain_id 없음 6건)
+  ℹ️  adr: 이번 키트 20건 / 스코프 밖 42건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 12건 (그중 domain_id 없음 11건)
 ```
 
@@ -144,12 +144,12 @@
 | [[NFR-046]] | nfr | 1 | UNCHANGED |
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 118 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 52 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 78 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 49 | UNCHANGED |

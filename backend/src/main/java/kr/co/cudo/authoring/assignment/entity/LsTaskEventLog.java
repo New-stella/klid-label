@@ -27,6 +27,8 @@ import java.util.Set;
  * <ul>
  *   <li>{@link #EVENT_ASSIGN}     : REVIEWER 가 WORKER 에게 최초 배정 — subject=배정된 작업자</li>
  *   <li>{@link #EVENT_REASSIGN}   : REVIEWER 가 다른 WORKER 로 재배정 — subject=새 작업자, prev=이전 작업자</li>
+ *   <li>{@link #EVENT_UNASSIGN}   : REVIEWER 가 배정을 해제 — subject=배정이 풀린 작업자. 배정 행이 사라지므로
+ *       <b>이 이벤트가 그 사실이 남는 유일한 자리</b>다</li>
  *   <li>{@link #EVENT_START_REVIEW} : 검수 시작 — actor=검수를 시작한 사람. <b>그 영상의 점유를 세운다</b></li>
  *   <li>{@link #EVENT_SUBMIT}     : WORKER 가 라벨링 완료 후 검수 제출 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_CANCEL_SUBMIT} : WORKER 가 검수 시작 전 제출을 취소 — actor=subject=작업자 본인</li>
@@ -59,6 +61,21 @@ public class LsTaskEventLog {
 
     public static final String EVENT_ASSIGN = "ASSIGN";
     public static final String EVENT_REASSIGN = "REASSIGN";
+    /**
+     * <b>배정 해제</b> — 작업자 배정을 푼다 (8자). [@design ADR-069] [@design API-259] [@design AC-1122]
+     *
+     * <p>배정 원장에 상태 칸도 활성 칸도 없어 해제는 <b>배정 행이 사라지는 것</b>으로 나타난다. 그래서
+     * 「누가 언제 누구의 배정을 풀었는가」가 남는 곳은 이 원장뿐이다 — 이 이벤트가 없으면 배정이
+     * 흔적 없이 증발한다.
+     *
+     * <p>이 종류를 더하는 데 마이그레이션이 필요 없다 — {@code EVNT_TYPE_CD} 에 값 제약({@code CHECK})이
+     * 없고 표준도메인 폭 {@code VARCHAR(20)} 안에 들어간다.
+     *
+     * <p>⚠ <b>검수 축의 「점유 해제」와 다른 축이다.</b> 그것은 지금 누가 그 영상을 검수 중인지의 표시가
+     * 유예로 저절로 풀리는 것({@link #EVENT_START_REVIEW} · {@code ReviewClaim})이고, 이것은 사람이
+     * 작업자 배정을 푸는 것이다. 낱말이 같아도 섞지 말 것.
+     */
+    public static final String EVENT_UNASSIGN = "UNASSIGN";
     /**
      * <b>검수 시작</b> — 그 영상의 점유를 세운다 (12자).
      *
@@ -99,6 +116,28 @@ public class LsTaskEventLog {
      * 코드값 길이는 표준도메인 {@code VARCHAR(20)} 이내여야 한다.
      */
     public static final String EVENT_START_VERSION_APPLY = "START_VERSION_APPLY";
+    /**
+     * <b>영상 제외</b> — 그 영상을 저작도구 화면 목록에서 뺀다 (13자). [@design ADR-069] [@design ERD-014]
+     *
+     * <p>이 종류를 더하는 데 마이그레이션이 필요 없다 — {@code EVNT_TYPE_CD} 에 값 제약({@code CHECK})이
+     * 없고 표준도메인 폭 {@code VARCHAR(20)} 안에 들어간다. 누가·그 시점 역할·언제·왜를 담을 칸도 이미
+     * 다 있다.
+     *
+     * <p><b>사유({@code RSN})가 필수</b>이며 <b>자유 문구</b>다 — 프레임 폐기 계열
+     * ({@link #EVENT_FRAME_DISCARD})이 식별자 한 토큰만 싣고 자유 문구를 금지하는 것과 <b>다르다.</b>
+     * 감추는 행위라 「왜 뺐는가」가 확정 요구이고, 그것이 없으면 나중에 되돌릴지 판단할 근거가 없다.
+     * 두 관례를 통일하지 말 것.
+     */
+    public static final String EVENT_VIDEO_EXCLUDE = "VIDEO_EXCLUDE";
+    /**
+     * <b>영상 복원</b> — 제외했던 영상을 다시 보이게 한다 (14자). {@link #EVENT_VIDEO_EXCLUDE} 의 역방향.
+     *
+     * <p><b>사유를 받지 않는다</b> — 감추는 쪽만 사유를 남긴다. 되돌리는 쪽은 사유가 없어도 사실이
+     * 왜곡되지 않는다(감춰졌던 것이 제자리로 돌아올 뿐이다). 사유 칸을 다시 붙이지 말 것.
+     *
+     * @design ADR-069
+     */
+    public static final String EVENT_VIDEO_RESTORE = "VIDEO_RESTORE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -198,6 +237,35 @@ public class LsTaskEventLog {
                 .actorUserNo(actorUserNo)
                 .subjectUserNo(newWorkerNo)
                 .prevUserNo(prevWorkerNo)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * <b>배정 해제</b> — 그 작업자의 배정을 풀었다. [@design API-259] [@design AC-1122]
+     *
+     * <p>담는 것: 영상 · 행위자 · <b>행위 시점의 실제 역할</b> · 발생일시 · <b>해제된 작업자</b>(대상
+     * 사용자 칸). 대상 사용자 칸에 싣는 것은 {@link #reassign} 이 이전 담당과 새 담당을 각각의 칸에
+     * 남기는 것과 <b>같은 축</b>이다.
+     *
+     * <p>★<b>사유({@code RSN})를 받지 않는다</b> — 감추는 쪽만 사유를 남긴다는 규칙에 따라 제외
+     * ({@link #videoExcluded})만 사유가 필수이고, 복원·해제는 사유가 없어도 사실이 왜곡되지 않는다.
+     * 사유 인자를 다시 붙이지 말 것.
+     *
+     * <p>★{@code PREV_USER_NO} 도 비운다 — 해제는 담당을 <b>바꾸는</b> 것이 아니라 <b>없애는</b> 것이라
+     * 「이전 담당 → 새 담당」이라는 이동이 없다. 같은 사람을 두 칸에 적으면 재배정처럼 읽힌다.
+     *
+     * @param actorRole        행위 시점의 <b>실제</b> 역할. 관리자가 해제했으면 {@link Role#ADMIN} 이다
+     * @param unassignedWorkerNo 배정이 풀린 작업자
+     */
+    public static LsTaskEventLog unassign(Long rawDataId, Long actorUserNo,
+                                          Role actorRole, Long unassignedWorkerNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_UNASSIGN)
+                .actorUserNo(actorUserNo)
+                .subjectUserNo(unassignedWorkerNo)
+                .actorRoleCd(roleCodeOf(actorRole))
                 .ocrnDt(LocalDateTime.now())
                 .build();
     }
@@ -385,6 +453,50 @@ public class LsTaskEventLog {
      */
     public static LsTaskEventLog frameRestored(Long rawDataId, Long srcSn, Long actorUserNo) {
         return frameDiscardEvent(EVENT_FRAME_RESTORE, rawDataId, srcSn, actorUserNo);
+    }
+
+    /**
+     * <b>영상 제외</b> 감사 (OWASP A09) — 그 영상을 저작도구 화면 목록에서 뺐다.
+     * [@design ADR-069] [@design ERD-014] [@design API-260]
+     *
+     * <p>담는 것: 영상 · 행위자 · <b>행위 시점의 실제 역할</b> · 발생일시 · <b>사유</b>.
+     * 담지 않는 것: 대상/이전 사용자(제외는 사람을 대상으로 하지 않는다).
+     *
+     * <p>★사유는 <b>자유 문구</b>이고 <b>필수</b>다 — {@link #frameDiscarded} 계열이 식별자 한 토큰만
+     * 싣는 것과 다르다. 호출부가 개행·제어문자를 제거하고 {@code RSN} 칸 폭 안으로 길이를 제한한 값을
+     * 넘긴다(CWE-117 · DB 오류 차단). 개인정보를 적지 않도록 화면이 입력 칸에서 안내한다.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할. 관리자가 제외했으면 {@link Role#ADMIN} 이다
+     * @param rsn       정규화·절단이 끝난 제외 사유
+     */
+    public static LsTaskEventLog videoExcluded(Long rawDataId, Long actorUserNo, Role actorRole, String rsn) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_VIDEO_EXCLUDE)
+                .actorUserNo(actorUserNo)
+                .rsn(rsn)
+                .actorRoleCd(roleCodeOf(actorRole))
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * <b>영상 복원</b> 감사 (OWASP A09) — 제외했던 영상을 다시 보이게 했다.
+     * [@design ADR-069] [@design ERD-014] [@design API-261]
+     *
+     * <p>{@link #videoExcluded} 와 같은 것을 담되 <b>사유는 담지 않는다</b> — 감추는 쪽만 사유를 남긴다.
+     * 사유 인자를 다시 붙이지 말 것.
+     *
+     * @param actorRole 행위 시점의 <b>실제</b> 역할
+     */
+    public static LsTaskEventLog videoRestored(Long rawDataId, Long actorUserNo, Role actorRole) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_VIDEO_RESTORE)
+                .actorUserNo(actorUserNo)
+                .actorRoleCd(roleCodeOf(actorRole))
+                .ocrnDt(LocalDateTime.now())
+                .build();
     }
 
     /** 폐기/복원 공통 조립 — 두 방향이 같은 형식을 갖도록 한 곳에서만 만든다. */

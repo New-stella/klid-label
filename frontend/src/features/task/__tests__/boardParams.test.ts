@@ -180,6 +180,8 @@ describe('boardParams — URL 동기화 (H-9)', () => {
       workStatus: 'REVIEW_PENDING',
       assigneeId: '7',
       eventTypeCd: 'EV01000102',
+      // 가시 범위 축도 왕복 대상이다 — 빠뜨리면 URL 에 기록되는지가 검사되지 않는다.
+      excludedOnly: false,
     };
 
     // when: filters → searchParams → filters

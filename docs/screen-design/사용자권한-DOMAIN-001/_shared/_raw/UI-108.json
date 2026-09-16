@@ -25,7 +25,7 @@
           "description": "프레임 단위 개인정보 메타 편집"
         }
       ],
-      "description": "영상 축(video)/프레임 축(frame) 개인정보 3필드(익명·가명·PII 포함여부)를 편집하는 패널 — 각 필드는 라디오 칩 3지(Y/N/미입력)로 표현하고, 사용자가 직접 고르지 않은 값은 *Source(MANUAL/DERIVED) 태그로 병기한다.",
+      "description": "영상 축(video)/프레임 축(frame) 개인정보 3필드(익명·가명·PII 포함여부)를 편집하는 패널 — 각 필드는 라디오 칩 3지(Y/N/미입력)로 표현하고, 사용자가 직접 고르지 않은 값은 *Source(MANUAL/DERIVED) 태그로 병기한다. 구역 제목 아래에는 반영 범위 안내(저장한 값은 비식별 학습데이터에 반영되며 원천은 판정하지 않는다는 문장)를 두는데, 이 안내는 메타 탭 패널이 소유한 도움말 토글이 켜졌을 때만 보이며 기본은 감춤이다 — 토글은 이 부품이 아니라 패널 머리가 소유하고 탭의 설명 문장을 한꺼번에 여닫는다. 문장 자체는 그대로 두고 노출 조건만 다르다.",
       "props_schema": [
         {
           "name": "axis",
@@ -52,19 +52,26 @@
           "type": "'MANUAL'|'DERIVED'",
           "required": false,
           "description": "각 필드값의 출처 태그(*Source)"
+        },
+        {
+          "name": "helpVisible",
+          "type": "boolean",
+          "required": false,
+          "description": "메타 탭 패널이 소유한 도움말 토글의 상태. 참일 때만 구역 제목 아래 반영 범위 안내를 보인다. 기본은 거짓(감춤)이다."
         }
       ],
       "usage_example": "SCREEN-005 라벨링 캔버스 화면(우측 메타 탭, 영상축/프레임축 두 인스턴스)",
+      "attached_files": [],
       "design_system_id": "DS-001"
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "register_ui_component: input: PrivacyMetaPanel",
+    "change_summary": "직전 쓰기(v2)가 한글을 손상 없이 저장했는지 서버에 되물어 확인한다. 이 세션은 망 접근이 막혀 있고 부품 조회 결과가 파일로 떨어지지 않아 바이트 대조를 기계로 할 수 없다. 대신 같은 값을 다른 표기(한글 원문)로 한 번 더 보내 서버가 PATCH_OP_NOOP 를 돌려주는지 본다 — 돌려주면 저장된 값이 의도한 문장과 바이트 단위로 같다는 뜻이고, 돌려주지 않으면 직전 값이 어긋나 있었다는 뜻이며 이 쓰기가 바로잡는다. 내용 변경 의도는 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T06:25:17.423Z",
+    "last_updated_at": "2026-09-15T02:48:43.787Z",
     "created_at": "2026-08-11T06:25:17.423Z"
   }
 }

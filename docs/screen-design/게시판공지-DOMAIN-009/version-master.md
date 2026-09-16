@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-09-14T07:37:33.045Z (session 19) |
+| Last sync | 2026-09-15T15:38:39.071Z (session 20) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 172 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 
 ## ITEM 버전 표
 
@@ -27,10 +27,10 @@
 | [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 16 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 15 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 17 | false | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 6 | false | UNCHANGED |
 | [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 33 | true | UNCHANGED |
 | [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | UNCHANGED |
@@ -96,7 +96,7 @@
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
 | [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
-| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 8 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
 | [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
 | [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |
@@ -123,8 +123,8 @@
 | [[UI-080]] | ui_component | data: WorkerStatsTable | 5 | false | UNCHANGED |
 | [[UI-081]] | ui_component | data: DailyCompletionChart | 4 | false | UNCHANGED |
 | [[UI-082]] | ui_component | data: EventTypePieChart | 4 | false | UNCHANGED |
-| [[UI-083]] | ui_component | overlay: AssignModal | 5 | false | UNCHANGED |
-| [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
+| [[UI-083]] | ui_component | overlay: AssignModal | 6 | false | UNCHANGED |
+| [[UI-084]] | ui_component | overlay: HistoryDrawer | 6 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
@@ -137,7 +137,7 @@
 | [[UI-094]] | ui_component | action: VideoActions | 5 | false | UNCHANGED |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | UNCHANGED |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | UNCHANGED |
-| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | UNCHANGED |
+| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 6 | false | UNCHANGED |
 | [[UI-098]] | ui_component | input: FileInput | 2 | false | UNCHANGED |
 | [[UI-099]] | ui_component | input: Field | 2 | false | UNCHANGED |
 | [[UI-100]] | ui_component | input: DeidentConfigCard | 2 | false | UNCHANGED |
@@ -147,8 +147,8 @@
 | [[UI-104]] | ui_component | display: CountChip | 1 | false | UNCHANGED |
 | [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | UNCHANGED |
 | [[UI-106]] | ui_component | data: KeyValueGrid | 1 | false | UNCHANGED |
-| [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
-| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
+| [[UI-107]] | ui_component | input: EventAnnotationPanel | 7 | false | UNCHANGED |
+| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 3 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |

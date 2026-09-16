@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 배정 목록(WORKER 작업목록, {@code GET /v1/assignments}) <b>워크플로 상태</b> —
@@ -83,6 +84,29 @@ public enum AssignmentWorkStatus {
     /** 검수 단계로 분류되는 워크플로 상태 코드 집합 (기저 상태의 여집합 기준). */
     public static Set<String> reviewStageCodes() {
         return REVIEW_STAGE_CODES;
+    }
+
+    /**
+     * <b>배정 해제를 거부하는 워크플로 상태 코드</b> — 검수 대기·검수 중·승인.
+     * [@design ADR-069] [@design API-259] [@design AC-1123]
+     *
+     * <p>배정이 그 워크플로의 전제라, 풀면 검수 흐름이 <b>주인 없는 상태</b>가 된다.
+     *
+     * <p>★<b>반려({@link #REJECTED})는 여기 들지 않는다.</b> 워크플로가 작업자에게 되돌아온 상태라
+     * 그 작업 자체를 접을 수 있어야 한다. 「반려도 검수 축이니 함께 막자」로 넓히면, 잘못 배정한
+     * 반려 건이 영영 풀리지 않고 <b>「반려 → 해제 → 제외」 경로가 통째로 막힌다</b>.
+     * 같은 이유로 {@link #reviewStageCodes()} 를 그대로 쓰면 안 된다 — 그 집합에는 반려가 들어 있다.
+     *
+     * <p>{@link #REVIEW_PENDING}·{@link #COMPLETED} 의 {@link #statusIn} 에서 <b>파생</b>한다.
+     * 코드를 손으로 나열하면 상수 정의가 바뀔 때 두 정의가 조용히 어긋난다.
+     */
+    private static final Set<String> UNASSIGN_BLOCKING_CODES =
+            Stream.concat(REVIEW_PENDING.statusIn.stream(), COMPLETED.statusIn.stream())
+                    .collect(Collectors.toUnmodifiableSet());
+
+    /** @see #UNASSIGN_BLOCKING_CODES */
+    public static Set<String> unassignBlockingCodes() {
+        return UNASSIGN_BLOCKING_CODES;
     }
 
     /**

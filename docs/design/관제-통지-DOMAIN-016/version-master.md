@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-09-15T13:24:08.153Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 98 |
+| Last sync | 2026-09-15T15:36:14.743Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 99 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 7건 / 스코프 밖 42건
-  ℹ️  api_endpoint: 이번 키트 4건 / 스코프 밖 230건
+  ℹ️  api_endpoint: 이번 키트 4건 / 스코프 밖 233건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 31건 (그중 domain_id 없음 13건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 38건
-  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
+  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 35건
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 103건 (그중 domain_id 없음 7건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 110건 (그중 domain_id 없음 10건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 10건 / 스코프 밖 51건 (그중 domain_id 없음 11건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 51건 (그중 domain_id 없음 11건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 13건 (그중 domain_id 없음 12건)
 ```
 
@@ -62,6 +62,7 @@
 | [[ADR-037]] | adr | 3 | UNCHANGED |
 | [[ADR-046]] | adr | 18 | UNCHANGED |
 | [[ADR-055]] | adr | 6 | UNCHANGED |
+| [[ADR-069]] | adr | 4 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
 | [[API-076]] | api_endpoint | 9 | UNCHANGED |
@@ -69,7 +70,7 @@
 | [[CDIAG-013]] | class_diagram | 12 | UNCHANGED |
 | [[CDIAG-044]] | class_diagram | 1 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 23 | UNCHANGED |
-| [[DFEAT-006]] | domain_feature | 10 | UNCHANGED |
+| [[DFEAT-006]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-043]] | domain_feature | 20 | UNCHANGED |
 | [[DFEAT-044]] | domain_feature | 29 | UNCHANGED |
 | [[DFEAT-046]] | domain_feature | 11 | UNCHANGED |
@@ -133,7 +134,7 @@
 | [[NFR-047]] | nfr | 1 | UNCHANGED |
 | [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[RISK-004]] | risk | 4 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 15 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 16 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |

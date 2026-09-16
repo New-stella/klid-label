@@ -151,6 +151,16 @@ export interface ReviewListParams {
   q?: string;
   /** FE 상태 코드. 전송 시 BE 코드로 역매핑된다. */
   status?: ReviewStatus;
+  /**
+   * **제외분만 보기** — BE `excludedOnly`. [@design API-008] [@design ADR-069]
+   *
+   * 보내지 않거나 `false` 면 제외분을 뺀 기본 목록이고, `true` 면 제외된 영상만 남는다.
+   *
+   * ⚠ 이 값이 켜지면 **검수 상태 축(`status`)을 함께 보내지 않는다** — 「제외됨 건수」를 주는
+   * 집계 창구가 그 축을 반영하지 않고 세기 때문이다. 상태로 좁힌 채 그 숫자를 누르면 전환
+   * 결과가 누른 숫자보다 적어진다. 배선은 `reviewListParams.buildReviewListParams` 가 소유한다.
+   */
+  excludedOnly?: boolean;
 }
 
 /**
@@ -176,6 +186,22 @@ export interface ReviewSummary {
   inReview: number;
   approved: number;
   rejected: number;
+  /**
+   * **제외됨** — 화면 목록에서 뺀 영상 건수. [@design API-138] [@design AC-1124] [@design ADR-069]
+   *
+   * ★<b>위 불변식(4종 합 = total)의 항이 아니다</b> — 제외분은 `total` 에서도 이미 빠져 있는
+   * **별개 축**이라 합에 더하면 불변식이 깨진다. KPI 카드로 그리지 않고 목록 표 위에 따로 둔다.
+   *
+   * ★<b>이 숫자의 진실원은 이 집계 창구 하나다</b> — 목록 응답(`GET /v1/reviews`)에는 이 키가
+   * 없다. 같은 숫자를 두 창구가 각각 계산하면 한쪽만 조건이 바뀌어도 드러나지 않는다.
+   *
+   * ⚠ <b>검수 상태 축을 반영하지 않고 센다</b> — 상태에 가려진 제외분까지 세어야 감춰진 것이
+   * 있다는 사실이 드러나기 때문이다. 그래서 화면은 이 숫자를 눌러 제외분 보기로 전환할 때
+   * **검수 상태 조건을 빼고** 요청한다(그러지 않으면 전환 결과가 누른 숫자보다 적다).
+   *
+   * 값이 `0` 이어도 응답에 실린다. 값을 못 내리는 구 응답만 `undefined` 다.
+   */
+  excludedCount?: number;
 }
 
 export interface AddIssueRequest {

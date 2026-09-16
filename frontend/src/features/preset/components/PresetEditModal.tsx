@@ -3,6 +3,7 @@ import { AlertCircle, Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { Alert } from '@/components/common/Alert';
 import { Field, FieldError, FieldLabel, FieldTitle } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -76,9 +77,15 @@ const EMPTY_FORM: PresetFormValues = {
  *       라벨 개수는 그 조건에 들어가지 않는다(그 구분은 저장 전 확인이 가른다).</li>
  * </ul>
  *
+ * <h3>★고른 라벨이 상한을 넘으면 저장할 수 없다</h3>
+ * 선택 <b>자체는 막지 않는다</b> — 넘긴 상태에서 무엇을 뺄지 고르려면 그 상태에 머무를 수 있어야
+ * 한다. 막는 것은 저장이고, 막힌 사유와 지금 고른 개수는 <b>저장 수단 바로 곁</b>에서 알린다.
+ * 상한 이하로 줄이면 안내가 사라지고 저장이 다시 열린다.
+ *
  * @design SCREEN-026
  * @design UC-032
  * @design AC-1061
+ * @design AC-1128
  * @design SEQ-022
  * @design API-038
  * @design API-039
@@ -263,10 +270,22 @@ export function PresetEditModal({
     emit({ ...getValues(), labelIds: [] });
   };
 
+  /**
+   * 고른 라벨이 상한을 넘었는가 — <b>저장 가능 조건</b>이자 아래 안내의 노출 조건이다.
+   *
+   * ★상한 판정 자체는 원래 스키마(`labelIds.max`)에 있었는데 <b>저장 가능 조건에 들어 있지
+   *   않아</b> 그 판정 결과가 사용자 눈에 닿지 않았다. 버튼은 눌리고 검증은 실패하는데 화면은
+   *   아무 말도 하지 않아 「저장되지도 않고 아무 반응이 없다」로 보였다(발주처 오류 증적).
+   *   그래서 고친 자리는 검증이 아니라 <b>도달</b>이다 — 조건에 넣고, 사유를 저장 수단 곁에 둔다.
+   * ⚠ 상한 값을 여기서 새로 적지 말 것 — 선택 개수 표기와 같은 단일 원천을 그대로 쓴다.
+   */
+  const labelCountExceeded = selectedIds.length > LABEL_IDS_MAX_COUNT;
+
   // 이벤트유형만 필수다 — 비운 채 저장하면 서버가 400 으로 되돌린다.
-  // ★라벨 개수는 더 이상 저장 조건이 아니다(구 `selectedIds.length === 0` 차단 폐기) —
+  // ★라벨 개수의 <b>하한</b>은 저장 조건이 아니다(구 `selectedIds.length === 0` 차단 폐기) —
   //   라벨을 비우는 것이 정당한 선언이 됐고, 실수와의 구분은 확인 창이 맡는다.
-  const saveDisabled = !!submitting || eventTypeCd === '';
+  //   반면 <b>상한</b>은 저장 조건이다 — 넘긴 채로는 서버가 받지 않는다.
+  const saveDisabled = !!submitting || eventTypeCd === '' || labelCountExceeded;
 
   return (
     <>
@@ -279,6 +298,24 @@ export function PresetEditModal({
       title={isEdit ? '프리셋 편집' : '새 프리셋 만들기'}
       footer={
         <>
+          {/* ★막힌 사유는 <b>저장 수단 바로 곁</b>에 둔다.
+              라벨 목록 쪽에도 개수 표기('N / 20개 선택')와 스키마 오류가 뜨지만, 그 자리는 저장
+              버튼에서 멀고 작아 <b>누르기 전에 읽히지 않는다</b> — 실제로 그 표기가 이미 있는
+              상태에서 「저장되지도 않고 아무 반응이 없다」는 증적이 나왔다. 그래서 먼 자리의 표기로
+              대신하지 않고 여기에 둔다. 모달 본문은 스크롤되지만 이 자리(footer)는 고정이라
+              어디까지 스크롤했든 항상 보인다.
+              ⚠ 상한 숫자를 문구에 직접 적지 말 것 — 선택 개수 표기와 같은 단일 원천을 참조한다. */}
+          {labelCountExceeded && (
+            <Alert
+              variant="error"
+              className="mr-auto items-center py-2 text-left"
+              data-testid="preset-label-limit-notice"
+              title={`라벨은 최대 ${LABEL_IDS_MAX_COUNT}개까지 선택할 수 있습니다`}
+            >
+              {`지금 ${selectedIds.length}개를 골랐습니다. ` +
+                `${selectedIds.length - LABEL_IDS_MAX_COUNT}개를 해제하면 저장할 수 있습니다.`}
+            </Alert>
+          )}
           <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
             취소
           </Button>

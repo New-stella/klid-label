@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/common/Checkbox';
 import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { ExcludedCountToggle } from '@/components/common/ExcludedCountToggle';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -325,6 +326,28 @@ export function ReviewListPage() {
     [handleStatusChange],
   );
 
+  /** 지금 **제외분만** 보고 있는가 — URL 이 단일 진실원이다(새로고침·북마크에서 유지된다). */
+  const excludedOnly = filters.excludedOnly;
+
+  /**
+   * [@design SCREEN-018] [@design AC-1124] 「제외됨 N건」 전환.
+   *
+   * ★★**검수 상태 축만 뺀다.** 그 숫자를 주는 집계 창구가 이 축을 반영하지 않고 세므로, 상태로
+   * 좁힌 채 누르면 전환 결과가 누른 숫자보다 적어진다. 검색어는 그대로 유지한다.
+   * ⚠ 영상 처리 현황은 어떤 필터도 빼지 않고, 작업 목록은 작업 진행 상태 축을 뺀다 —
+   *   **「일관성」을 이유로 세 화면을 같게 만들지 말 것**.
+   *
+   * ⚠ 상태 선택을 **함께 비운다**(`status: ''` = 전체). 조립 지점이 구조적으로도 막지만, 비우지
+   *   않으면 select·KPI 카드가 「걸려 있는데 적용되지 않는」 상태를 가리킨다.
+   */
+  const toggleExcludedOnly = useCallback(
+    () =>
+      writeSearchParams({
+        filters: { ...filters, excludedOnly: !filters.excludedOnly, status: '' },
+      }),
+    [filters, writeSearchParams],
+  );
+
   /** 초기화 — 전체가 아니라 **진입 기본값**(검수요청·오래된순)으로 되돌린다. */
   const handleReset = useCallback(
     () =>
@@ -354,6 +377,9 @@ export function ReviewListPage() {
   const isDefaultView =
     filters.q === DEFAULT_REVIEW_FILTERS.q &&
     filters.status === DEFAULT_REVIEW_FILTERS.status &&
+    // ★제외분만 보는 상태도 「기본 화면이 아니다」 — 빠뜨리면 그 상태에서 초기화 버튼이 잠겨
+    //   기본 목록으로 돌아갈 경로가 「기본 목록으로」 하나로 줄어든다.
+    filters.excludedOnly === DEFAULT_REVIEW_FILTERS.excludedOnly &&
     sort.column === DEFAULT_REVIEW_SORT.column &&
     sort.direction === DEFAULT_REVIEW_SORT.direction;
 
@@ -395,18 +421,24 @@ export function ReviewListPage() {
         id: 'select',
         // 머리행 전체선택 — 이번 페이지에서 **고를 수 있는 행만** 고르고 나머지는 건너뛴다.
         // 일부만 골라져 있으면 중간 상태(`aria-checked="mixed"`)로 보인다.
-        header: () => (
-          <Checkbox
-            aria-label="현재 페이지 전체 선택"
-            checked={
-              allSelectableChecked ? true : someSelectableChecked ? 'indeterminate' : false
-            }
-            disabled={selectableRows.length === 0}
-            onCheckedChange={toggleAllSelectable}
-            data-testid="review-select-all"
-          />
-        ),
+        header: () =>
+          // ★제외분만 보는 목록에서는 고를 수단을 두지 않는다(아래 셀과 같은 이유).
+          excludedOnly ? null : (
+            <Checkbox
+              aria-label="현재 페이지 전체 선택"
+              checked={
+                allSelectableChecked ? true : someSelectableChecked ? 'indeterminate' : false
+              }
+              disabled={selectableRows.length === 0}
+              onCheckedChange={toggleAllSelectable}
+              data-testid="review-select-all"
+            />
+          ),
         cell: ({ row }) => {
+          // ★제외분만 보는 목록에서는 체크칸을 두지 않는다 — 일괄 검수완료 실행줄이 함께
+          //   사라져 아무 데도 닿지 않는 조작이 되고, 제외한 것을 검수완료 대상으로 담는
+          //   길처럼 보인다. 제외된 영상을 검수 대상으로 되돌릴 수 있으면 제외가 무의미해진다.
+          if (excludedOnly) return null;
           const r = row.original;
           const selectable = isSelectable(r);
           const reason = unselectableReason(r, myUserId);
@@ -560,6 +592,11 @@ export function ReviewListPage() {
         id: 'actions',
         header: '액션',
         cell: ({ row }) => {
+          // ★제외분만 보는 목록에서는 행 액션을 두지 않는다 — 검수 시작·이어서 검수로 들어가는
+          //   길이 열려 있으면 제외한 영상이 그대로 검수 흐름에 다시 들어간다.
+          //   ⚠ 이 화면은 제외·복원을 **수행하지 않는다**(그 자리는 영상 처리 현황이다) —
+          //     여기서는 제외분이 빠진다는 사실과 그 건수를 보여주고 열람하는 데까지다.
+          if (excludedOnly) return null;
           const r = row.original;
           return (
             <Button
@@ -579,6 +616,8 @@ export function ReviewListPage() {
     ],
     [
       allSelectableChecked,
+      // 빠뜨리면 전환 직후에도 옛 컬럼 정의가 남아 체크칸·액션이 그대로 보인다.
+      excludedOnly,
       handleSubmittedAtSortClick,
       myUserId,
       navigate,
@@ -640,14 +679,28 @@ export function ReviewListPage() {
         /* 필터·정렬 전환 왕복 동안 표는 **이전 결과**다(keepPreviousData) — 그 사실을 알린다.
            이 표시가 없으면 배지·KPI 선택은 새 필터인데 행은 옛 필터인 화면을 사실로 오인한다. */
         <div aria-busy={isRefreshing} className="flex flex-col gap-2">
-          {/* 일괄 검수완료 실행줄 — 표 바로 위. 한 건도 고르지 않았으면 그려지지 않는다. */}
-          <BulkApproveBar
-            selectedCount={selectedRows.length}
-            limit={data?.bulkApproveLimit}
-            onRequestApprove={() => setConfirmOpen(true)}
-            onClearSelection={clearSelection}
-            isPending={batchPending}
+          {/*
+            [@design SCREEN-018] [@design AC-1124] 「제외됨 N건」 — **목록 표 바로 위**(세 화면 공통 자리).
+            ★0건이어도 사라지지 않는다. 숫자는 **KPI 집계 조회**가 싣는다(목록 조회는 싣지 않는다 —
+              같은 숫자의 진실원을 둘로 두지 않는다).
+          */}
+          <ExcludedCountToggle
+            count={summary?.excludedCount}
+            active={excludedOnly}
+            onToggle={toggleExcludedOnly}
           />
+          {/* 일괄 검수완료 실행줄 — 표 바로 위. 한 건도 고르지 않았으면 그려지지 않는다.
+              ★제외분만 보는 목록에서는 두지 않는다 — 제외된 영상을 검수완료 대상으로 담을 수
+                있으면 제외가 무의미해진다. */}
+          {!excludedOnly && (
+            <BulkApproveBar
+              selectedCount={selectedRows.length}
+              limit={data?.bulkApproveLimit}
+              onRequestApprove={() => setConfirmOpen(true)}
+              onClearSelection={clearSelection}
+              isPending={batchPending}
+            />
+          )}
           {isRefreshing && (
             <p
               data-testid="review-refreshing"

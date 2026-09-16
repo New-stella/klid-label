@@ -41,7 +41,7 @@ class ReviewSummaryResponseTest {
             counts.put(code, 1L);
         }
 
-        ReviewSummaryResponse response = ReviewSummaryResponse.of(counts);
+        ReviewSummaryResponse response = ReviewSummaryResponse.of(counts, 0L);
 
         // then — 5번째 상태가 추가되면 total(4) != 화이트리스트 크기(5) 로 즉시 드러난다.
         assertThat(response.total())
@@ -56,7 +56,7 @@ class ReviewSummaryResponseTest {
         counts.put(LsRawDataStatus.STTS_PENDING, 2L);
         counts.put("FUTURE_REVIEW_STATUS", 3L);
 
-        assertThatThrownBy(() -> ReviewSummaryResponse.of(counts))
+        assertThatThrownBy(() -> ReviewSummaryResponse.of(counts, 0L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("FUTURE_REVIEW_STATUS");
     }
@@ -68,7 +68,7 @@ class ReviewSummaryResponseTest {
         counts.put(LsRawDataStatus.STTS_PENDING, 2L);
         counts.put("FUTURE_REVIEW_STATUS", 0L);
 
-        ReviewSummaryResponse response = ReviewSummaryResponse.of(counts);
+        ReviewSummaryResponse response = ReviewSummaryResponse.of(counts, 0L);
 
         assertThat(response.total()).isEqualTo(2);
         assertThat(response.pending()).isEqualTo(2);
@@ -78,7 +78,7 @@ class ReviewSummaryResponseTest {
     @DisplayName("빈_맵이나_null_이어도_전_필드가_0이다")
     void emptyOrNullCountsYieldZeroes() {
         for (Map<String, Long> counts : java.util.Arrays.asList(null, new LinkedHashMap<String, Long>())) {
-            ReviewSummaryResponse response = ReviewSummaryResponse.of(counts);
+            ReviewSummaryResponse response = ReviewSummaryResponse.of(counts, 0L);
             assertThat(response.total()).isZero();
             assertThat(response.pending()).isZero();
             assertThat(response.inReview()).isZero();

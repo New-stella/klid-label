@@ -831,7 +831,8 @@ CREATE TABLE klid_at.ls_data_raw (
     anony_incl_yn character(1),
     psdo_incl_yn character(1),
     prvc_incl_yn character(1),
-    portal_user_no character varying(100)
+    portal_user_no character varying(100),
+    excl_yn character(1) DEFAULT 'N'::bpchar NOT NULL
 );
 
 
@@ -2652,7 +2653,7 @@ COPY klid_at.ls_data_meta_review (data_meta_review_sn, data_meta_sn, data_raw_sn
 -- Data for Name: ls_data_raw; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_data_raw (raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, data_stts_cd, reg_dt, mdfcn_dt, orgnl_raw_sn, vdo_len_ms, wthr_nm, day_ngt_cd, sesn_cd, src_type, aug_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, portal_user_no) FROM stdin;
+COPY klid_at.ls_data_raw (raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, data_stts_cd, reg_dt, mdfcn_dt, orgnl_raw_sn, vdo_len_ms, wthr_nm, day_ngt_cd, sesn_cd, src_type, aug_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, portal_user_no, excl_yn) FROM stdin;
 \.
 
 

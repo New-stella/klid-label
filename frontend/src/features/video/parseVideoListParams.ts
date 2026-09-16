@@ -58,6 +58,14 @@ export function parseVideoListParams(params: URLSearchParams): VideoListParams {
   const failedStage = params.get('failedStage');
   if (failedStage && isStageBundle(failedStage)) next.failedStage = failedStage;
 
+  // [@design SCREEN-008] [@design API-042] [@design ADR-069] 제외분만 보기.
+  //   ★`'true'` **정확히 그 문자열일 때만** 켠다 — URL 은 사람이 손으로 쓸 수 있는 입력이라
+  //     `'false'`·`'0'`·아무 문자열이나 truthy 로 받으면 기본 목록으로 되돌아갈 수 없다
+  //     (그 상태에서 「기본 목록으로」를 눌러도 같은 값이 다시 실린다).
+  //   ⚠ 켜지지 않으면 **키를 세우지 않는다**(`false` 를 담지 않는다) — 아래 직렬화가
+  //     `undefined` 를 파라미터에서 빼므로 "이 축을 모르는 기존 북마크"와 같은 상태가 된다.
+  if (params.get('excludedOnly') === 'true') next.excludedOnly = true;
+
   return next;
 }
 
@@ -81,5 +89,8 @@ export function videoListParamsToSearchParams(params: VideoListParams): URLSearc
   if (params.skippedStage) sp.set('skippedStage', params.skippedStage);
   // 위와 같은 이유로 미선택이면 키 자체를 두지 않는다(하위호환) — 두 필터는 동시에 실릴 수 있다.
   if (params.failedStage) sp.set('failedStage', params.failedStage);
+  // [@design SCREEN-008] [@design ADR-069] 켜졌을 때만 키를 세운다 — 꺼진 상태를 `false` 로 적으면
+  //   기본 목록 URL 이 이 축을 모르던 시절과 달라져 기존 북마크와 형태가 갈린다.
+  if (params.excludedOnly) sp.set('excludedOnly', 'true');
   return sp;
 }

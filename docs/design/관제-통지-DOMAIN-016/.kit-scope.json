@@ -3,7 +3,7 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
   "decided_by": "llm",
-  "decided_at": "2026-09-15T22:22:42.022504+09:00",
+  "decided_at": "2026-09-16T00:35:43.962533+09:00",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: INT-011, ADR-029 — INT-011 은 그래프 앵커 EXTSYS-005 가 이 키트에 있고 관제 연동면이다. ADR-029 는 outbound 통지 위탁 구간 제약이다 | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-1077",
@@ -21,6 +21,7 @@
     "ADR-037",
     "ADR-046",
     "ADR-055",
+    "ADR-069",
     "API-074",
     "API-075",
     "API-076",
@@ -119,7 +120,7 @@
     "IMPREC-367",
     "IMPREC-404"
   ],
-  "last_sync_at": "2026-09-15T13:24:08.156Z",
+  "last_sync_at": "2026-09-15T15:36:14.745Z",
   "note_pruned": "제외 타입 12건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 0건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다).",
-  "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 0건 승격: 없음."
+  "note_promoted": "2026-09-15 영상 목록 제외(숨김) 라운드 설계 선반영분 회수. 결정 1건 승격 — 이 결정이 규정하는 것은 이 도메인의 무변경이다. 제외된 영상도 완료·수정 통지가 그대로 나간다는 경계를 통지 담당이 읽지 못하면, 다음 사람이 일관성을 이유로 통지에도 같은 조건을 붙인다."
 }

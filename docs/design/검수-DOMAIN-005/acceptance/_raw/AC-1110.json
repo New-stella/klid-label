@@ -35,11 +35,14 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-467"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-15T13:27:08.439Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -57,8 +60,8 @@
     "stale": true,
     "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
     "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 유효 점유 주인의 재진입이 충돌이 아니라 멱등 성공이며 최초 시작 시각이 보존된다는 것을 검증하는 수용기준 신설.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T06:03:52.676Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:08.439Z",
     "created_at": "2026-09-15T06:03:52.676Z"
   }
 }

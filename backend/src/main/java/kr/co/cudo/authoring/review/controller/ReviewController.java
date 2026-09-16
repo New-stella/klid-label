@@ -82,7 +82,12 @@ public class ReviewController {
                     "검수 목록은 배정과 무관하게 전체를 보여주므로 '내 검수만 보기' 같은 사용자 축 필터를 두지 않는다.\n" +
                     "- **bulkApproveLimit**: 한 번에 일괄 승인으로 담을 수 있는 최대 건수. 항목마다가 아니라 " +
                     "**응답 한 번에 하나**이며 배포 설정값이라 고정 숫자가 아니다. 화면은 이 값으로 선택을 미리 " +
-                    "제한하고 숫자를 스스로 갖지 않는다. 실제 강제는 일괄 승인 창구가 한다."
+                    "제한하고 숫자를 스스로 갖지 않는다. 실제 강제는 일괄 승인 창구가 한다.\n" +
+                    "- **제외분 배제**(ADR-069): 제외 표시가 선 영상은 이 목록에서 빠지며 전체 건수·페이지 수도 " +
+                    "같은 조건으로 함께 줄어든다.\n" +
+                    "- **excludedOnly**: 보내지 않으면 제외분을 뺀 기본 목록이고 `true` 면 제외된 영상만 남는다. " +
+                    "값역은 이 두 갈래뿐이며 섞어 보는 갈래는 두지 않는다. **「제외됨 건수」는 이 창구에 싣지 않는다** — " +
+                    "집계 창구(`GET /v1/reviews/summary`)가 소유하며, 두 곳에 두면 같은 숫자의 진실원이 둘이 된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (허용되지 않은 정렬 키는 무시하고 기본 정렬)"),
@@ -104,6 +109,9 @@ public class ReviewController {
                     + "미지정·미등록 키·개수 초과는 모두 제출일 최신순으로 폴백(400 아님).",
                     example = "submittedAt,desc")
             Sort sort,
+            @Parameter(description = "제외분만 보기 (선택) — 보내지 않으면 제외분을 뺀 기본 목록, "
+                    + "true 면 제외된 영상만. 섞어 보는 갈래는 없다.", example = "true")
+            @RequestParam(required = false) Boolean excludedOnly,
             @AuthenticationPrincipal TokenClaims actor) {
         if (size > MAX_PAGE_SIZE) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
@@ -116,7 +124,10 @@ public class ReviewController {
         // page/size 는 기존 계약(RequestParam + 상한 400)을 그대로 유지하고 정렬만 추가로 해석한다(R8).
         Pageable pageable = PageRequest.of(page, size,
                 SortAllowlist.resolveLenient(sort, SortAllowlist.REVIEW, DEFAULT_REVIEW_SORT));
-        return ApiResponse.ok(reviewService.list(new ReviewSearchCondition(status, q), pageable, actor));
+        // [design: ADR-069] 제외 축은 필터가 아니라 <가시 범위의 갈래>다 — 목록·건수가 같은 조건 조립을
+        // 통과하므로 두 갈래 어느 쪽에서도 내용과 건수가 어긋나지 않는다.
+        return ApiResponse.ok(
+                reviewService.list(new ReviewSearchCondition(status, q, excludedOnly), pageable, actor));
     }
 
     /**
@@ -132,6 +143,11 @@ public class ReviewController {
                     "무시되며 400 이 아니다(목록의 정렬 폴백 정책과 동일한 취지).\n" +
                     "- 검수 대상이 아닌 배치/작업 상태는 어느 버킷에도 합산되지 않는다.\n" +
                     "- 불변식: total == pending + inReview + approved + rejected.\n" +
+                    "- **제외분은 집계에서 빠진다**(ADR-069) — 목록과 같은 조건 조립을 공유하므로 목록이 " +
+                    "제외분을 빼면 이 집계도 함께 줄어든다.\n" +
+                    "- **excludedCount** — 같은 필터 범위 안의 제외 건수가 키 하나로 실린다. 현재 페이지가 " +
+                    "아니라 필터 결과 전체 기준이며 **0건이어도 실린다**. 위 불변식의 항이 아니다(제외분은 " +
+                    "total 에서 이미 빠져 있다). 화면은 그 숫자를 눌러 목록을 `excludedOnly=true` 로 전환한다.\n" +
                     "- 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다."
     )
     @ApiResponses({
