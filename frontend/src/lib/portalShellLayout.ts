@@ -32,7 +32,7 @@ import { isPortalEmbedChannel } from '@/lib/buildChannel';
  *
  * ⚠ **라벨링 편집기는 이 정렬선을 받지 않는다** — 화면 전체를 덮는 고정 판(`fixed inset-0`)이라
  *   셸 바깥이다. Host 도 같은 판단이다(*"라벨링 편집기는 여백 없이 흰 판으로 꽉 찬다"*).
- *   마킹은 셸 안이라 이 여백을 받고, 그것도 Host 쪽 값(24)과 같다.
+ *   마킹은 셸 안이라 이 여백을 받는다.
  *
  * @design SHELL-002
  * @design DS-002
@@ -40,21 +40,34 @@ import { isPortalEmbedChannel } from '@/lib/buildChannel';
 export const PORTAL_SHELL_ALIGN_STANDALONE = 'mx-auto w-full max-w-wrap px-4 md:px-column';
 
 /**
- * 임베드 — 독립 앱과 **같은 정렬선**이다. 위 ★ 절 참조.
+ * 임베드 — 최대폭은 같고 **거터만 한 단 좁다**(24 → 16).
  *
- * 값을 따로 선언하는 것은 「우연히 같다」와 「같아야 한다」를 구분하기 위해서다. 채널이 갈리는
- * 자리가 다시 생기면 여기만 고치면 되고, 갈리지 않는 동안에는 아래 상수 대조 시험이 두 값이
- * 같음을 못 박는다.
+ * ## 왜 갈리나 (2026-09-16 사용자 판단)
+ *
+ * Host 계약값은 24 지만, 우리 화면은 **이미 흰 카드 안**에 들어가 있다. Host 페이지가 준 바깥
+ * 여백에 카드 여백이 겹쳐 서므로 같은 24 라도 실제로 보이는 안쪽 여백이 더 깊다.
+ * 사용자가 실물을 보고 *"패딩값 조금만 줄여도 될거같아"* 로 한 단 내렸다.
+ *
+ * ⚠ **한 단이다 — 0 으로 되돌리는 것이 아니다.** 여백 자체를 없애면 2026-09-16 에 신고된
+ *   *"컨테이너에 너무 딱 달라붙었다"* 가 그대로 재발한다. 위 ⚠⚠ 절 참조.
+ * ⚠ 값은 토큰 한 칸(`px-4` = 16)이다 — 어중간한 20 같은 값을 쓰지 않는다.
+ *   앵커가 `--spacing: 4px` 를 세우므로 `px-4` 는 16px 이다.
+ * ⚠ **최대폭(1200)은 그대로 둔다** — 읽기 폭은 거터와 다른 축이고, 그것까지 건드리면 Host
+ *   화면과 판 폭이 어긋난다.
  */
-export const PORTAL_SHELL_ALIGN_EMBED = PORTAL_SHELL_ALIGN_STANDALONE;
+export const PORTAL_SHELL_ALIGN_EMBED = 'mx-auto w-full max-w-wrap px-4';
 
 /**
- * 탭 줄이 영역 윗변에서 떼는 여백 — Host 의 `padding-block-start: var(--krds-padding-8)` 과 같은 24.
+ * 탭 줄이 영역 윗변에서 떼는 여백.
  *
- * ⚠ **임베드에서만 준다.** 독립 앱에는 탭 줄 위에 자체 머리 영역이 있어 그 아래로 또 24 를 떼면
+ * ★**좌우 거터와 같은 값을 쓴다** — Host 규칙도 그 둘을 같은 값으로 두었다
+ * (`padding-inline` · `padding-block-start` 가 함께 `--krds-padding-8`). 한쪽만 줄이면 윗변과
+ * 좌변의 들여쓰기가 갈려 탭이 비뚤어 보인다. 거터를 바꾸면 이 값도 함께 바꾼다.
+ *
+ * ⚠ **임베드에서만 준다.** 독립 앱에는 탭 줄 위에 자체 머리 영역이 있어 그 아래로 또 떼면
  *   머리와 탭이 멀어진다(임베드에는 그 머리 영역이 없다 — Host 가 소유한다).
  */
-export const PORTAL_TABS_TOP_EMBED = 'pt-column';
+export const PORTAL_TABS_TOP_EMBED = 'pt-4';
 
 /**
  * 지금 산출물의 채널에 맞는 가로 정렬선 클래스.
