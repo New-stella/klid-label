@@ -12,7 +12,7 @@
 //   ⑤는 catch 의 setSaveError 를 지우면 각각 FAIL 해야 한다.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,7 @@ import { ApiError } from '@/lib/api/errors';
 import { useUiStore } from '@/stores/useUiStore';
 
 import * as verificationApi from '../verificationApi';
+import { QSTN_CN_MAX_LENGTH } from '../verificationQuestionRules';
 
 vi.mock('../verificationApi');
 
@@ -239,5 +240,236 @@ describe('검증 이벤트 유형·질문 관리', () => {
 
     // 질문이 0건인 유형 — 빈 상태 안내가 뜬다(어노테이션 질문 칸이 빈다는 사실을 알린다).
     await waitFor(() => expect(screen.getByText('등록된 질문이 없습니다')).toBeInTheDocument());
+  });
+});
+
+/**
+ * CO-20260916 — 입력 값 없이 저장하면 <b>서버 에러 내용이 그대로 보이던</b> 발주처 오류 증적.
+ *
+ * 화면에 실제로 뜬 문자열:
+ * <pre>questions[16].qstnCn: 질문 문구는 비어 있을 수 없습니다., questions[18].qstnCn: …</pre>
+ *
+ * <h3>두 축을 갈라서 결박한다</h3>
+ * <ul>
+ *   <li><b>선판정</b>(AC-1129) — 창구를 부르기 전에 화면이 막고 사유를 <b>그 줄 옆</b>에 보인다.</li>
+ *   <li><b>거부 표시</b>(AC-1130) — 그래도 서버가 거절하면 그 <b>응답 문구·필드 경로·배열 순번</b>을
+ *       그대로 내보내지 않는다.</li>
+ * </ul>
+ * ★뒤엣것이 이 증적의 본체다. 앞엣것만 결박하면 서버가 막아 준 경우에 <b>지금과 똑같은 화면</b>이
+ * 남는데도 통과한다.
+ *
+ * @design SCREEN-038, API-220, UC-044, AC-1129, AC-1130
+ */
+describe('질문 문구 입력 판정과 거부 표시 (CO-20260916)', () => {
+  beforeEach(() => {
+    // ⚠ 호출 이력을 지운다 — 이 파일의 모의는 모듈 단위라 <b>describe 를 건너 누적</b>된다.
+    //   지우지 않으면 「요청이 나가지 않는다」 단언이 앞 블록의 저장 3건을 보고 실패한다(실측).
+    //   단언을 느슨하게 고치는 쪽으로 가면 그 가드가 지키려던 것이 통째로 사라진다.
+    vi.clearAllMocks();
+    useUiStore.setState({ toasts: [] });
+    vi.mocked(verificationApi.getVerificationEventTypes).mockResolvedValue(
+      JSON.parse(JSON.stringify(TYPES)) as verificationApi.VerificationEventType[],
+    );
+    vi.mocked(verificationApi.replaceVerificationEventQuestions).mockImplementation(
+      async (code, questions) => ({
+        vrfcEvntTypeCd: code,
+        questions: questions.map((q, i) => ({
+          vrfcEvntQstnSn: 100 + i,
+          sortSeq: i + 1,
+          qstnCn: q.qstnCn,
+        })),
+      }),
+    );
+  });
+
+  const boxAt = (i: number) =>
+    within(screen.getByTestId('vrfc-question-editor')).getAllByRole('textbox')[i] as HTMLTextAreaElement;
+  const saveButton = () => screen.getByRole('button', { name: '질문 목록 저장' }) as HTMLButtonElement;
+
+  /**
+   * 줄 값을 통째로 바꾼다.
+   *
+   * ⚠ 개행·제어문자를 `user.type` 으로 넣지 않는다 — 그 경로는 키 입력을 흉내 내느라 원하는
+   *   문자가 그대로 들어간다는 보장이 없고, 4000자 입력은 한 글자씩 치느라 느리다. 여기서 보려는
+   *   것은 「그 값이 들어왔을 때의 판정」이므로 값을 직접 넣는다.
+   *   (`textarea` 는 `input[type=text]` 과 달리 개행을 보존하므로 이 재현이 성립한다.)
+   */
+  const setRow = (i: number, value: string) => {
+    fireEvent.change(boxAt(i), { target: { value } });
+  };
+
+  // ── AC-1129 — 저장 전에 화면이 먼저 판정한다 ────────────────────────────
+
+  it('★빈_질문은_저장_전에_그_줄_옆에서_막히고_요청이_나가지_않는다', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '');
+
+    // 사유가 그 줄 옆에 붙는다
+    expect(screen.getByTestId('vrfc-question-error-0')).toHaveTextContent('질문 문구를 입력하세요.');
+    // 보조기술에도 닿는다 — 빨간 테두리만으로는 왜 막혔는지 알 수 없다.
+    expect(boxAt(0)).toHaveAttribute('aria-invalid', 'true');
+    // 저장 수단이 잠기고
+    expect(saveButton().disabled).toBe(true);
+
+    // ★요청 자체가 나가지 않는다(전체 교체라 부분 반영이 없다)
+    await user.click(saveButton());
+    expect(verificationApi.replaceVerificationEventQuestions).not.toHaveBeenCalled();
+  });
+
+  it('★공백만_남겨도_막힌다', async () => {
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '   ');
+
+    expect(screen.getByTestId('vrfc-question-error-0')).toBeInTheDocument();
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('★개행이_섞이면_막힌다', async () => {
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '앞줄\n뒷줄');
+
+    expect(screen.getByTestId('vrfc-question-error-0')).toHaveTextContent(
+      '줄바꿈과 특수 제어문자는 넣을 수 없습니다. 한 줄로 입력하세요.',
+    );
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('★길이_상한을_넘으면_막힌다', async () => {
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '가'.repeat(QSTN_CN_MAX_LENGTH + 1));
+
+    expect(screen.getByTestId('vrfc-question-error-0')).toHaveTextContent(
+      `${QSTN_CN_MAX_LENGTH}자 이하여야 합니다`,
+    );
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('★★여러_줄이_어긋나면_안내가_줄마다_따로_붙고_배너_한_줄로_합쳐지지_않는다', async () => {
+    // 이 케이스가 AC-1129 의 본체다 — 사유를 한 줄에 이어 붙이면 사용자는 <b>어느 질문의 무엇을</b>
+    // 고쳐야 하는지 알 수 없다(증적이 정확히 그 화면이었다).
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '');
+    setRow(1, '앞줄\n뒷줄');
+
+    // 두 줄에 각각 붙는다
+    expect(screen.getByTestId('vrfc-question-error-0')).toHaveTextContent('질문 문구를 입력하세요.');
+    expect(screen.getByTestId('vrfc-question-error-1')).toHaveTextContent('줄바꿈과 특수 제어문자');
+    // 그리고 한 줄짜리 배너로 합쳐지지 않는다
+    expect(screen.queryByTestId('vrfc-question-save-error')).toBeNull();
+  });
+
+  it('★고치면_그_줄의_안내가_사라지고_다시_저장할_수_있다', async () => {
+    // 막힘이 영구 상태로 남지 않는다.
+    const user = userEvent.setup();
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    setRow(0, '');
+    expect(saveButton().disabled).toBe(true);
+
+    setRow(0, '고친 질문');
+
+    expect(screen.queryByTestId('vrfc-question-error-0')).toBeNull();
+    expect(boxAt(0)).not.toHaveAttribute('aria-invalid');
+    expect(saveButton().disabled).toBe(false);
+
+    await user.click(saveButton());
+    await waitFor(() =>
+      expect(verificationApi.replaceVerificationEventQuestions).toHaveBeenCalledWith('fire', [
+        { qstnCn: '고친 질문' },
+        { qstnCn: '두 번째 질문' },
+      ]),
+    );
+  });
+
+  // ── AC-1130 — 서버가 거절해도 그 문구를 그대로 내보내지 않는다 ──────────────
+
+  it('★★서버가_필드_경로와_배열_순번으로_거절해도_그_문구가_화면에_나오지_않는다', async () => {
+    // given: 서버 `GlobalExceptionHandler` 가 만드는 진단 문자열 — 증적에 뜬 바로 그 모양이다.
+    //   ⚠ 화면 선판정을 통과한 값으로 저장해야 서버까지 닿는다. 그래야 「서버가 막아 준 경우」의
+    //     화면을 보는 것이 된다.
+    const 진단문자열 =
+      'questions[0].qstnCn: 질문 문구는 비어 있을 수 없습니다., ' +
+      'questions[1].qstnCn: 질문 문구에는 개행·제어문자를 넣을 수 없습니다.';
+    vi.mocked(verificationApi.replaceVerificationEventQuestions).mockRejectedValue(
+      ApiError.fromStatus(400, 진단문자열),
+    );
+    const user = userEvent.setup();
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    await user.click(saveButton());
+
+    const banner = await screen.findByTestId('vrfc-question-save-error');
+
+    // ① ★서버 응답 문구·필드 경로·배열 순번이 화면 어디에도 나타나지 않는다.
+    const editor = screen.getByTestId('vrfc-question-editor');
+    expect(editor.textContent).not.toContain('questions[');
+    expect(editor.textContent).not.toContain('qstnCn');
+    expect(editor.textContent).not.toContain('질문 문구는 비어 있을 수 없습니다.');
+    expect(document.body.textContent).not.toContain('questions[0]');
+
+    // ② 대신 사람이 읽는 위치 표기로 바뀐다(0부터 세는 순번이 아니라 1부터).
+    expect(banner).toHaveTextContent('1번째, 2번째 질문의 문구를 고쳐 주세요.');
+
+    // ③ 해당 줄이 짚인다
+    expect(screen.getByTestId('vrfc-question-error-0')).toBeInTheDocument();
+    expect(screen.getByTestId('vrfc-question-error-1')).toBeInTheDocument();
+
+    // ④ 알림에도 서버 원문이 실리지 않는다 — 배너만 막고 토스트로 새면 같은 화면이 된다.
+    const toasts = useUiStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]!.message).not.toContain('questions[');
+    expect(toasts[0]!.message).toBe('1번째, 2번째 질문의 문구를 고쳐 주세요.');
+
+    // ⑤ 요청 전체가 거부됐으므로 편집 내용을 지우지 않는다
+    expect(draftValues()).toEqual(['첫 번째 질문', '두 번째 질문']);
+  });
+
+  it('★목록_자체가_거부돼_짚을_줄이_없으면_필드_이름을_내보내지_않고_일반_안내로_내린다', async () => {
+    // `@NotNull` 위반은 색인이 없는 `questions: …` 꼴이다. 이것을 「사람이 읽는 안내」로 흘려보내면
+    // 필드 이름이 그대로 화면에 뜬다.
+    vi.mocked(verificationApi.replaceVerificationEventQuestions).mockRejectedValue(
+      ApiError.fromStatus(400, 'questions: 질문 목록은 필수입니다.'),
+    );
+    const user = userEvent.setup();
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    await user.click(saveButton());
+
+    const banner = await screen.findByTestId('vrfc-question-save-error');
+    expect(banner).toHaveTextContent('저장에 실패했습니다.');
+    expect(document.body.textContent).not.toContain('questions:');
+    expect(document.body.textContent).not.toContain('질문 목록은 필수입니다.');
+  });
+
+  it('★사람이_읽는_단일_안내는_그대로_보여준다_업무_안내를_함께_삼키지_않는다', async () => {
+    // ★갈라내는 쪽의 짝 — 「서버 문구를 감춘다」를 과하게 적용하면 사유가 통째로 사라져, 사용자는
+    //   왜 막혔는지 알 수 없게 된다. 서비스 2차 방어선이 주는 이 문장은 이미 사람이 읽는 위치
+    //   표기(3번째)를 담고 있어 그대로 보여주는 것이 맞다.
+    const 안내 =
+      '3번째 질문 문구가 올바르지 않습니다. 빈 값·개행·제어문자를 넣을 수 없고 4000자 이하여야 합니다.';
+    vi.mocked(verificationApi.replaceVerificationEventQuestions).mockRejectedValue(
+      ApiError.fromStatus(400, 안내),
+    );
+    const user = userEvent.setup();
+    renderSection();
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
+
+    await user.click(saveButton());
+
+    expect(await screen.findByTestId('vrfc-question-save-error')).toHaveTextContent(안내);
   });
 });
