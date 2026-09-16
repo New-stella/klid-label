@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
-import { portalShellAlign } from '@/lib/portalShellLayout';
+import { portalShellAlign, portalTabsTopPadding } from '@/lib/portalShellLayout';
 
 /**
  * 포털 채널 본문 상단 이동 탭 — 셸 사양의 `portal-content-tabs` 영역.
@@ -69,7 +69,10 @@ export function PortalContentTabs() {
   return (
     // ★바 전체에 구분선을 두지 않는다 — 이 채널의 line 탭은 **활성 항목의 밑줄만** 갖는다.
     //   바 밑줄과 활성 밑줄이 겹치면 활성 표시가 바의 일부로 읽혀 어느 자리인지 흐려진다.
-    <nav aria-label="포털 이동 탭" className={portalShellAlign()}>
+    // ★윗 여백은 임베드에서만 붙는다 — Host 가 마운트 슬롯 여백을 0 으로 만들어(계약 전문은
+    //   `lib/portalShellLayout`) 탭이 카드 윗변에 그대로 붙는다. Host 자신의 저작도구 화면도
+    //   같은 자리에 24 를 둔다. 독립 앱에는 위에 머리 영역이 있어 주지 않는다.
+    <nav aria-label="포털 이동 탭" className={cn(portalShellAlign(), portalTabsTopPadding())}>
       {/* 항목 간격 8(=inline) · 좁은 폭에서는 가로로 흐른다 */}
       <ul className="flex items-center gap-inline overflow-x-auto">
         {PORTAL_CONTENT_TABS.map((tab) => {
