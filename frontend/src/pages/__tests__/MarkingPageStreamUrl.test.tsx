@@ -37,12 +37,18 @@ vi.mock('@/features/marking/components/VideoPlayer', () => ({
     src,
     onSrcError,
     onSrcRecovered,
+    sourceKey,
   }: {
     src: string;
     onSrcError?: () => void;
     onSrcRecovered?: () => void;
+    sourceKey?: string | number;
   }) => (
-    <div data-testid="video-player-stub" data-src={src}>
+    <div
+      data-testid="video-player-stub"
+      data-src={src}
+      data-source-key={sourceKey === undefined ? '' : String(sourceKey)}
+    >
       <button type="button" data-testid="fire-src-error" onClick={() => onSrcError?.()}>
         재생 실패
       </button>
@@ -110,6 +116,18 @@ describe('MarkingPage — 재생 주소 구성 · 재시도 상한', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('video-player-stub')).toHaveAttribute('data-src', SIGNED_PATH);
+    });
+  });
+
+  it('★재생기에_영상_식별값을_넘긴다_재발급_위치_보존이_같은_영상에만_걸리게', async () => {
+    // [@design SCREEN-006] 재발급으로 src 가 바뀔 때 위치를 복원하는 것은 「같은 영상」일 때뿐이다.
+    // 식별값이 빠지면 재생기는 영상이 바뀌었는지 가를 수 없다.
+    apiClient.defaults.baseURL = '/api/v1';
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('video-player-stub')).toHaveAttribute('data-source-key', '42');
     });
   });
 
