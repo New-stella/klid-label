@@ -78,7 +78,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <h3>이 시험이 지키지 못하는 것</h3>
  * <ul>
  *   <li>여러 노드가 같은 데이터셋을 동시에 등록하는 경합 — 한 노드 안의 멱등만 본다.</li>
- *   <li>AI 보조 창구(탐지·분할·추적) — 포털 쪽 창구가 아직 서버에 없다.</li>
+ *   <li>AI 보조 창구(탐지·분할·추적) — 추론 서버 왕복이라 여기서 태우지 않는다. 진입 인가가 같은
+ *       작업 가능 판정을 거친다는 사실은 {@code PortalWorkTargetResolverTest} 가 고정한다.</li>
  * </ul>
  *
  * @design ADR-068
