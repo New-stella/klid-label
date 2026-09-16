@@ -103,14 +103,23 @@ describe('포털 증강 — 화면 짜임', () => {
   /** 대기 구간을 숨기지 않되 부정으로 시작하지 않는다 — 사실은 같고 말투만 다르다. */
   it('대기_안내가_사실을_알리되_부정으로_시작하지_않는다', () => {
     mount([row()]);
-    const lead = screen.getByText('증강은 시간이 걸립니다. 결과가 도착하면 목록의 상태가 바뀝니다.');
+    const lead = screen.getByText(
+      '증강은 시간이 걸립니다. 결과가 도착하면 목록의 상태가 바뀝니다.',
+    );
     expect(lead).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('요청한 즉시 결과가 나오지 않습니다');
   });
 
-  it('요청이_있으면_건수와_영상_고르러_가는_길이_머리에_함께_선다', () => {
+  it('요청이_있으면_건수와_영상_고르러_가는_길이_목록_머리에_함께_선다', () => {
     mount([row(), row({ augSn: 9002 })]);
-    expect(screen.getByText('2건')).toBeInTheDocument();
+    /*
+     * ⚠ 2026-09-16 — 건수가 **제목 옆에서 목록 바로 위로** 내려오고 표기도 「2건」 → 「총 2건」이
+     *   됐다(포털 공용 건수 줄). 구 기대값 `getByText('2건')` 은 폐기다 — 「총」과 숫자가 서로
+     *   다른 요소에 담겨 그 글자만 가진 요소가 더는 없다.
+     *   건수 줄은 조건을 좁혔을 때 그 사실이 **여기서만** 바뀌므로 `role="status"` 로 읽어 준다 —
+     *   그 성질까지 함께 고정한다(구 표기에는 없던 축이다).
+     */
+    expect(screen.getByRole('status')).toHaveTextContent('총 2건');
     expect(screen.getByRole('link', { name: '증강할 영상 고르러 가기' })).toBeInTheDocument();
   });
 });
@@ -154,8 +163,13 @@ describe('포털 증강 — 조회 실패와 0건은 다른 모습이다', () =>
     expect(screen.getAllByRole('link', { name: '증강할 영상 고르러 가기' })).toHaveLength(1);
   });
 
-  it('불러오는_중임을_글로_알리고_자리표시자를_함께_그린다', () => {
+  it('불러오는_중임을_글로_알리고_목록이_올_자리를_지킨다', () => {
     mount([], { isLoading: true });
+    /*
+     * ⚠ 2026-09-16 — 구 이름의 「자리표시자」는 **줄 모양 골격**(skeleton)이었고, 지금은 빈 목록과
+     *   같은 판 위에 도는 고리 하나가 선다. 자리를 지킨다는 뜻은 그대로이고 그리는 것이 바뀌었다.
+     *   단언(글로 알린다)은 그때도 지금도 같은 축이라 그대로 둔다.
+     */
     expect(screen.getByRole('status')).toHaveTextContent('요청 현황을 불러오고 있습니다.');
   });
 });
@@ -173,7 +187,13 @@ describe('포털 증강 — 목록 카드', () => {
     mount([row()]);
     expect(screen.queryByRole('table')).toBeNull();
     const list = screen.getByRole('list', { name: '증강 요청 목록' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    /*
+     * ⚠ 2026-09-16 — 구 기대값 `within(list).getAllByRole('listitem')` 은 폐기다. 줄 카드 안에
+     *   **생성 조건 칩과 일시가 각각 제 목록으로** 들어와, 그렇게 세면 카드 한 장이 세 건으로
+     *   잡힌다(칩 · 일시 · 카드). 세어야 하는 것은 「요청 한 건 = 카드 한 장」이므로 목록의
+     *   **바로 아래 자식**만 센다.
+     */
+    expect(list.querySelectorAll(':scope > li')).toHaveLength(1);
   });
 
   /**
@@ -226,13 +246,7 @@ describe('포털 증강 — 목록 카드', () => {
     ]);
     const card = within(screen.getByTestId('portal-augment-row-9001'));
     const names = card.getAllByText(/^(시간대|계절|날씨|지형|심각도)$/);
-    expect(names.map((n) => n.textContent)).toEqual([
-      '시간대',
-      '계절',
-      '날씨',
-      '지형',
-      '심각도',
-    ]);
+    expect(names.map((n) => n.textContent)).toEqual(['시간대', '계절', '날씨', '지형', '심각도']);
   });
 
   /**

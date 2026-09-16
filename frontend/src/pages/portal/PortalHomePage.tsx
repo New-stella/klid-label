@@ -36,7 +36,7 @@
 
 import { useRef, useState } from 'react';
 import { Badge, Button, Table, Tooltip } from 'krds-react';
-import { Download, FileJson, Inbox, X } from 'lucide-react';
+import { Download, FileBraces, Inbox, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { Alert, EmptyState, PageNav, ResultCount, StepHeading } from '@/components/portal/kit';
@@ -395,6 +395,11 @@ export function PortalHomePage() {
                                 <Button
                                   as={Link}
                                   to={entryPath}
+                                  /* ⚠ 킷 `Button` 은 `role` 기본값이 `"button"` 이라 앵커로 세워도
+                                     그것을 덮어쓴다(킷 원본 실측) — 그대로 두면 주소·가운데
+                                     클릭은 살아 있는데 **보조기술에는 「버튼」으로 읽혀** 링크로
+                                     남긴 뜻이 절반만 남는다. 명시로 되돌린다. */
+                                  role="link"
                                   size="small"
                                   data-testid={`portal-work-continue-${work.rawSn}`}
                                 >
@@ -457,7 +462,7 @@ export function PortalHomePage() {
                                 >
                                   {/* 아이콘도 형식을 따른다 — 라벨 JSON 은 중괄호 문서 모양. */}
                                   {work.assetSource === 'PORTAL_UPLOAD' ? (
-                                    <FileJson aria-hidden />
+                                    <FileBraces aria-hidden />
                                   ) : (
                                     <Download aria-hidden />
                                   )}

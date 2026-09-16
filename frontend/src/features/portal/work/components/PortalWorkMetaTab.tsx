@@ -13,6 +13,7 @@
 
 import { PortalEventAnnotationPanel } from './PortalEventAnnotationPanel';
 import { PortalMetaPanel } from './PortalMetaPanel';
+import './PortalWorkMetaTab.css';
 
 export interface PortalWorkMetaTabProps {
   /** 프레임 PK — 메타 창구의 대상. */
@@ -23,7 +24,18 @@ export interface PortalWorkMetaTabProps {
 
 export function PortalWorkMetaTab({ srcSn, rawSn }: PortalWorkMetaTabProps) {
   return (
-    <div data-testid="portal-work-meta-tab" className="flex flex-col">
+    /*
+     * 짜임은 포털 시안의 옆 칸 본문 그대로다 — 묶음 사이 20(`klid-labeling-panel-body`).
+     *
+     * ★`klid-labeling` 은 **저장 안내 글 위에 선을 긋는** 규칙(`.klid-labeling .klid-tool-panel-note`)
+     *   의 조상 고리다. 시안에서는 편집기 뼈대(`EditorLayout className="klid-labeling"`)가 그 자리에
+     *   서는데 그 뼈대가 관제 화면 소유라, 탭이 스스로 고리를 건다. 같은 이름으로 시작하는 다른
+     *   규칙(`klid-labeling-*`)은 전부 <b>별개 클래스</b>라 이 고리에 딸려오지 않는다.
+     */
+    <div
+      data-testid="portal-work-meta-tab"
+      className="klid-labeling klid-portal-meta-tab klid-labeling-panel-body"
+    >
       <PortalMetaPanel srcSn={srcSn} />
       <PortalEventAnnotationPanel rawSn={rawSn} />
     </div>
