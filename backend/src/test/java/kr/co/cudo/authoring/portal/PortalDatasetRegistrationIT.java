@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationService;
 import kr.co.cudo.authoring.portal.service.PortalDatasetRegistrationStatus;
 import kr.co.cudo.authoring.portal.service.PortalDatasetVideoService;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
+import kr.co.cudo.authoring.portal.service.PortalMaterialsSummary;
 import kr.co.cudo.authoring.portal.service.PortalMaterialsUnpacker;
 import kr.co.cudo.authoring.portal.service.PortalMaterialsWorkspace;
 import kr.co.cudo.authoring.portal.service.PortalUserWorkService;
@@ -60,6 +61,8 @@ import java.util.stream.Stream;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.DEID_JPEG;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.ORGNL_JPEG;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.dir;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.flatDoc;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.flatObject;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.frame;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.niaDoc;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.originalPair;
@@ -216,6 +219,22 @@ class PortalDatasetRegistrationIT {
                 LsDataRaw.portalDatasetClipId(datasetId, videoKey));
     }
 
+    /**
+     * 해제본 옆 요약을 공개 자리에 직접 쓴다 — 조달(포털 조회·압축 해제)은 이 시험의 대상이 아니므로
+     * 조달이 남겼을 파일만 같은 창구로 만들어 둔다.
+     */
+    private void writeSummary(long datasetId, String code, String version) throws IOException {
+        workspace.writeSummary(workspace.readyDir(datasetId),
+                new PortalMaterialsSummary(code, version, null, 0, 0L, 0, Instant.now()));
+    }
+
+    /** 그 영상 메타의 값 — 키가 없으면 {@code null}. */
+    private String meta(long rawSn, String key) {
+        List<String> values = jdbc.queryForList(
+                "select meta_vl from ls_data_meta where raw_sn = ? and meta_key = ?", String.class, rawSn, key);
+        return values.isEmpty() ? null : values.get(0);
+    }
+
     private List<Long> srcSnsOf(long rawSn) {
         return jdbc.queryForList("select src_sn from ls_data_src where raw_sn = ? order by frm_no", Long.class, rawSn);
     }
@@ -306,6 +325,104 @@ class PortalDatasetRegistrationIT {
         assertThat(count("select count(*) from ls_data_lbl l join ls_data_src s on s.src_sn = l.src_sn where s.raw_sn = ?",
                 camA)).isEqualTo(4);
         assertThat(workspace.readRegistration(datasetId).state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+    }
+
+    @Test
+    @DisplayName("★해제본_요약의_데이터셋_코드와_버전이_영상_메타로_남는다_정리_삭제_트리거가_그_두_값으로_온다")
+    void datasetCodeAndVersionAreRecordedInMeta() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        writeSummary(datasetId, "DS-FLOOD-2025-01", "16.0.0");
+
+        registrationService.registerAfterProvision(datasetId);
+
+        for (long rawSn : List.of(rawSnByKey(datasetId, "a.mp4"), rawSnByKey(datasetId, "b.mp4"))) {
+            assertThat(meta(rawSn, "portal.dataset_code")).isEqualTo("DS-FLOOD-2025-01");
+            assertThat(meta(rawSn, "portal.dataset_version")).isEqualTo("16.0.0");
+            assertThat(meta(rawSn, "portal.dataset_id")).as("번호 축은 그대로다")
+                    .isEqualTo(Long.toString(datasetId));
+        }
+    }
+
+    @Test
+    @DisplayName("★요약에_코드와_버전이_없으면_그_키를_쓰지_않는다_지어내지_않는다")
+    void blankCodeAndVersionLeaveKeysAbsent() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId);
+        writeSummary(datasetId, null, "   "); // 옛 데이터 — 코드가 없고 버전이 공백이다
+
+        registrationService.registerAfterProvision(datasetId);
+
+        long camA = rawSnByKey(datasetId, "a.mp4");
+        assertThat(meta(camA, "portal.dataset_code")).isNull();
+        assertThat(meta(camA, "portal.dataset_version")).isNull();
+        assertThat(meta(camA, "portal.dataset_id")).as("★두 값이 비어도 등록 자체는 그대로 끝난다")
+                .isEqualTo(Long.toString(datasetId));
+    }
+
+    @Test
+    @DisplayName("요약_파일이_아예_없어도_등록은_끝나고_코드_버전_키만_없다")
+    void missingSummaryStillRegisters() throws IOException {
+        long datasetId = newDatasetId();
+        validLayout(datasetId); // 요약을 쓰지 않는다
+
+        PortalDatasetRegistrationStatus marker = registerNow(datasetId);
+
+        assertThat(marker.state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        long camA = rawSnByKey(datasetId, "a.mp4");
+        assertThat(meta(camA, "portal.dataset_code")).isNull();
+        assertThat(meta(camA, "portal.dataset_version")).isNull();
+    }
+
+    /**
+     * 해제본 — <b>개발망 실물 5148~5150 모양</b>. 영상 블록이 없어 영상 파일명이 아예 오지 않는다.
+     *
+     * <p>라벨이 0건인 프레임({@code "objects": []})을 섞는다 — 실물 5149 의 첫 프레임이 그렇다.
+     */
+    private void flatLayout(long datasetId) throws IOException {
+        Path content = readyContent(datasetId);
+        frame(content, "frame_0001", flatDoc(1, flatObject("smoke", "[0, 120, 300, 300]", "0.95")));
+        frame(content, "frame_0002", flatDoc(2, "")); // 라벨 0건
+        frame(dir(content, "sub"), "frame_0003", flatDoc(3, flatObject("fire", "[20, 380, 90, 90]", "0.9")));
+    }
+
+    /**
+     * ★ 배선까지 본다 — 파서만 고쳐 놓고 등록 경로가 폴백 키를 넘기지 않으면 이 시험만 죽는다.
+     *
+     * <p>파서 단위 시험은 「키를 받으면 그 키로 묶는다」까지만 지킨다. 그 키를 <b>누가 만들어 넘기는가</b>는
+     * 여기서만 드러난다(조달 = 등록 경로, 파서는 받기만 한다 · ADR-068).
+     */
+    @Test
+    @DisplayName("★★영상_파일명이_없는_실물_배포본은_배포본_하나가_영상_하나로_등록된다")
+    void flatBundleRegistersAsOneVideoKeyedByCodeAndVersion() throws IOException {
+        long datasetId = newDatasetId();
+        flatLayout(datasetId);
+        writeSummary(datasetId, "DS-FIRE-2026-01", "1.0");
+
+        PortalDatasetRegistrationStatus marker = registerNow(datasetId);
+
+        assertThat(marker.state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        assertThat(rawSnsOf(datasetId)).as("배포본 하나 = 영상 하나").hasSize(1);
+        long rawSn = rawSnByKey(datasetId, "DS-FIRE-2026-01_1.0");
+        assertThat(meta(rawSn, "portal.dataset_video_key")).isEqualTo("DS-FIRE-2026-01_1.0");
+        assertThat(srcSnsOf(rawSn)).as("라벨 0건인 프레임도 함께 등록된다").hasSize(3);
+        assertThat(count("select count(*) from ls_data_lbl l join ls_data_src s on s.src_sn = l.src_sn "
+                + "where s.raw_sn = ?", rawSn))
+                .as("objects 의 라벨만 들어온다 — 0건 프레임은 라벨을 더하지 않는다").isEqualTo(2);
+        assertThat(meta(rawSn, "video.width")).as("resolution 이 크기의 조달처다").isEqualTo("854");
+    }
+
+    @Test
+    @DisplayName("영상_파일명도_요약도_없으면_데이터셋_번호를_영상_키로_쓴다")
+    void flatBundleWithoutSummaryUsesDatasetId() throws IOException {
+        long datasetId = newDatasetId();
+        flatLayout(datasetId); // 요약을 쓰지 않는다
+
+        PortalDatasetRegistrationStatus marker = registerNow(datasetId);
+
+        assertThat(marker.state()).isEqualTo(PortalDatasetRegistrationState.DONE);
+        assertThat(rawSnsOf(datasetId)).hasSize(1);
+        assertThat(rawSnByKey(datasetId, Long.toString(datasetId))).as("키가 비지 않는다").isPositive();
     }
 
     /** 원본 이미지 바이트가 비식별 프레임 영역 어디에도 없다 — 원본 폴더를 읽지 않았다. */

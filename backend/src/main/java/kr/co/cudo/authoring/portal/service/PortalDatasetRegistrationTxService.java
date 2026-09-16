@@ -75,6 +75,60 @@ public class PortalDatasetRegistrationTxService {
     private final LsDataMetaRepository metaRepository;
     private final LsLabelRepository labelMasterRepository;
 
+    /**
+     * 적재 대상 데이터셋 — 번호와 <b>배포 코드·버전</b>.
+     *
+     * <p>세 값을 한 묶음으로 넘긴다 — 인자로 늘어놓으면 인접한 두 문자열(코드·버전)이 뒤바뀌어도
+     * 컴파일되고 그 어긋남이 조용히 저장된다. 여기서 조립하면 이름이 값에 붙는다.
+     *
+     * @param datasetId 포털 데이터셋 번호 — 목록 창구의 대상 판정 키
+     * @param code      배포 코드. <b>비어 있을 수 있다</b>(옛 데이터 · 요약을 읽지 못했을 때)
+     * @param version   배포 버전. <b>비어 있을 수 있다</b>
+     */
+    public record DatasetRef(long datasetId, String code, String version) {
+
+        /** 영상 키로 쓸 수 있는 글자 — 그 밖은 밑줄로 바꾼다(경로 구분자·제어 문자·공백이 여기 걸린다). */
+        private static final java.util.regex.Pattern KEY_UNSAFE =
+                java.util.regex.Pattern.compile("[^A-Za-z0-9._-]");
+
+        /**
+         * 문서에 영상 파일명이 <b>없을 때</b> 쓸 영상 키 — 배포 코드와 버전으로 만든다(ADR-068).
+         *
+         * <p>둘 다 비어 있으면(옛 데이터 · 요약을 읽지 못했을 때) 데이터셋 번호를 쓴다. 키가 아예 없으면
+         * 그 배포본을 하나도 등록하지 못하므로 <b>비우지 않는다</b>.
+         *
+         * <p>★ 이 값은 그대로 {@link LsDataRaw#portalDatasetClipId} 에 들어가므로 <b>그 규칙을 여기서
+         * 통과시킨다</b> — 허용 글자 밖은 밑줄로 바꾸고, 클립 식별자 폭에 맞춰 자른다. 자르는 것이 안전한
+         * 이유는 이 키가 <b>데이터셋 하나에 하나</b>뿐이고 클립 식별자에 데이터셋 번호가 이미 들어 있어
+         * 서로 다른 영상이 같은 식별자로 접힐 수 없기 때문이다(영상 파일명 쪽은 반대라 자르지 않고 거부한다).
+         */
+        public String fallbackVideoKey() {
+            String joined = join(sanitize(code), sanitize(version));
+            if (joined == null) {
+                return String.valueOf(datasetId);
+            }
+            int room = LsDataRaw.VMS_CLIP_ID_MAX
+                    - (LsDataRaw.PORTAL_DATASET_CLIP_ID_PREFIX.length() + String.valueOf(datasetId).length() + 1);
+            return joined.length() <= room ? joined : joined.substring(0, room);
+        }
+
+        private static String join(String a, String b) {
+            if (a == null) {
+                return b;
+            }
+            return b == null ? a : a + "_" + b;
+        }
+
+        /** 키로 쓸 수 있게 다듬는다 — 비었거나 자리 참조(.·..)뿐이면 {@code null}. */
+        private static String sanitize(String value) {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            String safe = KEY_UNSAFE.matcher(value.trim()).replaceAll("_");
+            return (safe.isBlank() || ".".equals(safe) || "..".equals(safe)) ? null : safe;
+        }
+    }
+
     /** 적재 결과. */
     public record Persisted(long rawSn, int frameCount, int labelCount) {
     }
@@ -82,7 +136,7 @@ public class PortalDatasetRegistrationTxService {
     /**
      * 영상 한 건을 적재한다.
      *
-     * @param datasetId     포털 데이터셋 번호
+     * @param dataset       포털 데이터셋 — 번호와 배포 코드·버전(코드·버전은 비어 있을 수 있다)
      * @param video         해제본에서 읽은 영상
      * @param vmsClipId     멱등 키 — {@link LsDataRaw#portalDatasetClipId} 로 조립한 값
      * @param rawFilePathNm 해제본 안 그 영상의 프레임들이 공유하는 폴더 위치
@@ -93,7 +147,7 @@ public class PortalDatasetRegistrationTxService {
      *         클립 식별자 유일 제약을 어겼을 때 — 호출자가 「이미 등록됨」으로 마감한다
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public Persisted persist(long datasetId, DatasetVideo video, String vmsClipId, String rawFilePathNm,
+    public Persisted persist(DatasetRef dataset, DatasetVideo video, String vmsClipId, String rawFilePathNm,
                              Path stagingDir, Path deidBase, AtomicReference<Path> movedTo) {
         // ★ 유일 제약 위반을 <여기서> 드러나게 한다 — 프레임·라벨을 다 넣은 뒤 커밋에서 깨지면 비용만 크다.
         LsDataRaw raw = videoRepository.saveAndFlush(LsDataRaw.createPortalDataset(vmsClipId, rawFilePathNm));
@@ -133,7 +187,13 @@ public class PortalDatasetRegistrationTxService {
         }
 
         List<LsDataMeta> metas = new ArrayList<>();
-        metas.add(LsDataMeta.create(rawSn, PortalDatasetLedger.KEY_DATASET_ID, Long.toString(datasetId)));
+        metas.add(LsDataMeta.create(rawSn, PortalDatasetLedger.KEY_DATASET_ID,
+                Long.toString(dataset.datasetId())));
+        // ★ 정리 삭제 트리거는 <코드와 버전>으로 온다 — 번호만 적어 두면 그 신호가 가리키는 행을 찾지
+        //   못한다. 값은 소재 조달 응답이 이미 준 것(해제본 옆 요약)이라 포털에 더 요구하지 않는다.
+        //   옛 데이터라 비어 오면 그 키를 쓰지 않는다 — 지어내지 않는다.
+        addIfFits(metas, rawSn, PortalDatasetLedger.KEY_DATASET_CODE, dataset.code());
+        addIfFits(metas, rawSn, PortalDatasetLedger.KEY_DATASET_VERSION, dataset.version());
         addIfFits(metas, rawSn, PortalDatasetLedger.KEY_DATASET_VIDEO_KEY, video.videoKey());
         addIfFits(metas, rawSn, PortalDatasetLedger.KEY_ORIGINAL_FILENAME, video.meta().originalFilename());
         if (PortalDatasetLedger.parseDecimal(video.meta().fps()) != null) {

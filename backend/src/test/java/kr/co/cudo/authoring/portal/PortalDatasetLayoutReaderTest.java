@@ -39,6 +39,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class PortalDatasetLayoutReaderTest {
 
+    /**
+     * 문서에 영상 파일명이 없을 때 쓰는 영상 키 — 실제로는 등록 경로가 배포 코드·버전으로 만들어 넘긴다.
+     *
+     * <p>파서는 이 값을 <b>받기만</b> 한다(해제본 옆 요약을 스스로 읽지 않는다).
+     */
+    private static final String FALLBACK = "DS-FIRE-2026-01_1.0";
+
     @TempDir Path tmp;
 
     private Path content;
@@ -63,7 +70,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 2, realDoc("a.mp4", 2, "fire"));
         frame(content, 3, realDoc("b.mp4", 3, "smoke"));
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos()).as("★영상 키는 폴더 이름이 아니라 문서의 영상 파일명이다")
                 .extracting(DatasetVideo::videoKey).containsExactly("a.mp4", "b.mp4");
@@ -94,7 +101,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 1, realDoc("a.mp4", 1, "fire"));
         frame(dir(content, "sub", "deeper"), 2, realDoc("a.mp4", 2, "fire"));
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos()).hasSize(1);
         assertThat(layout.videos().get(0).frames()).extracting(DatasetFrame::frameNo).containsExactly(1L, 2L);
@@ -108,7 +115,7 @@ class PortalDatasetLayoutReaderTest {
         frame(dir(content, "bundle", "cam-a", "v2", "deid"), 0, niaDoc("a.mp4", 100, "첫 장", "3"));
         frame(dir(content, "bundle", "cam-a", "v2", "deid"), 5, niaDoc("a.mp4", 150, "둘째 장", "3"));
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos()).extracting(DatasetVideo::videoKey).containsExactly("a.mp4");
         DatasetVideo a = layout.videos().get(0);
@@ -134,7 +141,7 @@ class PortalDatasetLayoutReaderTest {
     void frameNoFallsBackToFileName() throws IOException {
         frame(content, 7, realDoc("a.mp4", 7, "fire").replace("\"frame_no\": 7", "\"frame_no\": null"));
 
-        assertThat(reader.read(content).videos().get(0).frames())
+        assertThat(reader.read(content, FALLBACK).videos().get(0).frames())
                 .extracting(DatasetFrame::frameNo).containsExactly(7L);
     }
 
@@ -144,7 +151,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 1, realDoc("a.mp4", 1, "fire"));
         originalPair(content, 1, realDoc("z.mp4", 1, "fire"));
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos()).as("원본 폴더의 짝이 읽혔다면 영상이 둘이 된다")
                 .extracting(DatasetVideo::videoKey).containsExactly("a.mp4");
@@ -158,7 +165,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 1, realDoc("a.mp4", 1, "fire"));
         Files.write(content.resolve("0002.jpg"), PortalDatasetLayoutFixture.DEID_JPEG); // 문서 없음
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .isInstanceOf(LayoutMismatch.class)
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH));
@@ -170,7 +177,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 1, realDoc("a.mp4", 1, "fire"));
         frame(dir(content, "sub"), 9, realDoc("a.mp4", 1, "fire")); // 이름은 다른데 프레임 번호가 같다
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.PAIR_MISMATCH));
     }
@@ -180,7 +187,7 @@ class PortalDatasetLayoutReaderTest {
     void unreadableDocumentFails() throws IOException {
         frame(content, 1, "{ not json");
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.DOCUMENT_UNREADABLE));
     }
@@ -190,16 +197,51 @@ class PortalDatasetLayoutReaderTest {
     void noPairFails() throws IOException {
         Files.writeString(content.resolve("readme.txt"), "x");
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t)).isEqualTo(PortalDatasetRegistrationFailureReason.NO_VIDEO));
     }
 
+    /**
+     * ⚠ 구 동작 폐기 — 예전에는 영상 파일명이 없으면 {@code VIDEO_FILENAME_MISSING} 으로 <b>멈췄다</b>.
+     * 실물 배포본 셋이 전부 영상 파일명을 싣지 않아 그 규칙으로는 한 건도 등록하지 못한다(ADR-068 v6).
+     * 사유 값 자체는 옛 표식 판독을 위해 존치한다 — 지우지 말 것.
+     */
     @Test
-    @DisplayName("★짝은_있는데_영상_파일명이_없으면_짝_없음과_다른_사유로_멈춘다")
-    void missingVideoFileNameIsItsOwnReason() throws IOException {
+    @DisplayName("★★영상_파일명이_없으면_멈추지_않고_배포본_하나를_영상_하나로_본다")
+    void missingVideoFileNameFallsBackToOneVideoPerBundle() throws IOException {
+        frame(content, 1, realDoc("a.mp4", 1, "fire").replace("\"file_name\": \"a.mp4\"", "\"file_name\": \"\""));
+        frame(dir(content, "sub"), 2, realDoc("a.mp4", 2, "fire")
+                .replace("\"file_name\": \"a.mp4\"", "\"file_name\": \"\""));
+
+        DatasetLayout layout = reader.read(content, FALLBACK);
+
+        assertThat(layout.videos()).as("배포본 하나 = 영상 하나").hasSize(1);
+        assertThat(layout.videos().get(0).videoKey()).as("★키는 호출자가 넘긴 배포 코드·버전")
+                .isEqualTo(FALLBACK);
+        assertThat(layout.videos().get(0).frames()).extracting(DatasetFrame::frameNo)
+                .as("흩어진 자리의 프레임이 한 영상으로 묶인다").containsExactly(1L, 2L);
+        assertThat(layout.videos().get(0).meta().originalFilename())
+                .as("영상 파일명이 없으므로 원본 파일명도 비운다 — 폴백 키를 파일명인 척 적지 않는다").isNull();
+    }
+
+    @Test
+    @DisplayName("★영상_파일명이_있으면_폴백을_쓰지_않고_지금처럼_그_값으로_묶는다")
+    void videoFileNameStillWinsOverFallback() throws IOException {
+        frame(content, 1, realDoc("a.mp4", 1, "fire"));
+        frame(content, 2, realDoc("b.mp4", 2, "smoke"));
+
+        DatasetLayout layout = reader.read(content, FALLBACK);
+
+        assertThat(layout.videos()).as("한 배포본에 영상이 여럿인 구성이 그대로 읽힌다")
+                .extracting(DatasetVideo::videoKey).containsExactly("a.mp4", "b.mp4");
+    }
+
+    @Test
+    @DisplayName("파일명도_폴백도_없으면_옛_사유_그대로_멈춘다_방어")
+    void missingBothKeysStillFails() throws IOException {
         frame(content, 1, realDoc("a.mp4", 1, "fire").replace("\"file_name\": \"a.mp4\"", "\"file_name\": \"\""));
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, "  "))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.VIDEO_FILENAME_MISSING));
     }
@@ -209,7 +251,7 @@ class PortalDatasetLayoutReaderTest {
     void videoFileNameWithPathSeparatorFails() throws IOException {
         frame(content, 1, realDoc("../../etc/passwd", 1, "fire"));
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.INVALID_VIDEO_KEY));
     }
@@ -217,7 +259,7 @@ class PortalDatasetLayoutReaderTest {
     @Test
     @DisplayName("해제본_자리가_없으면_멈춘다")
     void missingContentFails() {
-        assertThatThrownBy(() -> reader.read(tmp.resolve("nope")))
+        assertThatThrownBy(() -> reader.read(tmp.resolve("nope"), FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.CONTENT_MISSING));
     }
@@ -230,7 +272,7 @@ class PortalDatasetLayoutReaderTest {
         Files.delete(content.resolve("0001.jpg"));
         Files.createSymbolicLink(content.resolve("0001.jpg"), outside);
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.SYMLINK_REJECTED));
     }
@@ -241,7 +283,7 @@ class PortalDatasetLayoutReaderTest {
         frame(content, 1, realDoc("a.mp4", 1, "fire"));
         Files.writeString(content.resolve("0001.jpg"), "<html>not an image</html>");
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.IMAGE_NOT_JPEG));
     }
@@ -251,7 +293,7 @@ class PortalDatasetLayoutReaderTest {
     void malformedBboxFails() throws IOException {
         frame(content, 1, realDoc("a.mp4", 1, "fire").replace("[400, 200, 480, 360]", "[400, 200, 480]"));
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.INVALID_VALUE));
     }
@@ -261,7 +303,7 @@ class PortalDatasetLayoutReaderTest {
     void unknownBboxFormatFails() throws IOException {
         frame(content, 1, realDoc("a.mp4", 1, "fire").replace("\"xywh\"", "\"xyxy\""));
 
-        assertThatThrownBy(() -> reader.read(content))
+        assertThatThrownBy(() -> reader.read(content, FALLBACK))
                 .satisfies(t -> assertThat(reasonOf(t))
                         .isEqualTo(PortalDatasetRegistrationFailureReason.INVALID_VALUE));
     }
@@ -271,7 +313,7 @@ class PortalDatasetLayoutReaderTest {
     void nonNumericCategoryIsNotLabelId() throws IOException {
         frame(content, 0, niaDoc("a.mp4", 0, "d", "person"));
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos().get(0).frames().get(0).shapes())
                 .allSatisfy(s -> assertThat(s.labelId()).isNull());
@@ -300,7 +342,7 @@ class PortalDatasetLayoutReaderTest {
                     sample.replace("\"frame_no\":1", "\"frame_no\":" + i), StandardCharsets.UTF_8);
         }
 
-        DatasetLayout layout = reader.read(content);
+        DatasetLayout layout = reader.read(content, FALLBACK);
 
         assertThat(layout.videos()).as("영상 파일명이 한 값이라 영상 1건").hasSize(1);
         DatasetVideo v = layout.videos().get(0);
@@ -314,5 +356,91 @@ class PortalDatasetLayoutReaderTest {
                     assertThat(s.labelName()).isEqualTo("fire");
                     assertThat(s.labelId()).isNull();
                 }));
+    }
+
+    /**
+     * 데이터셋 <b>5148</b> 의 {@code frame_0001.json} <b>원문 그대로</b>.
+     *
+     * <p>영상·이미지 블록이 없고 프레임 번호가 최상위, 크기가 {@code resolution}, 라벨이 {@code objects},
+     * 분류 이름이 {@code class} 다. 좌표 표기({@code bbox_format})가 <b>없으므로</b> 종전 기본값인
+     * {@code [x, y, w, h]} 로 읽는다.
+     */
+    @Test
+    @DisplayName("★★개발망_실물_5148_문서_원문_최상위_프레임번호와_objects_class_를_읽는다")
+    void readsActualSample5148() throws IOException {
+        String sample = """
+                {"frame_no":1,"video_ts_ms":0,"label":"FIRE","event_type_cd":"EV02000102",
+                 "objects":[{"class":"smoke","bbox":[0,120,300,300],"confidence":0.95},
+                            {"class":"fire","bbox":[20,380,90,90],"confidence":0.9}],
+                 "lat":35.1064,"lon":129.0324,"camera_id":"CCTV-LOCKER-01",
+                 "captured_at":"2022-12-23T06:28:29Z","resolution":[854,480],
+                 "source":"부산광역시 CCTV 재가공"}
+                """;
+        for (int i = 1; i <= 2; i++) {
+            Files.write(content.resolve(String.format("frame_%04d.jpg", i)), PortalDatasetLayoutFixture.DEID_JPEG);
+            Files.writeString(content.resolve(String.format("frame_%04d.json", i)),
+                    sample.replace("\"frame_no\":1", "\"frame_no\":" + i), StandardCharsets.UTF_8);
+        }
+
+        DatasetLayout layout = reader.read(content, FALLBACK);
+
+        assertThat(layout.videos()).as("영상 파일명이 없으니 배포본 하나가 영상 하나").hasSize(1);
+        DatasetVideo v = layout.videos().get(0);
+        assertThat(v.videoKey()).isEqualTo(FALLBACK);
+        assertThat(v.frames()).as("★최상위 frame_no 를 읽는다 — 파일 이름 frame_0001 은 숫자가 아니라 폴백도 못 쓴다")
+                .extracting(DatasetFrame::frameNo).containsExactly(1L, 2L);
+        assertThat(v.meta().width()).as("★resolution[0]").isEqualTo(854);
+        assertThat(v.meta().height()).as("★resolution[1]").isEqualTo(480);
+        assertThat(v.meta().originalFilename()).isNull();
+
+        assertThat(v.frames().get(0).shapes()).as("★objects 를 읽고 분류 이름은 class 에서 온다")
+                .extracting(DatasetShape::labelName).containsExactly("smoke", "fire");
+        assertThat(v.frames().get(0).shapes()).extracting(DatasetShape::lblTypeCd)
+                .containsOnly(LsDataLbl.TYPE_BBOX);
+        assertThat(v.frames().get(0).shapes().get(0).pointsJson())
+                .as("표기가 없으면 종전 기본값 [x,y,w,h] 로 읽는다")
+                .isEqualTo("[[0.0,120.0],[300.0,420.0]]");
+        assertThat(v.frames().get(0).shapes()).as("분류 식별자가 없으므로 마스터에 잇지 않는다")
+                .allSatisfy(s -> assertThat(s.labelId()).isNull());
+    }
+
+    /**
+     * 데이터셋 <b>5149</b> 의 {@code frame_0001.json} <b>원문 그대로</b> — 라벨이 0건인 프레임이다.
+     *
+     * <p>라벨 0건은 실패가 아니다. 그 프레임이 빠지면 영상을 열었을 때 프레임이 비어 보인다.
+     */
+    @Test
+    @DisplayName("★★개발망_실물_5149_라벨이_0건인_프레임도_정상으로_읽는다")
+    void readsActualSample5149WithNoObjects() throws IOException {
+        String sample = """
+                {"frame_no":1,"video_ts_ms":0,"label":"NORMAL","event_type_cd":"EV01000101","objects":[],
+                 "lat":37.3943,"lon":126.9568,"camera_id":"CCTV-AY-0031",
+                 "captured_at":"2026-07-14T17:05:00Z","resolution":[427,240],
+                 "source":"안양시 CCTV 재가공"}
+                """;
+        Files.write(content.resolve("frame_0001.jpg"), PortalDatasetLayoutFixture.DEID_JPEG);
+        Files.writeString(content.resolve("frame_0001.json"), sample, StandardCharsets.UTF_8);
+
+        DatasetLayout layout = reader.read(content, FALLBACK);
+
+        assertThat(layout.videos()).hasSize(1);
+        DatasetFrame f = layout.videos().get(0).frames().get(0);
+        assertThat(f.frameNo()).isEqualTo(1L);
+        assertThat(f.shapes()).as("★라벨 0건은 정상 — 프레임은 그대로 등록된다").isEmpty();
+        assertThat(f.skippedShapes()).as("건너뛴 것이 아니라 애초에 없다").isZero();
+        assertThat(layout.videos().get(0).meta().width()).isEqualTo(427);
+    }
+
+    @Test
+    @DisplayName("실물_모양이_하위_폴더에_섞여_있어도_같은_배포본이면_한_영상이다")
+    void flatShapeAcrossFolders() throws IOException {
+        frame(content, "frame_0001", PortalDatasetLayoutFixture.flatDoc(1,
+                PortalDatasetLayoutFixture.flatObject("fire", "[1, 2, 3, 4]", "0.5")));
+        frame(dir(content, "sub"), "frame_0002", PortalDatasetLayoutFixture.flatDoc(2, ""));
+
+        DatasetLayout layout = reader.read(content, FALLBACK);
+
+        assertThat(layout.videos()).hasSize(1);
+        assertThat(layout.videos().get(0).frames()).extracting(DatasetFrame::frameNo).containsExactly(1L, 2L);
     }
 }
