@@ -1,0 +1,42 @@
+@charset "utf-8";
+/* 상태 한 줄. 글자 14 · 표식 16(인라인) · 사이 4. 표식은 팔레트 50, 글자는 대비 하한을 지키는 60 (§8) */
+
+.klid-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  font-size: var(--krds-pc-font-size-body-small);
+  font-weight: 600;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+.klid-status-text .icon {
+  flex: none;
+  width: var(--krds-size-height-2); /* 인라인 16 */
+  height: var(--krds-size-height-2);
+}
+
+.klid-status-text[data-tone='success'] {
+  color: var(--krds-color-light-success-60);
+}
+.klid-status-text[data-tone='success'] .icon {
+  color: var(--krds-color-light-success-50);
+}
+.klid-status-text[data-tone='info'] {
+  color: var(--krds-color-light-gray-60);
+}
+.klid-status-text[data-tone='info'] .icon {
+  color: var(--krds-color-light-gray-50);
+}
+.klid-status-text[data-tone='warning'] {
+  color: var(--krds-color-light-warning-60);
+}
+.klid-status-text[data-tone='warning'] .icon {
+  color: var(--krds-color-light-warning-50);
+}
+.klid-status-text[data-tone='danger'] {
+  color: var(--krds-color-light-danger-60);
+}
+.klid-status-text[data-tone='danger'] .icon {
+  color: var(--krds-color-light-danger-50);
+}

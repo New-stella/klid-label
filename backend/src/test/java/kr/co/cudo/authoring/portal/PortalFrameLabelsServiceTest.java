@@ -63,7 +63,8 @@ class PortalFrameLabelsServiceTest {
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
                 new ObjectMapper(), null,
-                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class));
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class),
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(rawDataStatusRepository, org.mockito.Mockito.mock(kr.co.cudo.authoring.video.repository.VideoRepository.class)));
     }
 
     private LsDataSrc src(Long srcSn, Long rawSn, int frameNo) {
@@ -94,7 +95,7 @@ class PortalFrameLabelsServiceTest {
                 kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.initial(rawSn);
         setField(st, "dataSttsCd",
                 kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findById(rawSn)).thenReturn(java.util.Optional.of(st));
+        when(rawDataStatusRepository.findAllById(java.util.List.of(rawSn))).thenReturn(java.util.List.of(st));
     }
 
     @Test
@@ -240,7 +241,7 @@ class PortalFrameLabelsServiceTest {
         // given: 검수 미완료(미승인) 영상 프레임
         LsDataSrc s = src(10L, 100L, 0);
         when(srcRepository.findById(10L)).thenReturn(Optional.of(s));
-        when(rawDataStatusRepository.findById(100L)).thenReturn(Optional.empty());
+        when(rawDataStatusRepository.findAllById(java.util.List.of(100L))).thenReturn(java.util.List.of());
 
         // when/then: 라벨 Load 도 403 (이미지 서빙과 정합) — FE 가 graceful 차단 화면 처리
         assertThatThrownBy(() -> service.loadFrameLabels(10L, alice))

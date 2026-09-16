@@ -71,7 +71,7 @@ class PortalUserWorkServiceTest {
 
         // 기본 스텁을 <먼저> 깐다 — 반환값을 판정에 쓰기 시작하면 mock 기본값(빈 집합/빈 맵)이 정상
         // 경로 시험 전량을 「진입 불가」·「만료 없음」으로 뒤집는다. 겨누는 시험만 개별로 덮어쓴다.
-        when(targetResolver.exposedToDatamart(any())).thenAnswer(inv -> {
+        when(targetResolver.workableVideos(any())).thenAnswer(inv -> {
             Collection<?> ids = inv.getArgument(0);
             return ids == null ? Set.of() : new LinkedHashSet<>((Collection<Long>) ids);
         });
@@ -284,7 +284,7 @@ class PortalUserWorkServiceTest {
         LocalDateTime now = LocalDateTime.now();
         givenRows(datamartRow(1L, now, 2));
         givenFirstAuthoredAt(Map.of(1L, now.minusDays(1)));
-        when(targetResolver.exposedToDatamart(any())).thenReturn(Set.of());   // 노출 조건 불만족
+        when(targetResolver.workableVideos(any())).thenReturn(Set.of());   // 노출 조건 불만족
 
         PortalUserWorkResponse row = service.listUserWorks(ALICE, PAGE).getContent().get(0);
 
@@ -298,7 +298,7 @@ class PortalUserWorkServiceTest {
         LocalDateTime now = LocalDateTime.now();
         givenRows(datamartRow(1L, now, 2));
         givenFirstAuthoredAt(Map.of(1L, now.minusDays(30)));
-        when(targetResolver.exposedToDatamart(any())).thenReturn(Set.of());
+        when(targetResolver.workableVideos(any())).thenReturn(Set.of());
 
         PortalUserWorkResponse row = service.listUserWorks(ALICE, PAGE).getContent().get(0);
 
@@ -313,7 +313,7 @@ class PortalUserWorkServiceTest {
         LocalDateTime now = LocalDateTime.now();
         givenRows(uploadRow(2L, null, 0));
         givenAssets(asset(2L, PortalUploadLedger.STATUS_UPLOADED, now, now, "v.mp4"));
-        when(targetResolver.exposedToDatamart(any())).thenReturn(Set.of());
+        when(targetResolver.workableVideos(any())).thenReturn(Set.of());
 
         assertThat(service.listUserWorks(ALICE, PAGE).getContent().get(0).entrySrcSn()).isEqualTo(702L);
     }

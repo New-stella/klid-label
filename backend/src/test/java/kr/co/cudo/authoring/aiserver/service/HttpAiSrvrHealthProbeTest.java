@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -91,13 +92,14 @@ class HttpAiSrvrHealthProbeTest {
     @Test
     @DisplayName("★시계열_노드는_벤더_규격의_상태_창구를_그_장비_주소로_두드린다")
     void 시계열_노드는_벤더_규격의_상태_창구를_그_장비_주소로_두드린다() {
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willReturn(Mono.just(new VlmServerStatus("ok", null, null)));
 
         assertThat(probe.ping(timeseries())).isTrue();
 
         // ★장비별 주소로 물어야 한다 — 설정 base 한 곳만 찌르면 두 장비의 상태가 같은 값이 된다.
-        verify(vlmClient).fetchStatus("https://vendor.example");
+        // 주기 점검 표식(true)과 함께 부른다 — 성공 호출 로그가 DEBUG 로 낮아진다(NFR-038).
+        verify(vlmClient).fetchStatus("https://vendor.example", true);
         assertThat(server.getRequestCount()).isZero();
     }
 
@@ -106,7 +108,7 @@ class HttpAiSrvrHealthProbeTest {
     void 시계열_노드는_4xx를_받아도_살아_있는_것으로_본다() {
         // 외부 벤더의 인증 정책·응답 형식 변화는 <벤더가 죽었다는 뜻이 아니고> 우리가 고칠 수도 없다.
         // 규격에 없는 경로를 핑해 403 을 받고 헬스가 상시 DOWN 이 된 사고의 교훈과 같은 축이다.
-        given(vlmClient.fetchStatus(anyString())).willReturn(Mono.error(
+        given(vlmClient.fetchStatus(anyString(), eq(true))).willReturn(Mono.error(
                 WebClientResponseException.create(403, "Forbidden",
                         org.springframework.http.HttpHeaders.EMPTY, new byte[0], null)));
 
@@ -119,7 +121,7 @@ class HttpAiSrvrHealthProbeTest {
         // ★「살아 있는가」와 「일을 받을 수 있는가」는 다른 축이다. 원장의 가용/이용불가가 재는 것은
         //   뒤의 축이므로, 벤더가 스스로 못 받는다고 밝힌 장비는 응답을 돌려줘도 후보로 남으면 안 된다.
         //   (위탁 직전 관측은 「게이트 아님」이 확정 사양이라 경고만 남기고 그대로 보낸다.)
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willReturn(Mono.just(new VlmServerStatus(VlmServerStatus.LOADING, 0, 0)));
 
         assertThat(probe.ping(timeseries())).isFalse();
@@ -130,7 +132,7 @@ class HttpAiSrvrHealthProbeTest {
     void 접수는_되나_결과가_지연된다는_응답은_살아_있는_것으로_본다() {
         // 부하로 장비를 내리면 포화를 이유로 멀쩡한 장비가 배제되고 남은 한 대에 전부 몰린다 —
         // 「살아 있는지와 여유가 있는지를 한 값에 엉키게 하지 않는다」가 애초에 막으려던 역효과다.
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willReturn(Mono.just(new VlmServerStatus(VlmServerStatus.BUSY, 12, 3)));
 
         assertThat(probe.ping(timeseries())).isTrue();
@@ -141,7 +143,7 @@ class HttpAiSrvrHealthProbeTest {
     void 응답_형식이_예상_밖이어도_살아_있는_것으로_본다() {
         // 프록시 오류 페이지·벤더 규격 드리프트 — 구 코드는 이것이 마지막 포괄 catch 로 떨어져
         // <죽음>으로 세어졌다. 응답이 도달했는데 실패로 센 것이며, 그 오판의 대가는 계통 정지다.
-        given(vlmClient.fetchStatus(anyString())).willReturn(Mono.error(
+        given(vlmClient.fetchStatus(anyString(), eq(true))).willReturn(Mono.error(
                 new DecodingException("JSON decoding error", new java.io.IOException("unexpected token"))));
 
         assertThat(probe.ping(timeseries())).isTrue();
@@ -151,7 +153,7 @@ class HttpAiSrvrHealthProbeTest {
     @DisplayName("★시계열_노드도_전송이_실패하면_죽은_것으로_본다")
     void 시계열_노드도_전송이_실패하면_죽은_것으로_본다() {
         // 연결 거부·타임아웃은 벤더 정책과 무관하게 「닿지 않는다」이며 우리가 알아야 할 사실이다.
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willReturn(Mono.error(new java.net.ConnectException("refused")));
 
         assertThat(probe.ping(timeseries())).isFalse();
@@ -162,7 +164,7 @@ class HttpAiSrvrHealthProbeTest {
     void 시계열_상태_조회가_시간_안에_돌아오지_않으면_죽은_것으로_본다() {
         // ★전송 계층 실패는 <원인 사슬 안쪽>에 있다(block 이 검사 예외를 리액터 예외로 감싼다) —
         //   겉 예외 타입만 보면 「알 수 없음 → 생존」으로 새어 죽은 벤더가 가용으로 남는다.
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willReturn(Mono.error(new java.util.concurrent.TimeoutException("2s")));
 
         assertThat(probe.ping(timeseries())).isFalse();
@@ -171,7 +173,7 @@ class HttpAiSrvrHealthProbeTest {
     @Test
     @DisplayName("시계열_노드_주소로_목적지를_만들_수_없으면_죽은_것으로_본다")
     void 시계열_노드_주소로_목적지를_만들_수_없으면_죽은_것으로_본다() {
-        given(vlmClient.fetchStatus(anyString()))
+        given(vlmClient.fetchStatus(anyString(), eq(true)))
                 .willThrow(new NonRetryableExternalException("목적지를 만들 수 없습니다."));
 
         assertThat(probe.ping(timeseries())).isFalse();

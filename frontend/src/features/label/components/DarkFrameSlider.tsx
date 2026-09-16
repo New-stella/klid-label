@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 재생 줄. 관제 렌더 경로는 거치지 않는다.
+import { PlaybackBar } from '@/components/portal/authoring';
+
 interface DarkFrameSliderProps {
   currentIndex: number;
   totalFrames: number;
@@ -18,6 +21,11 @@ interface DarkFrameSliderProps {
    * 자동 재생도 진행하지 않는다 — 이동이 막힌 상태에서 인터벌만 도는 것을 막는다.
    */
   disabled?: boolean;
+  /**
+   * 포털 채널이면 시안대로 **킷 재생 줄**을 그린다. 관제는 종전 줄 그대로다.
+   * 갈리는 것은 <b>부품</b>뿐이고 재생·스크럽·미저장 가드 배선은 두 채널이 같은 것을 쓴다.
+   */
+  portalMode?: boolean;
 }
 
 const PLAY_INTERVAL_MS = 500;
@@ -28,6 +36,7 @@ export function DarkFrameSlider({
   onSelect,
   dirtyGuard = false,
   disabled = false,
+  portalMode = false,
 }: DarkFrameSliderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -102,6 +111,35 @@ export function DarkFrameSlider({
   const timecode = `${mm}:${ss}`;
 
   const max = Math.max(0, totalFrames - 1);
+  const trail = `${currentIndex + 1} / ${totalFrames} · ${timecode}`;
+
+  if (portalMode) {
+    /*
+      ★킷 재생 줄 — 코발트 원형 재생 단추 · 킷 막대 · 줄 끝 글.
+        종전에는 날 `input[type=range]`(굵기 1.5) 라 부모 포털 옆에 두면 이 줄만 «되다 만» 것처럼
+        보였다(2026-09-16 사용자 지적). 킷을 입으면 막대 굵기·손잡이 치수를 토큰이 정한다.
+      ★줄 끝 글은 <b>두 채널이 같은 문자열</b>이다(`1 / 23 · 00:00`) — 시안과도 같다.
+      ⚠ 막대 이름은 종전 그대로 「프레임 슬라이더」다. 킷 기본값(「재생 위치」)으로 바꾸면 이 줄을
+        이름으로 집던 기존 가드가 끊긴다.
+    */
+    return (
+      <div className="flex items-center px-3 py-2">
+        <PlaybackBar
+          /* 차단 중에는 눌러도 되돌려 보내지만(핸들러 가드) 그 사실이 보이지도 않으면
+             고장으로 읽힌다 — 킷 재생 줄에는 잠금 축이 없어 겉면에서 막는다. */
+          className={disabled ? 'w-full opacity-50 pointer-events-none' : 'w-full'}
+          playing={isPlaying}
+          onToggle={handlePlayToggle}
+          position={currentIndex}
+          max={max}
+          onSeek={(next) => !disabled && onSelect(next)}
+          seekLabel="프레임 슬라이더"
+          seekValueText={trail}
+          trail={trail}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2 px-3 bg-white h-full border-t border-gray-200">

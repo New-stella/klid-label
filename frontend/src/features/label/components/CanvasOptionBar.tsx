@@ -18,6 +18,9 @@ import { Eye, EyeOff, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { MAX_ZOOM, MIN_ZOOM, useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 import { cn } from '@/lib/cn';
 
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 아이콘 버튼. 관제 렌더 경로는 거치지 않는다.
+import { IconButton } from '@/components/portal/kit';
+
 import { formatBindingKeys } from '../hooks/labelingKeymap';
 import { DscdYn, type Label } from '../types';
 
@@ -161,6 +164,59 @@ export function CanvasOptionBar({
   const zoomOutKeys = formatBindingKeys('zoom.out');
   const visibilityKeys = formatBindingKeys('label.toggleVisibility');
 
+  /**
+   * 줄 끝 아이콘 걸음 — **채널마다 부품이 다르고 배선은 같다.**
+   * 포털은 시안대로 킷 아이콘 버튼(큰 치수), 관제는 종전 버튼 그대로다.
+   * 눌린 상태·비활성·접근성 이름·시험 후크는 두 채널이 같은 값을 받는다.
+   */
+  const BarIconButton = ({
+    onClick,
+    disabled,
+    label,
+    title,
+    testId,
+    pressed,
+    ariaDisabled,
+    children,
+  }: {
+    onClick: () => void;
+    disabled?: boolean;
+    label: string;
+    title?: string;
+    testId: string;
+    pressed?: boolean;
+    ariaDisabled?: boolean;
+    children: React.ReactNode;
+  }) =>
+    portalMode ? (
+      <IconButton
+        size="lg"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        aria-disabled={ariaDisabled}
+        aria-pressed={pressed}
+        title={title}
+        data-testid={testId}
+      >
+        {children}
+      </IconButton>
+    ) : (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        aria-disabled={ariaDisabled}
+        aria-pressed={pressed}
+        title={title}
+        data-testid={testId}
+        className={cn(actionButtonClass)}
+      >
+        {children}
+      </button>
+    );
+
   return (
     <div
       role="toolbar"
@@ -216,35 +272,30 @@ export function CanvasOptionBar({
       {/* 우: 보기 조작(확대·축소·표시숨김) + 저장(유일한 진입점).
           ⚠ 확대/축소·표시숨김은 그동안 단축키(+/-/T)에만 있어 **클릭 진입점이 0건**이었다 —
             마우스만 쓰는 작업자에게는 없는 기능이나 마찬가지였다. */}
-      <button
-        type="button"
+      <BarIconButton
         onClick={handleZoomOut}
         disabled={editBlocked || zoom <= MIN_ZOOM}
-        aria-label="축소"
+        label="축소"
         title={zoomOutKeys ? `축소 (${zoomOutKeys})` : '축소'}
-        data-testid="label-option-zoom-out"
-        className={cn(actionButtonClass)}
+        testId="label-option-zoom-out"
       >
         <ZoomOut size={16} />
-      </button>
-      <button
-        type="button"
+      </BarIconButton>
+      <BarIconButton
         onClick={handleZoomIn}
         disabled={editBlocked || zoom >= MAX_ZOOM}
-        aria-label="확대"
+        label="확대"
         title={zoomInKeys ? `확대 (${zoomInKeys})` : '확대'}
-        data-testid="label-option-zoom-in"
-        className={cn(actionButtonClass)}
+        testId="label-option-zoom-in"
       >
         <ZoomIn size={16} />
-      </button>
-      <button
-        type="button"
+      </BarIconButton>
+      <BarIconButton
         onClick={handleToggleVisibility}
         disabled={editBlocked || !hasSelection}
-        aria-label="라벨 표시/숨김"
-        aria-disabled={editBlocked || !hasSelection}
-        aria-pressed={selectedHidden}
+        label="라벨 표시/숨김"
+        ariaDisabled={editBlocked || !hasSelection}
+        pressed={selectedHidden}
         title={
           hasSelection
             ? visibilityKeys
@@ -252,11 +303,10 @@ export function CanvasOptionBar({
               : '라벨 표시/숨김'
             : VISIBILITY_NO_SELECTION_HINT
         }
-        data-testid="label-option-visibility"
-        className={cn(actionButtonClass)}
+        testId="label-option-visibility"
       >
         {selectedHidden ? <EyeOff size={16} /> : <Eye size={16} />}
-      </button>
+      </BarIconButton>
 
       {/* 시작 버전 선택 재진입 — 라벨을 바꾸지 않는 조회 진입점이라 편집 차단(busy)에도 열어 둔다
           (막으면 무엇이 진행 중인지 확인할 길까지 닫힌다). */}

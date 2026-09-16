@@ -1,0 +1,98 @@
+@charset "utf-8";
+/* 빈 상태. 기준: design.md §5 (본문 80 / 카드 안 56 / 표 안 24 · 표면 gray-5) */
+
+.klid-empty-state {
+  text-align: center;
+  /* 글줄 — 줄 길이를 고르게 나눈다. 뜻이 갈리는 자리는 부품이 이미 붙여 두었다
+     (EmptyState.tsx 의 glued · UX-writing.md §6 「줄바꿈」) */
+  text-wrap: balance;
+}
+.klid-empty-state[data-size='md'],
+.klid-empty-state[data-size='sm'] {
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-gray-5);
+}
+.klid-empty-state[data-size='md'] {
+  /* 빈 상태 세로 여백 80/56 — 패딩 척도는 40 이 최대라 토큰이 없다 (design.md §5).
+     좌우는 척도에서 가져온다 — 종전에는 0 이라 좁은 칸에서 글이 카드 끝에 닿았다
+     (2026-09-07). 세로 80/56 의 위계를 좌우도 40/24 로 따라간다 */
+  padding: 8rem var(--krds-padding-10);
+}
+.klid-empty-state[data-size='sm'] {
+  padding: 5.6rem var(--krds-padding-8);
+}
+
+.klid-empty-state .icon {
+  display: block;
+  margin: 0 auto;
+  color: var(--krds-color-light-gray-30);
+}
+.klid-empty-state[data-size='md'] .icon {
+  width: var(--krds-size-height-6);
+  height: var(--krds-size-height-6);
+}
+.klid-empty-state[data-size='sm'] .icon {
+  width: var(--krds-size-height-5);
+  height: var(--krds-size-height-5);
+}
+
+.klid-empty-state .title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+}
+.klid-empty-state[data-size='md'] .title {
+  font-size: var(--krds-pc-font-size-heading-xsmall);
+}
+.klid-empty-state[data-size='sm'] .title {
+  font-size: var(--krds-pc-font-size-heading-xxsmall);
+}
+/* 불러오는 중 — 아이콘 자리의 고리가 돈다. 0.9s 는 포털의 다른 도는 고리와 같은 빠르기 */
+.klid-empty-state[data-busy] .icon {
+  animation: klid-empty-state-spin 0.9s linear infinite;
+}
+@keyframes klid-empty-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 움직임을 줄여 달라고 한 사용자에게는 돌리지 않는다 — 기다림은 글이 이미 말하고 있다 */
+@media (prefers-reduced-motion: reduce) {
+  .klid-empty-state[data-busy] .icon {
+    animation: none;
+  }
+}
+
+.klid-empty-state .icon + .title {
+  margin-top: var(--krds-gap-5);
+}
+
+.klid-empty-state .desc {
+  margin: var(--krds-gap-2) 0 0;
+  font-size: var(--krds-pc-font-size-body-medium);
+  color: var(--krds-color-light-gray-50);
+}
+
+.klid-empty-state .action {
+  margin-top: var(--krds-gap-6);
+  display: flex;
+  justify-content: center;
+}
+
+/* xs: 표면 없이 텍스트만 (표 셀·좁은 패널) */
+.klid-empty-state[data-size='xs'] {
+  padding: var(--krds-padding-8) var(--krds-padding-3);
+  font-size: var(--krds-pc-font-size-body-small);
+  color: var(--krds-color-light-gray-50); /* 대비 하한 (design.md §8) */
+}
+.klid-empty-state[data-size='xs'] .desc {
+  display: block;
+  margin-top: var(--krds-gap-2);
+  font-size: inherit;
+  color: inherit;
+}
+.klid-empty-state[data-size='xs'] .action {
+  margin-top: var(--krds-gap-3);
+  display: block;
+}

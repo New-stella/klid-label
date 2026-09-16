@@ -255,12 +255,22 @@ describe('PortalLayout', () => {
   });
 
   /*
-   * ★임베드에서 셸이 «자기 여백·최대폭을 세우지 않는다» (2026-09-15 사용자 확정 · 개발망 실측).
+   * ★★임베드도 «자기 여백·최대폭을 세운다» (2026-09-16 — Host CSS 실측으로 반전).
    *
-   * Host 슬롯(`.klid-authoring-slot`)이 이미 좌우 24px 여백을 갖고, 그 슬롯 자체가 Host 페이지
-   * 폭 안에서 좁혀져 있다. 여기서 우리가 「최대폭 1200 + 거터 24」를 한 번 더 세우면 여백이
-   * 두 벌로 겹쳐 좌우 각 54.5px 을 더 잃는다(실측). 그래서 임베드에서는 슬롯 안쪽 폭을 그대로
-   * 채운다. **독립 앱(관제 채널)에서는 그대로 세운다** — 그쪽은 우리가 문서를 소유한다.
+   * Host 는 우리가 마운트되는 순간 슬롯 여백을 스스로 걷는다 —
+   * `.klid-authoring-slot[data-state='mounted'] { padding: 0 }`. 그 규칙에 Host 가 붙인 주석이
+   * 계약을 그대로 말한다: *"여백은 탭 줄 · 콘텐츠 자리가 각자 갖는다"*. Host 자신의 저작도구
+   * 화면도 같은 값을 쓴다(탭 줄 24 · 콘텐츠 24).
+   *
+   * ★**폭은 반대로 Host 몫이다** — Host 는 슬롯 자체를 `max-width:1200` 으로 묶어 가운데
+   *   세운다(시안 실측). 우리가 한 번 더 묶으면 두 겹이 되어, 그보다 넓은 실배포 본문에서
+   *   화면이 가운데로 몰린다(2026-09-16 사용자 신고). 그래서 임베드는 **거터만** 갖는다.
+   *
+   * ⚠ **구 가드 폐기** — *"portal 채널이면 좌우거터도 최대폭도 두지 않는다"*. 그 근거였던
+   *   2026-09-15 실측(*"Host 슬롯이 이미 좌우 24px 여백을 갖는다"*)은 **마운트 전** 슬롯을 잰
+   *   것이었다. 그대로 두어 우리 화면이 카드 모서리에 붙었고 사용자가 신고했다
+   *   (*"포털향 우리 저작도구가 컨테이너에 너무 딱 달라붙었다"*). 되살리지 말 것 — 여백이
+   *   두 벌로 겹치지 않는다(Host 쪽이 0 이다).
    *
    * ⚠ 이 가드가 지키는 핵심은 값 하나하나가 아니라 **탭과 본문이 같은 정렬선을 쓴다**는 것이다.
    *   두 곳이 각자 클래스를 들면 한쪽만 고쳐질 때 시작선이 조용히 어긋난다.
@@ -278,21 +288,34 @@ describe('PortalLayout', () => {
       return { nav, content: content as HTMLElement };
     }
 
-    it('portal_채널이면_좌우거터도_최대폭도_두지_않는다', () => {
+    it('★portal_채널은_거터만_세우고_폭은_묶지_않는다', () => {
       vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
 
       renderLayoutAt('/portal/uploads');
       const { nav, content } = shellBoxes();
 
       for (const el of [nav, content]) {
+        // 여백은 우리 몫 — Host 가 마운트 시 슬롯 여백을 0 으로 만든다.
+        expect(el.className).toMatch(/\bpx-/);
+        // 폭은 Host 몫 — 슬롯이 이미 최대폭을 막고 가운데 세운다. 한 번 더 묶으면
+        // 그보다 넓은 실배포 본문에서 화면이 가운데로 몰린다.
         expect(el.className).not.toMatch(/\bmax-w-/);
-        expect(el.className).not.toMatch(/\bpx-/);
         expect(el.className).not.toMatch(/\bmx-auto\b/);
-        expect(el.className).toMatch(/\bw-full\b/);
       }
       // 세로 리듬은 그대로 — 가로 축만 바뀐다.
       expect(content.className).toMatch(/\bpt-section\b/);
       expect(content.className).toMatch(/\bpb-page-section\b/);
+    });
+
+    it('★탭 줄은 임베드에서만 윗 여백을 뗀다 — 좌우 거터와 같은 칸', () => {
+      // 값을 옮겨 적지 않는다 — 거터를 바꾸면 이 단언이 함께 따라온다(단일 진실원은
+      // `lib/portalShellLayout`, 그 둘이 같은 칸인지는 그쪽 시험이 못 박는다).
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+      renderLayoutAt('/portal/uploads');
+      const { nav } = shellBoxes();
+      const gutter = /\bpx-([\w.[\]]+)\b/.exec(nav.className)?.[1];
+      expect(gutter).toBeDefined();
+      expect(nav.className).toMatch(new RegExp(`\\bpt-${gutter}\\b`));
     });
 
     it('control_채널이면_최대폭_1200과_좌우거터를_그대로_세운다', () => {

@@ -87,6 +87,8 @@ import {
   summarizeDiscardSave,
 } from '@/features/label/discardSaveSummary';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
+
+import { cn } from '@/lib/cn';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useToolLabelPicker } from '@/features/label/hooks/useToolLabelPicker';
@@ -1772,6 +1774,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
       data-testid="labeling-page"
     >
       <LabelHeader
+        portalMode={portalMode}
         cctvName={cctvName}
         eventType={headerEventType}
         currentFrame={frameIdx}
@@ -2077,7 +2080,60 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
           <div data-testid="keypoint-guide-slot" className="shrink-0 px-2">
             <KeypointGuide placingIndex={keypointPlacingIndex} />
           </div>
-          {hasTabs && (
+          {hasTabs && portalMode && (
+            /*
+              ★**KRDS 탭의 생김새를 그대로 쓴다** (2026-09-16 사용자 지적). 종전에는 같은 모양을
+                Tailwind 로 손수 그렸는데 밑줄 굵기·활성 글자색이 부모 포털과 갈려 있었다.
+                킷 클래스를 입으면 **토큰이 값을 정한다** — 우리 포털 테마가 그 토큰을 부모 포털과
+                같은 값으로 덮어 두었으므로 저절로 맞는다.
+              ★여기는 셸 이동 탭과 달리 **진짜 탭**이다(같은 문서 안의 tabpanel 을 가른다).
+                그래서 킷과 같은 ARIA(`tablist`/`presentation`/`tab`)를 그대로 쓴다.
+              ★이슈 탭은 포털에 오지 않는다(`showIssues` 가 내부 채널 전용) — 감추는 것이 아니라
+                값이 없어 서지 않는다.
+              ⚠ 아래 관제 블록은 **손대지 않는다**(관제향 화면 불변 구속).
+            */
+            <div className="krds-tab-area shrink-0">
+              {/* ★`full` — 두 탭이 패널 폭을 **반씩 나눠 채운다**(킷 `<Tab size="full">` 과 같은 값).
+                  이 한 낱말이 빠져 있어 탭이 왼쪽에 몰려 서고 패널 오른쪽이 비어 있었다
+                  (2026-09-16 사용자 지적). 킷 규칙이 `.tab.full>ul{display:flex}` ·
+                  `.tab.full>ul>li{flex:1 1 0}` 로 폭을 나누므로 우리가 값을 적지 않는다. */}
+              <div className="tab line full">
+                <ul role="tablist" aria-label="우측 패널 탭">
+                  {[
+                    { key: 'objects' as const, label: '객체', show: true },
+                    { key: 'meta' as const, label: '메타', show: showMeta },
+                  ]
+                    .filter((t) => t.show)
+                    .map((t) => {
+                      const on = rightTab === t.key;
+                      return (
+                        <li
+                          key={t.key}
+                          role="presentation"
+                          className={cn('tab-item', on && 'active')}
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            id={`right-tab-${t.key}`}
+                            aria-selected={on}
+                            aria-controls={`right-panel-${t.key}`}
+                            data-testid={`right-tab-${t.key}`}
+                            className="btn-tab"
+                            onClick={() => setRightTab(t.key)}
+                          >
+                            {t.label}
+                            {/* 지금 어느 탭인지는 색·밑줄로만 보인다 — 킷이 두는 화면 밖 글을 그대로 둔다. */}
+                            {on && <i className="sr-only">선택됨</i>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            </div>
+          )}
+          {hasTabs && !portalMode && (
             <div
               className="flex shrink-0 border-b border-gray-200"
               role="tablist"
@@ -2262,15 +2318,39 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }
                 : {})}
             >
-              <div className="flex min-h-[160px] flex-1 flex-col overflow-hidden">
+              {/* ★최소 높이가 채널마다 다르다 — 줄 높이가 다르기 때문이다.
+                  관제 줄은 한 줄(약 30)이라 160 이면 다섯 줄이 보인다. 포털 줄은 시안대로
+                  **두 줄 + 도구**(실측 88)라 같은 160 에서는 한 줄 반밖에 못 보고, 목록이
+                  거의 스크롤 상자가 된다. 세 줄이 보이도록 머리 줄(40)까지 더해 304 로 둔다.
+                  ⚠ 값을 줄이려면 줄 높이를 함께 재고 줄여야 한다 — 숫자만 되돌리면 다시 막힌다. */}
+              <div
+                className={cn(
+                  'flex flex-1 flex-col overflow-hidden',
+                  portalMode ? 'min-h-[304px]' : 'min-h-[160px]',
+                )}
+              >
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
-                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
-                <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  <span>객체 목록</span>
+                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다.
+                    ★생김새가 채널마다 갈린다 — 포털은 킷 판 머리 줄(이름 15 · 오른쪽 보조 글 13)이고
+                      <b>건수를 배지로 두르지 않는다</b>(부모 포털 규칙 「수치는 배지 없이 글자만」).
+                      ⚠ <b>사라지는 정보는 없다</b> — 같은 글이 같은 자리에 서고 이름·시험 후크도 그대로다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'flex items-center gap-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>객체 목록</span>
                   <span
                     data-testid="object-count-badge"
                     aria-label="객체 수"
-                    className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700"
+                    className={cn(
+                      portalMode
+                        ? 'klid-tool-panel-aside'
+                        : 'ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700',
+                    )}
                   >
                     {objectCount}개 객체
                   </span>
@@ -2300,8 +2380,19 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 focusTargetRef={portalMode ? autoTrackFocusRef : undefined}
               />
               <div className="flex min-h-[192px] flex-1 flex-col overflow-hidden border-t border-gray-200">
-                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  속성
+                {/* ★포털은 킷 판 머리 줄 꼴이다 — 좌측 도구 칸의 묶음 이름과 같은 층(15)으로 선다.
+                    ⚠ 블록 사이 선은 <b>두 채널 모두 남긴다</b>. 시안은 여백으로 가르지만 우리 칸은
+                      목록과 속성이 각자 스크롤하는 두 칸이라, 선이 없으면 어디까지가 한 묶음인지
+                      스크롤 중에 사라진다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>속성</span>
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
@@ -2346,9 +2437,10 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }}
                 />
               </div>
-              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
+              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함).
+                  ★포털은 킷 판·킷 막대를 입는다(부품만 갈리고 범위·배선·문구는 같다). */}
               <div className="shrink-0 border-t border-gray-200 p-2">
-                <ImageAdjustPanel />
+                <ImageAdjustPanel portalMode={portalMode} />
               </div>
             </div>
           )}
@@ -2444,9 +2536,15 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         onCancel={() => setRevertTarget(null)}
       />
 
-      {/* 하단 — 썸네일 strip + 슬라이더 */}
-      <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
-        <div style={{ height: 60 }}>
+      {/* 하단 — 썸네일 strip + 슬라이더
+          ★높이가 채널마다 다르다. 관제는 종전 고정 60+60 이고, <b>포털은 내용 높이</b>다 —
+            킷 낱장이 76×16:9 에 번호 줄을 그림 «아래» 두고 킷 재생 줄의 누르는 자리가 44 라,
+            60 에 밀어 넣으면 번호와 막대가 잘린다(시안도 이 줄을 내용 높이로 둔다). */}
+      <div
+        className={cn('shrink-0 flex flex-col border-t border-gray-200')}
+        style={portalMode ? undefined : { height: 120 }}
+      >
+        <div style={portalMode ? undefined : { height: 60 }}>
           <FrameFilmstrip
             frames={frames}
             currentIndex={frameIdx}
@@ -2459,13 +2557,17 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
             disabled={isEditBlocked}
           />
         </div>
-        <div style={{ height: 60 }}>
+        <div
+          className={portalMode ? 'border-t border-gray-200' : undefined}
+          style={portalMode ? undefined : { height: 60 }}
+        >
           <DarkFrameSlider
             currentIndex={frameIdx}
             totalFrames={Math.max(frames.length, 1)}
             onSelect={requestJumpTo}
             dirtyGuard={dirtyCount > 0}
             disabled={isEditBlocked}
+            portalMode={portalMode}
           />
         </div>
       </div>

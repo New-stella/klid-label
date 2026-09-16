@@ -17,25 +17,28 @@
 // <h3>★ 사용자가 직접 고치지 않은 항목은 전송하지 않는다</h3>
 // 판정은 {@code buildMetaSavePayload} 가 소유하며 그 안에서 내부 화면과 <b>같은 함수</b>를 부른다.
 //
-// 보안(저장형 XSS 방어): 값은 select value / textarea value 로만 바인딩 — React 기본 escape.
+// <h3>모습은 포털 부품으로 짠다 (2026-09-16)</h3>
+// 구획은 접이식 조건판({@code FilterPanel.Disclosure}), 고르는 칸은 포털 드롭다운, 적는 칸은
+// KRDS 입력칸, 고칠 수 없는 값은 이름·값 목록, 거부 안내는 포털 띠다. 관제 축 부품(`MetaSection`·
+// 관제 `Select`/`Textarea`/`Button`)은 이 채널에서 쓰지 않는다 — 토큰과 루트 글꼴 전제가 갈린다.
+// ⚠ 바뀐 것은 <b>모습뿐</b>이다. 조회·전송·승격 방지 판정은 한 줄도 건드리지 않았다.
+//
+// 보안(저장형 XSS 방어): 값은 드롭다운 값 / textarea value 로만 바인딩 — React 기본 escape.
 //   dangerouslySetInnerHTML 미사용. 폭 상한은 입력 단계에서 강제한다.
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Button, Textarea } from 'krds-react';
 
-import { Button } from '@/components/common/Button';
-import { Textarea } from '@/components/common/Textarea';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/common/Select';
-import {
-  MetaCharCount,
-  MetaReadonlyField,
-  MetaSection,
-} from '@/features/label/components/MetaSection';
+  Alert,
+  Dropdown,
+  FilterPanel,
+  KeyValueList,
+  type DropdownOption,
+} from '@/components/portal/kit';
+import { StatusText } from '@/components/portal/authoring';
+import { NO_VALUE_MARK } from '@/features/label/components/MetaSection';
 import { UNSELECTED_LABEL } from '@/features/label/utils/shootingEnvironmentOptions';
 import { editableMetaLabel, MANUAL_TIMESERIES_META_KEY } from '@/features/auto/metaKeys';
 import { useUiStore } from '@/stores/useUiStore';
@@ -66,12 +69,28 @@ const YN_OPTIONS = [
   { code: 'N', label: '아니오' },
 ] as const;
 
-const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
-const BADGE_CLASS = 'text-[10px] text-gray-500';
+/** 고르지 않은 자리. 값이 빈 문자열인 <b>실재하는 선택지</b>라 목록 맨 위에 함께 선다. */
+const UNSELECTED_OPTION: DropdownOption = { value: '', label: UNSELECTED_LABEL };
 
 /** HTML id 로 쓸 수 있게 다듬은 식별자. 값 자체는 (축, 키) 쌍이다. */
 function controlIdOf(scope: string, metaKey: string): string {
   return `portal-meta-${scope}-${metaKey.replace(/[^a-zA-Z0-9]/g, '-')}`;
+}
+
+/** 고르는 칸의 선택지 — 정의 순서를 그대로 따른다(표시 순서 변경 금지). */
+function optionsOf(control: PortalMetaControl): DropdownOption[] {
+  const source =
+    control.kind === 'yn'
+      ? YN_OPTIONS
+      : control.kind === 'select'
+        ? control.options
+        : [];
+  return [
+    UNSELECTED_OPTION,
+    ...source.map((opt) =>
+      typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.code, label: opt.label },
+    ),
+  ];
 }
 
 /**
@@ -88,12 +107,50 @@ function OverriddenBadge({ item }: { item: PortalMetaItem }) {
   const mine = overriddenBadge(item);
   if (mine === null) return null;
   return (
-    <span
-      className={`ml-1 ${BADGE_CLASS}`}
-      data-testid={`portal-meta-overridden-${axisKeyOfItem(item)}`}
-    >
+    <span className="hint" data-testid={`portal-meta-overridden-${axisKeyOfItem(item)}`}>
       {mine}
     </span>
+  );
+}
+
+/**
+ * 메타 한 칸 — 킷 {@code FilterPanel.Field} 와 <b>같은 짜임</b>(이름표 위·컨트롤 아래)에 두 가지를
+ * 더한 것이다. 킷 Field 는 이름표를 문자열로만 받아 「내가 고침」 배지를 끼울 수 없고, (축, 키)
+ * 표식을 받을 자리도 없다. 킷 부품은 고치지 않는 것이 규칙이라 여기에 한 겹을 둔다.
+ *
+ * ★이름표가 {@code <label>} 이 되는 것은 <b>적는 칸일 때뿐</b>이다 — 고르는 칸(드롭다운)은 트리거가
+ *   버튼이라 {@code htmlFor} 로 이어지지 않는다. 그쪽 이름은 드롭다운의 {@code aria-label} 이 잇는다.
+ */
+function MetaField({
+  label,
+  htmlFor,
+  badge,
+  testId,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  badge?: ReactNode;
+  testId: string;
+  children: ReactNode;
+}) {
+  const name = (
+    <>
+      {label}
+      {badge}
+    </>
+  );
+  return (
+    <div className="klid-filter-field" data-testid={testId}>
+      {htmlFor ? (
+        <label className="label" htmlFor={htmlFor}>
+          {name}
+        </label>
+      ) : (
+        <span className="label">{name}</span>
+      )}
+      <div className="control">{children}</div>
+    </div>
   );
 }
 
@@ -109,48 +166,31 @@ interface ControlProps {
 function MetaValueControl({ id, label, control, value, disabled, onChange }: ControlProps) {
   if (control.kind === 'text') {
     return (
-      <>
-        <Textarea
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          // ★폭은 좁은 쪽이다 — 넓은 쪽을 허용하면 사용자가 다 쓰고 나서 창구에 거부당한다.
-          maxLength={control.maxLength}
-          aria-label={label}
-          className="min-h-[96px] resize-y text-body-md"
-        />
-        <MetaCharCount current={value.length} max={control.maxLength} />
-      </>
+      <Textarea
+        id={id}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        // ★폭은 좁은 쪽이다 — 넓은 쪽을 허용하면 사용자가 다 쓰고 나서 창구에 거부당한다.
+        maxLength={control.maxLength}
+        // 글자수는 상한과 <b>같은 값</b>으로 센다. 킷 기본값(100)을 그대로 두면 「0 / 100」 이 떠
+        // 실제 상한을 거짓으로 알린다.
+        showCount
+        countTotal={control.maxLength}
+        aria-label={label}
+      />
     );
   }
 
-  const options =
-    control.kind === 'yn'
-      ? YN_OPTIONS
-      : (control.options as readonly { code: string; label: string }[] | readonly string[]);
-
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger id={id} className="text-body-md">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {/* 옵션 순서는 정의 순서를 그대로 따른다(표시 순서 변경 금지). */}
-        <SelectItem value="">{UNSELECTED_LABEL}</SelectItem>
-        {options.map((opt) =>
-          typeof opt === 'string' ? (
-            <SelectItem key={opt} value={opt}>
-              {opt}
-            </SelectItem>
-          ) : (
-            <SelectItem key={opt.code} value={opt.code}>
-              {opt.label}
-            </SelectItem>
-          ),
-        )}
-      </SelectContent>
-    </Select>
+    <Dropdown
+      size="small"
+      aria-label={label}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      options={optionsOf(control)}
+    />
   );
 }
 
@@ -169,11 +209,12 @@ function EditableRow({
 }) {
   const id = controlIdOf(field.scope, field.metaKey);
   return (
-    <div data-testid={`portal-meta-row-${axisKeyOf(field.scope, field.metaKey)}`}>
-      <label htmlFor={id} className={FIELD_LABEL_CLASS}>
-        {field.label}
-        <OverriddenBadge item={item} />
-      </label>
+    <MetaField
+      label={field.label}
+      htmlFor={field.control.kind === 'text' ? id : undefined}
+      badge={<OverriddenBadge item={item} />}
+      testId={`portal-meta-row-${axisKeyOf(field.scope, field.metaKey)}`}
+    >
       <MetaValueControl
         id={id}
         label={field.label}
@@ -182,7 +223,7 @@ function EditableRow({
         disabled={disabled}
         onChange={onChange}
       />
-    </div>
+    </MetaField>
   );
 }
 
@@ -257,60 +298,57 @@ export function PortalMetaPanel({ srcSn }: PortalMetaPanelProps) {
   };
 
   if (srcSn === undefined) {
-    return (
-      <MetaSection title="메타">
-        <p className="text-caption text-gray-500" role="status">
-          프레임을 선택하면 메타를 표시합니다.
-        </p>
-      </MetaSection>
-    );
+    // 상태 한 줄은 제 {@code role="status"} 를 갖는다 — 프레임을 고르면 이 자리가 목록으로 바뀐다.
+    return <StatusText tone="info">프레임을 선택하면 메타를 표시합니다</StatusText>;
   }
 
   if (isError) {
     return (
-      <MetaSection title="메타">
-        {/* ★「없다」와 「남의 것이다」를 가르지 않는다 — 판정은 workError 한 곳이 한다. */}
-        <p className="text-caption text-danger" role="alert" data-testid="portal-meta-error">
-          {portalWorkErrorMessage(error)}
-        </p>
-      </MetaSection>
+      // ★「없다」와 「남의 것이다」를 가르지 않는다 — 판정은 workError 한 곳이 한다.
+      //   띠가 성격(danger)에서 role="alert" 를 스스로 정한다.
+      <div data-testid="portal-meta-error">
+        <Alert tone="danger">{portalWorkErrorMessage(error)}</Alert>
+      </div>
     );
   }
 
   return (
-    <div data-testid="portal-meta-panel">
-      {/* 사양 고정 순서: 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타. */}
-      {sections.map((section) => (
-        <MetaSection key={section.title} title={section.title}>
-          {section.rows.length === 0 ? (
-            <p className="text-caption text-gray-500">표시할 항목이 없습니다.</p>
-          ) : (
-            section.rows.map(({ field, item }) => (
-              <EditableRow
-                key={axisKeyOf(field.scope, field.metaKey)}
-                field={field}
-                item={item}
-                value={valueOf(item)}
-                disabled={busy}
-                onChange={(next) => setValue(item, next)}
-              />
-            ))
-          )}
-        </MetaSection>
-      ))}
+    <div data-testid="portal-meta-panel" className="klid-labeling-panel-group">
+      {/* 사양 고정 순서: 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타.
+          적는 구역은 펼친 채 서고, 고칠 수 없는 두 구역만 접힌 채 시작한다. */}
+      <FilterPanel surface="bare" layout="stack" aria-label="메타">
+        {sections.map((section) => (
+          <FilterPanel.Disclosure key={section.title} label={section.title} defaultOpen>
+            {section.rows.length === 0 ? (
+              <p className="klid-tool-panel-note">표시할 항목이 없습니다.</p>
+            ) : (
+              section.rows.map(({ field, item }) => (
+                <EditableRow
+                  key={axisKeyOf(field.scope, field.metaKey)}
+                  field={field}
+                  item={item}
+                  value={valueOf(item)}
+                  disabled={busy}
+                  onChange={(next) => setValue(item, next)}
+                />
+              ))
+            )}
+          </FilterPanel.Disclosure>
+        ))}
 
-      <MetaSection title="시계열 메타">
-        {/* 응답이 준 항목 뒤에 «새로 더할 자리»를 잇는다(표준 열쇠가 이미 있으면 자리는 없다). */}
-        {(manualSlot === null ? timeseries : [...timeseries, manualSlot]).map(
-          (item) => {
+        <FilterPanel.Disclosure label="시계열 메타" defaultOpen>
+          {/* 응답이 준 항목 뒤에 «새로 더할 자리»를 잇는다(표준 열쇠가 이미 있으면 자리는 없다). */}
+          {(manualSlot === null ? timeseries : [...timeseries, manualSlot]).map((item) => {
             const id = controlIdOf(item.scope, item.metaKey);
             const label = editableMetaLabel(item.metaKey);
             return (
-              <div key={axisKeyOfItem(item)} data-testid={`portal-meta-row-${axisKeyOfItem(item)}`}>
-                <label htmlFor={id} className={FIELD_LABEL_CLASS}>
-                  {label}
-                  <OverriddenBadge item={item} />
-                </label>
+              <MetaField
+                key={axisKeyOfItem(item)}
+                label={label}
+                htmlFor={id}
+                badge={<OverriddenBadge item={item} />}
+                testId={`portal-meta-row-${axisKeyOfItem(item)}`}
+              >
                 <MetaValueControl
                   id={id}
                   label={label}
@@ -319,59 +357,70 @@ export function PortalMetaPanel({ srcSn }: PortalMetaPanelProps) {
                   disabled={busy}
                   onChange={(next) => setValue(item, next)}
                 />
-              </div>
+              </MetaField>
             );
-          },
+          })}
+        </FilterPanel.Disclosure>
+
+        {(data?.readOnlyMeta.length ?? 0) > 0 && (
+          // ★표시만 하고 고칠 수 없다 — 비활성 컨트롤을 두지 않고 <b>입력 자체를 렌더하지 않는다</b>
+          //   (눌리는 모양인데 반응이 없으면 사용자가 고장으로 읽는다). 창구도 수정 요청을 거부한다.
+          //   이름·값 목록은 면 없이 쌓는 꼴이라 이미 흰 면인 옆 칸 위에 상자를 겹치지 않는다.
+          <FilterPanel.Disclosure label="참고 정보(수정 불가)">
+            <div data-testid="portal-meta-readonly">
+              <KeyValueList
+                ariaLabel="참고 정보"
+                layout="stack"
+                items={(data?.readOnlyMeta ?? []).map((item) => ({
+                  label: readOnlyMetaLabel(item.metaKey),
+                  value: item.metaVl != null && item.metaVl !== '' ? item.metaVl : NO_VALUE_MARK,
+                }))}
+              />
+            </div>
+          </FilterPanel.Disclosure>
         )}
-      </MetaSection>
 
-      {(data?.readOnlyMeta.length ?? 0) > 0 && (
-        // ★표시만 하고 고칠 수 없다 — 비활성 컨트롤을 두지 않고 <b>입력 자체를 렌더하지 않는다</b>
-        //   (눌리는 모양인데 반응이 없으면 사용자가 고장으로 읽는다). 창구도 수정 요청을 거부한다.
-        <MetaSection title="참고 정보(수정 불가)" defaultOpen={false}>
-          <div data-testid="portal-meta-readonly">
-            {data?.readOnlyMeta.map((item) => (
-              <MetaReadonlyField
-                key={axisKeyOfItem(item)}
-                label={readOnlyMetaLabel(item.metaKey)}
-                value={item.metaVl}
+        {(data?.technicalMeta.length ?? 0) > 0 && (
+          <FilterPanel.Disclosure label="영상 기술 정보(수정 불가)">
+            <div data-testid="portal-meta-technical">
+              <KeyValueList
+                ariaLabel="영상 기술 정보"
+                layout="stack"
+                items={(data?.technicalMeta ?? []).map((item) => ({
+                  // ★이름을 정하지 못한 열쇠는 버리지 않고 원문 그대로 쓴다(조용한 손실 금지).
+                  label: readOnlyMetaLabel(item.metaKey),
+                  value: item.metaVl != null && item.metaVl !== '' ? item.metaVl : NO_VALUE_MARK,
+                }))}
               />
-            ))}
-          </div>
-        </MetaSection>
-      )}
+            </div>
+          </FilterPanel.Disclosure>
+        )}
+      </FilterPanel>
 
-      {(data?.technicalMeta.length ?? 0) > 0 && (
-        <MetaSection title="영상 기술 정보(수정 불가)" defaultOpen={false}>
-          <div data-testid="portal-meta-technical">
-            {data?.technicalMeta.map((item) => (
-              <MetaReadonlyField
-                key={axisKeyOfItem(item)}
-                // ★이름을 정하지 못한 열쇠는 버리지 않고 원문 그대로 쓴다(조용한 손실 금지).
-                label={readOnlyMetaLabel(item.metaKey)}
-                value={item.metaVl}
-              />
-            ))}
-          </div>
-        </MetaSection>
-      )}
-
-      <div className="space-y-1.5 px-2 pb-3">
+      <div className="klid-labeling-meta-save">
         {/*
           ⚠ 무변경 저장 안내 — 문구는 <b>확정된 것이 없다</b>(사양에도 요건만 있다). 사실만 평이하게
             적는다: 원본과 같은 값은 창구가 「내 작업물」로 남기지 않는다. 「저장됨」이라고만 알리면
-            사용자는 자기 확정이 남았다고 믿는다.
+            사용자는 자기 확정이 남았다고 믿는다. 누르기 전에 읽혀야 하므로 걸음 <b>위</b>에 둔다.
         */}
-        <p className="text-[11px] leading-snug text-gray-500">
+        <p className="klid-tool-panel-note">
           원본과 같은 값은 저장해도 내 작업물로 남지 않습니다. 저장한 값은 이 화면에서만 쓰이며
           원본과 데이터마트에는 반영되지 않습니다.
         </p>
+        {/*
+          ★킷 버튼에는 기다림 상태가 없다 — 포털이 쓰는 대로 도는 고리를 클래스로 얹는다
+            (`krds-theme.css` 의 `.krds-btn.klid-btn-busy`). 걸음이 칸 폭을 다 쓰는 것은
+            `.klid-labeling-meta-save > .krds-btn` 이 맡는다.
+          ★여기서는 `disabled` 를 쓴다 — 못 누르는 사유를 따로 알릴 것이 없는 자리다(고친 것이
+            없으면 저장할 것도 없다). 사유가 있는 잠금만 `aria-disabled` 로 초점을 남긴다.
+        */}
         <Button
-          size="sm"
-          fullWidth
+          size="small"
+          variant="secondary"
+          className={save.isPending ? 'klid-btn-busy' : undefined}
+          aria-busy={save.isPending || undefined}
           onClick={handleSave}
           disabled={!canSave}
-          loading={save.isPending}
         >
           메타 저장
         </Button>

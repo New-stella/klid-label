@@ -1,0 +1,211 @@
+@charset "utf-8";
+/* 작은 창 정본. 포털의 작은 창은 전부 이 하나로 선다.
+   **정렬은 가운데로 하나다.** 갈리는 것은 **머리 줄을 누가 쓰느냐**뿐이고 글리프 유무가
+   정한다 (`data-mark` — 컴포넌트가 붙인다):
+   · none — 얹힐 그림이 없으니 **제목이 X 와 한 줄을 쓴다.** 창이 그만큼 짧아진다.
+   · yes  — 글리프가 제목 위에 서는데 그 자리가 X 줄이라, **내용을 X 아래로 내린다.**
+   `data-steps` 는 꼴을 가르지 않는다 — 걸음 줄이 서는지만 말하고 아래 여백에서 쓴다.
+   값은 design.md §6(간격)·§8(색 하한)을 따른다 */
+
+/* ───────── 두 꼴 공통 ───────── */
+
+/* ★ 선언 속성을 덮지 않고 **킷이 내건 토큰**을 준다. `.modal-conts` 패딩은
+   `.krds-modal .modal-dialog .modal-conts`(0-3-0)로 걸려 있어 클래스 둘로는 못 이기는데,
+   값이 변수라 그 변수를 바꾸면 된다. 컴포넌트 변수는 컴포넌트 클래스(.krds-modal)에 걸어야
+   하고, 이 클래스가 바로 그 요소에 붙는다 (CLAUDE.md 디자인 구조 원칙) */
+.klid-dialog {
+  /* ★ 본문 안 간격은 **각 조각이 직접 갖는다** (2026-08-25 실측). 킷은 본문을 세로 플렉스로
+     세우고 아이들 사이에 16(`--krds-modal--conts-gap`)을 흘리는데, 그 값이 아래 경고 상자·추가
+     내용의 여백에 **덧붙어** 두 번 들어간다 (설명 → 목록이 16 + 12 + 슬랙 = 36 으로 벌어졌다).
+     간격은 잉크 기준으로 잡아야 해서 조각마다 값이 다르므로(경고 12 · 추가 16) 흐르는 한 값으로는
+     맞출 수 없다 — 킷 간격을 0 으로 두고 각자 margin 으로 잡는다 */
+  --krds-modal--conts-gap: 0;
+  /* 제목 → 설명 12 (§6 제목과 그 설명은 밀착). 킷 기본은 16 이고, 제목·본문이 각자 구획일 때의
+     값이다 — 여기서는 설명이 제목에 딸린 한 줄이라 붙어야 한다.
+     선언값이 4 인 것은 **잉크 기준**이다: 제목 20/행간 30 이라 아래 슬랙 5, 설명 15/행간 24 라
+     위 슬랙 4.5 — 둘이 이미 9.5 를 먹는다 (2026-08-10 실측).
+     ★ 제목·설명의 크기나 행간을 바꾸면 이 값도 다시 잰다 */
+  --krds-modal--conts-padding-top: var(--krds-padding-2);
+  /* 제목 20 · 걸음 md(44)는 이 창만의 값이 아니라 **작은 창(sm 400) 공통**이다
+     (krds-theme.css `.modal-dialog.modal-sm` · design.md §5). 여기서 다시 정하지 않는다.
+     ※ 이 창의 제목은 짧은 이름이 아니라 한 문장이라(`검색 조건은 5개까지 저장할 수 있습니다`)
+       그 20 이 곧 **400 안에 한 줄로 서는 크기**이기도 하다 — 24 에서 376, 20 에서 313,
+       좌우 패딩 48 을 뺀 자리가 352 다 (2026-08-10 실측) */
+}
+
+/* 제목은 **줄바꿈한다.**
+   ※ 예외 — 킷이 `.krds-modal .modal-dialog .modal-header .modal-title` (0-4-0)에
+     `-webkit-line-clamp: 1` 을 걸어 제목을 한 줄로 묶고 넘치면 말줄임한다. 이 창의 제목은
+     "무슨 일이 일어났는가" 라 짧은 이름이 아니고(`검색 조건은 5개까지 저장할 수 있습니다`),
+     한 줄로 잘리면 정작 알려야 할 끝말이 사라진다 (2026-08-10 실측 — 실제로 `…저장할 수…`
+     에서 끊겼다). 토큰이 없는 속성이라 덮는 수밖에 없고, 0-5-0 으로 조준해야 이긴다.
+   한글은 낱말 가운데서 끊지 않는다 (`word-break: keep-all`) */
+.klid-dialog.krds-modal .modal-dialog .modal-header .modal-title {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+  /* 줄 길이를 고르게 나눈다 — 가운데로 선 제목이라 한쪽만 긴 줄이 특히 눈에 띈다.
+     뜻이 갈리는 자리(「저장할 수 / 있습니다」)는 창이 이미 붙여 두었다 (Dialog.tsx 의 glued) */
+  text-wrap: balance;
+}
+
+/* 설명은 제목에 딸린 줄이라 본문 색 한 단 아래로 죽인다 (흰 면 위 하한 600 — §8) */
+.klid-dialog .modal-conts p {
+  text-wrap: balance; /* 제목과 같은 규칙 (UX-writing.md §6 「줄바꿈」) */
+  font-size: 1.5rem;
+  line-height: 1.6;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 서브텍스트 밑 값 한 줄 — 값이 바뀌는 줄이라 숫자 폭을 고정하고, 서브텍스트보다 크게 세운다
+   (15 → 20 · 행간은 §2 사다리 20 칸의 1.4 · 2026-09-14 사용자 지시 — 17 에서 한 단 더). 색은 서브텍스트와 같다.
+   서브텍스트 → 이 줄은 **제목 → 서브텍스트와 같은 잉크 간격**이다 (2026-09-14 사용자 지시).
+   화면에서 잰 잉크 간격(1440 · 저장 중 창): 제목 → 서브텍스트 31.5. 이 줄은 여백 4 에서 16.5 였으므로
+   20 칸이면 32.5 로 가장 가깝다 (16 칸은 28.5). ★ 계산이 아니라 실측이다 — 위 `.klid-dialog` 주석의
+   「제목 → 설명 12」 는 이 창에서 31.5 로 나온다. 크기·행간을 바꾸면 다시 잰다 */
+.klid-dialog .modal-conts .klid-dialog-meta {
+  margin-top: var(--krds-gap-6);
+  font-size: var(--krds-pc-font-size-heading-small);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+/* 값 밑 안내 — 캡션 글 (§2 사다리 13 칸 · 1.5 · 옅은 회색. 카드 메타와 같은 글).
+   값에 딸린 말이라 여백 없이 바로 밑 줄에 붙는다 (§6 라벨은 대상에 밀착) */
+.klid-dialog .modal-conts .klid-dialog-caption {
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-50);
+}
+
+/* 경고 상자 — **서브텍스트 아래**에 선다 (2026-08-25 확정). 설명이 무슨 일이 일어나는지
+   말하고, 상자는 그 때문에 지금 걸리는 것을 짚는다 (로그아웃의 "진행 중인 작업이 있습니다").
+   종전에는 제목 바로 아래였는데, 상황을 말하기도 전에 경고부터 서서 무엇에 대한 경고인지
+   설명 줄까지 읽고 되짚어야 했다.
+   ★ 상자가 가운데 축에 서더라도 **글은 왼쪽부터** 읽는다 — 가운데 정렬은 한 줄짜리 제목에나
+     맞고, 테두리 안에서 두 줄로 갈리면 눈이 돌아올 축이 없다.
+   여백은 잉크 기준이다. 위 16 (§6 결이 다른 것의 위끝): 설명 15/행간 24 의 아래 슬랙 4.5 +
+   여기 12. 아래 20 (§6 블록 사이 — 다음은 걸음이나 추가 내용이다): 여기 4 + 걸음 줄의 위
+   패딩 16.
+   ※ 테두리 상자는 글과 달리 슬랙이 없어 제 몫을 직접 갖는다 — 설명의 크기나 행간을 바꾸면
+     이 값도 다시 잰다 */
+.klid-dialog-alert {
+  text-wrap: balance;
+  margin-top: 1.2rem;
+  margin-bottom: 0.4rem;
+  text-align: left;
+}
+
+/* 서브텍스트 아래 붙는 추가 내용 (목록 · 인증 버튼 같은 조작).
+   ★ **구분선으로 나눈다** (2026-08-25 확정). 위는 이 창이 하는 말이고 아래는 그 말이 가리키는
+     **자료**다 — 성격이 갈리는 자리라 여백만으로는 한 덩어리로 읽힌다. 굵기·색은 내부
+     구분선 규격 그대로다 (0.1 · gray-20 — DetailCard·FilterPanel 과 같은 값, §5 위계).
+   ★ 아래는 **왼쪽 정렬**이다. 자료는 줄마다 길이가 달라 가운데로 몰면 시작점이 어긋나 눈이
+     돌아올 축이 없다. 위쪽 글은 문장이라 가운데 그대로 둔다 — 선이 그 경계를 말한다.
+   여백은 잉크 기준으로 위아래 **24** 다 (2026-08-25 — 16 에서 넓혔다. 선이 구획을 가르는
+   자리라 글끼리의 간격(16)보다 떨어져야 위아래가 두 덩어리로 읽힌다).
+   위 = 서브텍스트 15/행간 24 의 아래 슬랙 4.5 + 여기 20, 아래 = 여기 20 + 첫 줄의 위 슬랙.
+   ★ 서브텍스트의 크기나 행간을 바꾸면 이 값도 다시 잰다 */
+.klid-dialog-extra {
+  margin-top: 2rem;
+  padding-top: var(--krds-padding-7);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+  text-align: left;
+}
+
+/* 목록 — 브라우저 기본 여백(위아래 1em)을 걷어낸다. 남겨 두면 위에서 잡은 12 에 덧붙는다.
+   줄 사이 8 — 한 덩어리로 읽히는 목록이라 붙여 둔다 (§6 라벨은 대상에 밀착 급) */
+.klid-dialog-extra :is(ul, ol) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ★ 불렛은 **창이 그린다** (2026-08-25 확정 — 화면마다 그리던 것을 올렸다). 줄마다 하나씩인
+   것을 표시가 말해야 한다.
+   글자(•)가 아니라 **그린 점**이다 — 글자로 두면 폰트마다 크기·기준선이 달라진다.
+   들여쓰기 10 = 점 4 + 사이 6. 접힌 둘째 줄은 글 시작점에 맞춰 들여쓰인다.
+   위치를 `em` 으로 잡는 이유: 이 목록의 글자 크기는 그 화면이 정한다(내 학습데이터는 14,
+   기본은 15). 0.6em 이면 두 크기 모두에서 점이 첫 줄 잉크 가운데에 앉는다 */
+.klid-dialog-extra :is(ul, ol) > li {
+  position: relative;
+  padding-left: var(--krds-padding-4);
+}
+.klid-dialog-extra :is(ul, ol) > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background-color: var(--krds-color-light-gray-40);
+}
+
+/* 이 창은 **본문까지 가운데**다 — 글을 읽는 자리라 제목·설명·걸음이 한 축에 선다
+   (제목 줄을 가운데로 두는 것은 창 전부의 규칙이라 공통층이 갖는다 · krds-theme.css §Modal).
+   정렬은 킷이 기본형(default)에 선언하지 않은 속성이라 **덮는 것이 아니라 더하는** 것이다 */
+.klid-dialog .modal-conts {
+  text-align: center;
+}
+
+/* 걸음이 서면 **본문 아래 여백은 걸음 줄이 갖는다** (킷 `--krds-modal--btn-padding-top` 16).
+   둘 다 두면 24 + 16 = 40 이 서서 설명과 걸음이 갈라져 보인다 — 설명에서 걸음으로 넘어가는
+   자리는 잉크 기준 20 이다 (§6 블록 사이). 0 을 주면 16 + 설명 아래 슬랙 4.5 로 그 20 이 선다 */
+.klid-dialog[data-steps='yes'] {
+  --krds-modal--conts-padding-bottom: 0;
+}
+
+/* 머리 줄의 **첫 조각(글리프 또는 제목)이 X 와 같은 줄을 쓴다** — 위 여백도 좌우 여백도
+   공통층이 잡는다 (krds-theme.css §Modal). 아래로 밀어 X 줄을 비우면 창 위에 빈 띠만 남는다 */
+
+/* ───────── 글리프 있음 ───────── */
+
+/* 글리프 · 제목이 헤더의 형제라 헤더가 둘을 세로로 세운다 */
+.klid-dialog[data-mark='yes'] .modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--krds-gap-5); /* 글리프 → 제목 16 (§6 한 컴포넌트 안의 위끝 — 둘이 다른 결이라 8 보다 뗀다) */
+}
+
+/* 글리프 칩 — StatCard 아이콘 칩과 같은 결(코발트 틴트 면 + 코발트 글리프)이다.
+   창의 성격을 한눈에 말하는 그림이라 배지(20)가 아니라 단독 표시 급으로 키운다.
+   크기·면·색을 여기서 잡는 이유는 창마다 갈리지 않게 하기 위해서다 — 호출부는 글리프만 넘긴다 */
+.klid-dialog-mark {
+  display: grid;
+  place-items: center;
+  width: 5.6rem;
+  height: 5.6rem;
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-primary-5);
+  color: var(--krds-color-light-primary-50);
+}
+.klid-dialog-mark svg {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+/* 걸음이 **가운데**로 서는 것과 머리·아랫동에 **선을 긋지 않는 것**은 이 창만의 손질이
+   아니라 **갈래의 규칙**이라 공통층이 갖는다 (krds-theme.css § 창은 두 갈래다).
+   ★ 푸터의 실제 클래스는 `.modal-footer` 가 아니라 **`.modal-btn.btn-wrap`** 이다
+     (`Modal.Footer` 가 그렇게 렌더한다) — 이름만 보고 `.modal-footer` 로 조준하면
+     아무 데도 안 걸린 채 조용히 지나간다. 실제로 그렇게 한 번 빗나갔다 */
+
+/* 걸음이 없는 창의 아래 여백.
+   넓은 폭에서는 킷 기본값(`--krds-modal--conts-padding-bottom`)이 그대로 서므로 손댈 것이 없다.
+   ※ 예외 — 767 아래에서 킷이 `.krds-modal:not([data-type=bottom-sheet]) .modal-dialog
+     .modal-conts` (0-4-0)로 **아래 여백을 0 으로 누른다.** 아랫동(푸터)이 그 몫을 갖는다고
+     보기 때문인데, 걸음이 없으면 그 아랫동 자체가 없어 글이 창 바닥에 붙는다.
+     토큰이 없는 자리라 덮는 수밖에 없고 0-5-0 으로 조준해야 이긴다.
+     값은 좌우와 같은 것으로 준다 — 아래만 다른 값이면 글 상자가 한쪽으로 쏠린다 */
+@media (max-width: 767px) {
+  .klid-dialog[data-steps='none'].krds-modal .modal-dialog .modal-conts {
+    padding-bottom: var(--krds-modal--mobile-padding);
+  }
+}
+

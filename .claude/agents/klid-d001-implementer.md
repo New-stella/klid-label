@@ -348,6 +348,10 @@ backend/gradlew -p backend cleanTest test --tests '...'` 처럼 **단일 명령*
 `getRecordComponents().hasSize(N)` 은 축 추가로 깨지는데 **숫자만 고치면** 그 가드가 막던 필드가
 다시 들어와도 통과한다. ⇒ **컴포넌트 이름 목록**(`containsExactly(...)`)으로 바꿔 신규 필드 유입을 계속 잡는다.
 컴파일이 아니라 단언이 깨져 **「테스트 고치기」로 처리되기 쉬운** 자리다.
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

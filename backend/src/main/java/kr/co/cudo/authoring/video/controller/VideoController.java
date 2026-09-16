@@ -263,14 +263,18 @@ public class VideoController {
     }
 
     /**
-     * 영상 스트림 단기 서명 URL 발급.
+     * 영상 스트림 재생 주소 발급.
      * <p>&lt;video&gt; 엘리먼트가 Authorization 헤더를 못 붙여 401 이 나는 문제를 우회한다.
-     * 인증된 사용자가 호출하면 짧은 TTL HMAC 서명 쿼리가 붙은 스트림 URL 을 반환한다 (JWT 본문 미노출).
+     * 인증된 사용자가 호출하면 스트림 주소(배포 접두 없는 API 기준 경로)를 반환하고, 발급자에게 봉인된
+     * 재생 인증 쿠키를 함께 내려준다. 재생 요청의 인증은 그 쿠키 하나로 판정한다 (JWT 본문 미노출).
+     * @design API-114
+     * @design ADR-071
      */
     @Operation(
             summary = "영상 스트림 서명 URL 발급",
-            description = "인증 필수(INTERNAL 채널). 짧은 TTL HMAC 서명 쿼리가 붙은 스트림 URL 을 발급한다. " +
-                    "<video> 가 Authorization 헤더를 못 붙이는 문제를 우회한다. JWT 본문은 URL 에 노출되지 않는다."
+            description = "인증 필수(INTERNAL 채널). 스트림 주소(배포 접두 없는 API 기준 경로)를 발급하고 " +
+                    "발급자에게 봉인된 재생 인증 쿠키를 함께 내려준다. 재생 요청은 그 쿠키로 인증되며 " +
+                    "주소의 만료 표식은 판정에 쓰이지 않는다. JWT 본문은 URL 에 노출되지 않는다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 — url + expiresAt"),
@@ -289,10 +293,10 @@ public class VideoController {
         // B-ISSUE-63 — 영상 단위 인가(REVIEWER 전체 / WORKER 본인 배정). 캐시 뒤가 아니라 **진입부**에서
         // 판정해야 캐시 히트가 인가를 건너뛰지 않는다(CWE-639 IDOR).
         labelAccessGuard.verifyRawAccess(rawSn, actor);
-        // CWE-284 — 발급 요청자 subject 를 서명에 바인딩한다(u 변조 거부).
+        // CWE-284 — 발급 요청자 subject 를 주소 u 와 쿠키 봉인에 바인딩한다(u 변조는 봉인 검증에서 거부).
         String userNo = actor == null ? null : actor.sub();
-        // A-ISSUE-11 — URL 에 없는 클라이언트 바인딩 nonce 를 HttpOnly 쿠키로 내려 서명 입력에 섞는다.
-        //   → URL 만 유출되면 재생 불가. 쿠키는 TTL 동안 재사용 가능(다수 Range 요청 대응).
+        // A-ISSUE-11 · ADR-071 — URL 에 없는 재생 인증 쿠키(HttpOnly)를 내려준다. 재생 판정은 이 쿠키 하나로 한다.
+        //   → URL 만 유출되면 재생 불가. 쿠키는 수명 동안 재사용 가능(다수 Range 요청 대응).
         // DEV_FIX M-1 — 쿠키는 서버 비밀 + 이 발급자(userNo)로 봉인되어 나간다. 공격자가 심어둔 값이나
         //   타 사용자에게 발급된 값은 봉인 검증에 실패해 채택되지 않고 새 nonce 가 발급된다(nonce fixation 차단).
         String nonce = streamNonceCookie.resolveOrIssue(request, response, userNo);
@@ -317,10 +321,10 @@ public class VideoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상/파일 없음")
     })
     @GetMapping("/{rawSn}/stream")
-    // 관찰-1: 역할 미배정(role=null) 차단. 단 서명 URL 스트림 경로는 예외로 허용한다 —
-    // 서명은 role-gated /stream-url 발급(+userNo 바인딩)을 거친 정당 경로이므로 role=null 은 서명을 얻을 수 없다.
+    // 관찰-1: 역할 미배정(role=null) 차단. 단 재생 인증 쿠키 경로는 예외로 허용한다 —
+    // 쿠키는 role-gated /stream-url 발급(+userNo 봉인)을 거친 정당 경로이므로 role=null 은 쿠키를 얻을 수 없다.
     // LOW 2-1: sub(subject) 값 비교(sub-스푸핑 의존) 대신 STREAM_SIGNED 권한 보유로 판정한다.
-    // 이 권한은 StreamSignatureFilter 가 유효 서명 검증 시에만 부여하며, JWT 발급 경로
+    // 이 권한(이름은 구 서명 판정 시절의 것)은 StreamSignatureFilter 가 쿠키 봉인 검증 통과 시에만 부여하며(ADR-071), JWT 발급 경로
     // (JwtAuthenticationFilter)는 ROLE_*/CHANNEL_* 만 부여하므로 사용자가 절대 합성할 수 없다(CWE-863).
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER') or hasAuthority('STREAM_SIGNED')")
     public ResponseEntity<ResourceRegion> streamVideo(
@@ -328,7 +332,7 @@ public class VideoController {
             @RequestHeader HttpHeaders headers,
             @AuthenticationPrincipal TokenClaims actor) throws IOException {
         // B-ISSUE-63 — 역할만 보던 게이트에 영상 단위 인가를 추가한다(CWE-639 IDOR).
-        //   REVIEWER 전체 / WORKER 본인 배정 영상만. 서명 경로도 동일하게 적용된다 —
+        //   REVIEWER 전체 / WORKER 본인 배정 영상만. 쿠키 경로도 동일하게 적용된다(쿠키가 유효해도 권한 밖 영상은 거부) —
         //   StreamSignatureFilter 가 principal 에 실제 발급자 sub + 재조회 역할을 채우기 때문.
         //   진입부 판정이라 stream-meta 캐시 히트가 인가를 건너뛰지 않는다.
         labelAccessGuard.verifyRawAccess(rawSn, actor);

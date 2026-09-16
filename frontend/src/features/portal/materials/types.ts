@@ -98,3 +98,47 @@ export interface PortalMaterialsStatus {
   /** `READY` 일 때의 해제본 요약. 위 ⚠ 참조. */
   materials: PortalMaterialsSummary | null;
 }
+
+/**
+ * 데이터셋 영상의 원장 등록 상태 — 소재 준비(`READY`) 뒤에 이어지는 별도 단계. @design API-253
+ *
+ * ⚠ 소재 준비 완료가 곧 등록 완료가 아니다. 준비 직후에는 `IN_PROGRESS` 일 수 있고 그동안 목록이
+ *   완전하지 않다. `DONE` 일 때만 목록을 그대로 믿는다.
+ */
+export const PortalDatasetVideoRegistrationState = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE',
+  FAILED: 'FAILED',
+} as const;
+export type PortalDatasetVideoRegistrationState =
+  (typeof PortalDatasetVideoRegistrationState)[keyof typeof PortalDatasetVideoRegistrationState];
+
+/** 데이터셋 영상 한 건 — 라벨링으로 들어갈 대상. @design API-253 */
+export interface PortalDatasetVideo {
+  /** 원장에 등록된 영상 식별자. */
+  rawSn: number;
+  /** 목록 표시용 영상 이름. */
+  videoName: string;
+  /** 원장에 등록된 프레임 수. */
+  frameCount: number;
+  /** 배포본에 실려 온 기존 라벨 건수 — 사용자가 저장한 라벨 수가 아니다. */
+  labelCount: number;
+  /**
+   * 라벨링 화면을 열 프레임. 저장한 라벨이 있으면 마지막 저장 라벨의 프레임, 없으면 첫 프레임이다.
+   * 프레임이 없으면 `null` 이고 화면은 진입을 두지 않는다. ★화면이 스스로 프레임을 고르지 않는다.
+   */
+  entrySrcSn: number | null;
+  /** 이 사용자가 마지막으로 저장한 시각. 저장한 적이 없으면 `null` — 저장해야 내 작업에 남는다. */
+  lastSavedAt: string | null;
+}
+
+/** 데이터셋 영상 목록 응답 — 페이지 + 등록 상태. @design API-253 */
+export interface PortalDatasetVideoPage {
+  /** 서버가 값역을 넓힐 수 있어 문자열로도 받는다 — 모르는 값은 화면이 완료로 읽지 않는다. */
+  registrationState: string;
+  content: PortalDatasetVideo[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}

@@ -2,6 +2,15 @@
  * 포털 업로드 마킹 무대 — 영상 · 마킹 눈금 · 재생 조작을 **한 표면**에 담는다. [@design SCREEN-045]
  * [@design DS-002]
  *
+ * <h3>겉모습을 부모 포털 부품으로 갈아입혔다 (2026-09-16)</h3>
+ * 부모 포털이 이 화면을 자기 부품으로 다시 그려 「저작도구 쪽에 넘기는 기준」으로 삼았고
+ * (`pages/workspace/authoring/AuthoringMarkingView`), 그 짜임을 그대로 옮겼다.
+ *   · 판 = `klid-section-card klid-marking-player` (styles/portal/marking-view.css — ⚠ 화면·부품이
+ *     그 CSS 를 스스로 import 하지 않는다. 포털 채널 스타일의 단일 지점은 `styles/portalLook.ts` 다)
+ *   · 영상 자리 = `VideoStage` · 눈금 = `MarkTimeline` · 재생 줄 = `PlaybackBar` · 배속 = `Dropdown`
+ * ⚠ **재생 로직·창구·신호는 그대로다.** 바뀐 것은 무엇으로 그리느냐뿐이며, 이 부품이 내는
+ *   신호(`onSrcError`·`onSrcRecovered`·`onDurationChange`)와 imperative 창구 둘은 손대지 않았다.
+ *
  * <h3>왜 관제 채널 재생기를 쓰지 않나</h3>
  * `features/marking/components/VideoPlayer` 는 <b>관제 마킹 화면과 함께 쓰는 부품</b>이다
  * (`pages/MarkingPage.tsx`). 거기에 포털 모양을 넣으면 관제 화면이 같이 바뀐다 — 사용자 확정
@@ -14,24 +23,24 @@
  *   호출부가 시각을 받아 그 모듈에 묻는다(공식을 두 벌로 만들지 않는다).
  *
  * <h3>세 조각을 왜 한 표면에 두나</h3>
- * 셋 다 <b>같은 시간축</b>을 말한다 — 재생 위치 · 마킹 지점 · 탐색 막대. 예전에는 영상과 눈금이
- * 서로 다른 상자로 떨어져 있어, 눈금의 막대가 영상의 어느 순간인지 눈으로 이어 붙여야 했다.
- * 한 표면에 세로로 쌓으면 세 축이 같은 가로 좌표를 공유해 그 연결이 화면에 드러난다.
+ * 셋 다 <b>같은 시간축</b>을 말한다 — 재생 위치 · 마킹 지점 · 탐색 막대. 한 판에 세로로 쌓으면
+ * 세 축이 같은 가로 좌표를 공유해 그 연결이 화면에 드러난다. 눈금에는 재생 머리가 함께 있어
+ * «여기서 찍으면 저 자리에 선다» 가 한눈에 읽힌다(`MarkTimeline` 의 `position`).
  *
- * <h3>눈금에는 재생 머리가 함께 있다</h3>
- * 마킹 지점만 있으면 «지금 어디를 보고 있는지» 가 눈금에 없어서, 수동으로 찍을 때 사용자가
- * 영상과 눈금을 번갈아 봐야 한다. 재생 머리를 같은 축에 그리면 «여기서 찍으면 저 자리에 선다» 가
- * 한눈에 읽힌다.
+ * <h3>지점은 «번호» 로 오간다 — 자리 번호가 아니다</h3>
+ * 부모 포털 부품(`MarkTimeline`·`MarkPointList`)은 지점을 <b>프레임 번호</b>로 주고받는데 이
+ * 화면의 상태는 <b>목록에서의 자리(index)</b>다. 그 환산을 이 부품이 맡아 호출부의 계약
+ * (`selectedIndex` · `onSelectMark(index)`)을 그대로 지킨다 — 화면 쪽 상태를 건드리면 단축키
+ * 삭제(`removeMarkAt`)까지 함께 흔들린다.
  */
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
 
+import { MarkTimeline, PlaybackBar, VideoStage } from '@/components/portal/authoring';
+import { Dropdown, type DropdownOption } from '@/components/portal/kit';
 import { markAriaLabel } from '@/features/marking/components/MarkingTimeline';
-import { cn } from '@/lib/cn';
-import { KRDS_FOCUS } from '@/lib/focusRing';
-import { PORTAL_SURFACE } from '@/components/portal/ui/portalControl';
 
 import type { MarkItem } from '../markingTypes';
+
 
 /** 이 무대가 밖으로 내는 창구 — 호출부가 실제로 쓰는 둘뿐이다(위 ⚠ 참조). */
 export interface PortalMarkingStageHandle {
@@ -69,7 +78,10 @@ export interface PortalMarkingStageProps {
 }
 
 /** 배속 — 관제 마킹과 같은 여섯 단계다(사용자가 채널을 오가며 다른 선택지를 만나지 않게). */
-const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+const SPEED_OPTIONS: DropdownOption[] = ['0.25', '0.5', '1', '1.5', '2', '4'].map((v) => ({
+  value: v,
+  label: `${v}x`,
+}));
 
 /** `mm:ss`. 길이를 모르는 동안(NaN·Infinity)에도 자리를 지킨다. */
 function formatClock(sec: number): string {
@@ -91,7 +103,7 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [rate, setRate] = useState(1);
+    const [rate, setRate] = useState('1');
     const [buffering, setBuffering] = useState(false);
 
     useImperativeHandle(ref, () => ({
@@ -108,8 +120,10 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
       else v.pause();
     }, []);
 
-    const changeRate = useCallback((next: number) => {
-      if (videoRef.current) videoRef.current.playbackRate = next;
+    const changeRate = useCallback((next: string) => {
+      const n = Number(next);
+      if (!Number.isFinite(n) || n <= 0) return;
+      if (videoRef.current) videoRef.current.playbackRate = n;
       setRate(next);
     }, []);
 
@@ -120,184 +134,110 @@ export const PortalMarkingStage = forwardRef<PortalMarkingStageHandle, PortalMar
       if (Number.isFinite(d) && d > 0) onDurationChange?.(d);
     }, [onDurationChange]);
 
+    const seekTo = useCallback((t: number) => {
+      if (videoRef.current) videoRef.current.currentTime = t;
+      setCurrentTime(t);
+    }, []);
+
     // 탐색 막대의 최댓값 — 원장 길이가 없으면 재생 요소가 읽은 길이를 쓴다.
     const seekMax = duration > 0 ? duration : durationSec;
     const totalFrames = durationSec * fps;
     const showRuler = totalFrames > 0;
-    // 재생 머리 — 길이를 모르면 그리지 않는다(0 에 붙어 있으면 «맨 앞» 이라는 거짓을 말한다).
-    const headPct = seekMax > 0 ? Math.min(100, (currentTime / seekMax) * 100) : null;
+
+    /* 프레임 번호 ↔ 자리 번호 환산(위 <h3>). 같은 번호가 두 번 담기지 않도록 호출부가 이미
+       걸러 두므로 번호 하나가 자리 하나를 가리킨다. */
+    const markFrames = useMemo(() => marks.map((m) => m.frameIndex), [marks]);
+    const selectedFrame =
+      selectedIndex !== null ? (marks[selectedIndex]?.frameIndex ?? null) : null;
+    const pickFrame = useCallback(
+      (frame: number) => {
+        const i = marks.findIndex((m) => m.frameIndex === frame);
+        if (i >= 0) onSelectMark(i);
+      },
+      [marks, onSelectMark],
+    );
+    /* 눈금 막대의 접근성 이름 — 관제 마킹과 같은 규칙(`F{프레임}·mm:ss`)을 그대로 쓴다. */
+    const frameLabel = useCallback(
+      (frame: number) => {
+        const mark = marks.find((m) => m.frameIndex === frame);
+        return mark ? markAriaLabel(mark) : `F${frame}`;
+      },
+      [marks],
+    );
 
     return (
-      <div className={cn(PORTAL_SURFACE, 'overflow-hidden')}>
-        {/*
-          영상 — 어두운 면이 표면 가장자리까지 닿는다. 높이를 화면 높이에 비례해 묶어 두어야
-          아래 눈금·조작이 <b>한 화면에 함께</b> 보인다(스크롤해야 조작이 나오면 마킹이 두 손
-          일이 된다). 비율이라 낮은 창에서도 조작이 밀려나지 않는다.
+      <section className="klid-section-card klid-marking-player" aria-label="영상 재생">
+        <VideoStage
+          status={buffering ? 'buffering' : 'ready'}
+          message="불러오는 중"
+          media={
+            // 자막 트랙 미제공 — 이용자가 올린 영상의 음성을 저작도구가 옮겨 적지 않는다.
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              ref={videoRef}
+              src={src}
+              /* ⚠ 판 CSS 는 `object-fit: cover` 다(대표 이미지 기준). 마킹은 **보이는 장면을
+                 근거로 지점을 찍는 일**이라 잘라 내면 안 보이는 구간이 생기므로 이 화면에서만
+                 «담기» 로 되돌린다. 킷 파일은 고치지 않는다(복사본 규약). */
+              style={{ objectFit: 'contain' }}
+              onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+              onLoadedMetadata={handleLoadedMetadata}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onError={() => onSrcError?.()}
+              onWaiting={() => setBuffering(true)}
+              onSeeking={() => setBuffering(true)}
+              onCanPlay={() => {
+                setBuffering(false);
+                // 재생 가능해진 것이 곧 회복 신호다 — `onPlaying` 이 아니라 여기다.
+                // 이용자가 재생을 누르지 않아도 소스가 되살아난 것은 사실이기 때문이다.
+                onSrcRecovered?.();
+              }}
+              onPlaying={() => setBuffering(false)}
+              onSeeked={() => setBuffering(false)}
+            />
+          }
+        />
 
-          ★<b>상한은 남는 높이에서 거꾸로 잡은 값</b>이다 — 위의 구역 머리와 아래의 눈금·조작이
-            쓰는 만큼을 빼고 남는 자리를 영상에 준다. 그래서 이 값을 올리려면 <b>먼저 다른 데서
-            높이를 벌어야</b> 한다(그 반대로 하면 조작이 화면 밖으로 밀려난다). 넓은 창에서는
-            가로 폭이 먼저 한계가 되어 영상이 표면을 꽉 채우고 좌우 여백이 사라진다.
-
-          ★<b>무대 비율을 바깥 상자가 갖는다.</b> 재생 요소에 높이를 맡기면 <b>메타데이터가
-            오기 전에는 고유 크기가 없어 상자가 납작하게 접힌다</b> — 그리고 영상이 뜨는 순간
-            아래 눈금·조작이 통째로 밀려 내려간다. 비율을 미리 잡아 두면 처음부터 끝까지
-            같은 자리를 지킨다(가로세로가 다른 영상은 그 안에서 여백을 갖는다).
-        */}
-        <div className="relative aspect-video max-h-[65vh] w-full bg-gray-900">
-          {/* 자막 트랙 미제공 — 이용자가 올린 영상의 음성을 저작도구가 옮겨 적지 않는다. */}
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={videoRef}
-            src={src}
-            className="absolute inset-0 size-full bg-gray-900 object-contain"
-            onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
-            onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onError={() => onSrcError?.()}
-            onWaiting={() => setBuffering(true)}
-            onSeeking={() => setBuffering(true)}
-            onCanPlay={() => {
-              setBuffering(false);
-              // 재생 가능해진 것이 곧 회복 신호다 — `onPlaying` 이 아니라 여기다.
-              // 이용자가 재생을 누르지 않아도 소스가 되살아난 것은 사실이기 때문이다.
-              onSrcRecovered?.();
-            }}
-            onPlaying={() => setBuffering(false)}
-            onSeeked={() => setBuffering(false)}
-          />
-          {buffering && (
-            <div
-              data-testid="portal-marking-buffering"
-              role="status"
-              className="absolute inset-0 z-10 flex items-center justify-center bg-gray-900/40"
-            >
-              <span className="rounded-pill bg-white/90 px-in-component py-tight text-caption text-gray-700">
-                불러오는 중
-              </span>
-            </div>
+        <div className="klid-marking-controls">
+          {/* 마킹 눈금 — 영상 바로 아래, 같은 가로 좌표축 위에 둔다. 길이를 모르면 그리지 않는다
+              (0 에 붙은 막대는 «맨 앞» 이라는 거짓을 말한다). */}
+          {showRuler && (
+            <MarkTimeline
+              marks={markFrames}
+              total={totalFrames}
+              markLabel={frameLabel}
+              onSeek={pickFrame}
+              position={currentTime * fps}
+              selected={selectedFrame}
+            />
           )}
-        </div>
 
-        {/* 마킹 눈금 — 영상 바로 아래, 같은 가로 좌표축 위에 둔다. */}
-        {showRuler && (
-          <div className="border-t border-gray-200 px-in-component pb-tight pt-tight">
-            <div className="mb-tight flex items-baseline justify-between gap-inline">
-              <span className="text-caption text-gray-600">마킹 지점</span>
-              <span className="text-caption tabular-nums text-gray-500">{marks.length}건</span>
-            </div>
-            <div className="relative h-7 overflow-hidden rounded-input bg-gray-100">
-              {/* 재생 머리 — 조작이 아니라 표시다(누를 수 있는 것은 마킹 막대뿐이다). */}
-              {headPct !== null && (
-                <div
-                  aria-hidden
-                  data-testid="portal-marking-playhead"
-                  className="absolute top-0 h-full w-0.5 bg-gray-500"
-                  style={{ left: `${headPct}%` }}
-                />
-              )}
-              {marks.map((mark, i) => {
-                const pct = (mark.frameIndex / totalFrames) * 100;
-                const selected = selectedIndex === i;
-                return (
-                  <button
-                    key={mark.frameIndex}
-                    type="button"
-                    onClick={() => onSelectMark(i)}
-                    aria-label={markAriaLabel(mark)}
-                    aria-pressed={selected}
-                    title={`프레임 ${mark.frameIndex}${mark.timestamp ? ` (${mark.timestamp})` : ''}`}
-                    className={cn(
-                      // 누르는 자리는 넉넉히(가로 8px) 두고, 보이는 막대는 그 안에 가늘게 그린다 —
-                      // 4px 막대는 정확히 겨누기 어렵고 서로 붙으면 어느 것을 눌렀는지 모른다.
-                      'absolute top-0 flex h-full w-2 -translate-x-1/2 justify-center',
-                      KRDS_FOCUS,
-                    )}
-                    style={{ left: `${pct}%` }}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'h-full w-0.5 rounded-pill transition-colors',
-                        selected ? 'w-1 bg-primary-600' : 'bg-primary-400',
-                      )}
-                    />
-                  </button>
-                );
-              })}
+          <div className="klid-marking-playback">
+            <PlaybackBar
+              playing={playing}
+              onToggle={togglePlay}
+              position={currentTime}
+              max={seekMax || 1}
+              step={0.01}
+              onSeek={seekTo}
+              seekValueText={formatClock(currentTime)}
+              lead={`${formatClock(currentTime)} / ${formatClock(seekMax)}`}
+            />
+            {/* 배속은 재생 줄 뒤가 아니라 **한 줄 아래 끝**에 둔다 — 줄 끝에 꽂으면 좁은 폭에서
+                위치 막대가 눌린다(부모 포털 실측). 읽는 순서(오른쪽 끝)는 그대로다. */}
+            <div className="klid-marking-speed">
+              <Dropdown
+                size="small"
+                aria-label="재생 속도"
+                options={SPEED_OPTIONS}
+                value={rate}
+                onChange={changeRate}
+              />
             </div>
           </div>
-        )}
-
-        {/* 재생 조작 — 왼쪽부터 「재생 · 시각 · 탐색 · 배속」. 시선이 왼쪽에서 오른쪽으로
-            «무엇을 · 언제 · 어디로 · 얼마나 빠르게» 로 이어진다. */}
-        <div className="flex flex-wrap items-center gap-in-component border-t border-gray-200 px-in-component py-dense">
-          <button
-            type="button"
-            onClick={togglePlay}
-            aria-label={playing ? '일시정지' : '재생'}
-            data-testid="portal-marking-play"
-            className={cn(
-              'inline-flex size-10 shrink-0 items-center justify-center rounded-full',
-              'bg-primary-500 text-white transition-colors duration-fast',
-              'hover:bg-primary-600 active:bg-primary-700',
-              KRDS_FOCUS,
-            )}
-          >
-            {playing ? (
-              <Pause className="size-5" aria-hidden />
-            ) : (
-              <Play className="size-5 translate-x-px" aria-hidden />
-            )}
-          </button>
-
-          <span className="shrink-0 text-caption tabular-nums text-gray-700">
-            {formatClock(currentTime)}
-            <span className="text-gray-400"> / {formatClock(seekMax)}</span>
-          </span>
-
-          <input
-            type="range"
-            aria-label="재생 위치"
-            min={0}
-            max={seekMax || 1}
-            step={0.01}
-            value={currentTime}
-            onChange={(e) => {
-              const t = parseFloat(e.target.value);
-              if (videoRef.current) videoRef.current.currentTime = t;
-              setCurrentTime(t);
-            }}
-            className={cn('h-1.5 min-w-40 flex-1 cursor-pointer accent-primary-500', KRDS_FOCUS)}
-          />
-
-          {/* 배속 — 트랙 안에서 고른 값만 흰 알약으로 떠오른다. 낱개 버튼 여섯을 늘어놓는 것보다
-              «하나를 고르는 자리» 라는 것이 형태로 드러난다. */}
-          <div
-            role="group"
-            aria-label="재생 속도"
-            className="flex shrink-0 items-center gap-0.5 rounded-pill bg-gray-100 p-1"
-          >
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => changeRate(s)}
-                aria-pressed={rate === s}
-                className={cn(
-                  'inline-flex h-8 min-w-11 items-center justify-center rounded-pill px-2',
-                  'text-caption transition-colors duration-fast',
-                  KRDS_FOCUS,
-                  rate === s ? 'bg-white text-primary-600' : 'text-gray-600 hover:text-gray-900',
-                )}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
         </div>
-      </div>
+      </section>
     );
   },
 );

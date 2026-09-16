@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.config;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter;
 import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
@@ -64,7 +65,12 @@ import java.time.Duration;
  * 필드는 킬스위치로 유지). ca.crt 미보유 환경은 {@code KPST_DEID_ENABLED=false} 로 끄거나 내부망 평문
  * http base-url 을 사용한다. (구 주석 "기본 false" 는 yml 실값과 어긋난 드리프트라 정정)
  *
+ * <h3>★ 외부향 빈은 호출 로그 필터를 맨 마지막에 단다</h3>
+ * <p>{@link kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter} — 재작성·전송 가드·자격증명
+ * 필터를 거친 <b>실제 대상</b>과 결과 코드·소요 시간, 오류 응답 사유를 서버 로그에 남긴다.
+ *
  * @design ADR-062
+ * @design NFR-038
  */
 @Slf4j
 @Configuration
@@ -163,6 +169,8 @@ public class KpstWebClientConfig {
                 .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
                         IntegrationEndpoint.DEIDENTIFY, address.rejectionLabel()))
                 .filter(warnIfSchemeDiffers(baseUrl))
+                // ★ 호출 로그는 맨 마지막 — 재작성·가드를 거친 실제 대상과 오류 응답 사유를 남긴다(NFR-038).
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.DEIDENTIFY.name(), true))
                 .build();
     }
 
@@ -222,9 +230,15 @@ public class KpstWebClientConfig {
     public HttpClient kpstDeidProgressHttpClient(
             @Qualifier("kpstDeidEndpointAddress") ExternalEndpointAddress address,
             @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
-        HttpClient client = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
-                .responseTimeout(RESPONSE_TIMEOUT);
+        // ★ 호출 로그 — WebClient 가 아니라 reactor-netty HttpClient 라(본문 실은 GET 때문에 직접 쓴다)
+        //   ExchangeFilterFunction 대신 이 클라이언트의 요청·응답·오류·연결 종료 훅으로 같은 로그를 단다.
+        //   오류 본문은 호출부가 소비하므로 기록하지 않는다(NFR-038).
+        HttpClient client = ExternalCallLoggingFilter.withNettyCallLogging(
+                HttpClient.create()
+                        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
+                        .responseTimeout(RESPONSE_TIMEOUT),
+                IntegrationEndpoint.DEIDENTIFY.name(),
+                address.usable() ? address.baseUrl() : "");
         if (!address.usable()) {
             // ★ 거부된 주소로는 base 를 걸지 않는다 — 걸면 그 나쁜 주소로 실제 연결이 나간다.
             //   상대 경로 요청은 호출측(KpstDeidentifyClient)이 같은 판정으로 미리 막는다.

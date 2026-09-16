@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.portal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -83,7 +82,8 @@ class PortalDatamartDownloadServiceTest {
 
     private static final long RAW_SN = 100L;
 
-    @Mock ReviewApprovalGate approvalGate;
+    @Mock kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy workablePolicy;
+    @Mock kr.co.cudo.authoring.batch.repository.LsDataMetaRepository metaRepository;
     @Mock LabelAccessGuard accessGuard;
     @Mock VideoStreamService videoStreamService;
     @Mock VideoRepository videoRepository;
@@ -109,7 +109,7 @@ class PortalDatamartDownloadServiceTest {
         // 병합 규칙은 실제 구현을 쓴다 — AC-035(본인 저장분만)의 보장 근거가 그 규칙 자체이므로
         // mock 으로 대체하면 검증이 성립하지 않는다. mergeFrameItems 는 ObjectMapper 만 사용한다.
         PortalLabelService labelService =
-                new PortalLabelService(null, null, null, null, null, null, null, new ObjectMapper(), null, null);
+                new PortalLabelService(null, null, null, null, null, null, null, new ObjectMapper(), null, null, null);
 
         // 어노테이션 문서는 <실제 빌더>로 만든다 — 산출 종류 고정(AC-034)과 좌표 표현이 검증 대상이라
         // mock 으로 대체하면 그 보장 근거가 사라진다.
@@ -119,9 +119,9 @@ class PortalDatamartDownloadServiceTest {
         PortalNiaDocumentFactory documentFactory = new PortalNiaDocumentFactory(niaJsonBuilder);
 
         PortalDatamartDownloadTxService txService = new PortalDatamartDownloadTxService(
-                approvalGate, accessGuard, labelService, videoStreamService,
+                workablePolicy, accessGuard, labelService, videoStreamService,
                 niaExportContextAssembler, documentFactory,
-                videoRepository, srcRepository, lblRepository, userLabelRepository, mapper);
+                videoRepository, srcRepository, lblRepository, userLabelRepository, mapper, metaRepository);
 
         VideoArtifactRootResolver resolver = new VideoArtifactRootResolver(
                 tempDir.toString(), "", rawBase.toString(), deidBase.toString(),
@@ -129,7 +129,7 @@ class PortalDatamartDownloadServiceTest {
 
         service = new PortalDatamartDownloadService(txService, resolver, deidBase.toString());
 
-        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
+        when(workablePolicy.isWorkable(RAW_SN)).thenReturn(true);
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw()));
         givenNiaContext(null);
     }
@@ -161,7 +161,7 @@ class PortalDatamartDownloadServiceTest {
     @Test
     @DisplayName("데이터마트에_노출되지_않은_영상은_403이고_신고_상태를_묻지_않는다")
     void notApproved_forbidden_beforeDeidentGate() {
-        when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
+        when(workablePolicy.isWorkable(RAW_SN)).thenReturn(false);
 
         assertThatThrownBy(() -> service.download(RAW_SN, alice))
                 .isInstanceOf(CustomException.class)

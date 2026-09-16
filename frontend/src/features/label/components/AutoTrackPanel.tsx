@@ -28,6 +28,7 @@ import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { RadioGroup } from '@/components/common/RadioGroup';
 import { PortalRadioGroup } from '@/components/portal/ui/PortalRadioGroup';
+import { cn } from '@/lib/cn';
 
 import { useAutoTrack } from '../hooks/useAutoTrack';
 import type { AutoTrackResponse } from '../api/autoTrack';
@@ -234,19 +235,28 @@ export function AutoTrackPanel({
       data-testid="auto-track-panel"
       className="shrink-0 border-t border-gray-200 p-2 text-caption text-gray-700"
     >
+      {/* ★이름 층이 채널마다 갈린다 — 포털은 킷 판 이름(15)으로 서서 옆 칸의 다른 묶음
+          (객체 목록 · 속성 · 이미지 조절)과 같은 층이 된다. 관제는 종전 그대로다.
+          ⚠ 포커스 자리(`focusTargetRef`)와 시험 후크는 <b>두 채널이 같다</b> — 포털 도구 칸의
+            「AI 자동 추적」 버튼이 이 이름으로 포커스를 옮기므로 사라지면 그 길이 끊긴다. */}
       {focusTargetRef ? (
         <div
           ref={focusTargetRef}
           tabIndex={-1}
           data-testid="auto-track-panel-heading"
-          className="mb-1 rounded-sm font-semibold text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+          className={cn(
+            'mb-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500',
+            portal ? 'klid-tool-panel-title' : 'font-semibold text-gray-900',
+          )}
         >
           AI 자동 추적
         </div>
       ) : (
-        <div className="mb-1 font-semibold text-gray-900">AI 자동 추적</div>
+        <div className={cn('mb-1', portal ? 'klid-tool-panel-title' : 'font-semibold text-gray-900')}>
+          AI 자동 추적
+        </div>
       )}
-      <p className="mb-2 text-[11px] text-gray-600">
+      <p className={cn('mb-2', portal ? 'klid-tool-panel-note' : 'text-[11px] text-gray-600')}>
         시작 객체를 고르지 않아도 현재 프레임부터 뒤따르는 프레임까지 한 번에 찾습니다.
       </p>
 

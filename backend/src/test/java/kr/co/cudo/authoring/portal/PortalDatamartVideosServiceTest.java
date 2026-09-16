@@ -78,7 +78,8 @@ class PortalDatamartVideosServiceTest {
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
                 rawDataStatusRepository, videoRepository, deidentGate,
                 new PortalRetentionPolicy(systemConfigService), new ObjectMapper(), null,
-                userWorkRepository);
+                userWorkRepository,
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(rawDataStatusRepository, videoRepository));
     }
 
     private LsDataRaw raw(Long rawSn, String clipId, String evnt) {

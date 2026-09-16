@@ -11,7 +11,7 @@
 //    서버 원문 메시지는 노출하지 않는다(CWE-209).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -136,8 +136,14 @@ describe('포털 내 작업 — 내려받기 가부 판정', () => {
     expect(screen.getByTestId('portal-work-row-66')).toBeInTheDocument();
     // then: 내려받기만 막힌다 + 사유가 눈으로도 보조기술로도 읽힌다
     const button = screen.getByTestId('portal-work-download-66');
-    expect(button).toBeDisabled();
-    expect(screen.getByText('아직 저장한 작업이 없어 내려받을 것이 없습니다.')).toBeInTheDocument();
+    /* ⚠ 2026-09-16 — 잠금이 `disabled` 속성에서 `aria-disabled` 로 바뀌었다. native `disabled` 는
+       Tab 순서에서 빠져 **왜 못 누르는지 알 길이 사라진다**(WCAG 2.1.1) — 초점은 남기고 활성화만 막는다. */
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    /* ⚠ 사유가 문서에 **두 번** 나온다 — 말풍선(눈)과 화면 밖 글(귀). 킷 말풍선 본문은
+       `aria-hidden` 이라 그것만으로는 보조기술에 닿지 않아 한 벌을 더 둔 것이고, 의도다. */
+    expect(
+      screen.getAllByText('아직 저장한 작업이 없어 내려받을 것이 없습니다.').length,
+    ).toBeGreaterThan(0);
     expect(button).toHaveAccessibleDescription('아직 저장한 작업이 없어 내려받을 것이 없습니다.');
     // then: 이어서 작업은 함께 막히지 않는다(프레임이 있으므로)
     expect(screen.getByTestId('portal-work-continue-66')).toHaveAttribute('href');
@@ -222,19 +228,33 @@ describe('포털 내 작업 — 진행 표시와 동시 실행 방지', () => {
     // when
     await user.click(screen.getByTestId('portal-work-download-81'));
 
-    // then: 진행 중임이 눈으로도 보조기술로도 전달되고 중복 실행이 막힌다
-    const button = screen.getByTestId('portal-work-download-81');
-    await waitFor(() => expect(button).toHaveTextContent('내려받는 중…'));
-    expect(button).toHaveAttribute('aria-busy', 'true');
-    expect(button).toBeDisabled();
-    // then: 다른 행도 함께 잠긴다(한 번에 하나)
-    expect(screen.getByTestId('portal-work-download-82')).toBeDisabled();
+    /*
+     * ★ 2026-09-16 — **받는 동안 그 칸에는 「✕ 취소」 하나만 선다**(부모 포털 시안).
+     *   구 동작(「내려받는 중…」 버튼 + 그 옆 취소)은 폐기 — 두 조작을 세우면 칸 폭 척도를 넘는다.
+     *   그 대신 진행 사실은 **화면 밖 상태 줄**이 나른다(눈에는 취소 버튼의 등장이 곧 신호다).
+     */
+    // then: 눈 — 그 칸의 조작이 취소로 바뀐다
+    const cancel = await screen.findByTestId('portal-work-download-cancel-81');
+    expect(cancel).toHaveTextContent('취소');
+    // then: 귀 — 진행 중임이 보조기술에 전달된다
+    /* ⚠ 화면에는 결과 건수 줄도 `role="status"` 라 역할만으로 찾으면 둘이 걸린다 — 그 행으로 좁힌다. */
+    expect(
+      within(screen.getByTestId('portal-work-row-81')).getByRole('status'),
+    ).toHaveTextContent('내려받는 중…');
+    // then: 중복 실행이 막힌다 — 받는 행에는 내려받기 조작이 아예 없다
+    expect(screen.queryByTestId('portal-work-download-81')).toBeNull();
+    /* then: 다른 행도 함께 잠긴다(한 번에 하나).
+       ⚠ 잠금은 `disabled` 속성이 아니라 `aria-disabled` 다 — native `disabled` 는 Tab 순서에서
+         빠져 **왜 못 누르는지 알 길이 사라진다**(WCAG 2.1.1). 사유는 말풍선·화면 밖 글로 남는다. */
+    expect(screen.getByTestId('portal-work-download-82')).toHaveAttribute('aria-disabled', 'true');
 
     // when: 끝나면 원래대로 돌아온다(영구히 갇히지 않는다)
     hold.release();
-    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'));
-    expect(button).toBeEnabled();
-    expect(screen.getByTestId('portal-work-download-82')).toBeEnabled();
+    await waitFor(() => expect(screen.getByTestId('portal-work-download-81')).toBeInTheDocument());
+    expect(
+      within(screen.getByTestId('portal-work-row-81')).queryByRole('status'),
+    ).toBeNull();
+    expect(screen.getByTestId('portal-work-download-82')).not.toHaveAttribute('aria-disabled');
   });
 });
 
@@ -258,9 +278,10 @@ describe('포털 내 작업 — 실패 사유 안내', () => {
     await user.click(screen.getByTestId('portal-work-download-10'));
 
     // then
-    const alert = await screen.findByTestId('portal-work-download-error');
+    /* ⚠ 2026-09-16 — 안내 띠를 포털 킷 부품으로 바꿨다. `role="alert"` 은 **띠 뿌리**가 갖고
+       그 부품은 임의 속성을 넘겨받지 않으므로, 후크가 아니라 **역할로 찾는다**(계약에 더 가깝다). */
+    const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(message as string);
-    expect(alert).toHaveAttribute('role', 'alert');
     // then: 서버 원문은 노출되지 않는다(CWE-209)
     expect(screen.queryByText(/서버 내부 사유/)).toBeNull();
   });

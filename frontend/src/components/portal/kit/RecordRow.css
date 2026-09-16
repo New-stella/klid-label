@@ -1,0 +1,200 @@
+@charset "utf-8";
+/* 줄 카드. 기준: design.md §2 (본문 15 · 보조 14) · §4 (틴트: 면 5 · 선 30~50) · §5 (카드 패딩 20) · §6 */
+
+/* 카드 한 장 — 흰 면 · gray-20 선 · 라운드 8(목록 안 낱장은 구획 카드 16보다 작다, §7).
+   왼쪽 본문이 남는 폭을 먹고 오른쪽 기둥은 제 폭만 */
+.klid-record-row {
+  container-type: inline-size;
+  padding: var(--krds-padding-7);
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: var(--krds-radius-medium3);
+  background-color: var(--krds-color-light-gray-0);
+}
+.klid-record-row:hover {
+  background-color: var(--krds-color-light-primary-5);
+}
+/* 골라서 펼친 건 — 테가 코발트로 짙어지고 면이 옅게 깔린다 */
+.klid-record-row[data-selected] {
+  border-color: var(--krds-color-light-primary-50);
+  background-color: var(--krds-color-light-primary-5);
+}
+
+.klid-record-row-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--krds-gap-5);
+}
+
+/* 왼쪽 — 제목 줄 → 본문 8 */
+.klid-record-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  min-width: 0;
+}
+.klid-record-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--krds-gap-3);
+}
+.klid-record-row-title {
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--krds-color-light-gray-90);
+  overflow-wrap: anywhere;
+}
+/* 제목 한 칸 위 — 본문 큰 글급 */
+.klid-record-row-title[data-size='large'] {
+  font-size: var(--krds-pc-font-size-body-large);
+}
+
+/* 제목 아래 묶음 (안내 한 줄 · 본문) — 사이 8 */
+.klid-record-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  min-width: 0;
+}
+
+/* 제목 아래 한 줄 — 지금 어디쯤인지. 제목에 붙는 말이라 보조 글급 */
+.klid-record-row-hint {
+  margin: 0;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-70);
+}
+
+/* 오른쪽 — 사실값은 위, 걸음은 아래. 둘 다 오른쪽 끝선 */
+.klid-record-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--krds-gap-4);
+}
+.klid-record-row-facts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--krds-gap-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--krds-pc-font-size-body-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-60);
+  white-space: nowrap;
+}
+/* 한 줄로 — 사실값끼리 옆으로. 사이 여백은 공용 세로선(.klid-meta-div)이 양옆으로 준다 */
+.klid-record-row-facts[data-inline] {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* 오른쪽 위 — 오류 문구 · 더보기. 더보기가 끝선에 서고 오류 문구는 그 왼쪽이다 */
+.klid-record-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--krds-gap-3);
+}
+/* 오류 문구 — 띠(면 · 선)가 아니라 **글자**다. 경고 표식 + 위험 색 글자 (2026-09-14 사용자 지시).
+   danger-50 은 흰 면 위 의미 텍스트 하한이다 (design.md §8). 크기는 보조 글급 */
+.klid-record-row-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--krds-gap-2);
+  margin: 0;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-danger-50);
+}
+.klid-record-row-note svg {
+  flex: none;
+  /* 인라인 아이콘 16 (아이콘 크기 규칙 — 토큰 척도 밖). 높이는 한 줄(1lh)이라 표식이 첫 줄 가운데에 선다 */
+  width: 1.6rem;
+  height: 1lh;
+}
+.klid-record-row-action {
+  display: flex;
+}
+
+/* 사실값 아래 — 왼쪽은 제목 → 안내·본문 → 일시 차례, 오른쪽은 위에 오류 문구 · 더보기, 아래 끝에 걸음.
+   왼쪽 · 오른쪽 기둥을 풀어(contents) 조각을 격자에 직접 앉힌다 — 기둥째 두면 제목 줄과 더보기가
+   서로 높이를 모른다. 걸음은 본문 · 일시 두 행에 걸쳐 아래 끝에 붙는다 (행 높이를 늘리지 않는다) */
+.klid-record-row-main .klid-record-row-facts {
+  align-items: flex-start;
+}
+.klid-record-row-grid[data-facts-below] {
+  grid-template-areas:
+    'head top'
+    'body action'
+    'facts action';
+  row-gap: var(--krds-gap-3);
+}
+.klid-record-row-grid[data-facts-below] > .klid-record-row-main,
+.klid-record-row-grid[data-facts-below] > .klid-record-row-side {
+  display: contents;
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-head {
+  grid-area: head;
+  min-width: 0;
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-body {
+  grid-area: body;
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-facts {
+  grid-area: facts;
+  align-self: start;
+  justify-self: start;
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-top {
+  grid-area: top;
+  align-self: center;
+  justify-self: end;
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-action {
+  grid-area: action;
+  align-self: end;
+  justify-self: end;
+}
+
+/* 맨 아래 줄 — 왼쪽 보조 걸음 · 오른쪽 끝 주 걸음이 한 줄에 선다 (2026-09-14 사용자 지시).
+   걸음 줄은 내용이 아니라 조작이라 일시에서 한 칸 더 뗀다 (행 사이 8 + 8) */
+.klid-record-row-grid[data-facts-below][data-action-row] {
+  grid-template-areas:
+    'head top'
+    'body .'
+    'facts .'
+    'start action';
+}
+/* 보조 걸음은 면이 없는 글자 버튼이라, 사이를 버튼 안 아이콘·글자 간격의 두 배(잉크 16)로 뗀다 (design.md §3).
+   킷 text 버튼 좌우 패딩 2 + gap 12 + 2 = 16 */
+.klid-record-row-action-start {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-4);
+}
+.klid-record-row-grid[data-facts-below] .klid-record-row-action-start {
+  grid-area: start;
+  justify-self: start;
+}
+.klid-record-row-grid[data-facts-below][data-action-row] .klid-record-row-action-start,
+.klid-record-row-grid[data-facts-below][data-action-row] .klid-record-row-action {
+  align-self: center;
+  margin-top: var(--krds-gap-3);
+}
+
+/* 좁은 폭 — 오른쪽 기둥이 본문 아래로 내려와 왼쪽에 선다 (폭은 카드가 그릇으로 잰다).
+   factsBelow 짜임은 받지 않는다 — 쓰는 곳(저작도구)이 PC 전용이다 */
+@container (max-width: 56rem) {
+  .klid-record-row-grid:not([data-facts-below]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .klid-record-row-grid:not([data-facts-below]) .klid-record-row-side,
+  .klid-record-row-grid:not([data-facts-below]) .klid-record-row-facts {
+    align-items: flex-start;
+  }
+}

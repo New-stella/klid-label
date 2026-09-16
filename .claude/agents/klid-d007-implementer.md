@@ -208,6 +208,11 @@ DB 를 쳤는가」가 나온다(실측: `{'Test worker': 1034, 'augment-submit-
 **구조적으로** 빠지고, 그래서 **정확 비교(`isEqualTo`)를 유지**할 수 있다. `≤` 로 무르면 잡음과 함께
 신호도 무뎌진다. 고친 뒤에는 **진짜 N+1 을 심어 RED 가 되는지**(양성 대조)까지 확인해야 완료다.
 
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

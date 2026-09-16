@@ -1,4 +1,11 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
 import { markingFrameIndex } from '../markingFps';
@@ -41,12 +48,22 @@ interface VideoPlayerProps {
    * 상위(타임라인 등)에서 하드코딩 대신 실제 길이로 좌표를 계산하는 데 사용한다.
    */
   onDurationChange?: (sec: number) => void;
+  /**
+   * 재생 중인 영상의 식별값(예: rawSn). [@design SCREEN-006] [@design API-114]
+   *
+   * <p>`src` 가 바뀌었을 때 이 값이 <b>그대로면</b> 같은 영상의 재생 주소 재발급으로 보고 직전 재생
+   * 위치를 새 소스에 복원한다. 값이 <b>바뀌면</b> 다른 영상이라 위치를 이어받지 않는다.
+   */
+  sourceKey?: string | number;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, className, onSrcError, onSrcRecovered, onDurationChange }, ref) {
+  function VideoPlayer(
+    { src, className, onSrcError, onSrcRecovered, onDurationChange, sourceKey },
+    ref,
+  ) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -54,6 +71,47 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [playbackRate, setPlaybackRate] = useState(1);
     // 버퍼링/탐색 중 스피너 — waiting/seeking 시 true, canplay/playing/seeked 시 false.
     const [buffering, setBuffering] = useState(false);
+
+    // ── 재발급 시 재생 위치 보존 [@design SCREEN-006] [@design API-114] ─────────────────────
+    // 재생 인증이 거부되면 상위가 재생 주소를 다시 받아 `src` 를 바꾼다. 소스가 바뀌면 요소는
+    // 처음(0)·일시정지로 돌아가므로, 바뀌기 직전 위치를 기억했다가 <b>새 소스의 loadedmetadata</b>
+    // 에서 복원한다. ⚠ `playing`/`play` 에 걸지 않는다 — 교체 뒤 요소는 일시정지라 사용자가 다시
+    // 누를 때까지 그 신호가 오지 않는다.
+    //
+    // 직전 위치는 요소에서 읽지 않고 이 ref 로 따로 들고 있다 — `src` 속성이 바뀌는 순간 요소의
+    // 재생 위치는 이미 0 으로 되돌아가 있기 때문이다.
+    const lastTimeRef = useRef(0);
+    const wasPlayingRef = useRef(false);
+    const pendingRestoreRef = useRef<{ time: number; resume: boolean } | null>(null);
+    const prevSrcRef = useRef(src);
+    const prevSourceKeyRef = useRef(sourceKey);
+
+    // DOM 에 새 `src` 가 반영된 직후·다음 이벤트 처리 전에 판정한다(교체로 생기는 timeupdate(0)·
+    // pause 가 기억값을 덮기 전이다).
+    useLayoutEffect(() => {
+      const prevSrc = prevSrcRef.current;
+      const sameVideo = prevSourceKeyRef.current === sourceKey;
+      prevSrcRef.current = src;
+      prevSourceKeyRef.current = sourceKey;
+      if (prevSrc === src) return;
+      if (!sameVideo) {
+        // 다른 영상 — 위치를 이어받지 않는다.
+        pendingRestoreRef.current = null;
+        lastTimeRef.current = 0;
+        wasPlayingRef.current = false;
+        return;
+      }
+      // 최초 로드(이전 소스 없음)는 복원 대상이 아니다.
+      if (!prevSrc || !src) return;
+      // 복원 전에 재발급이 한 번 더 일어나도 처음 기억한 위치를 유지한다.
+      if (pendingRestoreRef.current) return;
+      if (lastTimeRef.current > 0) {
+        pendingRestoreRef.current = {
+          time: lastTimeRef.current,
+          resume: wasPlayingRef.current,
+        };
+      }
+    }, [src, sourceKey]);
 
     const changeSpeed = useCallback((rate: number) => {
       if (videoRef.current) videoRef.current.playbackRate = rate;
@@ -72,10 +130,26 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }));
 
     const handleLoadedMetadata = useCallback(() => {
-      const d = videoRef.current?.duration ?? 0;
+      const v = videoRef.current;
+      const d = v?.duration ?? 0;
       setDuration(d);
       // 유효한 길이일 때만 상위에 통지 (NaN/Infinity 방어 — 일부 스트림은 duration 미확정).
       if (Number.isFinite(d) && d > 0) onDurationChange?.(d);
+
+      const pending = pendingRestoreRef.current;
+      if (!v || !pending) return;
+      pendingRestoreRef.current = null;
+      // 길이를 넘기지 않는다(길이 미확정이면 기억값 그대로).
+      const t = Number.isFinite(d) && d > 0 ? Math.min(pending.time, d) : pending.time;
+      v.currentTime = t;
+      lastTimeRef.current = t;
+      setCurrentTime(t);
+      // 교체 직전 재생 중이었다면 이어서 재생한다. 브라우저가 자동 재생을 거부해도 오류로
+      // 올리지 않는다 — 위치는 이미 복원됐고 사용자가 재생을 누르면 된다.
+      if (pending.resume) {
+        const p = v.play() as Promise<void> | undefined;
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
     }, [onDurationChange]);
 
     const togglePlay = useCallback(() => {
@@ -108,10 +182,22 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             ref={videoRef}
             src={src}
             className="w-full rounded-lg bg-black"
-            onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+            onTimeUpdate={() => {
+              const t = videoRef.current?.currentTime ?? 0;
+              setCurrentTime(t);
+              // 복원 대기 중에는 기억값을 덮지 않는다 — 소스 교체가 만드는 0 이 들어온다.
+              if (!pendingRestoreRef.current) lastTimeRef.current = t;
+            }}
             onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
+            onPlay={() => {
+              setPlaying(true);
+              if (!pendingRestoreRef.current) wasPlayingRef.current = true;
+            }}
+            onPause={() => {
+              setPlaying(false);
+              // 소스 교체가 만드는 pause 로 「재생 중이었다」를 지우지 않는다.
+              if (!pendingRestoreRef.current) wasPlayingRef.current = false;
+            }}
             onError={() => onSrcError?.()}
             // 버퍼 고갈(waiting)·탐색(seeking) 시 스피너 노출, 재생 가능(canplay/playing)·
             // 탐색 완료(seeked) 시 해제. 느린 네트워크에서 화면이 멈춘 이유를 사용자에게 알린다.

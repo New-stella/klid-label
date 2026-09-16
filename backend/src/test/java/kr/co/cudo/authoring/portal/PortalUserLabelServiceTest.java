@@ -70,7 +70,8 @@ class PortalUserLabelServiceTest {
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
                 new com.fasterxml.jackson.databind.ObjectMapper(), labelMasterRepository,
-                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class));
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class),
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(rawDataStatusRepository, org.mockito.Mockito.mock(kr.co.cudo.authoring.video.repository.VideoRepository.class)));
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);
@@ -83,7 +84,7 @@ class PortalUserLabelServiceTest {
         kr.co.cudo.authoring.assignment.entity.LsRawDataStatus approved =
                 kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.initial(100L);
         approved.transitionTo(kr.co.cudo.authoring.assignment.entity.LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findById(100L)).thenReturn(java.util.Optional.of(approved));
+        when(rawDataStatusRepository.findAllById(java.util.List.of(100L))).thenReturn(java.util.List.of(approved));
     }
 
     private static void setField(Object target, String name, Object value) {

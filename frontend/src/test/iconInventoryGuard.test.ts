@@ -28,13 +28,35 @@ import { describe, expect, it } from 'vitest';
 
 const SRC_DIR = path.resolve(__dirname, '..');
 
-/** src 하위 비-테스트 .ts/.tsx 전량 — 아이콘은 상수 파일(.ts)에도 매핑으로 산다. */
+/**
+ * **우리가 쓴 소스만** — 부모 포털에서 통째로 들여온 부품 사본은 뺀다.
+ *
+ * ★ 왜 빼나 (2026-09-16)
+ *   이 가드의 취지는 *"앱 전체가 '반려'를 어떤 글리프로 쓰는지 모른 채 그 순간 그럴듯해 보이는
+ *   것을 고르는"* 드리프트를 막는 것이다. 그 전제는 **우리가 그 파일에서 글리프를 고른다**는
+ *   것인데, 벤더 사본은 우리가 고르지 않았고 **고칠 수도 없다**(고치면 부모 포털과 갈려
+ *   다음 동기화에서 되돌아온다 — 킷 배럴이 "원본을 고치지 않는다"로 못박은 규칙).
+ *
+ * ⚠ **실제로 겹친다 — 알고 받아들인 대가다.** 킷은 lucide 의 **새 이름**을 쓰고 우리는 옛
+ *   이름을 쓴다: `CircleCheck`↔`CheckCircle` · `CircleX`↔`XCircle` ·
+ *   `TriangleAlert`↔`AlertTriangle` · `LoaderCircle`↔`Loader2`. **같은 뜻에 두 글리프**이지만
+ *   포털 채널 화면에서만 킷 쪽이 쓰이고 관제 화면은 종전 어휘 그대로라, 한 화면 안에서
+ *   갈리지는 않는다. 통일하려면 벤더를 고치는 것이 아니라 **우리 쪽을 새 이름으로 옮기는**
+ *   별도 라운드여야 한다.
+ * ⚠ 이 예외는 **경로로만** 성립한다 — 우리가 쓴 화면이 이 폴더에 들어가는 일은 없다.
+ */
+const VENDORED_DIRS = ['components/portal/kit/', 'components/portal/authoring/'];
+
 function sourceFiles(): string[] {
   return fs
     .readdirSync(SRC_DIR, { recursive: true, encoding: 'utf-8' })
     .filter((f) => /\.tsx?$/.test(f))
     .filter((f) => !/(^|[\\/])__tests__[\\/]/.test(f) && !/\.test\.tsx?$/.test(f))
     .filter((f) => !f.startsWith('test' + path.sep) && !f.startsWith('test/'))
+    .filter((f) => {
+      const rel = f.split(path.sep).join('/');
+      return !VENDORED_DIRS.some((d) => rel.startsWith(d));
+    })
     .map((f) => path.join(SRC_DIR, f));
 }
 
@@ -48,7 +70,12 @@ function lucideImports(src: string): string[] {
   if (!m) return [];
   return m[1]
     .split(',')
-    .map((s) => s.trim().split(/\s+as\s+/)[0].trim())
+    .map((s) => s.trim())
+    // ★ `type LucideIcon` 같은 **타입 전용 이름은 글리프가 아니다.** 세면 종수가 실제보다
+    //   부풀고, 더 나쁘게는 「아이콘을 하나 더 썼다」는 거짓 신호가 된다(2026-09-16 실측 —
+    //   부품이 `import { type LucideIcon }` 을 쓰면서 종수가 1 늘어 상한에 걸렸다).
+    .filter((s) => !/^type\s/.test(s))
+    .map((s) => s.split(/\s+as\s+/)[0].trim())
     .filter(Boolean);
 }
 
@@ -77,8 +104,17 @@ function inventory(): Map<string, string[]> {
  *     않아 시안이 고른 의미를 잃는다. `Lock`(잠금)·`History`(이력)도 축이 다르다.
  *   · 방패 계열 중 `ShieldCheck`·`ShieldAlert` 는 폐기 목록에 있으나, 그 둘이 폐기된 이유는
  *     각각 "버튼 라벨 옆 장식"·"경고 축 중복"이라 **빈 상태 그림에는 해당하지 않는다**.
+ *
+ * 80 → 81 (2026-09-16, `ArrowUpRight`) — 「다른 면으로 건너뛰기」 표식.
+ *   · 부모 포털 시안이 이 자리(건수 줄 오른쪽 바로가기)에 대각선 화살표를 규정한다.
+ *   · 대체 검토 — 목록에 **「다른 화면으로 건너뛴다」 축 글리프가 없다.** `ChevronRight` 는
+ *     펼치기·쪽 넘김·같은 화면 안 이동이고 `ArrowRight` 는 탭·단계 진행이라, 둘 다 「여기서
+ *     나가 저기로 간다」를 말하지 않는다. 대각선은 그 뜻을 갖는 관례 글리프다.
+ *   · ⚠ 같은 라운드에서 **한 건은 상한을 올리지 않고 되돌렸다** — `FileJson` 을 새로 들이려다
+ *     기존 `FileBraces`(JSON 파일)가 같은 뜻으로 이미 있어 그것을 썼다. 이 가드가 노린 바로
+ *     그 확인이 실제로 작동한 자리라 함께 적어 둔다.
  */
-const MAX_DISTINCT_ICONS = 80;
+const MAX_DISTINCT_ICONS = 81;
 
 /**
  * 통일하면서 걷어낸 아이콘 — 되살리면 같은 의미가 두 글리프로 다시 갈린다.

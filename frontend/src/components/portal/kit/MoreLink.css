@@ -1,0 +1,29 @@
+@charset "utf-8";
+/* "전체보기" 더보기 링크. 14px semibold 코발트 + ChevronRight 16px */
+
+.klid-more-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--krds-color-light-primary-60);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+/* 버튼으로 나올 때(onClick) — 브라우저 기본 상자를 걷어 링크와 같은 모양으로 선다 */
+button.klid-more-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.klid-more-link:hover {
+  color: var(--krds-color-light-primary-70);
+}
+.klid-more-link svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}

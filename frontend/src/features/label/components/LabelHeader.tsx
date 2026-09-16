@@ -29,12 +29,17 @@
 // @design D4
 // @req R6
 
-import { Check, Circle, HelpCircle, X } from 'lucide-react';
+import { Check, ChevronLeft, Circle, HelpCircle, Loader2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button as KrdsButton } from 'krds-react';
 
 import { Button } from '@/components/common/Button';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { cn } from '@/lib/cn';
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 부품. 관제 렌더 경로는 거치지 않는다.
+import { EditorBar } from '@/components/portal/kit';
+import { StatusText } from '@/components/portal/authoring';
+import { IconButton } from '@/components/portal/kit';
 
 interface LabelHeaderProps {
   cctvName?: string;
@@ -63,6 +68,15 @@ interface LabelHeaderProps {
   onClose?: () => void;
   /** 단축키 도움말(치트시트) 열기 콜백. 지정 시 우측에 도움말(?) 버튼 노출. */
   onHelpClick?: () => void;
+  /**
+   * 포털 채널 여부 — 머리 줄을 부모 포털 시안 꼴(이름 · 저장 상태 · 뒤로)로 그린다.
+   *
+   * ★**닫기가 왼쪽 `✕` 에서 오른쪽 「뒤로」로 옮겨간다**(시안). 두는 자리만 바뀌고 동작은 같다 —
+   *   미저장 변경이 있으면 확인 창이 먼저 뜨는 것도 그대로다.
+   * ⚠ 이벤트 유형 배지·비식별 신고·검수 제출은 포털에 애초에 오지 않는다(호출부가 주지 않는다).
+   *   여기서 «감추는» 것이 아니라 값이 없어 서지 않는 것이다 — 감추는 코드를 두지 말 것.
+   */
+  portalMode?: boolean;
 }
 
 export function LabelHeader({
@@ -75,9 +89,60 @@ export function LabelHeader({
   deidentReportButton,
   onClose,
   onHelpClick,
+  portalMode = false,
 }: LabelHeaderProps) {
   const navigate = useNavigate();
   const handleClose = onClose ?? (() => navigate(-1));
+  const title = cctvName ?? `프레임 ${currentFrame + 1}`;
+
+  if (portalMode) {
+    return (
+      <header className="klid-labeling-header">
+        <EditorBar
+          title={title}
+          center={
+            /* 저장 상태 — 진행 중 > 미저장 > 저장됨 순으로 우선한다. 진행 중을 앞에 두는 이유는
+               저장이 미저장 상태에서 시작되기 때문이다(뒤에 두면 진행 표시가 영영 뜨지 않는다).
+               ★표식은 우리가 이미 쓰는 글리프를 그대로 쓴다 — 같은 뜻에 새 모양을 들이지 않는다
+                 (도는 고리 `Loader2` · 점 `Circle`). 낭독은 킷 줄이 `role="status"` 로 진다. */
+            saving ? (
+              <StatusText tone="info" icon={Loader2}>
+                저장 중
+              </StatusText>
+            ) : dirty ? (
+              <StatusText tone="warning" icon={Circle}>
+                편집 중
+              </StatusText>
+            ) : (
+              <StatusText tone="success">저장됨</StatusText>
+            )
+          }
+          end={
+            <>
+              {onHelpClick && (
+                /* ★좌측 도구 칸 맨 아래에도 도움말이 있다(둘 다 확정 사양) — 그쪽은 «미리 보기
+                   패널», 이쪽은 «전체 창»이라 여는 표면이 다르다. 접근성 이름으로 가른다. */
+                <IconButton
+                  size="lg"
+                  aria-label="단축키 도움말 전체 보기"
+                  title="단축키 도움말 전체 보기"
+                  data-testid="shortcut-help-button"
+                  onClick={onHelpClick}
+                >
+                  <HelpCircle aria-hidden />
+                </IconButton>
+              )}
+              {/* 닫기는 저장 중에도 누를 수 있다 — 미저장 변경이 있으면 확인 창이 먼저 뜬다 */}
+              <KrdsButton size="small" variant="text" onClick={handleClose} aria-label="뒤로가기">
+                <ChevronLeft aria-hidden />
+                뒤로
+              </KrdsButton>
+            </>
+          }
+        />
+      </header>
+    );
+  }
 
   return (
     <header

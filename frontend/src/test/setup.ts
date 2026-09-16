@@ -135,3 +135,23 @@ vi.mock('recharts', async () => {
       ),
   };
 });
+
+// jsdom 에는 `window.matchMedia` 가 없다 — 포털 킷 부품(`components/portal/kit/useMediaQuery`)이
+// 그것을 부르므로 그 부품을 쓰는 화면이 마운트 도중 죽는다(포털 페이저가 실제로 그랬다).
+//
+// ★ **넓은 화면(미일치)으로 답한다.** 그것이 그 훅의 첫 렌더 기본값이고, 화면 시험이 기대하는
+//   PC 짜임이다. 좁은 화면 동작을 시험하려면 그 시험에서 이 구현을 갈아끼운다.
+// ⚠ 값을 바꾸려고 부품 쪽에 시험용 분기를 넣지 말 것 — 여기가 환경을 메우는 자리다.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList;
+}

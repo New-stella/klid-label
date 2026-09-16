@@ -149,11 +149,18 @@ describe('포털 업로드 영상 마킹 화면', () => {
     renderPage();
     await screen.findByText('my-clip.mp4');
 
-    expect(screen.getByRole('button', { name: '자동' })).toHaveAttribute('aria-pressed', 'true');
+    // ⚠ 2026-09-16 — 방식 고르기가 «알약 전환 버튼» 에서 **라디오 줄**로 바뀌었다(포털이 쓰는
+    //   모양으로 갈아입히며 부모 포털 기준을 따랐다). `aria-pressed` 를 보던 구 단언은 폐기 —
+    //   고르는 행위도 기본값도 그대로이고, 무엇으로 그리느냐만 달라졌다.
+    expect(screen.getByRole('radio', { name: '자동' })).toBeChecked();
     expect(screen.getByLabelText('간격(프레임)')).toHaveValue(300);
+    // ⚠ 2026-09-16 — 예상 결과가 한 문장에서 **이름·값 목록**으로 바뀌었다. 「뽑힐 프레임 1장」이라는
+    //   한 덩어리 문자열은 더 이상 없으므로 이름과 값을 따로 본다(지키는 사실은 같다).
     // 10초 · 30fps → 총 300프레임 · 간격 300 → 0프레임 한 지점.
-    expect(screen.getByTestId('marking-plan-summary')).toHaveTextContent('뽑힐 프레임 1장');
-    expect(screen.getByTestId('marking-plan-summary')).toHaveTextContent('약 10.0초');
+    const summary = screen.getByTestId('marking-plan-summary');
+    expect(within(summary).getByText('뽑힐 프레임')).toBeInTheDocument();
+    expect(within(summary).getByText('1장')).toBeInTheDocument();
+    expect(within(summary).getByText('300 프레임 (약 10.0초)')).toBeInTheDocument();
     expect(screen.getByText(/F0/)).toBeInTheDocument();
   });
 
@@ -165,8 +172,11 @@ describe('포털 업로드 영상 마킹 화면', () => {
     fireEvent.change(screen.getByLabelText('간격(프레임)'), { target: { value: '100' } });
 
     // 총 300프레임 · 간격 100 → 0 / 100 / 200 세 지점.
+    // ⚠ 2026-09-16 — 위와 같은 사유로 이름·값을 따로 본다.
     await waitFor(() =>
-      expect(screen.getByTestId('marking-plan-summary')).toHaveTextContent('뽑힐 프레임 3장'),
+      expect(
+        within(screen.getByTestId('marking-plan-summary')).getByText('3장'),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -176,7 +186,8 @@ describe('포털 업로드 영상 마킹 화면', () => {
     renderPage();
     await screen.findByText('my-clip.mp4');
 
-    await user.click(screen.getByRole('button', { name: '수동' }));
+    // ⚠ 2026-09-16 — 방식 고르기가 라디오 줄이 됐다(위 주석). 구 «버튼» 단언은 폐기.
+    await user.click(screen.getByRole('radio', { name: '수동' }));
     await user.click(screen.getByTestId('marking-complete-button'));
 
     expect(screen.queryByRole('dialog')).toBeNull();
