@@ -1,7 +1,5 @@
 package kr.co.cudo.authoring.portal.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -13,8 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -47,8 +43,8 @@ import java.util.Set;
  * <p>계약이 둘 다 정의하는데 403 설명이 「실재 여부가 드러나지 않게」다. 두 코드는 <b>축이 다르다</b>.
  * <ul>
  *   <li><b>404</b> — 프레임·영상 <b>행 자체가 없다</b>. 소유와 무관한 사실이라 감출 것이 없다.</li>
- *   <li><b>403</b> — 행은 있으나 <b>본인 작업 대상이 아니다</b>(남의 업로드 자산이거나 데이터마트에
- *       노출되지 않은 영상). 본문은 <b>두 경우에 완전히 같은 문구</b>라 어느 쪽인지 드러나지 않으며,
+ *   <li><b>403</b> — 행은 있으나 <b>본인 작업 대상이 아니다</b>(남의 업로드 자산이거나 포털 작업 가능
+ *       영상이 아닌 영상). 본문은 <b>두 경우에 완전히 같은 문구</b>라 어느 쪽인지 드러나지 않으며,
  *       특히 남의 자산인지 미승인 영상인지 구분되지 않는다.</li>
  * </ul>
  * <p>이 축은 포털 기존 창구가 이미 쓰고 있는 것이다 — 데이터마트 라벨 Load 는 프레임 부재를 404,
@@ -59,6 +55,7 @@ import java.util.Set;
  * @design API-235
  * @design API-236
  * @design API-237
+ * @design ADR-068
  */
 @Service
 @RequiredArgsConstructor
@@ -67,11 +64,15 @@ public class PortalWorkTargetResolver {
 
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    /** 포털 작업 가능 영상 판정의 <b>소유자</b> — 검수 승인 또는 출처 PORTAL_DATASET(ADR-068). */
+    private final PortalWorkableVideoPolicy workablePolicy;
 
     /** 자산 출처 — 저장처를 가르는 축. */
     public enum Origin {
-        /** 관제가 구축한 데이터마트에서 불러온 영상. 오버레이에 쌓는다. */
+        /**
+         * 관제가 구축한 데이터마트에서 불러온 영상 <b>또는 포털 데이터셋 소재에서 등록한 영상</b>(ADR-068).
+         * 둘 다 남의 원본 위에 사용자 작업을 얹는 자리라 오버레이에 쌓는다 — 등록한 원본 라벨은 바뀌지 않는다.
+         */
         DATAMART,
         /** 포털 사용자가 직접 올린 본인 자산. 그 자산의 원장에 그대로 쌓는다. */
         PORTAL_UPLOAD
@@ -151,25 +152,17 @@ public class PortalWorkTargetResolver {
             }
             return Origin.PORTAL_UPLOAD;
         }
-        if (!isExposedToDatamart(rawSn)) {
+        // ★ 작업 가능 판정은 단일 지점에 위임한다 — 검수 승인 또는 출처 PORTAL_DATASET(ADR-068).
+        //   그 판정은 단건을 일괄에 위임하고 <그 식별자를 담고 있는가>로 답한다.
+        if (!workablePolicy.isWorkable(rawSn)) {
             throw forbidden();
         }
         return Origin.DATAMART;
     }
 
-    /** 데이터마트 노출 조건 — 검수 완료(APPROVED) 영상만 true. 행 부재·타 상태는 false. */
-    private boolean isExposedToDatamart(Long rawSn) {
-        // 단건도 <일괄 판정>에 위임한다 — 판정 리터럴이 두 곳에 있으면 한쪽만 고쳐진다.
-        // ★ 「비어 있지 않다」가 아니라 <그 식별자를 담고 있는가>를 묻는다. 전자로 두면 안전성이
-        //   조회 계약(요청한 것만 돌려준다)에만 기대게 되어, 일괄 창구가 다른 식별자를 섞어 돌려주는
-        //   순간 <남의 영상이 승인이라는 이유로> 이 진입이 열린다 — 목록 경로에서만 드러나고
-        //   단건 403 축은 조용히 통과한다.
-        return exposedToDatamart(List.of(rawSn)).contains(rawSn);
-    }
-
     /**
-     * 데이터마트 노출 조건 <b>일괄 판정</b> — 목록이 행마다 진입 가능 여부를 물을 때 쓴다.
-     * @design API-225
+     * 포털 작업 가능 영상 <b>일괄 판정</b> — 목록이 행마다 진입 가능 여부를 물을 때 쓴다.
+     * @design API-225, ADR-068
      *
      * <p>「내 작업」 목록은 검수 승인 상태를 <b>등재 조건으로 걸지 않는다</b>(걸면 삭제 예고가 함께
      * 사라진다). 대신 <b>진입 대상 프레임을 비워</b> 화면이 미리 막게 하는데, 그 판정을 목록이
@@ -179,20 +172,12 @@ public class PortalWorkTargetResolver {
      * {@link #resolveByVideo} 의 진입 가드를 <b>대신하지 않는다</b>. 가드를 걷어내면 주소를 직접
      * 쳐서 들어갈 수 있다.
      *
-     * @return 노출 조건을 만족하는 영상 식별자만. 부재·타 상태는 <b>결과에 없다</b>(fail-closed)
+     * @return 작업 가능 조건(검수 승인 또는 출처 PORTAL_DATASET)을 만족하는 영상 식별자만. 부재·타 상태는
+     *         <b>결과에 없다</b>(fail-closed)
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public Set<Long> exposedToDatamart(Collection<Long> rawSns) {
-        if (rawSns == null || rawSns.isEmpty()) {
-            return Set.of();
-        }
-        Set<Long> exposed = new LinkedHashSet<>();
-        for (LsRawDataStatus status : rawDataStatusRepository.findAllById(rawSns)) {
-            if (LsRawDataStatus.STTS_APPROVED.equals(status.getDataSttsCd())) {
-                exposed.add(status.getRawDataId());
-            }
-        }
-        return exposed;
+    public Set<Long> workableVideos(Collection<Long> rawSns) {
+        return workablePolicy.workable(rawSns);
     }
 
     private static void requireOwner(String portalUserNo) {

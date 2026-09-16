@@ -109,6 +109,13 @@ public class PortalLabelService {
      */
     private final PortalUserWorkRepository userWorkRepository;
 
+    /**
+     * 포털 <b>작업 가능 영상</b> 판정의 단일 지점 — 검수 승인 또는 출처 PORTAL_DATASET(ADR-068).
+     * 아래 여섯 창구가 이 판정 하나를 쓴다. 판정을 여기서 재유도하지 않는다.
+     * @design ADR-068, AC-1120
+     */
+    private final PortalWorkableVideoPolicy workablePolicy;
+
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
 
@@ -131,7 +138,8 @@ public class PortalLabelService {
      * rawSn 하나로 미승인·반려·신고구간 영상의 라벨 좌표를 전건 열람할 수 있었다 — CWE-862/639/359).
      * <ol>
      *   <li>{@link #requireActor} — 토큰 부재 401</li>
-     *   <li>{@link #isExposedToDatamart} — 검수 완료(APPROVED) 아니면 403.
+     *   <li>{@link PortalWorkableVideoPolicy#isWorkable} — 포털 작업 가능 영상(검수 완료 또는 출처
+     *       PORTAL_DATASET, ADR-068)이 아니면 403.
      *       <b>미존재 rawSn 도 동일하게 403</b>(존재 여부 오라클 차단, CWE-209)</li>
      *   <li>{@link LabelAccessGuard#requireNotUnderDeidentReport} — 비식별 누락 신고 구간이면 412.
      *       resolve('F'→'Y') 로 자동 해제</li>
@@ -145,9 +153,9 @@ public class PortalLabelService {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
-        if (!isExposedToDatamart(rawSn)) {
-            log.warn("[Portal] datamart labels denied — video not approved rawSn={}", rawSn);
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        if (!workablePolicy.isWorkable(rawSn)) {
+            log.warn("[Portal] datamart labels denied — video not workable rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
         accessGuard.requireNotUnderDeidentReport(rawSn);
 
@@ -173,7 +181,9 @@ public class PortalLabelService {
      * Phase B — 포털 홈 데이터마트 영상 목록 (PORTAL_USER 전용).
      *
      * <p>데이터마트 노출(검수 완료 = LS_RAW_DATA_STATUS.DATA_STTS_CD 'APPROVED') 영상만 페이징 조회한다.
-     * 이 게이트는 {@link #isExposedToDatamart(Long)} / 프레임 이미지·라벨 Load 가드와 동일 조건이며,
+     * ⚠ 이 목록은 <b>검수 승인 영상만</b> 싣는다 — 프레임 이미지·라벨 Load 가드({@link PortalWorkableVideoPolicy})
+     * 는 출처 PORTAL_DATASET 영상까지 넓었지만 이 목록은 넓히지 않는다(ADR-068: 데이터셋 영상은 데이터셋
+     * 영상 목록 창구로만 노출된다). 승인 조건은
      * BE 쿼리({@code findAllWithReviewStatus(null, APPROVED, ...)}) 단에서 INNER JOIN 으로 강제되어
      * 미승인 영상은 애초에 결과에 포함되지 않는다(HIGH 방어 — 게이트 누락 차단).
      *
@@ -287,7 +297,7 @@ public class PortalLabelService {
      * <p>게이트·검증 순서(전부 저장 이전 — fail-closed):
      * <ol>
      *   <li>{@link #requireActor} — 토큰 부재 401</li>
-     *   <li>{@link #isExposedToDatamart} — 검수 완료(APPROVED) 아니면 403</li>
+     *   <li>{@link PortalWorkableVideoPolicy#isWorkable} — 포털 작업 가능 영상이 아니면 403</li>
      *   <li>{@link LabelAccessGuard#requireNotUnderDeidentReport} — 비식별 누락 신고 구간이면 412.
      *       조회 4경로(datamart 라벨 / 본인 라벨 / 프레임 라벨 / 프레임 이미지)는 모두 이 게이트를
      *       갖는데 <b>저장 경로만 누락</b>돼 있었다. 신고는 "이 영상의 비식별이 잘못됐다"는 신호이므로
@@ -303,9 +313,9 @@ public class PortalLabelService {
         // Phase 9 이슈4 — 저장 경로도 로드/이미지 서빙과 동일 인가(APPROVED 게이트) 적용.
         // 비APPROVED sourceRawSn 은 애초에 포털에 노출되지 않으므로 저장도 거부(로드는 막고 저장만 허용하던
         // 인가 비일관성 제거 — IDOR/무결성 방어).
-        if (!isExposedToDatamart(req.sourceRawSn())) {
-            log.warn("[Portal] user label save denied — video not approved rawSn={}", req.sourceRawSn());
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        if (!workablePolicy.isWorkable(req.sourceRawSn())) {
+            log.warn("[Portal] user label save denied — video not workable rawSn={}", req.sourceRawSn());
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
         accessGuard.requireNotUnderDeidentReport(req.sourceRawSn());
 
@@ -478,7 +488,7 @@ public class PortalLabelService {
      * ({@code DE_IDNTF_YN='F'})에 진입해도 <b>동일 좌표가 다른 URL 로 200 으로 계속 나갔다</b>.
      * "본인이 저장한 사본"이라는 사실은 완화 사유가 되지 않는다 — 좌표는 원본과 같은 PII 위치
      * 특정 정보이고, 저장 시점에 데이터마트 원본이 초기값으로 실려 있을 수 있다.
-     * 판정은 여기서 재구현하지 않고 {@link #isExposedToDatamart} /
+     * 판정은 여기서 재구현하지 않고 {@link PortalWorkableVideoPolicy#isWorkable} /
      * {@link LabelAccessGuard#requireNotUnderDeidentReport} 를 그대로 재사용한다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
@@ -487,9 +497,9 @@ public class PortalLabelService {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
-        if (!isExposedToDatamart(rawSn)) {
-            log.warn("[Portal] user labels denied — video not approved rawSn={}", rawSn);
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        if (!workablePolicy.isWorkable(rawSn)) {
+            log.warn("[Portal] user labels denied — video not workable rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
         accessGuard.requireNotUnderDeidentReport(rawSn);
 
@@ -515,11 +525,11 @@ public class PortalLabelService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
         Long rawSn = frame.getRawSn();
 
-        // R17 이슈5 — 포털은 데이터마트 노출(검수 완료=APPROVED) 영상만 접근 가능.
-        // 미승인 영상은 라벨 Load 도 403 (이미지 서빙 가드와 정합). FE 는 403 을 graceful 차단 화면으로 처리.
-        if (!isExposedToDatamart(rawSn)) {
-            log.warn("[Portal] frame labels denied — video not approved srcSn={} rawSn={}", srcSn, rawSn);
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        // R17 이슈5 · ADR-068 — 포털은 작업 가능 영상(검수 완료 또는 출처 PORTAL_DATASET)만 접근 가능.
+        // 그 밖의 영상은 라벨 Load 도 403 (이미지 서빙 가드와 정합). FE 는 403 을 graceful 차단 화면으로 처리.
+        if (!workablePolicy.isWorkable(rawSn)) {
+            log.warn("[Portal] frame labels denied — video not workable srcSn={} rawSn={}", srcSn, rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
 
         // S7 (DEV_FIX-A/H2 — HIGH, CWE-359) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 라벨 좌표를
@@ -684,10 +694,10 @@ public class PortalLabelService {
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
 
-        // 데이터마트 노출 조건 = 검수 완료(APPROVED) 영상만
-        if (!isExposedToDatamart(src.getRawSn())) {
-            log.warn("[Portal] frame image denied — video not approved srcSn={} rawSn={}", srcSn, src.getRawSn());
-            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        // 포털 작업 가능 영상만 — 검수 완료 또는 출처 PORTAL_DATASET(ADR-068). 판정은 단일 지점에 위임한다.
+        if (!workablePolicy.isWorkable(src.getRawSn())) {
+            log.warn("[Portal] frame image denied — video not workable srcSn={} rawSn={}", srcSn, src.getRawSn());
+            throw new CustomException(ErrorCode.FORBIDDEN, PortalWorkableVideoPolicy.NOT_WORKABLE_MESSAGE);
         }
 
         // S7 (DEV_FIX-A/H2 — HIGH, CWE-359) — 신고 구간에는 "비식별 누락이 확인된" 그 비식별 프레임을
@@ -771,13 +781,6 @@ public class PortalLabelService {
         }
         // A-1 — 판정에 쓴 <b>실경로</b>를 그대로 돌려준다(lexical 경로를 열면 검증 대상 ≠ 사용 대상).
         return verification.path();
-    }
-
-    /** 데이터마트 노출 조건 — 검수 완료(APPROVED) 영상만 true. row 부재/타 상태는 false. */
-    private boolean isExposedToDatamart(Long rawSn) {
-        return rawDataStatusRepository.findById(rawSn)
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 
     private void requireActor(TokenClaims actor) {

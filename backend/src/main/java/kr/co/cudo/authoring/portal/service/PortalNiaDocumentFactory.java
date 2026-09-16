@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.dataset.export.json.AnnotationSource;
 import kr.co.cudo.authoring.dataset.export.json.NiaAnnotationDoc;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContext;
+import kr.co.cudo.authoring.dataset.export.json.NiaVideo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -60,5 +61,38 @@ public class PortalNiaDocumentFactory {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "다운로드 자료를 만들지 못했습니다.");
         }
         return niaJsonBuilder.build(ctx, frame, sources, PORTAL_EXPORT_KIND);
+    }
+
+    /**
+     * <b>포털 데이터셋 영상</b>(출처 PORTAL_DATASET)의 프레임 문서를 만든다 — 같은 빌더·같은 판정에 영상
+     * 블록 파일명만 등록 메타의 원본 파일명으로 채운다. @design API-203, ADR-068
+     *
+     * <h3>왜 파일명만 따로 채우는가</h3>
+     * <p>공유 빌더는 비식별 산출의 영상 파일명을 <b>비식별 영상 경로의 이름</b>에서 얻는다. 데이터셋 영상은
+     * 배포본에 영상 파일이 없어 그 경로가 비고, 그러면 파일명도 빈다. 사양은 그 자리를 <b>등록 때 넣은
+     * 원본 파일명</b>으로 채우라고 한다 — 경로가 아니라 이름이라 비식별 경로 칸({@code dataset.src_path})은
+     * 그대로 비어 있다. 값이 없으면 {@code null} 그대로다(지어내지 않는다).
+     *
+     * <p>산출 종류는 이 경로도 비식별 고정이다 — 위 {@link #build} 를 거친다.
+     *
+     * @param originalFilename 등록 메타의 원본 파일명(없으면 {@code null})
+     */
+    public NiaAnnotationDoc buildForDatasetVideo(VideoExportContext ctx, LsDataSrc frame,
+                                                 List<AnnotationSource> sources, String originalFilename) {
+        NiaAnnotationDoc doc = build(ctx, frame, sources);
+        NiaVideo v = doc.video();
+        if (v == null) {
+            return doc;
+        }
+        String filename = (originalFilename == null || originalFilename.isBlank()) ? null : originalFilename;
+        NiaVideo withName = new NiaVideo(
+                v.id(), filename, v.dateCreated(), v.type(), v.format(), v.filesize(), v.location(),
+                v.licenseId(), v.length(), v.fps(), v.frames(), v.aspectRatio(), v.width(), v.height(),
+                v.resolution(), v.bit(), v.pixel(), v.weather(), v.coordinates(), v.ogCd(), v.cctvName(),
+                v.cctvHeight(), v.cctvAzimuth(), v.cctvMngNo(), v.anonymity(), v.pseudonymity(),
+                v.privacyIncluded(), v.eventId(), v.eventName(), v.timeOfDay(), v.season(), v.eventLog(),
+                v.vdDescription());
+        return new NiaAnnotationDoc(doc.info(), doc.dataset(), doc.licences(), withName,
+                doc.eventAnnotation(), doc.image(), doc.annotations(), doc.categories(), doc.type());
     }
 }
