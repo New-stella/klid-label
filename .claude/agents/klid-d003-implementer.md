@@ -194,6 +194,21 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - **재발 조건**: N+1·재시도·디바운스처럼 횟수가 계약인 시험.
   ⇒ `verify(times(n))` 또는 Answer 카운터를 쓴다.
 
+### ★`@Lazy self` 로 자기 `@Cacheable` 을 부르는 서비스는 단위 시험에서 캐시가 **항상 비어** 있다 (CO-20260916-마킹영상재생-차단결함)
+생성자로 만든 서비스는 `self=null` 이라 캐시 메서드가 매번 새로 계산된다. 그래서 「캐시된 값을 쓰면 안 되는 자리에 캐시 값을 쓰는」 결함(예: 파일 크기가 바뀐 뒤의 Range 경계)이 **모든 시험을 통과**한다.
+- **근거**: `VideoStreamService.stream` 이 Range 경계를 캐시된 `meta.contentLength()` 로 계산하고 있었다(QA 코드 추적). `self` 슬롯에 옛 크기를 돌려주는 목을 넣은 시험 5건을 만든 뒤, 캐시 길이로 되돌리는 변이를 주자 정확히 그 5건만 실패했다.
+- **재발 조건**: 자기 자신의 캐시 메서드를 프록시로 부르는 서비스의 동작을 시험할 때. ⇒ `self` 에 **낡은 값을 돌려주는 목**을 넣은 시험을 따로 둔다.
+
+### ★주입 필드의 시험 기본값이 정답과 같으면 주입 결함이 초록으로 숨는다 (CO-20260916-마킹영상재생-차단결함)
+`@Autowired(required=false) private X x = X.ofDefault();` 꼴에서 기본값(`/api/v1`)이 기대 출력과 같으면, 잘못된 주입 값을 쓰는 결함을 되살려도 생성자 기반 시험은 통과한다.
+- **근거**: 재생 주소에 `PublicApiPath` 를 다시 쓰는 변이에서 `issueSignedUrl_startsWithApiBasePath` 는 통과했고, **실제 빈에 `/label-studio/api/v1` 을 넣은 `ApplicationContextRunner` 시험만** 실패했다(56건 중 1건).
+- **재발 조건**: 선택 주입 필드로 받는 값을 가드할 때. ⇒ 기본값과 **다른** 값을 실제 빈으로 넣는 시험을 하나 둔다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

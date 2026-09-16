@@ -2,7 +2,11 @@ package kr.co.cudo.authoring.video;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.common.config.PublicApiPath;
+import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -1436,5 +1440,165 @@ class VideoStreamServiceTest {
                 .isEqualTo(HttpStatus.OK);
         assertThat(videoStreamService.resolveStreamMeta(rawSn).path())
                 .isEqualTo(deidFile.toRealPath());
+    }
+
+    // ============ 캐시 길이 ≠ 실제 크기 — 경계는 요청마다 잰 크기로 (비식별 산출물 재배치 대응) ============
+
+    /**
+     * 캐시 적재 후 파일 크기가 바뀐 상황을 만든다 — 캐시 히트를 흉내 내려고 {@code self}(캐시 프록시 자리)에
+     * <b>옛 크기가 실린 메타</b>를 돌려주는 대역을 끼운다. 다른 노드가 캐시를 비우지 못한 형상과 같다.
+     *
+     * @return 실제 파일 경로
+     */
+    private Path stubStaleCachedMeta(Long rawSn, int cachedSize, int actualSize) throws IOException {
+        Path deidFile = legacyDeidFile(rawSn, "stale_" + rawSn + ".mp4");
+        Files.write(deidFile, new byte[cachedSize]);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+        VideoStreamService.StreamMeta cached = videoStreamService.resolveStreamMeta(rawSn);
+        assertThat(cached.contentLength()).isEqualTo(cachedSize); // 전제 — 캐시에는 옛 크기
+
+        VideoStreamService cacheProxy = org.mockito.Mockito.mock(VideoStreamService.class);
+        when(cacheProxy.resolveStreamMeta(rawSn)).thenReturn(cached);
+        ReflectionTestUtils.setField(videoStreamService, "self", cacheProxy);
+
+        Files.write(deidFile, new byte[actualSize]); // 재배치로 크기가 바뀜(같은 경로)
+        return deidFile;
+    }
+
+    private static String contentRangeOf(ResourceRegion region) throws IOException {
+        long end = region.getPosition() + region.getCount() - 1;
+        return "bytes " + region.getPosition() + "-" + end + "/" + region.getResource().contentLength();
+    }
+
+    @Test
+    @DisplayName("★캐시길이보다_파일이_커지면_끝구간_Range도_실제크기_기준_206 — 옛 길이로 416 내지 않음")
+    void stream_fileGrownAfterCache_tailRangeUsesActualSize() throws IOException {
+        Long rawSn = 70L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=3000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(resp.getBody().getPosition()).isEqualTo(3000L);
+        assertThat(resp.getBody().getCount()).isEqualTo(1096L);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 3000-4095/4096");
+    }
+
+    @Test
+    @DisplayName("캐시길이보다_파일이_커지면_접미_Range도_실제_끝을_가리킨다")
+    void stream_fileGrownAfterCache_suffixRangeUsesActualSize() throws IOException {
+        Long rawSn = 71L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=-100");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 3996-4095/4096");
+    }
+
+    @Test
+    @DisplayName("★캐시길이보다_파일이_줄면_열린_Range가_실제크기까지만_나간다")
+    void stream_fileShrunkAfterCache_openRangeCappedAtActualSize() throws IOException {
+        Long rawSn = 72L;
+        stubStaleCachedMeta(rawSn, 4096, 2048);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=1000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(contentRangeOf(resp.getBody())).isEqualTo("bytes 1000-2047/2048");
+    }
+
+    @Test
+    @DisplayName("캐시길이보다_파일이_줄면_실제크기_밖_Range는_416이고_전체길이는_실제크기")
+    void stream_fileShrunkAfterCache_outOfActualRange_416() throws IOException {
+        Long rawSn = 73L;
+        stubStaleCachedMeta(rawSn, 4096, 2048);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=3000-");
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, headers);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        assertThat(resp.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE)).isEqualTo("bytes */2048");
+    }
+
+    @Test
+    @DisplayName("캐시길이와_파일크기가_달라도_Range없는_전체응답은_실제크기")
+    void stream_sizeChangedAfterCache_fullResponseUsesActualSize() throws IOException {
+        Long rawSn = 74L;
+        stubStaleCachedMeta(rawSn, 2048, 4096);
+
+        ResponseEntity<ResourceRegion> resp = videoStreamService.stream(rawSn, new HttpHeaders());
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().getCount()).isEqualTo(4096L);
+    }
+
+    // ===================== API-114 — 스트림 주소는 배포 접두를 포함하지 않는다 =====================
+
+    @Test
+    @DisplayName("스트림주소는_배포접두_없는_API_기준경로로_시작한다(API-114)")
+    void issueSignedUrl_startsWithApiBasePath() {
+        Long rawSn = 12L;
+        String nonce = "0123456789abcdef0123456789abcdef";
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(streamUrlSigner.isConfigured()).thenReturn(true);
+        when(streamUrlSigner.sign(rawSn, "1", nonce))
+                .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
+
+        assertThat(videoStreamService.issueSignedUrl(rawSn, "1", nonce).url())
+                .isEqualTo("/api/v1/videos/12/stream?exp=1700000000&u=1&sig=deadbeef");
+    }
+
+    /**
+     * ★회귀 — 이미지 주소용 접두({@link PublicApiPath})가 WAR 컨텍스트를 포함한 값({@code /label-studio/api/v1})을
+     * 내는 배포에서도 스트림 주소는 접두 없는 {@code /api/v1/...} 여야 한다. 화면이 배포 접두를 한 번 더 붙이므로,
+     * 서버가 컨텍스트를 붙이면 {@code /label-studio/label-studio/...} 이중 접두가 된다(온프렘 실측 결함).
+     *
+     * <p>생성자 직접 인스턴스화로는 스프링 주입 경로(필드 {@code @Autowired})를 재현할 수 없으므로, 실제 빈 두 개를
+     * 작은 컨텍스트에 올려 <b>주입이 일어나는 형상</b>에서 확인한다 — 누군가 {@code PublicApiPath} 주입을 되살리면
+     * 이 시험이 잡는다.
+     */
+    @Test
+    @DisplayName("★컨텍스트_포함_접두가_설정된_배포에서도_스트림주소는_api_v1로_시작한다(API-114 이중접두 회귀)")
+    void issueSignedUrl_ignoresContextIncludingPublicApiPath() {
+        Long rawSn = 13L;
+        String nonce = "0123456789abcdef0123456789abcdef";
+        VideoRepository repo = org.mockito.Mockito.mock(VideoRepository.class);
+        StreamUrlSigner signer = org.mockito.Mockito.mock(StreamUrlSigner.class);
+        when(repo.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(signer.isConfigured()).thenReturn(true);
+        when(signer.sign(rawSn, "1", nonce))
+                .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
+
+        new ApplicationContextRunner()
+                .withPropertyValues(PublicApiPathDefaults.PROPERTY_KEY + "=/label-studio/api/v1")
+                .withBean(PublicApiPath.class)
+                .withBean(VideoRepository.class, () -> repo)
+                .withBean(StreamUrlSigner.class, () -> signer)
+                .withBean(LsDeidentProcLogRepository.class,
+                        () -> org.mockito.Mockito.mock(LsDeidentProcLogRepository.class))
+                .withBean(VideoArtifactRootResolver.class,
+                        () -> org.mockito.Mockito.mock(VideoArtifactRootResolver.class))
+                .withBean(DeidentReportGate.class, () -> new DeidentReportGate(repo))
+                .withBean(VideoStreamService.class)
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    // 전제 확인 — 이 배포의 이미지용 접두는 컨텍스트를 포함한다(시험이 공허하지 않음).
+                    assertThat(ctx.getBean(PublicApiPath.class).prefix()).isEqualTo("/label-studio/api/v1");
+
+                    String url = ctx.getBean(VideoStreamService.class)
+                            .issueSignedUrl(rawSn, "1", nonce).url();
+                    assertThat(url).startsWith("/api/v1/videos/13/stream?");
+                    assertThat(url).doesNotContain("label-studio");
+                });
     }
 }
