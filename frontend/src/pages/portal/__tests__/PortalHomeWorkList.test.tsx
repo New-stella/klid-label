@@ -99,7 +99,12 @@ describe('포털 내 작업 — 목록 구성', () => {
     expect(datamartCallSpy).not.toHaveBeenCalled();
   });
 
-  it('사양이_정한_네_열을_갖는다', () => {
+  /*
+   * ★ 2026-09-16 — **네 열에서 다섯 열로 늘었다.** 부모 포털이 이 화면을 자기 부품으로 다시
+   *   그리면서 내려받기를 제 칸으로 떼어 냈다 — 「이어서 작업」 옆에 붙어 있으면 무슨 버튼인지
+   *   머리글로 갈리지 않았기 때문이다. 구 기대값(네 열)은 폐기다.
+   */
+  it('사양이_정한_다섯_열을_갖는다', () => {
     // given
     mockWorks([work()]);
 
@@ -108,7 +113,7 @@ describe('포털 내 작업 — 목록 구성', () => {
 
     // then
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(headers).toEqual(['대상 영상', '저장 시각', '만료 예정일', '작업']);
+    expect(headers).toEqual(['대상 영상', '저장 시각', '만료 예정일', '작업', '내려받기']);
   });
 
   /*
@@ -180,11 +185,19 @@ describe('포털 내 작업 — 저장 시각·만료 예정일 표기', () => {
     renderHome();
 
     // then
-    expect(screen.getByTestId('portal-work-expiry-40')).toHaveTextContent('만료: 2026-06-08');
+    // ⚠ 2026-09-16 — 값 앞의 `만료: ` 접두사를 뗐다(부모 포털 표기). 열 이름이 이미
+    //   「만료 예정일」이라 칸마다 되풀이할 까닭이 없다. 구 기대값 `만료: 2026-06-08` 은 폐기.
+    expect(screen.getByTestId('portal-work-expiry-40')).toHaveTextContent('2026-06-08');
     expect(screen.queryByText(/임박|곧 삭제|D-/)).toBeNull();
   });
 
-  it('만료가_없으면_자리를_비운다_문구를_지어내지_않는다', () => {
+  /*
+   * ★ 2026-09-16 — **빈 칸에서 `-` 로 바뀌었다** (부모 포털 표기 · 구 동작 폐기).
+   *   「지어내지 않는다」는 원칙은 그대로다 — `-` 는 **값을 만들어 낸 것이 아니라 값이 없음을
+   *   가리키는 표식**이고, 빈 칸은 「표기가 빠졌나?」로 읽힌다는 것이 표기를 바꾼 근거다.
+   *   ⚠ 여전히 금지되는 것은 **없는 사실을 말하는 문구**다(`없음`·`무기한`·임박 강조 등).
+   */
+  it('만료가_없으면_값_없음_표식만_두고_문구를_지어내지_않는다', () => {
     // given: 만료 판정이 서지 않는 행
     mockWorks([work({ rawSn: 41, expiresOn: null })]);
 
@@ -194,12 +207,12 @@ describe('포털 내 작업 — 저장 시각·만료 예정일 표기', () => {
     // then(존재): 그 칸 자체는 남아 정렬을 유지한다
     const cell = screen.getByTestId('portal-work-expiry-41');
     expect(cell).toBeInTheDocument();
-    // then(부재): 그런데 내용이 없다
-    expect(cell.textContent).toBe('');
-    // then(부재): 그 행 어디에도 `-`·`없음` 같은 지어낸 문구가 없다
+    // then: 값 없음 표식만 선다
+    expect(cell.textContent).toBe('-');
+    // then(부재): 그 행 어디에도 없는 사실을 말하는 문구가 없다
     //   ⚠ 화면 전체로 찾으면 열 이름('만료 예정일')과 안내 문구가 걸린다 — 판정 범위를 그 행으로 좁힌다.
     const row = screen.getByTestId('portal-work-row-41');
-    expect(within(row).queryByText(/만료|없음/)).toBeNull();
+    expect(within(row).queryByText(/없음|무기한|임박/)).toBeNull();
   });
 
   /*
@@ -226,8 +239,8 @@ describe('포털 내 작업 — 저장 시각·만료 예정일 표기', () => {
     // when
     renderHome();
 
-    // then(부재): 그 행의 저장 시각 칸은 비어 있다
-    expect(screen.getByTestId('portal-work-saved-52').textContent).toBe('');
+    // then: 그 행의 저장 시각 칸은 값 없음 표식만 선다 (2026-09-16 — 구 기대값 빈 문자열은 폐기)
+    expect(screen.getByTestId('portal-work-saved-52').textContent).toBe('-');
     // then(존재): 다른 행의 저장 시각은 그대로 적힌다 — 「전부 비어 있다」와 구분한다
     expect(screen.getByTestId('portal-work-saved-51').textContent).toContain('2026');
     // then(순서): 서버가 준 순서 그대로다 — 화면이 다시 정렬하지 않는다
@@ -264,7 +277,9 @@ describe('포털 내 작업 — 페이징', () => {
     expect(useUserWorksMock).toHaveBeenCalledWith(expect.objectContaining({ page: 0 }));
 
     // when
-    await user.click(screen.getByRole('button', { name: '2페이지' }));
+    // ⚠ 2026-09-16 — 킷 페이저는 쪽 번호를 **버튼이 아니라 링크**(`a.page-link`)로 그린다.
+    //   구 기대값 `button · 2페이지` 는 폐기. 문서 맨 위로 튀는 것은 `PageNav` 가 막는다.
+    await user.click(screen.getByRole('link', { name: '2' }));
 
     // then
     await waitFor(() =>
