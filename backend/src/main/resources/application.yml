@@ -625,6 +625,18 @@ authoring:
   #     적용 목록을 [Deident] excluded srcTypes=[...] INFO 한 줄로 남긴다.
   deidentify:
     excluded-src-types: ${DEIDENTIFY_EXCLUDED_SRC_TYPES:GENERATED}
+    # ★ 비식별 산출물 재생 인덱스 재배치 (@design ADR-072) — 외부 비식별 솔루션 산출물의 moov 가 파일 끝이면
+    #   완료 확정(커밋) 뒤 재인코딩 없이(-c copy -movflags +faststart) 앞으로 옮긴다. 경로·파일명 불변.
+    #   · 실패해도 비식별 완료를 되돌리지 않는다(fail-open — WARN 로그 + 지표 deident.faststart{result}).
+    #   · 이미 앞에 있으면 아무것도 하지 않는다(멱등) — 벤더가 고치면 자동으로 무동작이 된다.
+    #   · 작업 파일은 산출 디렉터리의 형제 숨김 디렉터리 .deid-faststart 에 둔다(결과 회수가 산출물로 오인하지 않게).
+    #     노드가 변환 중 죽으면 그 디렉터리에 작업 파일이 남을 수 있다 — 자동 정리 없음, 운영 점검 대상.
+    #   · max-concurrency 는 노드당 동시 ffmpeg 수. 대용량 파일 I/O 라 보수적으로 둔다.
+    faststart:
+      enabled: ${DEIDENTIFY_FASTSTART_ENABLED:true}
+      max-concurrency: ${DEIDENTIFY_FASTSTART_MAX_CONCURRENCY:1}
+      queue-capacity: ${DEIDENTIFY_FASTSTART_QUEUE_CAPACITY:32}
+      timeout-sec: ${DEIDENTIFY_FASTSTART_TIMEOUT_SEC:600}
   integration:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
