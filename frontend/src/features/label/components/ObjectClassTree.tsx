@@ -24,7 +24,7 @@ import { cn } from '@/lib/cn';
 // ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 부품. 관제 렌더 경로는 거치지 않는다.
 import { Badge } from 'krds-react';
 
-import { IconButton } from '@/components/portal/kit';
+import { EmptyState, IconButton } from '@/components/portal/kit';
 import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -194,7 +194,11 @@ export function ObjectClassTree({
   }, [labels]);
 
   if (groups.length === 0) {
-    return (
+    // ★포털은 킷 빈 자리 안내다 — 시안과 같은 치수(xs)와 같은 문장(마침표까지)이다.
+    //   ⚠ 관제 문구는 그대로 둔다(관제향 화면 불변 구속).
+    return portalMode ? (
+      <EmptyState size="xs" title="이 프레임에 객체가 없습니다." />
+    ) : (
       <div className="p-4 text-caption text-gray-500 text-center">
         이 프레임에 객체가 없습니다
       </div>

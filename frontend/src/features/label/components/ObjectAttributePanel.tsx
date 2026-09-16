@@ -15,6 +15,9 @@ import {
 } from '@/components/common/Select';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 빈 자리 안내. 관제 렌더 경로는 거치지 않는다.
+import { EmptyState } from '@/components/portal/kit';
+
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
 import { normalizeBox } from '../canvas/utils/canvasGeometry';
@@ -219,9 +222,26 @@ export function ObjectAttributePanel({
 
   if (!target) {
     return (
-      <aside className={`${PANEL_LAYOUT_CLASS} gap-2`} aria-label="객체 속성">
-        <h3 className="text-sub font-semibold text-gray-900">객체 속성</h3>
-        <p className="text-sub text-gray-500">선택된 객체가 없습니다</p>
+      <aside
+        className={`${PANEL_LAYOUT_CLASS} gap-2${portalMode ? ' klid-tool-panel' : ''}`}
+        data-level={portalMode ? '4' : undefined}
+        aria-label="객체 속성"
+      >
+        {portalMode ? (
+          <>
+            {/* ★킷 판 머리 줄(층 4 · 13) — 좌측 도구 칸·이미지 조절과 같은 층으로 선다. */}
+            <div className="klid-tool-panel-head">
+              <h3 className="klid-tool-panel-title">객체 속성</h3>
+            </div>
+            {/* 시안과 같은 치수·같은 문장(마침표까지)이다. */}
+            <EmptyState size="xs" title="선택된 객체가 없습니다." />
+          </>
+        ) : (
+          <>
+            <h3 className="text-sub font-semibold text-gray-900">객체 속성</h3>
+            <p className="text-sub text-gray-500">선택된 객체가 없습니다</p>
+          </>
+        )}
         {segmentControl}
       </aside>
     );
@@ -277,13 +297,29 @@ export function ObjectAttributePanel({
   }
 
   return (
-    <aside className={`${PANEL_LAYOUT_CLASS} gap-3`} aria-label="객체 속성">
-      <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-900">
-        <span>객체 속성</span>
-        <span className="text-gray-500 text-caption" data-testid="object-attribute-id">
-          #{objectNumber}
-        </span>
-      </h3>
+    <aside
+      className={`${PANEL_LAYOUT_CLASS} gap-3${portalMode ? ' klid-tool-panel' : ''}`}
+      data-level={portalMode ? '4' : undefined}
+      aria-label="객체 속성"
+    >
+      {/* ★머리 줄 꼴이 채널마다 갈린다 — 포털은 킷 판 머리(이름 왼쪽 · 식별자 오른쪽 끝)이고
+          관제는 종전 그대로 이름 옆에 붙는다. <b>보여 주는 값도 제목 층도 같다.</b>
+          ⚠ 관제 쪽 `h3` 짜임을 건드리지 않는다 — 관제향 화면 불변 구속이다. */}
+      {portalMode ? (
+        <div className="klid-tool-panel-head">
+          <h3 className="klid-tool-panel-title">객체 속성</h3>
+          <span className="klid-tool-panel-aside" data-testid="object-attribute-id">
+            #{objectNumber}
+          </span>
+        </div>
+      ) : (
+        <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-900">
+          <span>객체 속성</span>
+          <span className="text-gray-500 text-caption" data-testid="object-attribute-id">
+            #{objectNumber}
+          </span>
+        </h3>
+      )}
 
       {/* 라벨 드롭다운 — Phase 8: useLabelMasters 응답을 자동 사용 */}
       {resolvedAvailable.length > 0 ? (

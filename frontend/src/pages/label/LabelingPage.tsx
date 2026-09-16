@@ -2330,13 +2330,27 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 )}
               >
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
-                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
-                <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  <span>객체 목록</span>
+                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다.
+                    ★생김새가 채널마다 갈린다 — 포털은 킷 판 머리 줄(이름 15 · 오른쪽 보조 글 13)이고
+                      <b>건수를 배지로 두르지 않는다</b>(부모 포털 규칙 「수치는 배지 없이 글자만」).
+                      ⚠ <b>사라지는 정보는 없다</b> — 같은 글이 같은 자리에 서고 이름·시험 후크도 그대로다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'flex items-center gap-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>객체 목록</span>
                   <span
                     data-testid="object-count-badge"
                     aria-label="객체 수"
-                    className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700"
+                    className={cn(
+                      portalMode
+                        ? 'klid-tool-panel-aside'
+                        : 'ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700',
+                    )}
                   >
                     {objectCount}개 객체
                   </span>
@@ -2366,8 +2380,19 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 focusTargetRef={portalMode ? autoTrackFocusRef : undefined}
               />
               <div className="flex min-h-[192px] flex-1 flex-col overflow-hidden border-t border-gray-200">
-                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  속성
+                {/* ★포털은 킷 판 머리 줄 꼴이다 — 좌측 도구 칸의 묶음 이름과 같은 층(15)으로 선다.
+                    ⚠ 블록 사이 선은 <b>두 채널 모두 남긴다</b>. 시안은 여백으로 가르지만 우리 칸은
+                      목록과 속성이 각자 스크롤하는 두 칸이라, 선이 없으면 어디까지가 한 묶음인지
+                      스크롤 중에 사라진다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>속성</span>
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
