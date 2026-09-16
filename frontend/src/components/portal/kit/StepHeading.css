@@ -1,0 +1,120 @@
+@charset "utf-8";
+/* 단계 제목 (StepHeading) — 머리말 + 이름 (design.md §2 타이포 · §6 세로 리듬 · §8 색) */
+
+/* 면을 갖지 않는다 — 맨바닥에 서는 글이라 좌우 8 로 들여
+   같은 화면의 다른 맨바닥 줄과 한 선에 선다 (design.md §6) */
+.klid-step-heading {
+  padding-inline: var(--krds-padding-3);
+}
+/* 흰 면 안에서는 면의 안쪽 여백이 기준선이다. 또 들이면 글이 두 번 들어간다 */
+.klid-section-card .klid-step-heading {
+  padding-inline: 0;
+}
+
+/* 오른쪽 끝 자리가 있으면 이름과 한 줄로 서고, 넘치면 아래로 접힌다 */
+.klid-step-heading[data-aside] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--krds-gap-3) var(--krds-gap-5);
+}
+/* 설명이 있으면 오른쪽 자리를 설명 줄에 맞춘다 — 이름 줄에 맞추면 머리가 위로 무거워진다 */
+.klid-step-heading[data-aside][data-desc] {
+  align-items: flex-end;
+}
+.klid-step-heading .name {
+  min-width: 0;
+}
+
+/* 머리말 — 몇 번째 걸음인지. 이름과는 크기·색 둘로 갈린다 (굵기를 색보다 먼저 올리지 않는다) */
+.klid-step-heading .overline {
+  margin-bottom: var(--krds-gap-3); /* 머리말→이름 밀착 — 한 컴포넌트 안 간격 */
+  font-size: 1.5rem; /* 본문 기본 15 (design.md §2) */
+  font-weight: 600;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-primary-50);
+}
+
+/* 이름과 이름 옆 짧은 말 — 밑선을 맞춰 나란히 서고, 넘치면 아래로 접힌다 */
+.klid-step-heading .title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--krds-gap-1) var(--krds-gap-3);
+}
+
+.klid-step-heading .title {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  margin: 0;
+  font-size: 3rem; /* 풀폭 페이지 제목 30 (design.md §2) */
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-step-heading[data-size='md'] .title {
+  font-size: var(--krds-pc-font-size-heading-small); /* 구획 제목 20 (§2) */
+  line-height: 1.4;
+}
+.klid-step-heading[data-size='sm'] .title {
+  font-size: var(--krds-pc-font-size-heading-xsmall); /* 구획 안 묶음 제목 17 (§2) */
+  line-height: 1.55;
+}
+/* 표식은 획 글리프 · 제목과 같은 색 — 채우거나 색을 따로 주면 이름보다 표식이 먼저 읽힌다 */
+.klid-step-heading .title svg {
+  flex: none;
+  width: var(--krds-size-height-3); /* 단독 20 (CLAUDE.md 아이콘 규칙) */
+  height: var(--krds-size-height-3);
+}
+.klid-step-heading[data-size='sm'] .title svg {
+  width: var(--krds-size-height-2); /* 인라인 16 */
+  height: var(--krds-size-height-2);
+}
+
+.klid-step-heading .note {
+  min-width: 0;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-60);
+  overflow-wrap: anywhere; /* 파일명처럼 띄어 쓰지 않은 말이 든다 (UX-writing.md §6 예외) */
+}
+
+.klid-step-heading .desc {
+  margin-top: var(--krds-gap-3); /* 이름→설명 밀착 */
+  font-size: 1.7rem; /* 큰 본문 17 (design.md §2) */
+  line-height: 1.6;
+  color: var(--krds-color-light-gray-70);
+}
+/* 구획 층의 설명은 보조 글이다 — 제목에 밀착한다 (§6 제목→설명 4~6) */
+.klid-step-heading:is([data-size='md'], [data-size='sm']) .desc {
+  margin: var(--krds-gap-2) 0 0;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-60);
+}
+
+.klid-step-heading .aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-60);
+}
+/* 건수는 제 자리 여백(위 20 · 아래 12 · 좌우 8)을 갖고 오는데, 제목 줄 안에서는 줄이 이미
+   자리를 잡았으므로 지운다 (결과 머리 `.klid-result-head` 와 같은 처리) */
+.klid-step-heading .aside .klid-result-count {
+  margin-block: 0;
+  padding-inline: 0;
+}
+
+/* 좁은 폭 — 페이지 제목만 한 칸 내린다 (24 · design.md §2) */
+@media (max-width: 767px) {
+  .klid-step-heading[data-size='lg'] .title {
+    font-size: 2.4rem;
+  }
+}

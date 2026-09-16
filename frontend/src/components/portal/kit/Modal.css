@@ -1,0 +1,46 @@
+@charset "utf-8";
+/* 모달 — 내용이 주인인 창. 겉테(선 · 좌우 24 · 위아래 16 · 이름 19 · X 자리)는
+   **공통층이 갖는다** (krds-theme.css § 창은 두 갈래다). 여기 있는 것은 본문 리듬뿐이다. */
+
+/* 창의 본문 — 조각이 위에서 아래로 **16** 씩 쌓인다 (§6 결이 다른 것의 위끝).
+   ★ 간격을 **여기서만** 잡는다. 화면이 제 창마다 다시 잡으면 창마다 값이 갈린다 —
+     이 부품이 생기기 전에 실제로 그랬다 (회원 탈퇴 16 · 별칭 수정 12 · 문의 상세 24) */
+/* 이름이 두 줄로 넘어가면 줄 길이를 고르게 나눈다 (UX-writing.md §6 「줄바꿈」).
+   뜻이 갈리는 자리는 창이 이미 붙여 두었다 (Modal.tsx 의 glued) */
+.klid-modal .modal-title {
+  text-wrap: balance;
+}
+
+.klid-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+}
+
+/* 하단 안내문 — 아랫동 왼쪽. 글은 킷 힌트 줄(form-hint) 겉모습 그대로이고 여기서는 자리만 잡는다.
+   남는 폭을 먹고 길면 접힌다 — 걸음 묶음은 줄지 않는다 */
+.klid-modal-note {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+/* 걸음 묶음 — 사이는 킷 아랫동 걸음 사이 토큰 그대로 */
+.klid-modal-steps {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--krds-modal--btn-gap);
+}
+
+/* 걸음이 없는 창의 아래 여백.
+   넓은 폭에서는 킷 기본값(`--krds-modal--conts-padding-bottom`)이 그대로 서므로 손댈 것이 없다.
+   ※ 예외 — 767 아래에서 킷이 `.krds-modal:not([data-type=bottom-sheet]) .modal-dialog
+     .modal-conts` (0-4-0)로 **아래 여백을 0 으로 누른다.** 아랫동이 그 몫을 갖는다고 보기
+     때문인데, 걸음이 없으면 그 아랫동 자체가 없어 내용이 창 바닥에 붙는다 (문의 상세).
+     토큰이 없는 자리라 덮는 수밖에 없고 0-5-0 으로 조준해야 이긴다.
+     값은 좌우와 같은 것으로 준다 — 아래만 다른 값이면 내용이 한쪽으로 쏠린다 */
+@media (max-width: 767px) {
+  .klid-modal[data-steps='none'].krds-modal .modal-dialog .modal-conts {
+    padding-bottom: var(--krds-modal--mobile-padding);
+  }
+}

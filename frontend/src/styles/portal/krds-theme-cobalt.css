@@ -1,0 +1,138 @@
+@charset "utf-8";
+/* =============================================================================
+   코발트 팔레트 — KLID 포털 브랜드색
+
+   krds-theme.css 가 첫 줄에서 import 한다. 단독으로 로드하지 않는다.
+   프리미티브만 덮으면 시맨틱 190종이 전부 따라오므로 이 파일 하나로 브랜드가
+   바뀐다(컴포넌트 → 시맨틱 → 프리미티브 3단 참조 구조).
+   고대비 모드(--krds-color-high-contrast-*)는 손대지 않는다.
+   ============================================================================= */
+
+:root {
+  /* Gray — 중립톤 (slate 쿨톤) */
+  --krds-color-light-gray-0: #ffffff;
+  --krds-color-light-gray-5: #f8fafc;
+  --krds-color-light-gray-10: #f1f5f9;
+  --krds-color-light-gray-20: #e2e8f0;
+  --krds-color-light-gray-30: #cbd5e1;
+  --krds-color-light-gray-40: #94a3b8;
+  --krds-color-light-gray-50: #64748b;
+  --krds-color-light-gray-60: #475569;
+  --krds-color-light-gray-70: #334155;
+  --krds-color-light-gray-80: #1e293b;
+  --krds-color-light-gray-90: #0f172a;
+  --krds-color-light-gray-95: #020617;
+  --krds-color-light-gray-100: #000000;
+
+  /* Primary — 코발트. 앵커 50 = #2e45dc (브랜드 기준색) */
+  --krds-color-light-primary-5: #eef1fe;
+  --krds-color-light-primary-10: #e0e6fd;
+  --krds-color-light-primary-20: #c4cffb;
+  --krds-color-light-primary-30: #9daef7;
+  --krds-color-light-primary-40: #6e84f1;
+  /* 45 — ★커스텀 슬롯 (KRDS 표준 스케일엔 없는 칸). 목업 cobalt-500 밝은 포인트 톤.
+     40↔50 사이가 붙어 있어 탈락한 중간톤을 보존한다: 칩 선택 보더·진행바·별점·
+     포인트 아이콘·그라데이션 중간 스탑 용. KRDS 시맨틱은 이 칸을 참조하지 않는다 */
+  --krds-color-light-primary-45: #4a61e8;
+  --krds-color-light-primary-50: #2e45dc;
+  --krds-color-light-primary-60: #2336b8;
+  --krds-color-light-primary-70: #1f2e92;
+  --krds-color-light-primary-80: #1e2b74;
+  --krds-color-light-primary-90: #16205c;
+  --krds-color-light-primary-95: #0f1640;
+
+  /* Secondary — 딥 코발트 (다크 밴드·강조 구간 톤) */
+  --krds-color-light-secondary-5: #eef1fe;
+  --krds-color-light-secondary-10: #dee4fa;
+  --krds-color-light-secondary-20: #bcc6f0;
+  --krds-color-light-secondary-30: #94a3e2;
+  --krds-color-light-secondary-40: #6878c8;
+  --krds-color-light-secondary-50: #4757a8;
+  --krds-color-light-secondary-60: #36448a;
+  --krds-color-light-secondary-70: #2a3670;
+  --krds-color-light-secondary-80: #1e2b74;
+  --krds-color-light-secondary-90: #16205c;
+  --krds-color-light-secondary-95: #0f1640;
+
+  /* Danger — red */
+  --krds-color-light-danger-5: #fef2f2;
+  --krds-color-light-danger-10: #fee2e2;
+  --krds-color-light-danger-20: #fecaca;
+  --krds-color-light-danger-30: #fca5a5;
+  --krds-color-light-danger-40: #f87171;
+  --krds-color-light-danger-50: #dc2626;
+  --krds-color-light-danger-60: #b91c1c;
+  --krds-color-light-danger-70: #991b1b;
+  --krds-color-light-danger-80: #7f1d1d;
+  --krds-color-light-danger-90: #450a0a;
+  --krds-color-light-danger-95: #2c0606;
+
+  /* Point — 강조 적색. red 로 정렬 */
+  --krds-color-light-point-5: #fef2f2;
+  --krds-color-light-point-10: #fee2e2;
+  --krds-color-light-point-20: #fecaca;
+  --krds-color-light-point-30: #fca5a5;
+  --krds-color-light-point-40: #f87171;
+  --krds-color-light-point-50: #dc2626;
+  --krds-color-light-point-60: #b91c1c;
+  --krds-color-light-point-70: #991b1b;
+  --krds-color-light-point-80: #7f1d1d;
+  --krds-color-light-point-90: #450a0a;
+  --krds-color-light-point-95: #2c0606;
+
+  /* Warning — amber */
+  --krds-color-light-warning-5: #fffbeb;
+  --krds-color-light-warning-10: #fef3c7;
+  --krds-color-light-warning-20: #fde68a;
+  --krds-color-light-warning-30: #fcd34d;
+  --krds-color-light-warning-40: #fbbf24;
+  --krds-color-light-warning-50: #d97706;
+  --krds-color-light-warning-60: #b45309;
+  --krds-color-light-warning-70: #92400e;
+  --krds-color-light-warning-80: #78350f;
+  --krds-color-light-warning-90: #451a03;
+  --krds-color-light-warning-95: #2e1102;
+
+  /* Success — emerald (green→emerald 리톤). 프리미티브만 덮으면 시맨틱 success 전부 따라온다 */
+  --krds-color-light-success-5: #ecfdf5;
+  --krds-color-light-success-10: #d1fae5;
+  --krds-color-light-success-20: #a7f3d0;
+  --krds-color-light-success-30: #6ee7b7;
+  --krds-color-light-success-40: #34d399;
+  --krds-color-light-success-50: #047857; /* 5.6:1 — 배지 흰글자·흰 배경 텍스트 대비 확보 (2026-07-29 감사) */
+  --krds-color-light-success-60: #065f46;
+  --krds-color-light-success-70: #065f46;
+  --krds-color-light-success-80: #064e3b;
+  --krds-color-light-success-90: #022c22;
+  --krds-color-light-success-95: #011a14;
+
+  /* Information — info 는 코발트로 쓴다 */
+  --krds-color-light-information-5: #eef1fe;
+  --krds-color-light-information-10: #e0e6fd;
+  --krds-color-light-information-20: #c4cffb;
+  --krds-color-light-information-30: #9daef7;
+  --krds-color-light-information-40: #6e84f1;
+  --krds-color-light-information-50: #2e45dc;
+  --krds-color-light-information-60: #2336b8;
+  --krds-color-light-information-70: #1f2e92;
+  --krds-color-light-information-80: #1e2b74;
+  --krds-color-light-information-90: #16205c;
+  --krds-color-light-information-95: #0f1640;
+
+  /* Graphic — 일러스트·차트용 블루. 코발트 계열로 틴트 */
+  --krds-color-light-graphic-10: #e6eafb;
+  --krds-color-light-graphic-30: #a6b1e4;
+  --krds-color-light-graphic-50: #6b79c4;
+  --krds-color-light-graphic-70: #3c4a97;
+  --krds-color-light-graphic-90: #253270;
+
+  /* ---------------------------------------------------------------------------
+     시맨틱 재정의 (예외 2종) — KRDS 는 "선택·활성 상태"를 secondary 로 표현한다
+     (탭·달력 선택·사이드내비 선택·드롭다운 선택 등 14개 컴포넌트).
+     우리 secondary 는 다크 밴드용 딥 코발트(네이비)라 활성 상태가 전부 네이비로
+     보이므로, 진한 활성 2종만 포털 규칙(선택 = 코발트 primary)으로 돌린다.
+     틴트류(action-secondary-hover/-selected = secondary-5)는 코발트 틴트라 그대로 둔다.
+     ------------------------------------------------------------------------- */
+  --krds-light-color-action-secondary-active: var(--krds-color-light-primary-50);
+  --krds-light-color-text-secondary: var(--krds-color-light-primary-60);
+}

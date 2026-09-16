@@ -1,0 +1,105 @@
+@charset "utf-8";
+/* =============================================================================
+   KLID 도메인 토큰 — KRDS 에 대응 개념이 없는 포털 고유 색
+
+   krds-theme.css 가 krds-theme-cobalt.css 다음에 import 한다. 단독 로드하지 않는다.
+   cobalt 파일이 KRDS 프리미티브를 "덮는" 것과 달리 여기는 신규 토큰 "추가"라
+   --klid- 프리픽스를 쓴다 (--krds- 이름 창작 금지).
+
+   출처: 목업 정의 실측 (klid_2nd)
+     - 이벤트 유형색: src/mockup/domain/eventTypes.ts
+     - violet·canvas: src/mockup/components/ui/badges.tsx · styles/index.css
+   목업의 Tailwind 고정 팔레트 참조(yellow-50 등)는 hex 로 풀어 적었다.
+   ============================================================================= */
+
+:root {
+  /* 캔버스 — 서브페이지 배경. 흰 카드가 도드라지는 미색 쿨톤 (gray-5 와 10 사이 값) */
+  --klid-color-canvas: #f4f6fa;
+
+  /* 트랙 — 막대가 **어디까지 갈 수 있는지**를 그리는 빈 자리. 진행률·순위 막대·가로 막대
+     차트가 함께 쓴다. 값이 갈리면 같은 그림이 화면마다 다른 무게로 읽히므로 여기 한 곳에 둔다.
+     ★ gray-5 는 흰 카드 위에서 거의 안 보인다 (#f4f5f6 대 #ffffff — 명도차 3%).
+       트랙은 「비어 있음」을 **보여 주는** 것이 일이라 안 보이면 없는 것과 같다.
+       한 칸 진한 gray-10 이 카드 보더(gray-20)보다는 옅어 면을 가르지 않으면서도 읽힌다
+       (2026-09-07 확정. 진행률 막대가 처음부터 쓰던 값이고, 차트 쪽만 gray-5 로 갈려 있었다) */
+  --klid-color-track: var(--krds-color-light-gray-10);
+
+  /* ---------------------------------------------------------------------------
+     Violet — **유괴 이벤트 전용** (2026-08-25). 종전에는 「증강 계열」이기도 했는데, 증강 배지가
+     코발트 틴트로 바뀌면서 이 색이 가리키는 뜻이 유괴 하나로 좁혀졌다 — 한 카드에 유괴와 증강이
+     같이 서면 같은 보라가 두 뜻이 됐기 때문이다.
+     번호는 KRDS 관례를 따른다: 5=틴트 표면 · 20=틴트 보더 · 50=액센트 · 60=틴트 위 글자
+     ------------------------------------------------------------------------- */
+  --klid-color-violet-5: #f5f3ff;
+  --klid-color-violet-20: #ddd6fe;
+  --klid-color-violet-50: #7c3aed;
+  --klid-color-violet-60: #6d28d9;
+
+  /* ---------------------------------------------------------------------------
+     즐겨찾기 금색 — 켜진 별 하나에만 쓴다. **한 색으로 채운다** (선·그림자 없음).
+     KRDS warning 팔레트(#ffb114 등)와 색은 비슷하지만 그걸 쓰지 않는다. 즐겨찾기는
+     경고가 아니라서, 경고 토큰을 빌려 쓰면 나중에 warning 색이 바뀔 때 별도 따라 바뀐다.
+     코발트로 칠하지 않는 이유 — 이 화면은 링크·칩·버튼이 이미 다 코발트라 별까지 코발트면
+     "내가 켠 것"이 주변 코발트에 묻힌다. 별은 관습적으로 금색이다.
+     값은 흰 면에서 3:1(비텍스트 기준)을 넘는 가장 노란 자리에서 잡았다 — 3.18:1.
+     한 단계 밝은 #f59e0b 는 2.15:1 이라 흰 알약 위에서 윤곽이 흐려진다
+     ------------------------------------------------------------------------- */
+  --klid-color-favorite: #d97706;
+
+  /* ---------------------------------------------------------------------------
+     이벤트 유형색 — 기획 확정 8종 + 기타(예비). 검색카드·배지·마커·범례 공통.
+     유형당 3값:
+       (기본)    accent — 마커·범례·아이콘·범례 텍스트 (vibrant)
+       -text    틴트 배경 위 배지 라벨 (4.5:1 확보. accent 로 충분하면 같은 값)
+       -surface 배지 틴트 배경 (단색 — opacity 배경 금지 규칙)
+     배지 보더는 토큰 없이 color-mix(in srgb, accent 30%, transparent) 로 파생
+     (목업의 "border-event-x/30" 알파 보더에 대응).
+     ------------------------------------------------------------------------- */
+  /* 쓰러짐 — yellow. 노랑 accent 는 밝아 라벨만 진하게 (마커는 유지) */
+  --klid-color-event-falldown: #ca8a04;
+  --klid-color-event-falldown-text: #854d0e;
+  --klid-color-event-falldown-surface: #fefce8;
+
+  /* 폭력 — 딥 베리 (fuchsia) */
+  --klid-color-event-violence: #a21caf;
+  --klid-color-event-violence-text: #86198f;
+  --klid-color-event-violence-surface: #fdf4ff;
+
+  /* 화재 — red (시맨틱 danger 와 같은 앵커) */
+  --klid-color-event-fire: #dc2626;
+  --klid-color-event-fire-text: #b91c1c;
+  --klid-color-event-fire-surface: #fef2f2;
+
+  /* 교통사고 — teal */
+  --klid-color-event-traffic: #0d9488;
+  --klid-color-event-traffic-text: #0f766e;
+  --klid-color-event-traffic-surface: #f0fdfa;
+
+  /* 유괴 — violet 패밀리 참조 (증강 계열과 색 공유) */
+  --klid-color-event-abduction: var(--klid-color-violet-50);
+  --klid-color-event-abduction-text: var(--klid-color-violet-50);
+  --klid-color-event-abduction-surface: var(--klid-color-violet-5);
+
+  /* 침수 — sky */
+  --klid-color-event-flood: #0284c7;
+  --klid-color-event-flood-text: #0369a1;
+  --klid-color-event-flood-surface: #f0f9ff;
+
+  /* 산불 — orange */
+  --klid-color-event-wildfire: #ea580c;
+  --klid-color-event-wildfire-text: #c2410c;
+  --klid-color-event-wildfire-surface: #fff7ed;
+
+  /* 산사태 — 흙갈색 (amber-800). accent 자체가 진해 text 동일, 표면은 stone */
+  --klid-color-event-landslide: #92400e;
+  --klid-color-event-landslide-text: #92400e;
+  --klid-color-event-landslide-surface: #f5f5f4;
+
+  /* 기타 (예비) — 중립 gray 참조 */
+  --klid-color-event-etc: var(--krds-color-light-gray-50);
+  --klid-color-event-etc-text: var(--krds-color-light-gray-50);
+  --klid-color-event-etc-surface: var(--krds-color-light-gray-5);
+
+  /* 외부 브랜드 컬러 — 팔레트 토큰 대상 아님 (카카오 브랜드 가이드 고정값) */
+  --klid-brand-kakao: #fee500;
+}

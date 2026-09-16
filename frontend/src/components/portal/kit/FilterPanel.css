@@ -1,0 +1,570 @@
+@charset "utf-8";
+/* 검색·필터 패널 (design.md §5 표면 · §6 세로 리듬) */
+
+.klid-filter-panel {
+  padding: var(--krds-padding-8); /* §5 카드 패딩 24 */
+  border: 0.1rem solid var(--krds-color-light-gray-20);
+  border-radius: 1.6rem;
+  background-color: var(--krds-color-light-gray-0);
+}
+
+/* 이미 흰 면 위에 놓일 때는 제 면을 벗는다 (휴대폰 조건 창 · FilterSheet).
+   면 위에 면을 그리면 표면이 두 겹으로 보이고(design.md §7), 창 여백 안에 패널 여백이
+   겹쳐 좌우가 두 번 들여쓰인다. 벗는 것은 면·테·라운드·안쪽 여백뿐이고 줄 짜임과
+   세로 리듬은 그대로 간다 — 폭이 바뀌어도 같은 조건판으로 읽혀야 한다 */
+.klid-filter-panel[data-surface='bare'] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/* 한 줄 검색바: 첫 필드가 남는 폭을 먹고 버튼이 오른쪽에 붙는다 */
+.klid-filter-panel[data-layout='row'] {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--krds-gap-4);
+}
+.klid-filter-panel[data-layout='row'] .fields {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 여러 줄 폼: 필드 사이 20 (§6 블록 사이) */
+.klid-filter-panel[data-layout='stack'] .fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+}
+/* 접는 구획 안에 칸을 바로 쌓아도 필드 사이 20 이다 (2026-09-14 — 라벨링 메타 탭).
+   구획의 속(.panel)은 제 짜임이 없어, 칸이 그 안에 들면 위 20 이 안 닿고 칸끼리 0 으로 붙었다.
+   행형(rows)은 줄(.klid-filter-line)이 제 위아래 여백을 갖고 오므로 대상이 아니다.
+   닫힌 구획은 `hidden` 이 이겨야 하므로 열린 것만 조준한다 */
+.klid-filter-panel[data-layout='stack'] .klid-filter-disclosure > .panel:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+}
+
+/* 버튼 줄. 한 줄형은 첫 필드 옆, 세로형은 아래 가운데 */
+.klid-filter-panel[data-layout='stack'] .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--krds-gap-3);
+  margin-top: 2rem;
+}
+/* 행형은 오른쪽 끝. 조건이 전부 왼쪽 정렬로 서 있으므로 실행을 가운데 두면 어느 줄에도
+   안 걸리고 혼자 뜬다. 오른쪽 끝은 마지막 조건 줄의 끝선과 맞는 자리다 */
+.klid-filter-panel[data-layout='rows'] .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--krds-gap-3);
+  margin-top: 2rem;
+}
+
+/* 검색 흐름과 갈래가 다른 버튼은 왼쪽 끝으로 뗀다.
+   조건을 지우거나 갈무리하는 조작은 검색을 실행하는 일이 아니라서, 같은 묶음에 두면
+   둘 중 무엇이 실행인지 흐려진다. 왼쪽 끝은 조건 라벨들이 서 있는 정렬선이기도 하다 */
+.klid-filter-panel .actions > .klid-action-aside {
+  margin-right: auto;
+}
+
+/* 아이콘을 단 버튼 (초기화 등).
+   킷의 `.svg-icon` 은 mask-image 로 그리는 제 아이콘 체계라 인라인 SVG(lucide)에 붙이면
+   검은 사각형이 된다. 그래서 크기를 여기서 직접 준다 — 버튼 안 아이콘 18 (CLAUDE.md 아이콘 규칙).
+   ★ 킷 선언 속성(display) 덮어쓰기 예외. 킷 버튼은 block 이라 gap 이 안 먹어 아이콘과 글자가
+     붙고 세로 가운데도 안 맞는다. 아이콘이 든 버튼만 골라 flex 로 바꾼다 (gap 은 킷 값을 쓴다) */
+.klid-filter-panel .actions button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+}
+.klid-filter-panel .actions button > svg {
+  flex: none;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+/* 필드: 라벨→컨트롤 간격 4 (2026-08-07 조정, 킷 폼 필드의 8 에서 내렸다).
+   §6 "라벨과 그 대상은 밀착(4~6)" 의 아래 끝이다. 라벨을 500·gray-50 으로 낮추면서
+   이름표가 컨트롤에 더 붙어야 한 묶음으로 읽힌다 — 8 은 라벨이 저 혼자 뜬 줄처럼 보였다.
+   ★ 킷 입력(TextInput·Select)의 자체 라벨과는 4 어긋난다. 이 패널은 라벨을 킷에 맡기지 않고
+     FilterPanel.Field 가 그리므로 섞이지 않는다 */
+.klid-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-2);
+  min-width: 0;
+}
+/* 라벨은 조건의 **이름표**지 강조가 아니다 (2026-08-07 조정). 600·gray-70 으로 두었더니
+   컨트롤보다 라벨이 먼저 읽혀, 아홉 줄이 이름표 목록처럼 보였다.
+   무게 500(§2 "보조 강조")·색 gray-50 으로 내린다 — 흰 면에서 4.76:1 로 기준(4.5)을 넘는
+   가장 옅은 단계다. 한 급 더 내린 gray-40 은 2.56:1 로 미달이라 여기가 바닥이다.
+   옆 안내(hint)와 색이 같아졌으므로 둘은 **무게로만** 갈린다 (500 vs 400) */
+/* 크기 **13** — §2 하한 (2026-09-14 사용자 확정 · 종전 15).
+   8/07 에 13 으로 내렸다가 8/26 에 14 → 15 로 올렸다. 15 는 컨트롤 글자(sm 14)보다 커서
+   조건판에서 라벨이 드롭다운 값보다 먼저 읽혔다 — 이름표가 값을 누르는 모양이라 13 으로 되돌린다.
+   조건판을 쓰는 화면 전부(학습데이터 검색 · 생성형 AI · 라벨링)가 이 값을 함께 쓴다 */
+.klid-filter-field > .label {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: var(--krds-color-light-gray-50);
+}
+/* 라벨 옆 안내. 크기는 라벨과 **같은 값**으로 두고 무게와 색으로만 가른다 —
+   크기가 다르면 같은 줄 안에서 두 글자의 밑선이 어긋난다.
+   색은 **gray-50** 이다 (2026-08-08 확정. 종전 gray-40 에서 한 단계 올림).
+   gray-40 은 입력·셀렉트의 안 고른 상태 글자와 맞춘 값이었지만, 흰 면에서 2.56:1 로
+   KWCAG 4.5 에 못 미쳤다. design.md §8 은 gray-40 을 **비활성·placeholder·순수 장식 전용**으로
+   못 박고 흰 배경 의미 텍스트 하한을 500 으로 둔다 — 이 자리는 placeholder 가 아니라
+   "다중 선택" 처럼 **조작 방법을 알려 주는 글자**라 그 예외에 들지 않는다.
+   gray-50 은 4.76:1 로 하한을 넘으면서도 라벨(gray-60)보다 여전히 한 단계 낮다 */
+/* 라벨 옆 한 문장. 굵기만 낮추고 크기·색은 라벨과 같이 둔다 — 괄호로 묶는 `hint` 와 달리
+   마침표로 끝나는 문장이라 경계가 스스로 서고, 색까지 낮추면 흰 면 대비 하한(§8)에 걸린다.
+   가르는 것은 간격 12 (§6 블록 사이) — `hint` 의 6 보다 넓혀 라벨에 붙지 않게 한다 */
+.klid-filter-field > .label .note {
+  margin-left: 1.2rem;
+  font-weight: 400;
+  color: var(--krds-color-light-gray-50);
+}
+/* 라벨 아래 한 줄 설명 — 글 모양은 라벨 옆 문장(note)과 같다. 라벨·컨트롤과의 사이는 칸의 gap 이 준다 */
+.klid-filter-field > .desc {
+  margin: 0;
+  font-size: 1.3rem; /* 라벨과 같은 13 — 위 라벨 규칙 참조 */
+  font-weight: 400;
+  color: var(--krds-color-light-gray-50);
+}
+.klid-filter-field > .label .hint {
+  margin-left: 0.6rem;
+  font-weight: 400;
+  color: var(--krds-color-light-gray-50);
+}
+
+/* 좁은 필드 2열. 컬럼 사이 24 (§1 · §6 그리드 간격) */
+.klid-filter-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--krds-gap-6) var(--krds-gap-7);
+}
+
+/* ────────────────────────────────────────────────────────────
+   행형(rows) — 조건이 많은 화면. 한 줄에 조건을 최대 둘까지 놓고 줄마다 구분선을 긋는다.
+   조건이 대여섯을 넘으면 여백만으로는 어디까지가 한 조건인지 안 읽힌다.
+   ──────────────────────────────────────────────────────────── */
+
+/* 첫 줄 위 여백은 줄 자체가 갖는 12 로 충분하다 (§5 패딩 24 - 줄 패딩 12).
+   ※ 면을 벗은 자리(bare)는 뺀다 — 거기는 줄여야 할 카드 패딩이 아예 없어서, 이 12 가 그대로
+     창 여백에 덧붙는다 (위 `[data-surface='bare']` 는 같은 무게라 뒤에 선 이 규칙에 진다) */
+.klid-filter-panel[data-layout='rows']:not([data-surface='bare']) {
+  padding-top: var(--krds-padding-5);
+}
+/* 잠긴 폼은 칸 묶음이 `<fieldset>` 이다 (FilterPanel.tsx `disabled`). 브라우저 기본값을 지워
+   `<div>` 였을 때와 같은 자리에 서게 한다 — 특히 `min-width: min-content` 는 안 지우면 칸이
+   줄어들지 못해 좁은 화면에서 폼이 본문을 넘긴다 */
+.klid-filter-panel > fieldset.fields {
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.klid-filter-panel[data-layout='rows'] .fields {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 줄: 위아래 10 + 아래 구분선. 한 줄에 여럿이 오면 조건끼리는 32 로 벌린다 —
+   라벨→컨트롤 밀착(8)의 네 배라 "이 라벨은 이 컨트롤의 것"이 먼저 읽힌다.
+   §6 그룹 사이는 48 인데 여기는 32 다 (2026-08-07 조정, 48 → 40 → 32).
+   라벨을 500·gray-50 으로 낮추고 줄 구분선을 gray-20 으로 올리면서 조건 경계를 여백 말고도
+   말하는 수단이 늘어, 48 은 한 줄에 조건이 넷일 때 빈 면만 키웠다 */
+.klid-filter-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--krds-gap-8);
+  /* ★ 이 패널의 **모든 구분선은 위아래 14 씩**이다 (2026-08-07 통일. 종전 위 14 · 아래 9).
+     선을 사이에 두고 값이 다르면 같은 굵기의 선인데도 어떤 줄은 위에, 어떤 줄은 아래에
+     붙어 보인다. 10 은 선 양옆이 좁아 줄이 선에 눌렸다 — 14 로 벌린다 (design.md §5).
+     실행 줄 위 선·상세 검색 토글도 같은 값을 쓴다 — 아래 각 규칙 참조.
+     선이 없는 자리(첫 줄 아래·펼친 토글 아래)는 구획 사이 20 (§6)을 그대로 지킨다 */
+  padding: 1.4rem 0;
+  /* gray-20 (2026-08-07 조정). 라벨을 500·gray-60 으로 낮추면서 줄 경계가 상대적으로 약해져
+     아홉 줄이 한 덩어리로 뭉쳤다. 한 단계 올려 줄마다 조건이 갈리는 것을 다시 세운다.
+     ※ §5 구분선 위계("바깥 경계 > 내부 리스트")상 패널 바깥 보더와 같은 굵기가 됐다 */
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+}
+
+/* 라벨은 컨트롤 위에 얹는다 (base .klid-filter-field 의 세로 방향을 그대로 쓴다).
+   왼쪽 칸에 두면 라벨 길이 편차(우리 화면 기준 35~79)가 그대로 라벨→컨트롤 간격 편차가 되어
+   줄마다 사이가 들쭉날쭉해 보인다. 위로 올리면 라벨과 컨트롤이 같은 왼쪽 선에서 시작한다.
+   대신 줄마다 라벨 한 줄(21+8)이 더 붙으므로, 조건이 아주 많으면 세로가 그만큼 늘어난다 */
+
+/* 한 줄에 선 조건 칸들이 **줄을 똑같이 나눠 갖는다** (2026-08-26 조정 — 전부 풀폭).
+   종전에는 칸마다 제 내용 폭만 차지했다. 그 바람에 짧은 조건은 좁게, 긴 조건은 넓게 서서
+   줄마다 칸 경계가 제각각이었다.
+   다만 **내용보다 좁아지지는 않는다** (아래 min-width). 라디오 줄처럼 줄바꿈하면 안 되는
+   조건이 억지로 접히면 그 줄만 세로가 늘어난다 — 그런 칸은 제 내용 폭에서 멈추고,
+   남는 폭은 나머지 칸이 나눠 갖는다 */
+.klid-filter-line > .klid-filter-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.klid-filter-line > .klid-filter-field.grow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* 라디오가 든 칸은 접히지 않는다 — 선택지가 두 줄로 갈리면 "한 줄에 펴서 보여 준다"는
+   이 컨트롤의 뜻(RadioRow 주석) 자체가 무너진다 */
+.klid-filter-line > .klid-filter-field:has(> .control > .klid-radio-row) {
+  min-width: max-content;
+}
+/* 넓은 화면에서는 **제 내용 폭에서 멈춘다** (2026-09-03 조정 — 종전 「라디오도 풀폭」).
+   늘리면 선택지 사이가 줄에 선 칸 수에 따라 매번 달라져, 같은 라디오 줄인데 갈래를 바꿀 때마다
+   간격이 벌어졌다 좁아진다 — 조건이 바뀐 게 아니라 화면이 흔들린 것처럼 보인다.
+   남는 폭은 입력·셀렉트가 나눠 갖는다 (아래 규칙).
+   ※ 1024 미만은 걸지 않는다. 거기서는 줄이 세로로 서거나(휴대폰) 라디오가 줄을 통째로 쓰는
+     짜임(태블릿 · DatasetSearchPage.css)이라 칸 폭을 화면 쪽이 정한다 */
+@media (min-width: 1024px) {
+  .klid-filter-line > .klid-filter-field:has(> .control > .klid-radio-row) {
+    flex: 0 0 auto;
+  }
+}
+
+/* 컨트롤 칸. 최소 높이는 컨트롤 sm(36), 칩이 여러 줄이면 줄 간격 12 (§4) */
+.klid-filter-line > .klid-filter-field > .control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--krds-gap-4);
+  min-width: 0;
+  /* 줄 키는 그 안에 서는 컨트롤과 같은 급이다 — 사다리를 함께 탄다 */
+  min-height: var(--klid-control-height-sm);
+}
+
+/* 입력·셀렉트가 든 칸은 줄의 남는 폭을 나눠 갖고, 그 안에서 입력이 칸을 다 쓴다
+   (2026-08-26 조정 — 전부 풀폭).
+   종전에는 칸을 제 내용 폭으로 두고 입력에 상한 380 을 걸었다. 그 바람에 한 줄에 선 입력이
+   180 · 96 · 380 으로 제각각 서고 오른쪽에 빈 면이 남아, 조건마다 폭이 다른 이유를 화면이
+   설명하지 못했다. 지금은 같은 줄의 입력들이 같은 폭으로 정렬된다.
+   칩·라디오가 든 칸은 그대로 제 내용 폭이다 — 늘려 봐야 오른쪽이 비기만 한다 */
+.klid-filter-line > .klid-filter-field:has(> .control > .form-group),
+.klid-filter-line > .klid-filter-field:has(> .control > .klid-dropdown) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.klid-filter-line .control > .form-group,
+.klid-filter-line .control > .klid-dropdown {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 라디오 줄은 선택지 사이를 **킷 gap 그대로** 둔다 (2026-09-03 — 「라디오도 풀폭」 되돌림).
+   종전에는 칸을 다 쓰게 늘리고 선택지 사이를 space-between 으로 벌렸다. 그 바람에 같은
+   조건인데 갈래마다 간격이 달랐다 — `전체` 에서는 옆에 지역·연도가 서서 좁고, `외부 학습데이터`
+   에서는 그 조건들이 사라져 라디오 셋만 줄을 가로질렀다.
+   간격은 갈래를 안 타는 값이어야 한다. 남는 폭은 늘어나도 되는 것(입력·셀렉트)이 먹는다 */
+.klid-filter-line .control > .klid-radio-row {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 상세 검색 안의 칩만 킷 small(30) 아래로 한 급 더 내린다 — xs(26).
+   §4 "칩 크기는 위계다"를 이 패널에서 실현하는 자리다: 펼쳐져 있는 조건(재난유형)은 sm,
+   접어 둔 조건(계절·월)은 xs. 크기 차이가 곧 "먼저 볼 것 / 나중에 볼 것"이다.
+   계절·월은 한 줄에 열둘이 붙어 sm 으로는 줄이 접히기도 한다.
+   킷이 내건 변수만 바꾼다 (마크업·선언 속성은 그대로).
+   아이콘도 14 로 함께 내린다 — 글자(13)보다 크면 칩 안에서 아이콘이 먼저 읽힌다.
+   ★ design.md §4 에 `필터 칩 xs` 로 등재된 규격이다 */
+.klid-filter-disclosure .krds-form-chip {
+  --krds-form-chip--size-height-small: 2.6rem;
+  --krds-form-chip--padding-x-small: var(--krds-padding-3);
+  --krds-form-chip--pc-font-size-small: 1.3rem;
+  --krds-form-chip--mobile-font-size-small: 1.3rem;
+  --krds-form-chip--gap: var(--krds-gap-2);
+}
+.klid-filter-disclosure .krds-form-chip .klid-event-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+/* 이 패널은 라디오 치수를 **따로 정하지 않는다** — 2026-08-26 결정.
+   종전에는 여기서 sm 급(원 18 · 점 8 · 글자 14)으로 한 급 내렸다. 패널 안 다른 글자(폼 라벨 ·
+   칩 · 입력 14)와 급을 맞추려던 값인데, 그 바람에 크기가 **부품이 아니라 자리에** 붙었다 —
+   같은 라디오 줄을 패널 밖에 놓으면 크기가 사라지고, 다운로드 신청 창은 또 다른 크기로 남았다.
+   지금은 krds-theme.css § Radio·Checkbox 한 곳에서만 정한다: PC md(20/10/15) · 모바일 lg.
+   그래서 이 패널의 라디오 글자는 이웃한 칩·입력(14)보다 1 크다 — 의도된 값이다. */
+
+/* 킷 `Textarea` 에는 size prop 이 없다 — 늘 `large` 슬롯을 소비해 글자가 17 로 나온다.
+   이 패널의 다른 컨트롤은 전부 sm(14)이라 글 상자만 혼자 3 크게 읽힌다 (라디오와 같은 사정).
+   킷이 스스로 내건 변수를 **그 변수를 쓰는 요소에서** 다시 가리킨다 — 마크업·선언 속성은
+   건드리지 않는다. `large` 를 없애는 것이 아니라 이 자리에서만 sm 값을 가리키게 하는 것이라,
+   패널 밖 Textarea(문의하기 등)는 킷 기본 17 을 그대로 쓴다 */
+.klid-filter-panel textarea.krds-input {
+  --krds-input--pc-font-size-large: var(--krds-input--pc-font-size-small);
+  --krds-input--mobile-font-size-large: var(--krds-input--mobile-font-size-small);
+}
+
+/* 값이 들어가면 글자를 진하게 — 고르기 전과 고른 뒤가 같은 회색이면 "골랐다"가 안 읽힌다.
+   킷 셀렉트는 값을 골라도 placeholder 색(gray-40)을 그대로 쓴다.
+   ★ 킷 선언 속성(color) 덮어쓰기 예외. 선택 여부를 색으로 알리는 자리라 불가피하다 */
+.klid-filter-line .control select,
+.klid-filter-line .control input {
+  color: var(--krds-color-light-gray-90);
+}
+/* 아직 안 고른 상태 — 빈 값 옵션이 켜져 있으면 placeholder 색으로 되돌린다.
+   (연도처럼 빈 값 선택지가 없는 셀렉트는 늘 진한 색이다) */
+.klid-filter-line .control select:has(option[value='']:checked) {
+  color: var(--krds-color-light-gray-40);
+}
+
+/* 접이식 구획 — 상자로 감싸지 않는다. 위 조건 줄의 밑선과 토글 한 줄이 경계다.
+   토글 자체는 밑선을 긋지 않는다 (2026-08-07 조정) — 펼치면 바로 아래 조건 줄이 제 밑선을
+   갖고 있어 두 선이 겹쳐 보이고, 접히면 그 아래가 구획 끝이라 그을 것이 없다.
+   글자는 조건 라벨과 같은 급(14·600·gray-70)이다. 코발트 15 로 두었더니 이 패널에서
+   검색 버튼 다음으로 강한 요소가 되어, 정작 더 중요한 '선택한 조건' 줄을 눌러 버렸다 —
+   이건 조건이 아니라 "안에 더 있다"는 안내 장치다.
+   누를 수 있다는 신호는 셰브론과 hover 가 맡는다 (2026-08-06 위계 조정) */
+/* 접힘 토글은 면이 없는 글자 조작이라 높이를 안 갖고 안쪽 여백 + 글줄로만 선다.
+   손가락에는 그 높이가 모자라므로 누르는 자리만 사다리 최소치까지 받쳐 준다
+   (§ 컨트롤 사다리 --klid-tap-min · krds-theme.css). PC 에서는 아무 일도 없다.
+   이미 `align-items: center` 라 내용이 세로로 저절로 가운데 선다 */
+.klid-filter-disclosure > .trigger {
+  min-height: var(--klid-tap-min);
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  width: 100%;
+  /* 구획 사이 세로 간격은 전부 20 이다 (2026-08-07 확정).
+     위 10 — 앞 줄의 아래 9 와 구분선 1 을 합쳐 20.
+     아래는 상황이 정한다: 접히면 그 아래가 바로 실행 줄(margin-top 20)이라 0,
+     펼치면 아래 조건 줄이 제 위 14 를 갖고 오므로 6 만 보탠다 */
+  padding: var(--krds-padding-4) 0 0;
+  border: 0;
+  background: none;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+  text-align: left;
+  cursor: pointer;
+}
+.klid-filter-disclosure > .trigger:hover {
+  color: var(--krds-color-light-primary-50);
+}
+/* 화살표가 조건 라벨의 정렬선(패널 패딩 끝, 89)에 서고 이름은 그만큼(16+8=24) 안으로 들어간다.
+   음수 마진으로 이름을 정렬선까지 당기지 않는 이유 — 그러면 화살표가 패널 왼쪽 모서리에
+   딱 붙어 잘린 것처럼 보인다. 토글은 조건이 아니라 조건을 **담은 구획**의 이름이라
+   한 칸 들여써도 위계가 어긋나지 않는다 */
+.klid-filter-disclosure > .trigger svg {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: var(--krds-color-light-gray-50);
+  transition: transform 0.15s ease;
+}
+.klid-filter-disclosure > .trigger:hover svg {
+  color: var(--krds-color-light-primary-50);
+}
+.klid-filter-disclosure[data-open] > .trigger svg {
+  transform: rotate(180deg);
+}
+/* 구획 이름은 줄바꿈하지 않는다 — 좁은 폭에서 "상세 / 검색" 으로 쪼개지면 토글로 안 읽힌다.
+   줄이 모자라면 뒤따르는 안내(hint)가 접힌다 */
+.klid-filter-disclosure > .trigger .name {
+  white-space: nowrap;
+}
+/* 토글 옆 안내도 같은 갈래라 같은 gray-50 을 쓴다 (위 .hint 주석의 근거) */
+.klid-filter-disclosure > .trigger .hint {
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--krds-color-light-gray-50);
+}
+.klid-filter-disclosure > .panel[hidden] {
+  display: none;
+}
+
+/* ── 선택 요약 줄 ──
+   조건 줄들 아래, 실행 버튼 위. 조건을 '받는' 자리에서 '확인하는' 자리로 갈래가 바뀌므로
+   구분선 다음 16 을 띄운다 (§6). 라벨은 칩 줄 왼쪽에 세로 가운데로 붙인다 — 위에 얹으면
+   줄이 하나 더 늘어나는데, 이 줄은 조건을 받는 칸이 아니라 확인용이라 더 조용해야 한다 */
+.klid-filter-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--krds-gap-4);
+  padding-top: var(--krds-padding-6);
+}
+.klid-filter-summary > .label {
+  flex: none;
+  line-height: 3rem; /* 칩 높이(30)와 같게 — 첫 줄 칩과 글자 밑선이 맞는다 */
+  font-size: 1.4rem; /* 폼 라벨과 같은 급 (§2) */
+  font-weight: 600;
+  color: var(--krds-color-light-gray-70);
+  white-space: nowrap;
+}
+/* 개수는 라벨의 부속이라 같은 크기로 두고 색만 코발트 — 조건이 몇 개 걸렸는지가
+   이 줄을 보는 이유라 라벨보다 먼저 눈에 들어야 한다 */
+.klid-filter-summary .count {
+  margin-left: 0.4rem;
+  color: var(--krds-color-light-primary-50);
+}
+.klid-filter-summary ul {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--krds-gap-3); /* 칩 줄 12 보다 좁다 — 여기 칩은 고르는 칸이 아니라 목록이라 더 붙는다 */
+}
+/* 저장·초기화. 칩 목록이 남는 폭을 먹으므로 이 묶음은 자연히 오른쪽 끝에 선다.
+   칩 첫 줄과 밑선을 맞춘다 (칩 30, 버튼 sm 36 → 위로 3 올린다) */
+.klid-filter-summary > .actions {
+  display: flex;
+  flex: none;
+  gap: var(--krds-gap-3);
+  margin-top: -0.3rem;
+}
+
+/* 칩 sm 치수(높이 30 · 글자 14 · 캡슐)에 ×를 단 모양. 색은 §4 틴트 공식(배경 5 · 보더 30 ·
+   글자 70)이라 위 필터에서 켜 둔 칩과 같은 계열로 읽힌다.
+   오른쪽 패딩만 8 로 줄인다 — ×(14)는 글자보다 시각 무게가 가벼워 좌우를 같이 주면
+   오른쪽이 더 벌어져 보인다 (§4 아이콘 붙는 캡슐) */
+.klid-filter-summary button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  height: 3rem;
+  padding: 0 var(--krds-padding-3) 0 var(--krds-padding-4);
+  border: 0.1rem solid var(--krds-color-light-primary-30);
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-primary-5);
+  font-size: 1.4rem;
+  color: var(--krds-color-light-primary-70);
+  cursor: pointer;
+}
+.klid-filter-summary button > svg {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+/* 재난유형 아이콘 등 값 앞에 붙는 표식은 인라인 16 (CLAUDE.md 아이콘 규칙) */
+.klid-filter-summary button > svg:first-child {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+/* 이 칩의 조작은 "뗀다" 하나뿐이라 hover 는 강조가 아니라 경고 쪽으로 한 단계 옮긴다 */
+.klid-filter-summary button:hover {
+  border-color: var(--krds-color-light-primary-50);
+  background-color: var(--krds-color-light-primary-10);
+}
+
+/* 조건 줄 중 **첫 줄은 밑선을 긋지 않는다** (2026-08-07 조정). 재난유형과 그 아래 조건 줄은
+   둘 다 늘 펼쳐져 있는 핵심 조건이라 한 덩어리로 읽혀야 한다 — 선을 그으면 재난유형만
+   따로 떨어져 보인다. 선은 그 덩어리와 '상세 검색' 사이에만 남는다.
+   아래 여백도 14 → 2 로 줄인다: 14 는 선 양옆에 숨을 주려는 값인데 선이 없으면 그만큼이
+   그냥 빈 면이 된다. 한 덩어리로 읽혀야 하는 두 줄이라 더 붙는다.
+   칩 아래 ↔ 다음 라벨 위가 20 이 되는데, 이 줄의 컨트롤이 이미 아래 4 를 갖고 있어
+   실제로 붙는 값은 2 다 (2 + 4 + 다음 줄 위 14 = 20) */
+.klid-filter-panel[data-layout='rows'] > .fields > .klid-filter-line:first-child {
+  padding-bottom: var(--krds-padding-1);
+  border-bottom: 0;
+}
+
+/* 펼쳤을 때만 토글 아래 6 — 다음 조건 줄의 위 14 와 합쳐 20 이 된다 (선이 없는 자리다) */
+.klid-filter-disclosure[data-open] > .trigger {
+  padding-bottom: 0.6rem;
+}
+
+/* 펼친 상세 검색 **안쪽 줄에는 밑선을 긋지 않는다** (2026-08-07 조정).
+   바깥 조건 줄은 아홉을 늘어놓느라 선이 필요하지만, 안쪽은 둘뿐이고 이미 '상세 검색'이라는
+   한 구획으로 묶여 있다. 선을 더 그으면 구획 안이 또 나뉘어 층이 하나 깊어 보인다.
+   줄 사이는 패딩(위아래 10)이 가른다 */
+.klid-filter-disclosure > .panel > .klid-filter-line {
+  border-bottom: 0;
+}
+/* 마지막 줄은 아래를 비운다 — 그 아래 실행 줄이 margin-top 20 을 갖고 오므로,
+   여기서 14 를 더 주면 34 가 되어 다른 구획 사이(20)와 어긋난다 */
+.klid-filter-disclosure > .panel > .klid-filter-line:last-child {
+  padding-bottom: 0;
+}
+
+/* 펼쳤을 때만 **실행 줄 위에 선**을 긋는다 (2026-08-07 화면 검토).
+   접혀 있으면 토글 한 줄 아래 바로 실행 줄이라 둘이 자연히 갈리는데, 펼치면 그 아래로 조건이
+   두세 줄 더 붙어 초기화·검색이 상세 검색 **안에 든 것처럼** 읽힌다. 선이 "여기까지가 조건"을
+   말한다. 안쪽 줄에 선을 안 긋는다는 위 규칙과 어긋나지 않는다 — 이건 구획 안을 나누는 선이
+   아니라 조건과 실행을 가르는 선이다.
+   여백은 이 패널의 다른 구분선과 **같은 14/14** 이다 (2026-08-07 통일). 선 하나만 넓게 두면
+   같은 굵기인데도 이 선만 다른 종류로 읽힌다 — 무엇을 가르는지는 값이 아니라 자리가 말한다.
+   접혀 있을 때는 선이 없으므로 실행 줄의 기본 margin-top 20 이 그대로 간격이 된다.
+   `:has()` 로 실행 줄이 제 형제(.fields) 안의 펼침 상태를 본다 */
+.klid-filter-panel[data-layout='rows'] > .fields:has(.klid-filter-disclosure[data-open]) + .actions {
+  margin-top: 1.4rem;
+  padding-top: 1.4rem;
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+
+/* 반응형 (design.md §9) — 1023 이하는 한 줄에 조건 하나 */
+@media (max-width: 1023px) {
+  /* 좁으면 칩이 여러 줄이 되어 라벨 옆자리가 세로로 길어진다. 라벨을 위로 올린다 */
+  .klid-filter-summary {
+    flex-direction: column;
+    gap: var(--krds-gap-3);
+  }
+  .klid-filter-summary > .label {
+    line-height: 1.5;
+  }
+  /* 세로로 세우면 align-items 는 가로 정렬을 뜻하게 된다. flex-start 를 그대로 두면
+     조건 칸이 제 내용 폭으로 쪼그라들어 입력·셀렉트가 찌그러진다 */
+  .klid-filter-line {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--krds-gap-5);
+  }
+  /* 세로로 서면 칸마다 제 줄을 온전히 갖는다. 내용 폭으로 두면 셀렉트가 왼쪽에 쪼그라들어
+     붙으므로 줄폭을 쓰게 풀어 준다 */
+  .klid-filter-line > .klid-filter-field,
+  .klid-filter-line > .klid-filter-field:has(> .control > .form-group),
+  .klid-filter-line > .klid-filter-field:has(> .control > .klid-dropdown) {
+    flex: 0 0 auto;
+  }
+  /* 세로로 서면 칸이 줄폭을 통째로 갖는다. 내용 폭 floor 는 그대로 두면 좁은 화면에서
+     라디오 줄이 줄폭을 넘긴다 */
+  .klid-filter-line > .klid-filter-field:has(> .control > .klid-radio-row) {
+    min-width: 0;
+  }
+}
+@media (max-width: 767px) {
+  .klid-filter-row {
+    grid-template-columns: 1fr;
+  }
+  .klid-filter-panel[data-layout='row'] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* 상세 검색 토글 — 좁은 폭에서는 이름 옆 안내가 제 줄에서 두 줄로 접혀, 이름이 그 사이
+     허공에 뜬다. 안내를 이름 아래로 내려 위아래 두 줄로 읽게 한다.
+     안내의 왼쪽 들여쓰기는 셰브론(16) + gap(8) = 24 — 위 이름과 같은 축에 선다 */
+  .klid-filter-disclosure > .trigger {
+    flex-wrap: wrap;
+    row-gap: var(--krds-gap-2);
+  }
+  .klid-filter-disclosure > .trigger .hint {
+    flex: 1 0 100%;
+    padding-left: var(--krds-padding-8);
+  }
+
+  /* 실행 줄 — 좁은 폭에서는 이름이 긴 `검색조건 저장` 이 밀려 `검색` 과 위아래로 갈렸다.
+     둘 다 지금 걸어 둔 조건을 가지고 하는 일이라 좌우로 나란히 서야 한 묶음으로 읽힌다.
+     갈래가 다른 초기화와 로그인 안내는 제 줄로 올리고, 아래 한 줄을 저장·검색이 반씩 나눠 갖는다 */
+  .klid-filter-panel .actions > .klid-action-aside,
+  .klid-filter-panel .actions > .klid-save-note {
+    flex: 1 0 100%;
+    /* 제 줄을 통째로 쓰게 되므로 글자가 가운데로 뜬다. 초기화는 넓은 화면에서와 같이
+       조건 라벨의 정렬선(왼쪽 끝)에 붙여 둔다 */
+    justify-content: flex-start;
+    margin-right: 0;
+  }
+  .klid-filter-panel .actions > button:not(.klid-action-aside) {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}

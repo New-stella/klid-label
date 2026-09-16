@@ -1,0 +1,60 @@
+@charset "utf-8";
+/* 진행률 막대. 트랙은 공용 값(--klid-color-track) + 바 primary-45 (밝은 포인트 톤) */
+
+.klid-progress {
+  overflow: hidden;
+  border-radius: var(--krds-radius-max);
+  background-color: var(--klid-color-track);
+}
+.klid-progress[data-size='md'] {
+  height: 0.8rem;
+}
+.klid-progress[data-size='sm'] {
+  height: 0.6rem;
+}
+
+.klid-progress .bar {
+  height: 100%;
+  border-radius: var(--krds-radius-max);
+  background-color: var(--krds-color-light-primary-45);
+  transition: width 0.3s;
+}
+
+/* 이름 · 값 줄이 붙은 꼴 — 무엇이 얼마나 갔는지(왼쪽) · 퍼센트(오른쪽). 막대에 붙는다 (§6 밀착 8) */
+.klid-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--krds-gap-3);
+  margin-bottom: var(--krds-gap-3);
+}
+.klid-progress-caption {
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-70);
+}
+.klid-progress-value {
+  margin-left: auto;
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-90);
+}
+
+/* 도중에 멈춘 진행 — 막대와 퍼센트가 위험 색으로 (danger-50 은 흰 바탕 위 그래픽 대비 3 이상) */
+.klid-progress[data-tone='danger'] .bar {
+  background-color: var(--krds-color-light-danger-50);
+}
+.klid-progress-field[data-tone='danger'] .klid-progress-value {
+  color: var(--krds-color-light-danger-60);
+}
+/* 막대 아래 안내 한 줄 — 막대에 붙는 말이라 8 만 뗀다 (막대 위 줄과 같은 값).
+   `.klid-progress-field` 로 한 단 올려 조준한다 — 화면이 `○○ p { margin: 0 }` 로 문단 여백을 지우면
+   클래스 하나로는 져서 안내가 막대에 붙는다 (저작도구 내 업로드에서 0 이 됐다) */
+.klid-progress-field .klid-progress-hint {
+  margin: var(--krds-gap-3) 0 0;
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  color: var(--krds-color-light-gray-60);
+}
