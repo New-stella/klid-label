@@ -17,7 +17,7 @@ import java.time.Instant;
  * @param state            등록 상태
  * @param failureReason    {@link PortalDatasetRegistrationState#FAILED} 일 때만 non-null
  * @param registeredVideos 이번 회차에 새로 등록했거나 이미 등록돼 있던 영상 수
- * @param skippedVideos    비식별 이미지 폴더가 없어 등록하지 않은 영상 수
+ * @param skippedVideos    구 구성의 잔재 — 지금은 항상 0이며 옛 표식 판독을 위해 칸만 남긴다
  * @param updatedAt        표식을 마지막으로 쓴 시각 — 진행 중 표식의 오래됨 판정 기준
  * @design ADR-068
  * @design API-253
