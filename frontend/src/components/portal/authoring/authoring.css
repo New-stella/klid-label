@@ -1,0 +1,138 @@
+@charset "utf-8";
+/* 저작도구 화면 짜임 — 부모 포털 `pages/workspace/authoring/AuthoringPage.css` 에서 옮겼다.
+   기준: 부모 포털 design.md §2 제목 사다리 · §5 표면 · §6 페이지 세로 리듬.
+
+   ★ 옮기면서 **가로 정렬선 규칙은 들여오지 않았다.** 원본의 `.klid-authoring-pane` 은
+     `max-width: calc(--krds-contents-size - 2*--krds-padding-8)` 로 제 폭을 묶어 가운데 세우는데,
+     우리 쪽은 그 일을 **셸이 이미 한다**(`lib/portalShellLayout` 의 `portalShellAlign()`).
+     여기서 한 번 더 묶으면 여백이 두 벌로 겹치고, 임베드에서는 Host 슬롯 여백까지 세 벌이 된다.
+     그래서 이 판은 **세로 리듬과 폭 100%만** 갖는다. 화면에 `max-w-*` 를 두지 말라는
+     `PortalLayout` 의 경고와 같은 축이다.
+   ★ 원본의 마운트 자리(`.klid-authoring-slot`)·iframe 규칙도 들여오지 않았다 — 그것은
+     **포털이 우리를 담는 쪽** 코드이고 우리는 Module Federation 으로 마운트돼 iframe 이 없다.
+
+   나머지(블록 간격 · 표 안 이름 칸 · 줄 끝 걸음 · 줄 카드 목록 · 업로드 칸)는 원본 그대로다. */
+
+/* ── 판 ──
+   탭 하나가 판 하나다. 판 안의 구획끼리는 32(§6 구획 사이),
+   구획 안에서 이름 → 목록·카드 → 딸린 안내는 20(§6 블록 사이). */
+.klid-authoring-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-8);
+  width: 100%;
+}
+.klid-authoring-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+}
+/* 건수 + 목록 묶음 — 블록 사이 20 은 묶음 바깥이 갖고, 건수 줄은 아래 목록과 12 만 남긴다 */
+.klid-authoring-list > .klid-result-count {
+  margin-top: 0;
+}
+
+/* 업로드 카드의 걸음 줄 — 업로드 칸에서 블록 사이 20 떼고, 카드 오른쪽 끝에 선다 */
+.klid-authoring-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--krds-gap-4);
+  margin-top: var(--krds-gap-6);
+}
+/* 카드 맨 아래 안내 사항 — 위에 구분선을 긋는다. 규격은 내부 구분선 그대로(0.1 · gray-20),
+   여백은 **잉크 기준 위아래 24**(창 안 구분선과 같은 규칙 — Dialog.css).
+   위 = 버튼 상자 끝에서 바로 24(상자라 슬랙이 없다),
+   아래 = 여기 20 + 첫 줄 위 슬랙 약 4(14 / 행간 1.55). ★ 글 크기·행간을 바꾸면 다시 잰다 */
+.klid-authoring-upload-notes {
+  margin-top: var(--krds-gap-7);
+  padding-top: var(--krds-padding-7);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+/* AI 증강 요청 창의 대상 영상 — 고르는 칸이 아니라 되보여 주는 값이라 글로만 선다 */
+.klid-authoring-augment-target {
+  margin: 0;
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+  overflow-wrap: anywhere; /* 파일명은 띄어 쓰지 않은 말이다 (UX-writing.md §6 예외) */
+}
+/* 보내는 중 막대 — 업로드 칸에서 블록 사이 20 떼고 선다 */
+.klid-authoring-upload-progress {
+  margin-top: var(--krds-gap-6);
+}
+
+/* 업로드 자산 표 머리 — 결과 머리의 위 32 는 앞 구획(필터·리드문)에서 넘어오는 전환 값이다.
+   여기는 구획 이름 바로 아래라 헤더 다음 첫 요소(블록 사이 20, 구획이 준다)로 선다. */
+.klid-authoring-assets > .klid-result-head {
+  margin-top: 0;
+}
+
+/* 표 안 이름 줄 — 이름이 남는 폭을 먹고 한 줄로 선다(넘치면 말줄임), 출처 배지는 이름 바로 옆 */
+.klid-authoring-cell-title {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  min-width: 0;
+}
+.klid-authoring-cell-name {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--krds-color-light-gray-90);
+}
+.klid-authoring-cell-title > .krds-badge {
+  flex: none;
+}
+.klid-authoring-cell-sub {
+  display: block;
+  margin-top: var(--krds-gap-1);
+  font-size: var(--krds-pc-font-size-body-small);
+  color: var(--krds-color-light-gray-60);
+}
+/* 줄 끝 걸음 묶음 — 한 줄로 서고 줄바꿈하지 않는다(줄마다 버튼 자리가 달라지면 훑을 수 없다) */
+.klid-authoring-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  white-space: nowrap;
+}
+/* 칸 오른쪽 끝에 붙인다 — 줄 끝 더보기가 줄마다 같은 자리에 서게 (업로드 자산 표) */
+.klid-authoring-row-actions[data-align='end'] {
+  justify-content: flex-end;
+}
+
+/* 줄 카드 목록 (증강 요청 · 업로드 자산) — 사이 8 (목록 안 낱장, §6 「같은 무리의 반복」) */
+.klid-authoring-records {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 목록 위에 뜨는 실패 띠도 줄 카드 사이와 같은 8 을 떼고 선다 */
+.klid-authoring-assets > .klid-alert + .klid-authoring-records {
+  margin-top: var(--krds-gap-3);
+}
+
+/* ── 편집 면 ── 탭 줄 없이 영역 전체를 쓴다.
+   마킹은 카드 여럿이 바닥 위에 서는 면이라 목록 면 콘텐츠와 같은 여백 24 를 둔다.
+   라벨링 편집기는 여백 없이 흰 판으로 꽉 찬다 — 도구가 끝까지 붙어 서는 편집 화면이다. */
+.klid-authoring-edit[data-view='marking'] {
+  padding: var(--krds-padding-8);
+  background-color: var(--klid-color-canvas);
+}
+.klid-authoring-edit[data-view='labeling'] {
+  background-color: var(--krds-color-light-gray-0);
+}
+/* 라벨링의 화면 전체 안내(불러오는 중 · 들어갈 수 없음)는 편집기가 서지 않으므로 흰 판을
+   두지 않는다 — 마킹의 막힘 안내와 같이 바닥 위 여백 24 에 안내 판 하나만 선다. */
+.klid-authoring-edit[data-view='labeling']:has(> .klid-labeling-notice) {
+  padding: var(--krds-padding-8);
+  background-color: var(--klid-color-canvas);
+}
