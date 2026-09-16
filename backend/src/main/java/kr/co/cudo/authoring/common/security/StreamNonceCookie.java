@@ -18,7 +18,12 @@ import java.util.HexFormat;
 import java.util.regex.Pattern;
 
 /**
- * 서명 스트림 URL 의 <b>클라이언트 바인딩 nonce 쿠키</b> (A-ISSUE-11).
+ * 영상 스트림의 <b>재생 인증 쿠키</b>(클라이언트 바인딩 nonce 쿠키, A-ISSUE-11).
+ *
+ * <p>★ 재생 구간(부분 요청 포함)의 인증은 <b>이 쿠키 하나로 판정한다</b>({@code StreamSignatureFilter},
+ * {@code @design ADR-071}). 봉인 검증을 통과한 쿠키가 곧 재생 자격이며, 주소의 만료·서명은 판정에 쓰지 않는다.
+ * 아래 "왜 필요한가" 는 쿠키를 처음 도입한 경위(서명 입력에 nonce 를 섞던 시절)이며, 그때 확보한 성질
+ * (URL 만 가진 제3자 차단 · 발급자 결속 · nonce fixation 차단)이 지금 판정의 근거다.
  *
  * <h3>왜 필요한가</h3>
  * <p>{@code /stream} 은 &lt;video&gt; 가 Authorization 헤더를 못 붙여 서명 쿼리로 인증하는 무헤더 경로다.
@@ -60,7 +65,7 @@ public class StreamNonceCookie {
     /** 쿠키명 — 값 자체가 비밀이므로 JS 접근 차단(HttpOnly). */
     public static final String COOKIE_NAME = "klid_stream_nonce";
 
-    /** 쿠키 수명 — 서명 URL TTL(≤600s)보다 넉넉하되 유한. 발급 때마다 갱신된다. */
+    /** 쿠키 수명 — 곧 재생 인증 수명이다. 유한하며 발급 때마다 갱신된다(만료 뒤 재발급은 화면이 재생 위치를 보존한다). */
     static final Duration COOKIE_TTL = Duration.ofHours(1);
 
     /** 128bit 랜덤의 lowercase hex — 형식이 다른 값은 조작으로 보고 무시한다. */
@@ -115,7 +120,8 @@ public class StreamNonceCookie {
      * 요청 쿠키에서 nonce 를 읽는다. 없거나 형식이 어긋나거나 <b>봉인이 맞지 않으면</b> {@code null}
      * (fail-closed) — 서버가 발급하지 않았거나 다른 subject 로 발급된 값은 채택하지 않는다.
      *
-     * @param subject 봉인 검증에 쓸 사용자 식별자. 서명 경로에서는 서명이 덮는 {@code u} 값이다.
+     * @param subject 봉인 검증에 쓸 사용자 식별자. 스트림 경로에서는 쿼리 {@code u} 값이며, 봉인 검증 통과가
+     *                곧 그 {@code u} 가 발급자라는 확인이다.
      */
     public String read(HttpServletRequest request, String subject) {
         Cookie[] cookies = request.getCookies();
