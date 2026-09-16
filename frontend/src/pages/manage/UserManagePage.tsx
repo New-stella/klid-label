@@ -7,7 +7,7 @@ import type { AxiosError } from 'axios';
 
 import { Avatar } from '@/components/common/Avatar';
 import { Card, CardContent, CardHeader } from '@/components/common/Card';
-import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -30,6 +30,11 @@ import {
 } from '@/features/adminSession/hooks/useAdminSessionWindow';
 import { currentAdminSessionToken } from '@/features/adminSession/store';
 import { updateUser, type UserUpdatePayload } from '@/features/user/api';
+import {
+  USER_NM_MAX_LENGTH,
+  normalizeUserNm,
+  validateUserNm,
+} from '@/features/user/displayNameRules';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { ApiError } from '@/lib/api/errors';
@@ -90,6 +95,26 @@ const SEARCH_HELP_ID = 'user-search-help';
 
 /** 값이 없는 날짜 셀의 표기 — 빈칸은 "값이 없다"와 "못 읽었다"가 구분되지 않는다. */
 const EMPTY_DATE_TEXT = '-';
+
+/**
+ * 서버가 입력값을 거부했을 때(400) 화면이 쓰는 문구. [@design AC-1019]
+ *
+ * ★<b>서버가 준 문장을 그대로 내보이지 않는다.</b> 그 문장은 사람에게 하는 말이 아니라 검증기가
+ * 만든 진단 문자열일 수 있어(`userNm: 크기가 …` 꼴) 사용자에게 내부 구조(필드 경로·항목 순번)만
+ * 보여 준다. 창구 [[API-004]] 도 "거부 응답은 어느 칸이 틀렸는지 필드 경로나 배열 순번을 담지
+ * 않는다 — 화면은 이 문구를 그대로 사용자에게 보여주지 않는다"를 규정한다.
+ *
+ * ⚠ 이 규칙을 <b>이 화면의 모든 거부</b>로 넓히지 말 것 — 409(마지막 관리자)는 서버가 사람이 읽는
+ * 단일 문장을 주고 그것을 감추면 사용자가 사유를 잃는다. 감추는 축은 400 하나다.
+ *
+ * <h3>★문구가 어느 칸인지 말하지 않는다 — 의도된 것이다</h3>
+ * 서버 문장을 읽지 않기로 한 이상 <b>화면은 어느 칸이 거부됐는지 알지 못한다.</b> 그런데도 특정
+ * 칸(구 문구의 「표시 이름」)을 지목하면, 이 창구에 편집 칸이 하나 더 늘어나는 순간 <b>엉뚱한 칸을
+ * 가리키는 안내</b>가 된다 — 사용자는 멀쩡한 이름을 계속 고치며 헤맨다. 그래서 축을 말하지 않는다.
+ * ⚠ 칸이 늘면 이 문구와 함께 아래 <b>거부 안내 해제 지점</b>(각 입력의 onChange)도 같이 볼 것.
+ */
+const INVALID_INPUT_NOTICE =
+  '입력한 값을 저장할 수 없습니다. 고친 내용을 확인한 뒤 다시 시도해 주세요.';
 
 /**
  * 표의 날짜 셀 표기 — **등록일과 최신 로그인이 공유한다**.
@@ -168,6 +193,14 @@ export function UserManagePage() {
   // 미배정 사용자는 초기 선택값이 없다('') — 임의 기본값(WORKER)을 채우면 사용자가 고르지 않은
   // 역할이 저장될 수 있다. 사양 SCREEN-024: '저장하려면 반드시 선택해야 한다'.
   const [editRole, setEditRole] = useState<Role | ''>('');
+  /**
+   * 표시 이름 입력값(원문). 모달을 열 때 <b>목록 행의 현재 이름</b>으로 채운다 — 이 화면은 행
+   * 데이터로 모달을 열고 별도 단건 조회를 하지 않는다(사양 SCREEN-024).
+   *
+   * 정규화하지 않은 원문을 들고 있는 이유는 사용자가 입력하는 그대로 보여주기 위해서다. 판정과
+   * 「바뀌었는지」 비교는 정규화한 값으로 한다(`displayNameRules`).
+   */
+  const [editName, setEditName] = useState('');
   const pushToast = useUiStore((s) => s.pushToast);
   const queryClient = useQueryClient();
   const session = useAdminSessionWindow();
@@ -181,6 +214,13 @@ export function UserManagePage() {
    * 닫아 버리면 사용자가 고르던 값을 잃고, 무엇이 왜 막혔는지도 사라진다.
    */
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+  /**
+   * 서버가 입력값으로 거부한 사실(400). 문구는 <b>화면이 소유한다</b> — 서버 문장을 담지 않는다.
+   *
+   * 409 와 달리 문자열이 아니라 불리언인 것이 의도다. 서버 문장을 state 에 담아 두면 다음 사람이
+   * 그것을 그리기 쉬워지고, 그 순간 이 화면이 지키려는 규칙이 조용히 뒤집힌다.
+   */
+  const [invalidNotice, setInvalidNotice] = useState(false);
 
   // PATCH /v1/users/{userNo} — 역할 변경 mutation. 관리자 유효창 토큰을 함께 싣는다.
   const updateMutation = useMutation({
@@ -199,6 +239,7 @@ export function UserManagePage() {
       pushToast({ variant: 'success', message: '수정되었습니다.' });
       setExpiredNotice(false);
       setConflictNotice(null);
+      setInvalidNotice(false);
       setEditUser(null);
     },
     onError: (err: unknown) => {
@@ -211,6 +252,13 @@ export function UserManagePage() {
         session.lock();
         setExpiredNotice(true);
         setDialogOpen(true);
+        return;
+      }
+      if (err instanceof ApiError && err.status === 400) {
+        // 입력값 거부 — 다시 고쳐 쓰면 되는 종류다. 모달을 닫지 않고 **화면 자기 문구로** 알린다.
+        // ★서버가 준 문장(`err.userMessage`)을 여기서 읽지 않는다 — 읽는 순간 진단 문자열이
+        //   그대로 사용자 눈앞에 뜰 길이 열린다([@design AC-1019]).
+        setInvalidNotice(true);
         return;
       }
       if (err instanceof ApiError && err.status === 409) {
@@ -275,27 +323,60 @@ export function UserManagePage() {
 
   const handleEditOpen = (u: User) => {
     setEditUser(u);
-    // 역할 미배정이면 '' 로 열어 선택 전까지 저장을 막는다.
+    // 역할 미배정이면 '' 로 열어 선택 전까지 **역할이** 저장되지 않게 한다.
     setEditRole(roleOf(u) ?? '');
+    // 표시 이름은 현재 값으로 채운다 — 손대지 않으면 「바뀌지 않음」이라 전송 대상이 아니다.
+    setEditName(u.name ?? '');
     // 이전 사용자의 거부 사유를 물고 들어오지 않는다 — 다른 사람의 이야기가 남으면 거짓말이 된다.
     setConflictNotice(null);
+    setInvalidNotice(false);
     setExpiredNotice(false);
   };
 
-  /**
-   * 저장을 잠그는 사유 — 없으면 null(저장 가능).
+  /*
+   * ── 두 축의 「바뀌었는가」 판정 ──────────────────────────────────────────
    *
-   * 사양 SCREEN-024: "역할을 선택하지 않았거나 원래 값과 같으면 비활성화된다".
-   * 두 사유를 하나의 불리언으로 합치지 않는 이유는 **왜 잠겼는지 화면이 말해야** 하기 때문이다 —
-   * 이유 없이 잠긴 버튼은 고장으로 읽힌다.
+   * 창구는 두 축 모두 「보내지 않으면 미변경」이라, 화면도 **바꾼 축만** 보낸다. 안 바꾼 축을
+   * 현재 값으로 채워 보내면 이름만 고친 저장이 역할 축 판정(마지막 관리자 409)에 걸린다.
    */
-  const saveBlockedReason: '미선택' | '변경없음' | null = !editUser
+
+  /** 저장된 이름을 서버와 같은 규칙으로 정규화한 값 — 비교의 기준점. */
+  const originalName = normalizeUserNm(editUser?.name);
+  const normalizedName = normalizeUserNm(editName);
+  const nameChanged = !!editUser && normalizedName !== originalName;
+  /**
+   * 이름 선판정 — **바뀐 경우에만** 본다.
+   *
+   * ★안 바뀐 이름을 판정하면 안 되는 이유가 실제로 있다. 관제 인계 키에 이름 클레임이 없는
+   * 사용자는 저장된 이름이 <b>빈 문자열</b>이라(`COALESCE(:userNm, '')`), 손대지 않은 그 값을
+   * 판정하면 「빈 값」으로 걸려 <b>역할만 고치는 저장까지 막힌다</b>. 보내지 않을 값은 판정
+   * 대상이 아니다.
+   */
+  const nameViolation = nameChanged ? validateUserNm(editName) : null;
+  const roleChanged = !!editUser && editRole !== '' && editRole !== roleOf(editUser);
+
+  /**
+   * 저장을 잠그는 사유 — 없으면 null(저장 가능). **저장 버튼 조건의 단일 지점이다.**
+   *
+   * 사유를 하나의 불리언으로 합치지 않는 이유는 **왜 잠겼는지 화면이 말해야** 하기 때문이다 —
+   * 이유 없이 잠긴 버튼은 고장으로 읽힌다.
+   *
+   * <h3>★「미선택」은 더 이상 저장 전체를 막지 않는다 (2026-09-16 · @design SCREEN-024 v37)</h3>
+   * 구 규칙은 "역할을 고르기 전까지 <b>저장</b>이 막힌다"였고, 그 때문에 미배정 사용자는
+   * <b>이름만 고쳐 저장하는 것도</b> 불가능했다. 사양이 "역할을 고르기 전까지 <b>역할이</b>
+   * 저장되지 않는다"로 좁혀졌으므로, 바꾼 축이 하나라도 있으면 저장을 연다.
+   * 아무 축도 바뀌지 않았을 때만 잠그고, 그때 역할이 비어 있으면 「미선택」으로 안내한다
+   * (두 잠금 사유가 동시에 뜨면 사용자는 무엇을 해야 할지 모른다).
+   */
+  const saveBlockedReason: '이름오류' | '미선택' | '변경없음' | null = !editUser
     ? null
-    : editRole === ''
-      ? '미선택'
-      : editRole === roleOf(editUser)
-        ? '변경없음'
-        : null;
+    : nameViolation
+      ? '이름오류'
+      : roleChanged || nameChanged
+        ? null
+        : editRole === ''
+          ? '미선택'
+          : '변경없음';
 
   /**
    * 저장 실행 — 토큰을 **인자로 받는다**.
@@ -305,13 +386,20 @@ export function UserManagePage() {
    */
   const runSave = (token?: string) => {
     if (!editUser) return;
-    if (editRole === '') return; // 미선택 — 저장 버튼이 이미 비활성이지만 이중 방어.
-    // 변경된 필드만 payload 에 포함 (서버 측은 null 필드 무시).
+    // 이름이 규칙을 어겼으면 요청을 **보내지 않는다** — 저장 버튼도 잠겨 있지만 그것은 표시이고,
+    // 요청을 막는 것은 이 가드다.
+    if (nameViolation) return;
+    // 바꾼 축만 담는다 — 보내지 않은 축은 서버가 그대로 둔다.
     const payload: UserUpdatePayload = {};
-    if (editRole !== roleOf(editUser)) {
+    if (roleChanged) {
       payload.role = editRole as UserUpdatePayload['role'];
     }
-    if (!payload.role) {
+    if (nameChanged) {
+      // 정규화한 값을 보낸다 — 서버가 저장할 값과 같게 만들어, 같은 이름을 다시 열어도
+      // 「바뀜」으로 잡히지 않게 한다.
+      payload.userNm = normalizedName;
+    }
+    if (Object.keys(payload).length === 0) {
       // 변경 사항 없음 — 모달만 닫는다.
       setEditUser(null);
       return;
@@ -322,6 +410,7 @@ export function UserManagePage() {
   const handleEditSave = () => {
     setExpiredNotice(false);
     setConflictNotice(null);
+    setInvalidNotice(false);
     // 유효창이 없으면 요청을 보내기 전에 확인 창을 먼저 연다 — 보내 봐야 403 이고,
     // 그 거부는 화면에서 「이유를 알 수 없는 실패」로 보인다.
     if (!session.unlocked) {
@@ -601,6 +690,7 @@ export function UserManagePage() {
         open={!!editUser}
         onClose={() => {
           setConflictNotice(null);
+          setInvalidNotice(false);
           setEditUser(null);
         }}
         title="사용자 정보 수정"
@@ -613,6 +703,7 @@ export function UserManagePage() {
               size="sm"
               onClick={() => {
                 setConflictNotice(null);
+                setInvalidNotice(false);
                 setEditUser(null);
               }}
               disabled={updateMutation.isPending}
@@ -647,7 +738,10 @@ export function UserManagePage() {
               ) : (
                 <>
                   <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  역할 변경에는 관리자 확인이 필요합니다
+                  {/* ★유효창은 **창구 전체**에 걸린다 — 표시 이름만 고치는 저장도 같다
+                      (@design SCREEN-024 v37). 구 문구는 「역할 변경에는」이라 이름만 고치는
+                      사용자에게 거짓이었다. */}
+                  저장에는 관리자 확인이 필요합니다
                 </>
               )}
             </span>
@@ -684,29 +778,81 @@ export function UserManagePage() {
               {conflictNotice}
             </p>
           )}
-          {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024).
-              역할 배지의 미배정 톤(warn tint)과 같은 색축을 써서 목록에서 본 상태와 이어진다. */}
+          {/* 서버가 입력값으로 막은 경우(400) — 고쳐 쓰면 되는 거부라 모달을 닫지 않는다.
+              ★문구는 **화면이 소유한다**. 서버 문장을 그대로 그리면 검증기가 만든 진단 문자열
+              (필드 경로·항목 순번)이 그대로 사용자 눈앞에 뜬다([@design AC-1019]). */}
+          {invalidNotice && (
+            <p
+              role="alert"
+              data-testid="edit-user-invalid-notice"
+              className="flex items-start gap-2 rounded-md bg-danger/10 px-3 py-2 text-body-sm text-danger-700"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {INVALID_INPUT_NOTICE}
+            </p>
+          )}
+          {/* 역할 미배정 사용자 안내 — 이 사용자의 상태와, 저장이 잠겼다면 그 사유를 알려준다.
+              역할 배지의 미배정 톤(warn tint)과 같은 색축을 써서 목록에서 본 상태와 이어진다.
+              ★문구가 "저장이 잠겼다"고 단정하지 않는다 — 이름만 고쳐 저장하는 길이 열려 있어
+                (@design SCREEN-024 v37) 이 안내가 뜬 채로도 저장이 가능하다. */}
           {editUser && roleOf(editUser) === null && (
             <p
               data-testid="edit-user-unassigned-notice"
               className="flex items-start gap-2 rounded-md bg-warning-50 px-3 py-2 text-body-sm text-warning-700"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              아직 역할이 배정되지 않은 사용자입니다
+              아직 역할이 배정되지 않은 사용자입니다. 역할을 고르면 역할이 저장되며, 표시 이름만
+              고쳐 저장할 수도 있습니다.
             </p>
           )}
           {/*
             원래 값과 같아 잠긴 경우도 같은 방식으로 사유를 밝힌다 — 이유를 말하지 않으면
             잠긴 저장 버튼이 고장으로 읽힌다. 두 사유는 동시에 성립하지 않는다.
+
+            ★안내가 **두 축을 모두** 말한다(@design SCREEN-024 v37). 저장을 여는 축이 역할·표시
+              이름 둘인데 문구가 역할만 말하면, 이름을 고치려던 사용자가 「다른 **역할을** 고르라」는
+              엉뚱한 지시를 받는다. 같은 모달의 미배정 안내는 이미 두 축을 말하고 있어, 이 문구만
+              구 규칙에 남아 있으면 한 화면 안에서 안내가 서로 어긋난다.
           */}
           {saveBlockedReason === '변경없음' && (
             <p
               data-testid="edit-user-unchanged-notice"
               className="rounded-md bg-gray-50 px-3 py-2 text-body-sm text-gray-700"
             >
-              변경된 내용이 없습니다. 다른 역할을 선택하면 저장할 수 있습니다.
+              변경된 내용이 없습니다. 역할이나 표시 이름을 고치면 저장할 수 있습니다.
             </p>
           )}
+          {/*
+            ★표시 이름은 역할 **위**에 둔다(@design SCREEN-024 v37 — 수정 모달 구성 순서).
+              사람을 알아보는 값이 먼저 오고 권한이 뒤에 온다.
+          */}
+          <Field>
+            <FieldLabel>표시 이름</FieldLabel>
+            {/*
+              ★`maxLength` 를 걸지 않는다. 걸면 브라우저가 긴 붙여넣기를 **말없이 잘라** 사용자가
+                모르는 사이 다른 이름이 저장된다 — 창구가 "잘라 담지 않고 400 으로 거절한다"로
+                막으려는 바로 그 실패다. 넘치면 잘라 주는 대신 아래에서 사유를 말한다.
+            */}
+            <Input
+              value={editName}
+              onChange={(e) => {
+                setEditName(e.target.value);
+                // ★고치기 시작하면 서버의 거부 안내를 내린다. 해제 지점이 저장·모달 개폐뿐이면
+                //   **이미 고친 값 위에 「저장할 수 없습니다」가 그대로 떠 있어**, 사용자는 자기가
+                //   방금 고친 값도 거부된 줄로 읽는다. 거부는 보낸 값에 대한 것이지 지금 칸에 든
+                //   값에 대한 것이 아니다.
+                setInvalidNotice(false);
+              }}
+              placeholder="화면에 표시할 이름을 입력하세요."
+            />
+            <FieldDescription>
+              비워 둘 수 없으며 {USER_NM_MAX_LENGTH}자 이하여야 합니다. 그대로 두면 이름은 바뀌지
+              않습니다.
+            </FieldDescription>
+            {/* 입력 시점에 화면이 먼저 판정한다 — 저장을 누른 뒤에야 알게 되지 않도록(@design AC-1019).
+                내용이 없으면 FieldError 는 아무것도 렌더하지 않는다(빈 alert 가 남지 않는다). */}
+            <FieldError>{nameViolation?.message}</FieldError>
+          </Field>
           <Field>
             <FieldLabel>역할</FieldLabel>
             <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
@@ -747,7 +893,7 @@ export function UserManagePage() {
         isSubmitting={session.isOpening}
         error={session.error}
         ttlMinutesHint={ADMIN_SESSION_TTL_MINUTES_HINT}
-        unlockTargetLabel="역할 변경"
+        unlockTargetLabel="사용자 정보 수정"
       />
     </section>
   );

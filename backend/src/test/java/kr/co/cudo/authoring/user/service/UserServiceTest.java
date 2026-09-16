@@ -79,7 +79,7 @@ class UserServiceTest {
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
         // when — REVIEWER 로 변경
-        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("REVIEWER"));
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("REVIEWER", null));
 
         // then — LS_USER_ROLE 원자 upsert 1회, 응답 역할 REVIEWER
         verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), isNull());
@@ -98,7 +98,7 @@ class UserServiceTest {
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
-        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest(null));
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest(null, null));
 
         assertThat(res.role()).isEqualTo("WORKER");
         verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
@@ -113,7 +113,7 @@ class UserServiceTest {
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.empty());
 
         // when/then — NOT_FOUND, upsert 미호출
-        assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest("WORKER")))
+        assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest("WORKER", null)))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
 
@@ -131,7 +131,7 @@ class UserServiceTest {
         when(lsUserRoleRepository.findByUserNo(userNo)).thenReturn(Optional.empty());
 
         // when — WORKER 신규 부여
-        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("WORKER"));
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("WORKER", null));
 
         // then — upsert 1회 호출 + 응답 role 반영
         verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("WORKER"), isNull());
@@ -149,7 +149,7 @@ class UserServiceTest {
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
         // when — 동일 역할(WORKER) 재적용
-        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("WORKER"));
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("WORKER", null));
 
         // then — 불필요한 UPD_DT 갱신 방지: upsert 미호출, 응답은 기존 역할 유지
         assertThat(res.role()).isEqualTo("WORKER");
@@ -278,7 +278,7 @@ class UserServiceTest {
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
         // when
-        userService.update(userNo, new UserUpdateRequest("REVIEWER"));
+        userService.update(userNo, new UserUpdateRequest("REVIEWER", null));
 
         // then — 인가 역할 캐시 무효화 1회
         verify(userRoleResolver, times(1)).evict(userNo);
@@ -297,7 +297,7 @@ class UserServiceTest {
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
-        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "969600001");
+        userService.update(userNo, new UserUpdateRequest("REVIEWER", null), "969600001");
 
         // 역할과 주체가 <같은 문장>에서 쓰인다 — 따로 쓰면 그 사이 실패가 「주체 없는 변경」을 남긴다.
         verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), eq("969600001"));
@@ -312,7 +312,7 @@ class UserServiceTest {
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
-        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "12\r\n[User] forged=1");
+        userService.update(userNo, new UserUpdateRequest("REVIEWER", null), "12\r\n[User] forged=1");
 
         verify(lsUserRoleRepository, times(1))
                 .upsertRole(eq(userNo), eq("REVIEWER"), eq("12[User] forged=1"));
@@ -328,7 +328,7 @@ class UserServiceTest {
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
         String tooLong = "9".repeat(40);
 
-        userService.update(userNo, new UserUpdateRequest("REVIEWER"), tooLong);
+        userService.update(userNo, new UserUpdateRequest("REVIEWER", null), tooLong);
 
         // MDFR_ID 는 표준도메인 식별자V30 = varchar(30)
         verify(lsUserRoleRepository, times(1))
@@ -344,18 +344,255 @@ class UserServiceTest {
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
 
-        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "   ");
+        userService.update(userNo, new UserUpdateRequest("REVIEWER", null), "   ");
 
         verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), isNull());
     }
 
     @Test
-    @DisplayName("UserUpdateRequest에_useYn_필드가_없다")
-    void userUpdateRequestHasNoUseYn() {
-        // 단일 컴포넌트(role)만 — useYn 접근자 부재는 컴파일로 강제됨.
-        UserUpdateRequest req = new UserUpdateRequest("WORKER");
+    @DisplayName("★UserUpdateRequest의_쓰기_축은_role과_userNm_둘뿐이다 — useYn·주체_필드가_없다")
+    void userUpdateRequestExposesOnlyRoleAndUserNm() {
+        UserUpdateRequest req = new UserUpdateRequest("WORKER", "홍길동");
         assertThat(req.role()).isEqualTo("WORKER");
-        assertThat(UserUpdateRequest.class.getRecordComponents()).hasSize(1);
-        assertThat(UserUpdateRequest.class.getRecordComponents()[0].getName()).isEqualTo("role");
+        assertThat(req.userNm()).isEqualTo("홍길동");
+        // 계정 활성 여부(useYn)는 외부(관제) 소유 읽기 전용이고, 주체(actor/mdfrId)는 바디 값이라
+        //   위조 가능해 받지 않는다. 그 필드가 늘면 여기서 걸린다.
+        assertThat(java.util.Arrays.stream(UserUpdateRequest.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName).toList())
+                .containsExactly("role", "userNm");
+    }
+
+    // ------------------------------------------------------------------------
+    // 표시 이름 축 — 역할 축과 독립  [@design API-004] [@design AC-1018] [@design AC-1019]
+    // ------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("★이름을_보내면_공백·제어문자를_걷어낸_값이_저장되고_응답에_실린다")
+    void displayNameIsNormalizedBeforeWrite() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest(null, "  홍\t길동\n  "));
+
+        verify(userRepository, times(1)).updateUserNm(eq(userNo), eq("홍길동"));
+        // 응답은 엔티티 스냅샷이 아니라 실제로 쓴 값을 실어야 한다 — native UPDATE 는 영속성
+        //   컨텍스트를 우회하므로 엔티티에서 읽으면 옛 이름이 나간다.
+        assertThat(res.userNm()).isEqualTo("홍길동");
+    }
+
+    @Test
+    @DisplayName("이름_미전송이면_이름_쓰기가_아예_없다 — 보내지_않은_축은_바꾸지_않는다")
+    void absentDisplayNameIsNotWritten() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("REVIEWER", null));
+
+        verify(userRepository, never()).updateUserNm(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString());
+        assertThat(res.userNm()).isEqualTo("이름" + userNo);
+    }
+
+    @Test
+    @DisplayName("★정규화_후_남는_것이_없으면_400이고_쓰기가_일어나지_않는다")
+    void blankDisplayNameIsRejected() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        // 이름 검증이 역할 조회보다 앞서 거절하므로 이 조회는 돌지 않는다 — lenient 로 둔다.
+        lenient().when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        // 공백뿐 · 제어문자뿐 — 원문을 보는 선언적 검증은 뒤엣것을 통과시킨다.
+        for (String blank : List.of("   ", "\t\n", " \t ")) {
+            assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest(null, blank)))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_INPUT));
+        }
+        verify(userRepository, never()).updateUserNm(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    /**
+     * ★{@code trim()}/{@code strip()} 이 놓치는 구멍 — 판정 축은 whitespace 가 아니라 문자 카테고리다.
+     *
+     * <p>{@code trim()} 은 {@code U+0020} 이하만 털고, {@code strip()} 이 쓰는
+     * {@code Character.isWhitespace} 는 non-breaking 공백({@code U+00A0}·{@code U+2007}·{@code U+202F})을
+     * 공백으로 보지 않는다. 그래서 둘 중 무엇을 써도 이 입력들이 "빈 값" 판정을 빠져나가 그대로
+     * 저장된다 — 화면 쪽 입구는 JS {@code trim()} 이 털어내므로 두 입구의 판정이 갈린다.
+     */
+    @Test
+    @DisplayName("★보이지_않는_공백만_보내면_400이다 — NBSP·전각공백은_trim도_strip도_못_턴다")
+    void invisibleUnicodeSpaceOnlyNameIsRejected() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        // 이름 검증이 역할 조회보다 앞서 거절하므로 이 조회는 돌지 않는다 — lenient 로 둔다.
+        lenient().when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        for (String invisible : List.of(
+                " ",   // NBSP — strip() 도 남긴다
+                "　",   // IDEOGRAPHIC SPACE — trim() 이 남긴다
+                " ",   // FIGURE SPACE — strip() 도 남긴다
+                " ",   // NARROW NO-BREAK SPACE — strip() 도 남긴다
+                "​",   // ZERO WIDTH SPACE
+                "﻿",   // BOM
+                " 　 \t")) {
+            assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest(null, invisible)))
+                    .isInstanceOf(CustomException.class)
+                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_INPUT));
+        }
+        verify(userRepository, never()).updateUserNm(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("★가장자리_유니코드_공백은_걷히고_안쪽_공백은_보존된다 — 지우지_않고_일반_공백으로_바꾼다")
+    void edgeUnicodeSpaceIsStrippedWhileInnerSpaceSurvives() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        // 가장자리 NBSP·전각공백은 걷힌다 — 이름 자체는 살아남는다(fail-closed 가 정상 이름을 막지 않는다).
+        userService.update(userNo, new UserUpdateRequest(null, " 홍 길동　"));
+        verify(userRepository, times(1)).updateUserNm(eq(userNo), eq("홍 길동"));
+
+        // 안쪽 NBSP 는 단어 구분 의미를 가지므로 지우지 않고 일반 공백으로 바꾼다 — 지우면 붙어버린다.
+        userService.update(userNo, new UserUpdateRequest(null, "홍 길동"));
+        verify(userRepository, times(2)).updateUserNm(eq(userNo), eq("홍 길동"));
+    }
+
+    @Test
+    @DisplayName("★저장_폭을_넘으면_400이다 — 잘라서_저장하지_않는다")
+    void overlongDisplayNameIsRejectedNotTruncated() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        // 이름 검증이 역할 조회보다 앞서 거절하므로 이 조회는 돌지 않는다 — lenient 로 둔다.
+        lenient().when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+        String tooLong = "가".repeat(UserDisplayNames.MAX_USER_NM_LENGTH + 1);
+
+        assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest(null, tooLong)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+
+        // 정규화기는 상한을 넘으면 <자른다>. 그 절단값이 그대로 저장되면 다른 사람 이름이 된다.
+        verify(userRepository, never()).updateUserNm(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("★정확히_저장_폭과_같은_길이는_통과한다 — 절단값으로_판정하면_여기서_깨진다")
+    void exactlyMaxLengthDisplayNameIsAccepted() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+        String exact = "가".repeat(UserDisplayNames.MAX_USER_NM_LENGTH);
+
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest(null, exact));
+
+        verify(userRepository, times(1)).updateUserNm(eq(userNo), eq(exact));
+        assertThat(res.userNm()).hasSize(UserDisplayNames.MAX_USER_NM_LENGTH);
+    }
+
+    @Test
+    @DisplayName("★같은_값_판정은_문장_안에_있다 — 서비스가_미리_비교해_거르지_않는다")
+    void sameNameStillGoesThroughTheConditionalStatement() {
+        // 미리 비교해 거르면 2노드가 같은 옛 값을 읽고 각각 써 수정일시가 두 번 밀린다.
+        //   실제 무변경 보장(수정일시 미갱신)은 UserControllerTest 의 DB 시험이 증명한다.
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        userService.update(userNo, new UserUpdateRequest(null, "이름" + userNo));
+
+        verify(userRepository, times(1)).updateUserNm(eq(userNo), eq("이름" + userNo));
+    }
+
+    @Test
+    @DisplayName("이름만_보낸_요청은_역할_축을_건드리지_않는다")
+    void nameOnlyRequestDoesNotTouchRole() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "ADMIN")));
+
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest(null, "새이름"));
+
+        // 역할 upsert·캐시 무효화·관리자 행 잠금 어느 것도 일어나지 않는다.
+        verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        verify(lsUserRoleRepository, never()).lockUserNosByRoleCd(org.mockito.ArgumentMatchers.anyString());
+        verify(userRoleResolver, never()).evict(org.mockito.ArgumentMatchers.anyLong());
+        assertThat(res.role()).isEqualTo("ADMIN");
+    }
+
+    /**
+     * ★<b>검증이 역할 쓰기보다 앞에 있다는 것을 구조로 고정한다 — 롤백에 기대지 않는다.</b>
+     *
+     * <p>이 시험이 목 기반인 것은 <b>의도</b>다. 같은 단정을 DB 시험으로 쓰면 변이를 잡지 못한다 —
+     * 검증을 역할 분기 뒤로 되돌려도 {@code CustomException} 이 트랜잭션을 롤백해 <b>저장소에서
+     * 되읽은 역할은 여전히 그대로</b>이기 때문이다. 즉 DB 되읽기는 "결과가 안전한가" 만 보고
+     * "역할 쓰기가 <i>일어났는가</i>" 는 보지 못한다. 트랜잭션이 없는 이 자리에서만 그 차이가 드러난다.
+     *
+     * <p>짝이 되는 종단 시험은 {@code UserControllerTest} 가 갖는다(400 + 저장소 무변경).
+     */
+    @Test
+    @DisplayName("★역할이_유효해도_이름이_무효면_역할_쓰기가_아예_일어나지_않는다 — 롤백에_기대지_않는다")
+    void invalidNameBlocksRoleWriteBeforeItEverHappens() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        // 검증이 앞서면 이 조회는 아예 돌지 않는다 — 변이(검증을 뒤로)에서만 쓰이므로 lenient.
+        lenient().when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        assertThatThrownBy(() -> userService.update(userNo, new UserUpdateRequest("REVIEWER", "   ")))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+
+        // 역할 축은 손도 대지 않았다 — 쓰기·잠금·캐시 무효화 어느 것도 없다.
+        verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        verify(lsUserRoleRepository, never()).lockUserNosByRoleCd(org.mockito.ArgumentMatchers.anyString());
+        verify(userRoleResolver, never()).evict(org.mockito.ArgumentMatchers.anyLong());
+        verify(userRepository, never()).updateUserNm(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("역할과_이름을_함께_보내면_둘_다_반영된다")
+    void roleAndNameCanChangeTogether() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("REVIEWER", "새이름"), "969600001");
+
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), eq("969600001"));
+        verify(userRepository, times(1)).updateUserNm(eq(userNo), eq("새이름"));
+        assertThat(res.role()).isEqualTo("REVIEWER");
+        assertThat(res.userNm()).isEqualTo("새이름");
     }
 }

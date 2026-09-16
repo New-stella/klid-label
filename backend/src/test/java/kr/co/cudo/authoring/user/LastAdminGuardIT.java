@@ -111,7 +111,7 @@ class LastAdminGuardIT {
     void lastAdminCannotBeDemoted() {
         seedUser(ADMIN_A, Role.ADMIN.name());
 
-        assertThatThrownBy(() -> userService.update(ADMIN_A, new UserUpdateRequest(Role.REVIEWER.name())))
+        assertThatThrownBy(() -> userService.update(ADMIN_A, new UserUpdateRequest(Role.REVIEWER.name(), null)))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
 
@@ -124,7 +124,7 @@ class LastAdminGuardIT {
         seedUser(ADMIN_A, Role.ADMIN.name());
         seedUser(ADMIN_B, Role.ADMIN.name());
 
-        userService.update(ADMIN_B, new UserUpdateRequest(Role.WORKER.name()));
+        userService.update(ADMIN_B, new UserUpdateRequest(Role.WORKER.name(), null));
 
         assertThat(roleOf(ADMIN_B)).isEqualTo(Role.WORKER.name());
         assertThat(adminCount()).isEqualTo(1);
@@ -136,7 +136,7 @@ class LastAdminGuardIT {
         seedUser(ADMIN_A, Role.ADMIN.name());
 
         // 동일 역할 재적용은 서비스가 애초에 skip 한다(멱등) — 보호가 이 경로를 막으면 안 된다.
-        userService.update(ADMIN_A, new UserUpdateRequest(Role.ADMIN.name()));
+        userService.update(ADMIN_A, new UserUpdateRequest(Role.ADMIN.name(), null));
 
         assertThat(roleOf(ADMIN_A)).isEqualTo(Role.ADMIN.name());
     }
@@ -146,9 +146,28 @@ class LastAdminGuardIT {
     void nonAdminDemotionIsUnaffected() {
         seedUser(ADMIN_A, Role.REVIEWER.name());
 
-        userService.update(ADMIN_A, new UserUpdateRequest(Role.WORKER.name()));
+        userService.update(ADMIN_A, new UserUpdateRequest(Role.WORKER.name(), null));
 
         assertThat(roleOf(ADMIN_A)).isEqualTo(Role.WORKER.name());
+    }
+
+    /** 그 사용자의 저장된 표시 이름. */
+    private String userNmOf(long userNo) {
+        return jdbc.queryForObject("SELECT USER_NM FROM LS_ACNT_USER WHERE USER_NO = ?", String.class, userNo);
+    }
+
+    @Test
+    @DisplayName("★마지막_관리자여도_이름만_고치면_통과한다 — 역할_축_판정은_역할을_보낸_요청에만_걸린다")
+    void lastAdminCanStillChangeDisplayName() {
+        // 이름 수정에까지 마지막 관리자 보호가 걸리면, 관리자가 한 명인 시스템에서는 그 사람의
+        //   이름을 영영 고칠 수 없다. 보호의 근거(관리자가 0명이 된다)가 이름 축에는 없다.
+        seedUser(ADMIN_A, Role.ADMIN.name());
+
+        userService.update(ADMIN_A, new UserUpdateRequest(null, "바뀐이름"));
+
+        assertThat(roleOf(ADMIN_A)).as("역할은 손대지 않는다").isEqualTo(Role.ADMIN.name());
+        assertThat(userNmOf(ADMIN_A)).isEqualTo("바뀐이름");
+        assertThat(adminCount()).isEqualTo(1);
     }
 
     @Test
@@ -224,7 +243,7 @@ class LastAdminGuardIT {
             long target = Thread.currentThread().getName().endsWith("-a") ? ADMIN_A : ADMIN_B;
             try {
                 start.await(5, TimeUnit.SECONDS);
-                userService.update(target, new UserUpdateRequest(Role.WORKER.name()));
+                userService.update(target, new UserUpdateRequest(Role.WORKER.name(), null));
                 succeeded.incrementAndGet();
             } catch (CustomException e) {
                 if (e.getErrorCode() == ErrorCode.CONFLICT) {
