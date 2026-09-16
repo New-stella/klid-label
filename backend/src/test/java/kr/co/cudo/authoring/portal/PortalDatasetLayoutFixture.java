@@ -87,6 +87,30 @@ final class PortalDatasetLayoutFixture {
     }
 
     /**
+     * 개발망 실물 <b>5148~5150</b>(2026-09-16) 모양의 라벨 문서 — 세 번째로 확인된 모양이다.
+     *
+     * <p>{@code video}·{@code image} 블록이 <b>아예 없다</b> — 프레임 번호가 최상위 {@code frame_no},
+     * 크기가 {@code resolution: [w, h]}, 라벨 배열이 {@code objects}, 분류 이름이 {@code class} 다.
+     * 영상 파일명이 없으므로 <b>배포본 하나가 영상 하나</b>가 된다.
+     *
+     * @param objectsJson {@code objects} 배열의 원소들(비우면 라벨 0건 — 실물 5149 의 첫 프레임이 그렇다)
+     */
+    static String flatDoc(int frameNo, String objectsJson) {
+        return """
+                {"frame_no": %d, "video_ts_ms": 0, "label": "FIRE", "event_type_cd": "EV02000102",
+                 "objects": [%s],
+                 "lat": 35.1064, "lon": 129.0324, "camera_id": "CCTV-LOCKER-01",
+                 "captured_at": "2022-12-23T06:28:29Z", "resolution": [854, 480],
+                 "source": "부산광역시 CCTV 재가공"}
+                """.formatted(frameNo, objectsJson);
+    }
+
+    /** 실물 {@code objects} 원소 한 건 — 분류 이름이 {@code class} 이고 신뢰도가 함께 온다. */
+    static String flatObject(String className, String bbox, String confidence) {
+        return "{\"class\": \"%s\", \"bbox\": %s, \"confidence\": %s}".formatted(className, bbox, confidence);
+    }
+
+    /**
      * 우리 산출물(NIA) 모양의 라벨 문서 — 이 모양도 계속 읽힌다.
      *
      * <p>영상 파일명이 {@code filename}, 프레임 번호가 {@code frame_num} 이고 분류가 식별자

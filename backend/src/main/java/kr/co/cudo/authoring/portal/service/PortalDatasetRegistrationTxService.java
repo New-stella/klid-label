@@ -86,6 +86,47 @@ public class PortalDatasetRegistrationTxService {
      * @param version   배포 버전. <b>비어 있을 수 있다</b>
      */
     public record DatasetRef(long datasetId, String code, String version) {
+
+        /** 영상 키로 쓸 수 있는 글자 — 그 밖은 밑줄로 바꾼다(경로 구분자·제어 문자·공백이 여기 걸린다). */
+        private static final java.util.regex.Pattern KEY_UNSAFE =
+                java.util.regex.Pattern.compile("[^A-Za-z0-9._-]");
+
+        /**
+         * 문서에 영상 파일명이 <b>없을 때</b> 쓸 영상 키 — 배포 코드와 버전으로 만든다(ADR-068).
+         *
+         * <p>둘 다 비어 있으면(옛 데이터 · 요약을 읽지 못했을 때) 데이터셋 번호를 쓴다. 키가 아예 없으면
+         * 그 배포본을 하나도 등록하지 못하므로 <b>비우지 않는다</b>.
+         *
+         * <p>★ 이 값은 그대로 {@link LsDataRaw#portalDatasetClipId} 에 들어가므로 <b>그 규칙을 여기서
+         * 통과시킨다</b> — 허용 글자 밖은 밑줄로 바꾸고, 클립 식별자 폭에 맞춰 자른다. 자르는 것이 안전한
+         * 이유는 이 키가 <b>데이터셋 하나에 하나</b>뿐이고 클립 식별자에 데이터셋 번호가 이미 들어 있어
+         * 서로 다른 영상이 같은 식별자로 접힐 수 없기 때문이다(영상 파일명 쪽은 반대라 자르지 않고 거부한다).
+         */
+        public String fallbackVideoKey() {
+            String joined = join(sanitize(code), sanitize(version));
+            if (joined == null) {
+                return String.valueOf(datasetId);
+            }
+            int room = LsDataRaw.VMS_CLIP_ID_MAX
+                    - (LsDataRaw.PORTAL_DATASET_CLIP_ID_PREFIX.length() + String.valueOf(datasetId).length() + 1);
+            return joined.length() <= room ? joined : joined.substring(0, room);
+        }
+
+        private static String join(String a, String b) {
+            if (a == null) {
+                return b;
+            }
+            return b == null ? a : a + "_" + b;
+        }
+
+        /** 키로 쓸 수 있게 다듬는다 — 비었거나 자리 참조(.·..)뿐이면 {@code null}. */
+        private static String sanitize(String value) {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            String safe = KEY_UNSAFE.matcher(value.trim()).replaceAll("_");
+            return (safe.isBlank() || ".".equals(safe) || "..".equals(safe)) ? null : safe;
+        }
     }
 
     /** 적재 결과. */

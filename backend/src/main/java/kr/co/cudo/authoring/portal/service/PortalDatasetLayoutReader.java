@@ -39,13 +39,16 @@ import java.util.stream.Stream;
  * </pre>
  * <p>그래서 해제본을 <b>재귀</b>로 훑어 짝을 찾는다 — 평평한 자리와 하위 폴더 안이 섞여 있어도 같은
  * 규칙으로 읽힌다. <b>영상 식별자는 폴더 이름이 아니라 문서의 영상 파일명</b>({@code video.file_name})
- * 이며, 같은 값이면 한 영상으로 묶는다.
+ * 이며, 같은 값이면 한 영상으로 묶는다. <b>문서에 영상 파일명이 없으면 그 배포본 전체를 영상 하나로
+ * 본다</b> — 그때의 키는 호출자가 배포 코드·버전으로 만들어 넘긴다.
+ *
+ * <p>문서 스키마는 배포본마다 갈린다 — 아는 모양을 모두 읽는다. 칸별 조달 순서는 {@link PortalDatasetDoc}.
  *
  * <p>⚠ 구 구성(<code>{영상 키}/v{n}/deid/</code> 3단 · 버전이 여럿이면 최대 하나)은 <b>폐기</b>됐다.
  * 저작도구의 검수 승인 산출물 구조를 그대로 가정한 것이었고 실물은 그보다 단순하다. 되살리지 말 것.
  *
  * <h3>★ 구성이 어긋나면 추측으로 채우지 않는다 — 전부 읽고 나서 판정한다</h3>
- * <p>짝이 없거나, 문서를 읽을 수 없거나, 문서에 영상 파일명이 없으면 {@link LayoutMismatch} 로 멈춘다.
+ * <p>짝이 없거나 문서를 읽을 수 없으면 {@link LayoutMismatch} 로 멈춘다.
  * 이 판정은 <b>원장에 한 행도 쓰기 전에</b> 끝난다 — 영상 몇 건만 적재된 채 멈추면 「구성이 틀렸다」와
  * 「일부만 있다」가 구분되지 않는다.
  *
@@ -115,11 +118,14 @@ public class PortalDatasetLayoutReader {
     /**
      * 해제본 전체를 읽어 등록 계획의 재료를 만든다.
      *
-     * @param contentDir 공개된 해제본의 {@code content} 자리
+     * @param contentDir       공개된 해제본의 {@code content} 자리
+     * @param fallbackVideoKey 문서에 영상 파일명이 <b>없을 때</b> 쓸 영상 키 — 그 배포본 전체를 영상
+     *                         하나로 본다. 조달은 호출자 몫이다(파서가 해제본 옆 요약을 스스로 읽지
+     *                         않는다 — 조달과 등록의 경계를 흐리지 않는다)
      * @throws LayoutMismatch 구성이 실물과 다를 때 — 이 경우 원장에 아무것도 쓰지 않아야 한다
      * @throws IOException    입출력 실패
      */
-    public DatasetLayout read(Path contentDir) throws IOException {
+    public DatasetLayout read(Path contentDir, String fallbackVideoKey) throws IOException {
         if (contentDir == null || !Files.isDirectory(contentDir, LinkOption.NOFOLLOW_LINKS)) {
             throw new LayoutMismatch(PortalDatasetRegistrationFailureReason.CONTENT_MISSING);
         }
@@ -136,7 +142,7 @@ public class PortalDatasetLayoutReader {
         Map<String, DatasetVideoMeta> metaByKey = new LinkedHashMap<>();
         for (Pair pair : pairs) {
             PortalDatasetDoc doc = parse(pair.doc());
-            String videoKey = videoKeyOf(doc);
+            String videoKey = videoKeyOf(doc, fallbackVideoKey);
             DatasetFrame frame = toFrame(contentReal, pair, doc);
             List<DatasetFrame> frames = framesByKey.computeIfAbsent(videoKey, k -> new ArrayList<>());
             for (DatasetFrame seen : frames) {
@@ -248,12 +254,28 @@ public class PortalDatasetLayoutReader {
     /**
      * 문서가 싣는 영상 파일명 — <b>이 값이 영상 식별자</b>다.
      *
-     * <p>비어 있으면 짐작하지 않는다(파일 이름·폴더 이름으로 대신하지 않는다). 경로로 쓰지는 않지만
-     * 경로 구분자·상위 참조가 섞인 값은 키로 삼지 않는다.
+     * <h3>★ 파일명이 없으면 배포본 하나를 영상 하나로 본다</h3>
+     * <p>실물 배포본 넷이 전부 「배포본 하나에 영상 하나」였고(영상 파일은 배포본 밖에서 따로 오거나
+     * 한 개만 들어 있었다), 묶을 키가 없다고 등록을 포기하면 실제로 오는 배포본을 하나도 읽지 못한다
+     * (ADR-068). 그래서 호출자가 넘긴 {@code fallbackVideoKey}(배포 코드·버전으로 만든 값)로 묶는다.
+     *
+     * <p>⚠ 대가 — 한 배포본에 영상이 여럿 들어오면 <b>전부 한 영상으로 합쳐진다</b>. 문서에 그것을 가를
+     * 값이 없어 지금은 구분할 수단이 없다. 그때는 포털에 문서 구분자를 요구한다.
+     *
+     * <p>⚠ 파일명이 <b>있으면</b> 종전대로 그 값으로 묶는다 — 한 배포본에 영상이 여럿인 구성도 그대로
+     * 읽힌다. 폴더 이름·파일 이름으로 대신하지는 않는다.
+     *
+     * <p>어느 쪽으로 정해졌든 키는 같은 검사를 받는다 — 경로로 쓰지는 않지만 경로 구분자·상위 참조가
+     * 섞인 값은 키로 삼지 않는다.
      */
-    private static String videoKeyOf(PortalDatasetDoc doc) {
+    private static String videoKeyOf(PortalDatasetDoc doc, String fallbackVideoKey) {
         String raw = doc.video() == null ? null : doc.video().resolvedFileName();
         if (raw == null || raw.isBlank()) {
+            raw = fallbackVideoKey;
+        }
+        if (raw == null || raw.isBlank()) {
+            // 폴백까지 비어 있을 때만 남는 자리다 — 호출자가 데이터셋 번호로라도 키를 만들므로 실제
+            // 등록 경로에서는 나지 않는다. 방어로 남긴다(사유 값은 옛 표식 판독을 위해 존치한다).
             throw new LayoutMismatch(PortalDatasetRegistrationFailureReason.VIDEO_FILENAME_MISSING);
         }
         String key = raw.trim();
@@ -313,7 +335,7 @@ public class PortalDatasetLayoutReader {
             throw new LayoutMismatch(PortalDatasetRegistrationFailureReason.INVALID_VALUE);
         }
 
-        long frameNo = frameNoOf(pair.stem(), img);
+        long frameNo = frameNoOf(pair.stem(), doc);
         // 영상 안 프레임 번호는 산출물 모양에만 있다 — 없으면 비운다(프레임 번호로 대신하지 않는다).
         Long videoFrameNo = (img == null || img.frameNum() == null) ? null : img.frameNum().longValue();
         if (videoFrameNo != null && videoFrameNo < 0) {
@@ -331,17 +353,16 @@ public class PortalDatasetLayoutReader {
 
         List<DatasetShape> shapes = new ArrayList<>();
         int skippedShapes = 0;
-        if (doc.annotations() != null) {
-            for (PortalDatasetDoc.Annotation a : doc.annotations()) {
-                if (a == null) {
-                    continue;
-                }
-                DatasetShape shape = toShape(a, categoryNames);
-                if (shape == null) {
-                    skippedShapes++;
-                } else {
-                    shapes.add(shape);
-                }
+        // ★ 라벨 배열은 두 이름이다 — annotations(기존) 가 없으면 objects(실물). 0건은 정상이다.
+        for (PortalDatasetDoc.Annotation a : doc.resolvedAnnotations()) {
+            if (a == null) {
+                continue;
+            }
+            DatasetShape shape = toShape(a, categoryNames);
+            if (shape == null) {
+                skippedShapes++;
+            } else {
+                shapes.add(shape);
             }
         }
 
@@ -356,12 +377,13 @@ public class PortalDatasetLayoutReader {
     }
 
     /**
-     * 프레임 번호 — 문서의 프레임 번호가 1순위, 없으면 파일 이름의 숫자.
+     * 프레임 번호 — 문서의 프레임 번호가 1순위({@code image.frame_no} → 최상위 {@code frame_no}),
+     * 없으면 파일 이름의 숫자.
      *
      * <p>둘 다 없으면 짐작하지 않는다. 음수는 파일 이름 규칙을 깨므로 거부한다.
      */
-    private static long frameNoOf(String stem, PortalDatasetDoc.Image img) {
-        Integer fromDoc = img == null ? null : img.frameNo();
+    private static long frameNoOf(String stem, PortalDatasetDoc doc) {
+        Integer fromDoc = doc.resolvedFrameNo();
         if (fromDoc != null) {
             if (fromDoc < 0) {
                 throw new LayoutMismatch(PortalDatasetRegistrationFailureReason.INVALID_VALUE);
@@ -404,11 +426,12 @@ public class PortalDatasetLayoutReader {
         }
         String categoryId = blankToNull(a.categoryId());
         Long labelId = parseLabelId(categoryId);
-        // 이름 조달: 산출물 모양이면 분류 목록에서, 실물 모양이면 어노테이션의 분류 이름에서.
+        // 이름 조달: 산출물 모양이면 분류 목록에서, 실물 모양이면 어노테이션의 분류 이름(category → class)에서.
         // ★ 어느 쪽이든 <이름으로 마스터를 되짚지 않는다> — 이름에 유일성 제약이 없다.
-        String name = categoryId == null
-                ? blankToNull(a.category())
-                : blankToNull(categoryNames.get(categoryId));
+        String name = categoryId == null ? null : blankToNull(categoryNames.get(categoryId));
+        if (name == null) {
+            name = blankToNull(a.resolvedCategoryName());
+        }
         if (name != null && name.length() > LABEL_NAME_MAX) {
             name = name.substring(0, LABEL_NAME_MAX);
         }
@@ -474,14 +497,22 @@ public class PortalDatasetLayoutReader {
         return (value == null || value.isBlank()) ? null : value;
     }
 
-    /** 영상 단위 메타 한 장. */
+    /**
+     * 영상 단위 메타 한 장.
+     *
+     * <p>크기는 영상 블록이 1순위다. 영상 블록이 아예 없는 실물 배포본에서는 문서가 싣는 프레임 크기
+     * ({@code image.width}/{@code height} → {@code resolution})가 <b>우리가 가진 유일한 크기</b>라
+     * 그것을 쓴다 — 배포본의 프레임은 그 영상에서 뽑은 것이므로 지어낸 값이 아니다. 둘 다 없으면 비운다.
+     */
     private static DatasetVideoMeta metaOf(PortalDatasetDoc doc) {
         PortalDatasetDoc.Video v = doc.video();
+        Integer width = (v != null && v.width() != null) ? v.width() : doc.resolvedWidth();
+        Integer height = (v != null && v.height() != null) ? v.height() : doc.resolvedHeight();
         if (v == null) {
-            return new DatasetVideoMeta(null, null, null, null, null, null);
+            return new DatasetVideoMeta(null, null, width, height, null, null);
         }
         return new DatasetVideoMeta(blankToNull(v.resolvedFileName()), blankToNull(v.fps()),
-                v.width(), v.height(), v.vdoLenSec(), blankToNull(v.resolvedEventTypeCd()));
+                width, height, v.vdoLenSec(), blankToNull(v.resolvedEventTypeCd()));
     }
 
     /** 문서마다 같은 영상 블록이 실리므로 <b>먼저 나온 값</b>을 쓴다(빈 칸만 뒤 문서가 채운다). */

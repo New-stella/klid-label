@@ -181,16 +181,19 @@ public class PortalDatasetRegistrationService {
         try {
             writeStatus(datasetId, PortalDatasetRegistrationStatus.inProgress(0, 0, clock.instant()));
 
-            DatasetLayout layout = layoutReader.read(
-                    workspace.readyDir(datasetId).resolve(PortalMaterialsUnpacker.CONTENT_DIR));
-            skipped = layout.skippedVideos();
-            List<Planned> plans = plan(datasetId, layout);
-
             // ★ 해제본 옆 요약에서 배포 코드·버전을 <데이터셋당 한 번> 읽는다 — 정리 삭제 트리거가
             //   그 두 값으로 대상을 가리키므로 등록 메타에 함께 남긴다. 요약이 없거나 읽히지 않으면
             //   두 값이 비고, 그러면 그 키를 쓰지 않는다(등록 자체는 그대로 진행한다 — 부가 정보의
             //   부재가 등록을 멈추게 하지 않는다).
+            // ★ 파싱보다 <먼저> 읽는다 — 문서에 영상 파일명이 없는 배포본의 영상 키를 이 두 값으로
+            //   만들기 때문이다. 조달은 여기서 하고 파서는 만들어진 키를 받기만 한다(ADR-068).
             DatasetRef dataset = datasetRef(datasetId);
+
+            DatasetLayout layout = layoutReader.read(
+                    workspace.readyDir(datasetId).resolve(PortalMaterialsUnpacker.CONTENT_DIR),
+                    dataset.fallbackVideoKey());
+            skipped = layout.skippedVideos();
+            List<Planned> plans = plan(datasetId, layout);
 
             Path deidBase = Paths.get(deidentifiedPath).toAbsolutePath().normalize();
             for (Planned p : plans) {
