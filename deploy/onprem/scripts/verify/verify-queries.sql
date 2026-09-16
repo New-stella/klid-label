@@ -292,15 +292,27 @@ SELECT raw_sn, count(*) AS 행수 FROM klid_at.v_completed_video GROUP BY raw_sn
 --   ⚠ 아래 표들은 부모 외래키가 없거나 방향이 달라 연쇄로 정리되지 않는다.
 --     오류 없이 <조용히> 고아가 남으므로 주기적으로 본다.
 
+-- ★★ 두 표의 SRC_SN 은 <프레임>(ls_data_src.src_sn)이다 — 영상(raw_sn)이 아니다.
+--   2026-09-16 실측: 프레임 매칭 20/20 · 12/12 인데 영상 매칭은 15/20 · 3/12 였다.
+--   ⚠ 영상으로 조인하면 <오류 없이 조용히 틀린 답>이 나온다 — ID 범위가 겹쳐 일부가 우연히
+--     맞기 때문이다. 실제로 이 파일의 초판이 그 상태였고, 돌려 보고서야 잡혔다.
+--   ⇒ 규칙: 컬럼 이름이 SRC_SN 이면 프레임으로 읽는다. 영상이려면 RAW_SN 이라야 한다.
+--   (코드로는 확정하지 못했고 데이터로 판정했다.)
 SELECT 'ls_data_lbl_hstry' AS 표, count(*) AS 고아
   FROM klid_at.ls_data_lbl_hstry h
- WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_raw r WHERE r.raw_sn = h.data_raw_sn);
+ WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_src s WHERE s.src_sn = h.src_sn);
 
 SELECT 'ls_data_aug' AS 표, count(*) AS 고아
   FROM klid_at.ls_data_aug a
- WHERE a.src_sn IS NOT NULL
-   AND NOT EXISTS (SELECT 1 FROM klid_at.ls_data_raw r WHERE r.raw_sn = a.src_sn);
---   ⚠ 위 두 쿼리는 컬럼명이 다를 수 있다. 오류가 나면 먼저 \d 로 확인할 것:
+ WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_src s WHERE s.src_sn = a.src_sn);
+
+-- 파생 영상은 별도 컬럼이다 — new_raw_sn 이 <만들어진 파생 영상>을 가리킨다(이쪽은 영상 축).
+SELECT 'ls_data_aug.new_raw_sn' AS 표, count(*) AS 고아
+  FROM klid_at.ls_data_aug a
+ WHERE a.new_raw_sn IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM klid_at.ls_data_raw r WHERE r.raw_sn = a.new_raw_sn);
+
+-- 컬럼이 의심스러우면 먼저 스키마를 본다. 추측해서 쓰지 말 것.
 \d klid_at.ls_data_lbl_hstry
 \d klid_at.ls_data_aug
 
