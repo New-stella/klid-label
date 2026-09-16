@@ -45,10 +45,12 @@ describe('포털 셸 가로 정렬선', () => {
       expect(portalShellAlign()).toMatch(/\bpx-/);
     });
 
-    it('★최대폭을 둔다 — Host 판과 같은 1152(=1200−24×2)로 읽기 폭을 막는다', () => {
+    it('★★폭은 묶지 «않는다» — 읽기 폭은 Host 가 이미 슬롯에서 막는다', () => {
+      // Host 시안 실측: 슬롯 자체가 `max-width:1200` + 가운데. 우리가 한 번 더 묶으면 두 겹이
+      // 되어, 그보다 넓은 실배포 Host 본문에서 화면이 가운데로 몰린다(2026-09-16 사용자 신고).
       stubChannel('portal');
-      expect(portalShellAlign()).toContain('max-w-wrap');
-      expect(portalShellAlign()).toContain('mx-auto');
+      expect(portalShellAlign()).not.toMatch(/\bmax-w-/);
+      expect(portalShellAlign()).not.toMatch(/\bmx-auto\b/);
     });
 
     it('★★구 동작으로 되돌아가지 않는다 — 정렬선이 `w-full` 하나이면 안 된다', () => {
@@ -57,10 +59,10 @@ describe('포털 셸 가로 정렬선', () => {
     });
   });
 
-  describe('② 최대폭은 같고 거터만 갈린다', () => {
-    it('★읽기 폭(최대폭 1200)은 두 채널이 같다 — Host 판과 폭이 어긋나지 않게', () => {
-      expect(PORTAL_SHELL_ALIGN_EMBED).toContain('max-w-wrap');
+  describe('② 폭의 주인이 채널마다 다르다', () => {
+    it('★독립 앱만 읽기 폭을 막는다 — 그쪽은 우리가 문서를 소유한다', () => {
       expect(PORTAL_SHELL_ALIGN_STANDALONE).toContain('max-w-wrap');
+      expect(PORTAL_SHELL_ALIGN_EMBED).not.toContain('max-w-wrap');
     });
 
     it('★임베드 거터가 독립 앱보다 한 단 좁다 — 흰 카드 안이라 여백이 겹쳐 보인다', () => {
