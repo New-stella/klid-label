@@ -20,3 +20,13 @@ import './portal/krds-theme.css';
 import './portal/krds-focus.css';
 import './portal/portal-base.css';
 import './portal/klid-optical.css';
+
+/* ★ 저작도구 화면의 짜임 — 부모 포털 `pages/workspace/authoring` 의 CSS 를 옮긴 것이다.
+ *   **화면마다 부르지 않고 여기서 한 번** 싣는다 — 화면이 저마다 끌어오면 한쪽만 갱신될 때
+ *   같은 클래스가 화면마다 달라진다(이 채널의 CSS 를 한 자리에 모으는 까닭).
+ *   토큰(`--krds-*`)을 쓰므로 **테마 뒤**여야 한다. 클래스 이름이 전부 `klid-` 로 좁혀져 있어
+ *   전역에 실려도 남의 화면에 닿지 않는다. */
+import './portal/authoring-layout.css';
+import './portal/augment-view.css';
+import './portal/marking-view.css';
+import './portal/labeling-view.css';

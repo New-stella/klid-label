@@ -52,8 +52,6 @@ import { useUserWorks } from '@/features/portal/hooks/useUserWorks';
 import { buildPortalWorkLabelPath } from '@/features/portal/labelingEntry';
 import { downloadUploadExport } from '@/features/portal/uploads/api';
 
-import '@/components/portal/authoring/authoring.css';
-
 const PAGE_SIZE = 20;
 
 /** 자산 출처 표기 — 두 축이 한 목록에 섞이므로 행마다 어느 축인지 읽혀야 한다(사양 SCREEN-028). */

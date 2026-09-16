@@ -128,7 +128,7 @@ describe('포털 내 작업 — 표 짜임', () => {
     //   실제로 말줄임을 선언하는지를 **함께** 본다 — 한쪽만 보면 클래스만 남고 규칙이 사라져도 통과한다.
     expect(cell.className).toContain('klid-authoring-cell-name');
     const css = readFileSync(
-      path.resolve(__dirname, '../../../components/portal/authoring/authoring.css'),
+      path.resolve(__dirname, '../../../styles/portal/authoring-layout.css'),
       'utf-8',
     );
     const rule = css.slice(css.indexOf('.klid-authoring-cell-name {'));

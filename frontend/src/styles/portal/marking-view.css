@@ -1,0 +1,68 @@
+@charset "utf-8";
+/* 저작도구 · 업로드 영상 마킹. 짜임(격자 · 사이)만 둔다 — 겉모습은 전부 부품이 갖는다.
+   기준: design.md §5 표면 · §6 세로 리듬 */
+
+/* 왼쪽 재생기가 남는 폭을 다 먹고, 오른쪽 설정 기둥은 폭을 못 박는다.
+   320 — 설정 카드의 걸음 두 개와 안내 띠가 두 줄 안쪽으로 서는 폭이다 (척도가 아니라 기둥 폭).
+   기둥 사이 24 는 §6 컬럼 간격. 두 기둥은 위를 맞추고 제 키만큼만 선다 */
+.klid-marking {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32rem;
+  align-items: start;
+  gap: var(--krds-gap-7);
+}
+
+/* 재생기 — 영상이 카드 가장자리까지 꽉 찬다 (§5 「카드 안 대표 이미지」). 여백은 아래 조작부가 갖고,
+   영상 모서리는 카드가 잘라 준다. 배속 드롭다운은 카드 바닥에 서서 목록이 위로 열린다 (Dropdown ★) */
+.klid-section-card.klid-marking-player {
+  padding: 0;
+  overflow: hidden;
+}
+/* 지점 줄 → 재생 줄 16. 둘은 같은 가로 자를 쓰는 한 조작부라 블록 사이(20)보다 붙인다 */
+.klid-marking-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+  padding: var(--krds-padding-7) var(--krds-padding-8);
+}
+
+/* 재생 줄 + 배속 줄 — 사이를 두지 않는다. 위치 막대의 누르는 자리(44)가 막대 아래로 20 을 이미
+   비워 두어, 더 벌리면 배속이 재생 줄의 것이 아니라 다음 항목으로 떨어져 읽힌다 */
+.klid-marking-playback {
+  display: flex;
+  flex-direction: column;
+}
+/* 배속 줄 — 재생 줄 끝과 같은 오른쪽 끝선에 선다 */
+.klid-marking-speed {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 설정 기둥 — 카드 사이 16 (§6 그리드 간격) */
+.klid-marking-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+  min-width: 0;
+}
+/* 기둥 카드는 사이드라 안쪽 여백 20 (§5 밀집 목록·사이드). 카드 안 항목끼리는 20 (§6 블록 사이) */
+.klid-section-card.klid-marking-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+  padding: var(--krds-padding-7);
+}
+/* 목록 건수는 늘 제목(설명) 아래 한 줄에 선다 — 설명이 길어 아래로 접힐 때와 없을 때 모양이 갈리지 않게 (2026-09-14) */
+.klid-marking-card .klid-step-heading .aside {
+  flex-basis: 100%;
+}
+
+/* 걸음 줄 — 기둥이 좁아 두 걸음이 한 줄에 안 들면 접히고, 접힌 걸음은 줄을 다 쓴다 */
+.klid-marking-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--krds-gap-3);
+}
+.klid-marking-actions > * {
+  flex: 1 1 auto;
+}
