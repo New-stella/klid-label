@@ -27,6 +27,7 @@ import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataIngest;
 import kr.co.cudo.authoring.video.repository.IngestSourceLink;
+import kr.co.cudo.authoring.video.repository.VideoExclusionScope;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -111,7 +112,10 @@ public class ReviewQueryRepository {
         JPAQueryFactory queryFactory = new JPAQueryFactory(entityManager);
         QLsRawDataStatus status = QLsRawDataStatus.lsRawDataStatus;
 
-        BooleanBuilder where = buildWhere(status, effective(condition), true);
+        // 목록과 count 가 <같은 BooleanBuilder 인스턴스>를 쓴다 — 두 번 조립하면 제외 갈래가 한쪽에만
+        // 반영될 여지가 생긴다(그러면 화면의 건수와 그 건수를 눌러 얻는 목록이 어긋난다).
+        ReviewSearchCondition effective = effective(condition);
+        BooleanBuilder where = buildWhere(status, effective, true, effective.excludedOnlyOn());
 
         List<LsRawDataStatus> content = queryFactory
                 .selectFrom(status)
@@ -150,7 +154,9 @@ public class ReviewQueryRepository {
         JPAQueryFactory queryFactory = new JPAQueryFactory(entityManager);
         QLsRawDataStatus status = QLsRawDataStatus.lsRawDataStatus;
 
-        BooleanBuilder where = buildWhere(status, effective(condition), false);
+        // 버킷 4종은 <제외분을 뺀> 집합 위에서 센다 — 목록의 기본 갈래와 같은 범위여야 카드 숫자와
+        // 목록이 어긋나지 않는다. 「제외됨 건수」는 별개 축이라 countExcluded 가 따로 센다.
+        BooleanBuilder where = buildWhere(status, effective(condition), false, false);
 
         NumberExpression<Long> totalCount = status.count();
         Map<String, NumberExpression<Long>> bucketExpressions = new LinkedHashMap<>();
@@ -190,6 +196,34 @@ public class ReviewQueryRepository {
         return counts;
     }
 
+    /**
+     * 「제외됨 N건」 — <b>같은 필터 조건</b>을 「제외분만」으로 한 번 더 세어 얻는다.
+     * [@design ADR-069] [@design API-138] [@design AC-1124]
+     *
+     * <p>★<b>세 번째 WHERE 절을 만들지 않는다.</b> 목록·count·KPI 집계가 이미
+     * {@link #buildWhere} 하나를 공유하는데 전용 집계 쿼리를 새로 적으면 <b>드리프트 면이 하나 더</b>
+     * 생겨, 검색어 이스케이프나 화이트리스트가 바뀔 때 한 곳만 빠뜨리면 건수가 조용히 어긋난다.
+     * 그래서 같은 조립을 「제외분만」 갈래로 호출한다 — 조건이 늘어도 따라온다.
+     *
+     * <p>{@code status} 를 빼는 것도 KPI 집계와 동일하다({@code includeStatus=false}) — 카드 자체가 그
+     * 선택지이므로, 이 숫자도 그 좁힘 없이 같은 범위를 세야 화면의 숫자와 그것을 눌러 얻는 목록이
+     * 일치한다.
+     *
+     * <p><b>0건이어도 값이 실린다</b>({@code COUNT} 는 언제나 한 행을 돌려준다) — 빠지면 화면이
+     * 「제외된 것이 없다」와 「제외 기능이 없다」를 구분해 보여 주지 못한다.
+     */
+    public long countExcluded(ReviewSearchCondition condition) {
+        JPAQueryFactory queryFactory = new JPAQueryFactory(entityManager);
+        QLsRawDataStatus status = QLsRawDataStatus.lsRawDataStatus;
+
+        Long count = queryFactory
+                .select(status.count())
+                .from(status)
+                .where(buildWhere(status, effective(condition), false, true))
+                .fetchOne();
+        return nullToZero(count);
+    }
+
     /** 해당 상태에 속하는 행 수 — {@code SUM(CASE WHEN DATA_STTS_CD = :code THEN 1 ELSE 0 END)}. */
     private NumberExpression<Long> bucketCount(QLsRawDataStatus status, String code) {
         return new CaseBuilder()
@@ -222,17 +256,40 @@ public class ReviewQueryRepository {
     // ------------------------------------------------------------------ where
 
     /**
-     * 조건 조립 <b>단일 지점</b> — 목록/count/집계가 모두 이 메서드를 통과한다.
+     * 조건 조립 <b>단일 지점</b> — 목록/count/집계/제외 건수가 모두 이 메서드를 통과한다.
      *
      * @param includeStatus {@code status} 필터 적용 여부. KPI 집계는 4종을 모두 세야 하므로 이 조건만
      *                      빼고 나머지({@code q})는 목록과 완전히 동일하게 적용한다.
+     * @param excludedOnly  {@code false}(기본)면 <b>제외되지 않은 영상만</b>, {@code true} 면
+     *                      <b>제외된 영상만</b>. 「제외분만 보기」와 「제외됨 N건」을 <b>같은 조건</b>으로
+     *                      얻기 위한 갈래이며(두 번째 WHERE 절을 만들지 않는다), 다른 축은 전부 동일하다.
      */
     private BooleanBuilder buildWhere(QLsRawDataStatus status, ReviewSearchCondition condition,
-                                      boolean includeStatus) {
+                                      boolean includeStatus, boolean excludedOnly) {
         BooleanBuilder where = new BooleanBuilder();
 
         // 보안 경계 — 어떤 조합에서도 먼저 걸린다(HIGH-2).
         where.and(status.dataSttsCd.in(ReviewRepository.REVIEW_STATUS_WHITELIST));
+
+        // 가시성 축 — 화면 목록에서 제외한 영상은 검수 목록에도 나타나지 않는다. [design: ADR-069]
+        //   필터가 아니라 <가시 범위> 이므로 목록·count·KPI 집계 <전부>에 걸린다. 그래서 여기(조건 조립
+        //   단일 지점)에만 붙인다 — 호출부마다 붙이면 한 곳이 빠져 샌다.
+        //
+        // ★구동 테이블이 영상 원장이 아니라 검수 워크플로 상태(LS_RAW_DATA_STATUS)다. 그래서 직접 비교가
+        //   아니라 <상관 EXISTS> 형태를 쓴다 — 영상 원장을 조인으로 끌어오면 위 "행 증식 원천 차단"
+        //   제약이 깨져 totalElements 가 실제 건수와 어긋난다.
+        //
+        // ★제외 판정은 <조회 조건>에만 붙이고 버킷 판정식(bucketCount)은 건드리지 않는다. 판정식에
+        //   섞으면 어느 버킷에도 들지 않는 행이 생겨 「버킷 합 = 전체 건수」 불변식이 깨진다.
+        //
+        // 「제외분만」은 소유자 술어의 <부정>으로 얻는다 — 여기서 EXCL_YN 비교를 새로 적으면 술어가
+        //   두 벌이 되어 한쪽만 바뀌어도 드러나지 않는다(그 비교는 VideoExclusionScope 단독 소유).
+        //
+        // ⚠ 아래 videoNameLike 의 「채널 술어를 붙이지 않는다」 예외를 근거로 이 판정까지 빼지 말 것.
+        //   그 예외의 근거는 <포털 자산에는 이 표의 행이 영영 생기지 않는다>인데, 제외된 영상은 이미
+        //   그 행을 갖고 있어 같은 논리가 서지 않는다(반려된 배정을 해제하면 제외가 가능해진다).
+        BooleanExpression notExcluded = VideoExclusionScope.notExcludedByRawSn(status.rawDataId);
+        where.and(excludedOnly ? notExcluded.not() : notExcluded);
 
         if (includeStatus) {
             String statusFilter = condition.statusFilter();
@@ -267,6 +324,11 @@ public class ReviewQueryRepository {
      * 배정 시점에 생기고 포털에는 배정·검수가 없어 <b>영영 생기지 않는다</b> — 포털 자산은 구조적으로
      * 도달하지 못한다. 이미 걸러지는 자리에 술어를 더하면 저 조인이 하는 일이 가려진다.
      * 「일관성」을 이유로 붙이지 말 것.
+     *
+     * <p>⚠<b>이 예외는 채널 축에만 성립한다 — 제외 축으로 옮겨 읽지 말 것</b>(ADR-069). 근거가
+     * 「그 행이 영영 생기지 않는다」인데, <b>제외된 영상은 이미 검수 워크플로 상태 행을 갖고 있다</b>
+     * (반려된 배정은 해제할 수 있고 그 뒤 제외가 가능하다). 그래서 제외 판정은 {@link #buildWhere} 에
+     * <b>실제로 붙어 있다</b>.
      */
     private BooleanExpression videoNameLike(QLsRawDataStatus status, String pattern) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;

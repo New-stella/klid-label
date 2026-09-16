@@ -319,13 +319,24 @@ public class ReviewService {
      * {@code workStatus} 축만 제외하는 것과 대칭). 검수 워크플로 화이트리스트는 목록과 동일하게 상시
      * 적용되므로 배치/작업 상태는 어느 버킷에도 합산되지 않는다(HIGH-5).
      *
+     * <p>★<b>제외분은 4종 버킷에서 빠지고 「제외됨 건수」로 따로 실린다</b>(ADR-069). 목록이 제외분을
+     * 빼므로 집계도 같이 줄어야 한다 — 갈리면 화면의 카드 숫자와 그 카드를 눌러 얻는 목록이 어긋난다.
+     * 그 건수는 <b>4종 합의 항이 아니다</b>(제외분은 {@code total} 에서도 이미 빠져 있다).
+     *
      * <p>목록과 별도 요청이라 두 호출 사이의 상태 전이로 미세하게 어긋날 수 있으며, 반환값은
      * <b>조회 시점 스냅샷</b>이다(대시보드성 KPI 라 강한 정합성은 요구하지 않는다).
+     *
+     * @design API-138
      */
     public ReviewSummaryResponse summarize(ReviewSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
         ReviewSearchCondition effective = (condition != null) ? condition : ReviewSearchCondition.defaults();
-        return ReviewSummaryResponse.of(reviewQueryRepository.countByStatus(effective.searchOnly()));
+        // 두 집계가 <같은 조건 객체>를 본다 — 하나만 따로 만들면 검색어 정규화가 한쪽에만 적용돼
+        // 카드 숫자와 「제외됨 N건」의 필터 범위가 갈라진다. [design: ADR-069] [design: API-138]
+        ReviewSearchCondition searchOnly = effective.searchOnly();
+        return ReviewSummaryResponse.of(
+                reviewQueryRepository.countByStatus(searchOnly),
+                reviewQueryRepository.countExcluded(searchOnly));
     }
 
     /**
