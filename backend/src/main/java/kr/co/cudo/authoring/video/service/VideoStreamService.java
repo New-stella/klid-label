@@ -10,7 +10,6 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import kr.co.cudo.authoring.common.config.PublicApiPath;
 import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -96,15 +95,6 @@ public class VideoStreamService {
     @Autowired(required = false)
     private VideoStreamService self;
 
-    /**
-     * 브라우저가 우리 API 를 부를 때 쓰는 경로 접두어 — 해석은 {@link PublicApiPath} 한 곳이 소유한다.
-     *
-     * <p>기본은 <b>WAR 웹 컨텍스트에서 자동 도출</b>이라 배포마다 설정을 넣지 않아도 맞는다.
-     * ⚠ 초기값을 지우지 말 것 — 단위 시험은 이 서비스를 생성자로 직접 만들어 주입이 없다.
-     */
-    @Autowired(required = false)
-    private PublicApiPath publicApiPath = PublicApiPath.ofDefault();
-
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
 
@@ -163,20 +153,32 @@ public class VideoStreamService {
     }
 
     /**
-     * 단기 서명 스트림 URL 발급.
+     * 스트림 재생 주소 발급.
      *
-     * <p>&lt;video&gt; 가 Authorization 헤더를 못 붙이는 문제를 우회하기 위해, 인증된 사용자가 호출하면
-     * 짧은 TTL HMAC 서명 쿼리를 붙인 스트림 URL 을 반환한다. 영상 존재를 먼저 확인해 없으면 404.
+     * <p>&lt;video&gt; 가 Authorization 헤더를 못 붙이므로, 인증된 사용자가 호출하면 스트림 주소를 돌려주고
+     * 컨트롤러가 발급자에게 봉인된 재생 인증 쿠키({@code StreamNonceCookie})를 함께 내려준다.
+     * <b>재생 요청의 인증은 그 쿠키 하나로 판정한다</b>({@code StreamSignatureFilter}) — 주소의
+     * {@code exp}·{@code sig} 는 판정에 쓰이지 않으며, 응답 계약(url·expiresAt·ttlSeconds)을 유지하기 위해
+     * 계속 싣는다. 주소에는 비밀이 없으므로 주소만 유출된 제3자는 쿠키가 없어 재생할 수 없다.
+     * 영상 존재를 먼저 확인해 없으면 404.
+     *
+     * <h3>주소는 배포 접두를 포함하지 않는다 (API-114)</h3>
+     * <p>응답 url 은 <b>API 기준 경로</b>({@code /api/v1/videos/{rawSn}/stream?...})다. 서버가 WAR 컨텍스트를
+     * 알 수 있더라도 붙이지 않고, 배포 접두 결합은 소비 측(화면) 한 곳에서만 한다. 그래서 이미지 주소가 쓰는
+     * 컨텍스트 포함 접두({@code PublicApiPath})를 여기서는 <b>쓰지 않는다</b> — 과거 그 값을 쓰자 화면이 접두를
+     * 한 번 더 붙여 {@code /label-studio/label-studio/...} 이중 접두가 됐다. ⚠ 설정
+     * {@code authoring.public-api-base-path} 도 이 주소에 영향을 주지 않는다.
      *
      * <p><b>인가</b>: 영상 단위 접근 권한(REVIEWER 전체 / WORKER 본인 배정)은 컨트롤러 진입부에서
      * {@code LabelAccessGuard.verifyRawAccess} 가 먼저 강제한다(B-ISSUE-63).
      *
      * @param rawSn  영상 PK
-     * @param userNo 발급 요청자 subject (JWT sub) — 서명 입력에 바인딩된다. 단, URL 쿼리에도 노출되므로
-     *               이 값만으로 URL 재사용이 차단되지는 않는다(아래 nonce 참조).
-     * @param nonce  발급자 브라우저에만 내려가는 HttpOnly 쿠키 값 — URL 에 포함되지 않으며, 이 값이 서명
-     *               입력에 섞이므로 <b>URL 만 유출된 제3자는 재생할 수 없다</b>(A-ISSUE-11).
-     * @return 서명 URL + 만료 epoch-second
+     * @param userNo 발급 요청자 subject (JWT sub) — 주소 쿼리 {@code u} 로 실린다. 재생 판정은 쿠키 봉인이
+     *               이 값을 검증하므로 {@code u} 를 바꾸면 거부된다.
+     * @param nonce  발급자 브라우저에만 내려가는 HttpOnly 쿠키 값 — 주소에 포함되지 않는다.
+     * @return 스트림 주소 + 만료 epoch-second(표식 — 판정에 쓰이지 않음)
+     * @design API-114
+     * @design ADR-071
      */
     public StreamUrlResponse issueSignedUrl(Long rawSn, String userNo, String nonce) {
         // 영상 존재 확인 (없으면 404)
@@ -210,15 +212,14 @@ public class VideoStreamService {
             throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE,
                     "스트림 서명 URL 발급이 비활성화되어 있습니다.");
         }
-        // CWE-284 — userNo 를 서명 입력에 바인딩하고 URL 쿼리 u={userNo} 에도 포함한다.
-        // u 변조는 서명 불일치로 거부되지만, u 가 URL 에 함께 노출되므로 "URL 전체 복사" 재사용은
-        // u 만으로 막히지 않는다(A-ISSUE-11 — 구 주석의 "재사용해도 통과 못 함" 서술은 사실이 아니었다).
-        // 실제 재사용 차단은 URL 에 없는 nonce(HttpOnly 쿠키)를 서명 입력에 섞어 달성한다.
+        // 재생 판정(ADR-071)은 쿼리 u 에게 봉인된 쿠키 하나로 한다 — u 변조·타인 쿠키는 봉인 검증에서 거부된다.
+        // exp·sig 는 판정에 쓰이지 않으나 응답 계약(expiresAt·ttlSeconds)과 주소 형태를 유지하려고 계속 싣는다.
         StreamUrlSigner.SignedParams params = streamUrlSigner.sign(rawSn, userNo, nonce);
         String u = userNo == null ? "" : userNo;
-        // 접두어는 «앞단 웹서버가 우리에게 넘겨주는 경로»라 배포 향마다 다르다 — 설정에서 받는다.
-        // 미설정이면 종전 리터럴(/api/v1)과 같다. 근거는 PublicApiPathDefaults javadoc.
-        String url = publicApiPath.of("/videos/" + rawSn + "/stream")
+        // API-114 — 배포 접두를 붙이지 않은 API 기준 경로. 결합은 화면 한 곳에서만 한다.
+        //   PublicApiPath(컨텍스트 포함 접두)를 쓰면 이중 접두가 된다 — 메서드 javadoc 참조.
+        String url = PublicApiPathDefaults.join(PublicApiPathDefaults.DEFAULT_BASE_PATH,
+                "/videos/" + rawSn + "/stream")
                 + "?exp=" + params.exp() + "&u=" + u + "&sig=" + params.sig();
         return new StreamUrlResponse(url, params.exp(), params.ttlSeconds());
     }

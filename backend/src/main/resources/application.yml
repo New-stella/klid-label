@@ -302,8 +302,10 @@ authoring:
     flavor: ${KLID_DEPLOY_FLAVOR:}
 
   # ★ 브라우저가 우리 API 를 부를 때 쓰는 «같은 출처 경로 접두어».
-  #   응답 본문에 절대 경로를 담아 내려주는 세 자리(영상 재생 서명 주소·포털 업로드 재생 서명
-  #   주소·검수 프레임 이미지 주소)가 이 값을 쓴다. 그 주소는 <video src>·<img src> 로 그대로
+  #   응답 본문에 절대 경로를 담아 내려주는 두 자리(포털 업로드 재생 서명 주소·검수 프레임 이미지
+  #   주소)가 이 값을 쓴다. ⚠ 내부 영상 재생 주소는 쓰지 않는다 — 접두 없는 /api/v1 기준 경로를 내고
+  #   화면이 접두를 붙인다(API-114). 온프렘에 임시로 넣은 PUBLIC_API_BASE_PATH=/api/v1 은 이 수정 배포 시
+  #   반드시 제거할 것(남기면 프레임 이미지 주소가 계속 깨진다). 그 주소는 <video src>·<img src> 로 그대로
   #   들어가므로 <컨트롤러 매핑>이 아니라 <앞단 웹서버가 우리에게 넘겨주는 접두어>여야 한다.
   #
   # ★★ 대개는 <비워 둔다>. 비우면 WAR 웹 컨텍스트에서 자동으로 도출한다 —
@@ -597,8 +599,9 @@ authoring:
   #   - sign-secret: JWT_SECRET 재사용 금지(키 분리). 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수 필수.
   #     설정 시 256bit(32B) 이상이어야 함(미달 시 부팅 차단). 미설정이면 서명 URL 발급/검증 모두 fail-closed.
   #     로컬 기본값은 application-local.yml 에 명시.
-  #   - url-ttl-seconds: 서명 유효 시간(초). 5~600 클램프. 기본 60s.
-  #   - cookie-secure: 서명 검증 입력인 nonce 쿠키(klid_stream_nonce)에 Secure 속성을 붙일지.
+  #   - url-ttl-seconds: 재생 주소에 실리는 만료 표지의 길이(초). 5~600 클램프. 기본 60s.
+  #     ⚠ 재생 인증 수명이 아니다 — 내부 영상 재생은 봉인 쿠키 하나로 판정하고 이 값은 판정에 쓰지 않는다(ADR-071).
+  #   - cookie-secure: 재생 인증 쿠키(klid_stream_nonce)에 Secure 속성을 붙일지.
   #     ★ 기본은 OFF(false) 다. HTTPS 로 서비스되는 배포에서 켜려면 STREAM_COOKIE_SECURE=true 로 명시할 것.
   #     기본을 OFF 로 둔 이유: 켜져 있으면 평문 HTTP 로 서비스되는 배포에서 브라우저가 쿠키를 저장하지 않아
   #     서명 검증이 전량 실패하고 영상이 아예 재생되지 않는다. 이는 개발 서버만의 문제가 아니었다 —

@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 그대로 우회됐다. 본 테스트는 형제 경로마다 <b>차단(미배정 WORKER 403)과 허용(배정 WORKER·REVIEWER 200)</b>을
  * 쌍으로 검증한다 — 허용 케이스가 없으면 인가 추가가 정상 화면을 깨뜨려도 잡지 못한다.
  *
- * <p><b>DEV_FIX H-2</b> — {@code <video>} 가 실제로 타는 <b>무헤더 서명 경로</b>도 같은 기준으로 검증한다.
+ * <p><b>DEV_FIX H-2</b> — {@code <video>} 가 실제로 타는 <b>무헤더 쿠키 경로</b>(ADR-071 — 발급자 봉인 쿠키 단독 판정)도 같은 기준으로 검증한다.
  * 기존 서명 테스트는 전부 REVIEWER(sub=1)라 인가 게이트가 얼리리턴으로 no-op 이었다.
  *
  * <p>시드 역할(V9001): 1=REVIEWER, 100=WORKER(본 테스트에서 배정), 101=WORKER(미배정).
@@ -272,10 +272,32 @@ class VideoStreamAssignmentAuthorizationTest {
                 .andExpect(status().isOk());
     }
 
-    // ───────────── DEV_FIX H-2 — 무헤더 서명 경로에도 배정 인가가 실제로 걸리는가 ─────────────
+    // ───────────── DEV_FIX H-2 — 무헤더 쿠키 경로에도 배정 인가가 실제로 걸리는가 ─────────────
     //
     // 기존 서명 테스트는 전부 REVIEWER(sub=1)였다. REVIEWER 는 verifyRawAccess 를 얼리리턴으로 통과하므로
     // "서명 경로에도 인가가 걸린다"는 이번 수정의 핵심 주장이 하나도 검증되지 않았다.
+    // ADR-071 이후 무헤더 재생의 인증은 발급자 봉인 쿠키 하나로 판정한다(주소의 exp·sig 는 판정에 쓰지 않음).
+    // ★ 쿠키가 유효해도 권한 밖 영상은 거부되어야 한다 — 아래 403 단언을 지우지 말 것.
+
+    @Test
+    @DisplayName("★쿠키경로_유효쿠키라도_배정되지_않은_WORKER_는_403 — exp·sig 없이 u+쿠키만(ADR-071)")
+    void cookieOnlyStream_unassignedWorker_forbidden() throws Exception {
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
+                        .param("u", String.valueOf(UNASSIGNED_WORKER))
+                        .cookie(sealedNonceCookie(String.valueOf(UNASSIGNED_WORKER)))
+                        .header(HttpHeaders.RANGE, "bytes=0-1023"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("쿠키경로_배정된_WORKER_는_exp_sig_없이도_206(ADR-071)")
+    void cookieOnlyStream_assignedWorker_partialContent() throws Exception {
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
+                        .param("u", String.valueOf(ASSIGNED_WORKER))
+                        .cookie(sealedNonceCookie(String.valueOf(ASSIGNED_WORKER)))
+                        .header(HttpHeaders.RANGE, "bytes=0-1023"))
+                .andExpect(status().isPartialContent());
+    }
 
     @Test
     @DisplayName("서명경로_배정되지_않은_WORKER_는_Authorization_없이도_403")

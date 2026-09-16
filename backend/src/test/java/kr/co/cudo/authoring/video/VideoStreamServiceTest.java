@@ -2,7 +2,11 @@ package kr.co.cudo.authoring.video;
 
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.common.config.PublicApiPath;
+import kr.co.cudo.authoring.common.config.PublicApiPathDefaults;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -1436,5 +1440,65 @@ class VideoStreamServiceTest {
                 .isEqualTo(HttpStatus.OK);
         assertThat(videoStreamService.resolveStreamMeta(rawSn).path())
                 .isEqualTo(deidFile.toRealPath());
+    }
+
+    // ===================== API-114 — 스트림 주소는 배포 접두를 포함하지 않는다 =====================
+
+    @Test
+    @DisplayName("스트림주소는_배포접두_없는_API_기준경로로_시작한다(API-114)")
+    void issueSignedUrl_startsWithApiBasePath() {
+        Long rawSn = 12L;
+        String nonce = "0123456789abcdef0123456789abcdef";
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(streamUrlSigner.isConfigured()).thenReturn(true);
+        when(streamUrlSigner.sign(rawSn, "1", nonce))
+                .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
+
+        assertThat(videoStreamService.issueSignedUrl(rawSn, "1", nonce).url())
+                .isEqualTo("/api/v1/videos/12/stream?exp=1700000000&u=1&sig=deadbeef");
+    }
+
+    /**
+     * ★회귀 — 이미지 주소용 접두({@link PublicApiPath})가 WAR 컨텍스트를 포함한 값({@code /label-studio/api/v1})을
+     * 내는 배포에서도 스트림 주소는 접두 없는 {@code /api/v1/...} 여야 한다. 화면이 배포 접두를 한 번 더 붙이므로,
+     * 서버가 컨텍스트를 붙이면 {@code /label-studio/label-studio/...} 이중 접두가 된다(온프렘 실측 결함).
+     *
+     * <p>생성자 직접 인스턴스화로는 스프링 주입 경로(필드 {@code @Autowired})를 재현할 수 없으므로, 실제 빈 두 개를
+     * 작은 컨텍스트에 올려 <b>주입이 일어나는 형상</b>에서 확인한다 — 누군가 {@code PublicApiPath} 주입을 되살리면
+     * 이 시험이 잡는다.
+     */
+    @Test
+    @DisplayName("★컨텍스트_포함_접두가_설정된_배포에서도_스트림주소는_api_v1로_시작한다(API-114 이중접두 회귀)")
+    void issueSignedUrl_ignoresContextIncludingPublicApiPath() {
+        Long rawSn = 13L;
+        String nonce = "0123456789abcdef0123456789abcdef";
+        VideoRepository repo = org.mockito.Mockito.mock(VideoRepository.class);
+        StreamUrlSigner signer = org.mockito.Mockito.mock(StreamUrlSigner.class);
+        when(repo.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(signer.isConfigured()).thenReturn(true);
+        when(signer.sign(rawSn, "1", nonce))
+                .thenReturn(new StreamUrlSigner.SignedParams(1_700_000_000L, "deadbeef", 60L));
+
+        new ApplicationContextRunner()
+                .withPropertyValues(PublicApiPathDefaults.PROPERTY_KEY + "=/label-studio/api/v1")
+                .withBean(PublicApiPath.class)
+                .withBean(VideoRepository.class, () -> repo)
+                .withBean(StreamUrlSigner.class, () -> signer)
+                .withBean(LsDeidentProcLogRepository.class,
+                        () -> org.mockito.Mockito.mock(LsDeidentProcLogRepository.class))
+                .withBean(VideoArtifactRootResolver.class,
+                        () -> org.mockito.Mockito.mock(VideoArtifactRootResolver.class))
+                .withBean(DeidentReportGate.class, () -> new DeidentReportGate(repo))
+                .withBean(VideoStreamService.class)
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    // 전제 확인 — 이 배포의 이미지용 접두는 컨텍스트를 포함한다(시험이 공허하지 않음).
+                    assertThat(ctx.getBean(PublicApiPath.class).prefix()).isEqualTo("/label-studio/api/v1");
+
+                    String url = ctx.getBean(VideoStreamService.class)
+                            .issueSignedUrl(rawSn, "1", nonce).url();
+                    assertThat(url).startsWith("/api/v1/videos/13/stream?");
+                    assertThat(url).doesNotContain("label-studio");
+                });
     }
 }
