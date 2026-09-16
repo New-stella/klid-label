@@ -114,6 +114,10 @@ public class TaskBoardController {
                     "이미 workStatus 로 좁혀진 집합 위에서 세면 항상 1개 카드만 값을 갖는다.\n" +
                     "- status=UNASSIGNED(가상 status) 이면 목록과 동일하게 배치 상태 무관 · LABELER 미배정 " +
                     "전체가 기준이 되어 결과적으로 unassigned 카드만 값을 갖는다.\n" +
+                    "- **제외분은 집계에서 빠진다** — 화면 목록에서 제외한 영상은 목록과 마찬가지로 " +
+                    "이 집계에도 들어가지 않는다(목록과 같은 조건 조립을 공유한다).\n" +
+                    "- **excludedCount** — 같은 필터 범위 안의 제외 건수가 키 하나로 실린다. 현재 " +
+                    "페이지가 아니라 필터 결과 전체 기준이며 **0건이어도 실린다**. 위 합의 항이 아니다.\n" +
                     "- 불변식: total == unassigned + inProgress + reviewPending + completed + rejected.\n" +
                     "- inProgress 는 BoardWorkStatus.PENDING(배정됨 · 검수 미제출) 집계다(IN_PROGRESS 값은 없다).\n" +
                     "- 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다.\n\n" +

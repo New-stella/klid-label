@@ -135,7 +135,12 @@ public class TaskBoardService {
     public TaskBoardSummaryResponse summarizeBoard(TaskBoardSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
 
-        return TaskBoardSummaryResponse.of(taskBoardQueryRepository.countByWorkStatus(effective(condition)));
+        // 두 집계가 <같은 조건 객체>를 본다 — 하나만 정규화하면 그룹 확장이 한쪽에만 적용돼
+        // 카드 숫자와 「제외됨 N건」의 필터 범위가 갈라진다. [design: ADR-069] [design: API-136]
+        TaskBoardSearchCondition effective = effective(condition);
+        return TaskBoardSummaryResponse.of(
+                taskBoardQueryRepository.countByWorkStatus(effective),
+                taskBoardQueryRepository.countExcluded(effective));
     }
 
     /**
