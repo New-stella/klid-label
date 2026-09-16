@@ -127,3 +127,12 @@
 .klid-labeling-rail > .klid-labeling-help {
   margin-top: auto;
 }
+
+/* ── 머리 줄 (포털 채널) ──
+   킷 `EditorLayout` 의 `.klid-editor-header` 와 같은 값이다. 그 클래스를 그대로 쓰지 못하는
+   까닭은 레일과 같다(§ 좌측 도구 칸 주석 참조) — `grid-area` 가 격자 안에서만 뜻을 갖는다. */
+.klid-labeling-header {
+  flex: none;
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+  background-color: var(--krds-color-light-gray-0);
+}

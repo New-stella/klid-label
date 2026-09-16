@@ -1772,6 +1772,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
       data-testid="labeling-page"
     >
       <LabelHeader
+        portalMode={portalMode}
         cctvName={cctvName}
         eventType={headerEventType}
         currentFrame={frameIdx}
