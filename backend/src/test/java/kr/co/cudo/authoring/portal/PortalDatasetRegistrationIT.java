@@ -59,9 +59,11 @@ import java.util.stream.Stream;
 
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.DEID_JPEG;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.ORGNL_JPEG;
-import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.doc;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.dir;
 import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.frame;
-import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.version;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.niaDoc;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.originalPair;
+import static kr.co.cudo.authoring.portal.PortalDatasetLayoutFixture.realDoc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -71,9 +73,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 포털 데이터셋 영상 원장 등록 · 데이터셋 영상 목록 · 작업 창구 통과를 <b>실 DB</b>로 고정한다(ADR-068).
  *
- * <p>⚠ 배포 압축본은 <b>가정한 구성</b>을 시험 안에서 만든 것이다 — 실제 샘플 왕복이 아니다.
- * 소재 조달(포털 조회·압축 해제)은 이 시험의 대상이 아니므로, 공개된 해제본 자리({@code current/content})를
- * 직접 만들고 등록부터 시작한다.
+ * <p>배포 압축본은 <b>개발망 실물</b>(2026-09-16)과 같은 구성을 시험 안에서 만든 것이다 — 실제 압축본
+ * 왕복이 아니다. 소재 조달(포털 조회·압축 해제)은 이 시험의 대상이 아니므로, 공개된 해제본 자리
+ * ({@code current/content})를 직접 만들고 등록부터 시작한다.
  *
  * <h3>이 시험이 지키지 못하는 것</h3>
  * <ul>
@@ -184,16 +186,20 @@ class PortalDatasetRegistrationIT {
     }
 
     /**
-     * 가정 구성의 해제본 — 영상 2건. cam-a 는 버전 둘(v1 1장 · v2 2장), cam-b 는 v1 1장.
-     * 문서마다 사각 박스 1 · 폴리곤 1 · 키포인트 1.
+     * 해제본 — 영상 2건이며 <b>평평한 자리와 하위 폴더가 섞여</b> 있다(AC-1118).
+     *
+     * <ul>
+     *   <li>{@code a.mp4} — 평평한 자리에 2장. 우리 산출물 모양의 문서(사각 박스 1 · 폴리곤 1 · 키포인트 1).</li>
+     *   <li>{@code b.mp4} — 하위 폴더에 1장. 개발망 실물 모양의 문서(사각 박스 1).</li>
+     *   <li>원본으로 보이는 자리에 온전한 짝 1벌 — 읽히면 영상이 셋이 되어 드러난다.</li>
+     * </ul>
      */
     private void validLayout(long datasetId) throws IOException {
         Path content = readyContent(datasetId);
-        frame(version(content, "cam-a", 1), 0, doc("a.mp4", 0, "구버전", "999999999"));
-        Path a2 = version(content, "cam-a", 2);
-        frame(a2, 0, doc("a.mp4", 100, "첫 장", "999999999"));
-        frame(a2, 1, doc("a.mp4", 130, "둘째 장", "999999999"));
-        frame(version(content, "cam-b", 1), 0, doc("b.mp4", 5, "b 장", "999999999"));
+        frame(content, 0, niaDoc("a.mp4", 100, "첫 장", "999999999"));
+        frame(content, 1, niaDoc("a.mp4", 130, "둘째 장", "999999999"));
+        frame(dir(content, "sub"), 5, realDoc("b.mp4", 5, "fire"));
+        originalPair(content, 0, realDoc("z.mp4", 0, "fire"));
     }
 
     private List<Long> rawSnsOf(long datasetId) {
@@ -226,7 +232,7 @@ class PortalDatasetRegistrationIT {
     // ==================================================== AC-1118 — 등록
 
     @Test
-    @DisplayName("★가정한_구성이면_영상_프레임_원본라벨_메타가_출처_PORTAL_DATASET_으로_적재되고_다시_등록해도_늘지_않는다")
+    @DisplayName("★실물_구성이면_영상_프레임_원본라벨_메타가_출처_PORTAL_DATASET_으로_적재되고_다시_등록해도_늘지_않는다")
     void registersLedgerAndIsIdempotent() throws IOException {
         long datasetId = newDatasetId();
         validLayout(datasetId);
@@ -239,8 +245,8 @@ class PortalDatasetRegistrationIT {
 
         List<Long> rawSns = rawSnsOf(datasetId);
         assertThat(rawSns).hasSize(2);
-        long camA = rawSnByKey(datasetId, "cam-a");
-        long camB = rawSnByKey(datasetId, "cam-b");
+        long camA = rawSnByKey(datasetId, "a.mp4");
+        long camB = rawSnByKey(datasetId, "b.mp4");
 
         assertThat(jdbc.queryForList("select src_type from ls_data_raw where raw_sn in (?, ?)", String.class,
                 camA, camB)).containsOnly(LsDataRaw.SRC_TYPE_PORTAL_DATASET);
@@ -249,8 +255,8 @@ class PortalDatasetRegistrationIT {
         assertThat(count("select count(*) from ls_data_raw where raw_sn in (?, ?) and portal_user_no is not null",
                 camA, camB)).as("소유자는 비어 있다").isZero();
 
-        assertThat(srcSnsOf(camA)).as("★버전이 둘이면 번호가 큰 버전의 프레임만").hasSize(2);
-        assertThat(srcSnsOf(camB)).hasSize(1);
+        assertThat(srcSnsOf(camA)).as("평평한 자리의 두 장").hasSize(2);
+        assertThat(srcSnsOf(camB)).as("★하위 폴더에 놓인 짝도 같은 규칙으로 읽힌다").hasSize(1);
         assertThat(jdbc.queryForList("select vdo_frm_no from ls_data_src where raw_sn = ? order by frm_no",
                 Long.class, camA)).containsExactly(100L, 130L);
         assertThat(count("select count(*) from ls_data_src where raw_sn = ? and src_file_path_nm is not null", camA))
@@ -272,6 +278,18 @@ class PortalDatasetRegistrationIT {
                 String.class, camA)).isEqualTo(Long.toString(datasetId));
         assertThat(jdbc.queryForObject("select meta_vl from ls_data_meta where raw_sn = ? and meta_key = 'video.original_filename'",
                 String.class, camA)).isEqualTo("a.mp4");
+        assertThat(jdbc.queryForObject("select meta_vl from ls_data_meta where raw_sn = ? and meta_key = 'portal.dataset_video_key'",
+                String.class, camA)).as("★영상 키는 문서의 영상 파일명이다").isEqualTo("a.mp4");
+        assertThat(jdbc.queryForObject("select meta_vl from ls_data_meta where raw_sn = ? and meta_key = 'video.length_sec'",
+                String.class, camB)).isEqualTo("12");
+        assertThat(jdbc.queryForObject("select meta_vl from ls_data_meta where raw_sn = ? and meta_key = 'video.event_type_cd'",
+                String.class, camB)).isEqualTo("EV02000102");
+        assertThat(count("select count(*) from ls_data_lbl l join ls_data_src s on s.src_sn = l.src_sn "
+                + "where s.raw_sn = ? and l.lbl_nm = '사람'", camA))
+                .as("분류 목록의 이름").isEqualTo(4);
+        assertThat(count("select count(*) from ls_data_lbl l join ls_data_src s on s.src_sn = l.src_sn "
+                + "where s.raw_sn = ? and l.lbl_nm = 'fire'", camB))
+                .as("★분류 식별자 없이 이름 문자열만 온 라벨도 이름으로 앉는다").isEqualTo(1);
 
         assertThat(count("select count(*) from ls_raw_data_status where raw_data_id in (?, ?)", camA, camB))
                 .as("★검수 워크플로 상태 행을 만들지 않는다").isZero();
@@ -313,11 +331,10 @@ class PortalDatasetRegistrationIT {
     void mismatchFailsWithoutLedgerRows() throws IOException {
         long datasetId = newDatasetId();
         Path content = readyContent(datasetId);
-        Path a = version(content, "cam-a", 1);
-        frame(a, 0, doc("a.mp4", 0, "d", "1"));
-        Path b = version(content, "cam-b", 1);
-        frame(b, 0, doc("b.mp4", 0, "d", "1"));
-        Files.write(b.resolve("0001.jpg"), DEID_JPEG); // 짝 없음 — 앞 영상은 정상이어도 한 행도 쓰지 않는다
+        frame(content, 0, realDoc("a.mp4", 0, "fire"));
+        Path sub = dir(content, "sub");
+        frame(sub, 1, realDoc("b.mp4", 1, "fire"));
+        Files.write(sub.resolve("0002.jpg"), DEID_JPEG); // 짝 없음 — 앞 영상은 정상이어도 한 행도 쓰지 않는다
 
         PortalDatasetRegistrationStatus result = registerNow(datasetId);
 
@@ -349,7 +366,7 @@ class PortalDatasetRegistrationIT {
         long datasetId = newDatasetId();
         validLayout(datasetId);
         registrationService.registerAfterProvision(datasetId);
-        long camA = rawSnByKey(datasetId, "cam-a");
+        long camA = rawSnByKey(datasetId, "a.mp4");
         List<Long> frames = srcSnsOf(camA);
         String gap = "ds-gap-" + datasetId;
         String eul = "ds-eul-" + datasetId;
@@ -449,7 +466,7 @@ class PortalDatasetRegistrationIT {
         long datasetId = newDatasetId();
         validLayout(datasetId);
         registrationService.registerAfterProvision(datasetId);
-        long camA = rawSnByKey(datasetId, "cam-a");
+        long camA = rawSnByKey(datasetId, "a.mp4");
         long frameF = srcSnsOf(camA).get(0);
         String gap = "ds-work-" + datasetId;
         TokenClaims actor = portalUser(gap);

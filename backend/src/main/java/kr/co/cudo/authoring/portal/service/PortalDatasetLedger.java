@@ -29,7 +29,11 @@ public final class PortalDatasetLedger {
     /** 데이터셋 번호 — 목록 창구의 대상 판정 키. */
     public static final String KEY_DATASET_ID = "portal.dataset_id";
 
-    /** 해제본 안 영상 폴더 이름(영상 키). */
+    /**
+     * 영상 키 — <b>라벨 문서가 싣는 영상 파일명</b>이다(ADR-068, 개발망 실물 확인 2026-09-16).
+     *
+     * <p>⚠ 구 서술 폐기 — 「해제본 안 영상 폴더 이름」. 실물 배포본에는 영상 폴더가 없다.
+     */
     public static final String KEY_DATASET_VIDEO_KEY = "portal.dataset_video_key";
 
     /** 원본 파일명 — 포털 업로드 원장과 같은 키다. 목록의 영상 이름과 문서 영상 블록 파일명의 조달처. */
@@ -44,9 +48,22 @@ public final class PortalDatasetLedger {
     /** 세로 크기(픽셀). */
     public static final String KEY_HEIGHT = "video.height";
 
+    /**
+     * 영상 길이(초) — 라벨 문서의 {@code video.vdo_len_sec} 조달.
+     *
+     * <p>⚠ 기술메타 {@code video.duration_ms}(밀리초, ffprobe 소유)와 <b>뜻이 같고 단위가 다르다</b>.
+     * 그 키를 재사용하지 않는 이유는 ①그 상수가 영상 도메인 안에서만 보여 여기서 참조할 수 없고
+     * (문자열로 옮겨 적으면 그쪽이 이름을 바꾸는 날 조용히 어긋난다) ②조달처가 ffprobe 가 아니라 남의
+     * 배포본 문서라 출처가 다르기 때문이다. 이 키를 읽는 것은 <b>이 도메인뿐</b>이다.
+     */
+    public static final String KEY_LENGTH_SEC = "video.length_sec";
+
+    /** 검증 이벤트 유형 코드 — 라벨 문서의 {@code video.evnt_type_cd} 조달. */
+    public static final String KEY_EVENT_TYPE_CD = "video.event_type_cd";
+
     /** 문서 조립이 되읽는 키 목록. */
     public static final List<String> DOCUMENT_META_KEYS =
-            List.of(KEY_ORIGINAL_FILENAME, KEY_FPS, KEY_WIDTH, KEY_HEIGHT);
+            List.of(KEY_ORIGINAL_FILENAME, KEY_FPS, KEY_WIDTH, KEY_HEIGHT, KEY_LENGTH_SEC, KEY_EVENT_TYPE_CD);
 
     private PortalDatasetLedger() {
     }
@@ -67,6 +84,8 @@ public final class PortalDatasetLedger {
                 .fps(parseDecimal(metas.get(KEY_FPS)))
                 .vdoWdth(parsePositiveInt(metas.get(KEY_WIDTH)))
                 .vdoHgt(parsePositiveInt(metas.get(KEY_HEIGHT)))
+                .vdoLenSec(parsePositiveInt(metas.get(KEY_LENGTH_SEC)))
+                .evntTypeCd(blankToNull(metas.get(KEY_EVENT_TYPE_CD)))
                 .build();
     }
 
@@ -81,6 +100,10 @@ public final class PortalDatasetLedger {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     /** 양의 정수로 해석할 수 없으면 {@code null}. */

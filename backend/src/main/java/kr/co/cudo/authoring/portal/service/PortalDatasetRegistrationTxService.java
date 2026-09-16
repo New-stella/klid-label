@@ -54,7 +54,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *       포털 작업 허용 근거는 승인이 아니라 출처다({@link PortalWorkableVideoPolicy}).</li>
  *   <li><b>적재 이벤트를 발행하지 않는다</b> — 발행하면 비식별 선두 단계가 이 영상을 집어 간다.</li>
  *   <li><b>원본 경로를 채우지 않는다</b> — 원본 이미지를 복사하지 않았다.</li>
- *   <li><b>라벨 이름으로 마스터를 역매핑하지 않는다</b> — 이름에 유일성 제약이 없어 다른 분류로 저장된다.</li>
+ *   <li><b>라벨 이름으로 마스터를 역매핑하지 않는다</b> — 이름에 유일성 제약이 없어 다른 분류로 저장된다.
+ *       실물 배포본은 분류 식별자 없이 <b>이름 문자열만</b> 싣는다 — 그 경우 이름만 옮기고 마스터에 잇지
+ *       않는다(ADR-068).</li>
  * </ul>
  *
  * @design ADR-068
@@ -83,7 +85,7 @@ public class PortalDatasetRegistrationTxService {
      * @param datasetId     포털 데이터셋 번호
      * @param video         해제본에서 읽은 영상
      * @param vmsClipId     멱등 키 — {@link LsDataRaw#portalDatasetClipId} 로 조립한 값
-     * @param rawFilePathNm 해제본 안 그 영상 폴더 위치
+     * @param rawFilePathNm 해제본 안 그 영상의 프레임들이 공유하는 폴더 위치
      * @param stagingDir    이미지를 미리 복사해 둔 작업 중 자리(비식별 프레임 영역 안)
      * @param deidBase      비식별 저장소 base — 서빙 판정기가 쓰는 것과 <b>같은 표기</b>(절대·정규화)
      * @param movedTo       이름 바꾸기에 성공한 최종 자리를 담는다
@@ -143,6 +145,12 @@ public class PortalDatasetRegistrationTxService {
         if (video.meta().height() != null && video.meta().height() > 0) {
             metas.add(LsDataMeta.create(rawSn, PortalDatasetLedger.KEY_HEIGHT, video.meta().height().toString()));
         }
+        // 문서의 영상 길이·검증 이벤트 유형 — 내려받기 문서 조립이 되읽는다(없으면 그 칸을 비운다).
+        if (video.meta().lengthSec() != null && video.meta().lengthSec() > 0) {
+            metas.add(LsDataMeta.create(rawSn, PortalDatasetLedger.KEY_LENGTH_SEC,
+                    video.meta().lengthSec().toString()));
+        }
+        addIfFits(metas, rawSn, PortalDatasetLedger.KEY_EVENT_TYPE_CD, video.meta().eventTypeCd());
         metaRepository.saveAll(metas);
         // 이름 바꾸기 전에 모든 문장을 DB 에 보낸다 — 제약 위반을 파일을 옮기기 전에 드러낸다.
         metaRepository.flush();
