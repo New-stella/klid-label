@@ -64,6 +64,8 @@ import {
   bundleRerunsInterpolation,
   isBatchFailed,
   isBatchProcessing,
+  isLeadDeidentFailed,
+  isLeadDeidentRunning,
   type StageBundle,
   type VideoDetail,
 } from '../types';
@@ -76,7 +78,9 @@ import { BundleTargetRow } from './BundleTargetRow';
 type BatchAttentionFields = Pick<
   VideoDetail,
   'batchFailureReason' | 'stages' | 'skippedStages' | 'clearedStages' | 'failedStages'
->;
+> &
+  // 선두 비식별 실패 형상 판정용 — 선택 필드라 기존 호출부·시험 입력은 그대로 성립한다.
+  Partial<Pick<VideoDetail, 'status' | 'deIdntfYn' | 'deidentHistory'>>;
 
 /**
  * 이 영상에 조치가 필요한 배치 **실패**가 있는가.
@@ -122,7 +126,10 @@ export function needsBatchAttention(video: BatchAttentionFields): boolean {
     //   (재수행이 실패해 원상 복구된 영상이 정확히 이 상태다).
     (video.clearedStages ?? []).length > 0 ||
     // ★ 실패한 묶음도 노출 근거다 — 위 두 축 어디에도 걸리지 않는 시계열 위탁 실패가 여기로 들어온다.
-    failedBundlesOf(video).length > 0
+    failedBundlesOf(video).length > 0 ||
+    // ★ 선두 비식별 실패 — 배치 진행 로그를 남기지 않아 위 네 신호가 전부 비어 있다. 이 줄이 없으면
+    //   그 영상에서 조치 영역과 재기동 버튼이 통째로 사라진다(SCREEN-009 · API-167).
+    isLeadDeidentFailed(video)
   );
 }
 
@@ -166,6 +173,10 @@ type BatchPanelFields = BatchAttentionFields & Pick<VideoDetail, 'status'>;
  */
 export function batchPanelMode(video: BatchPanelFields): BatchPanelMode {
   if (isBatchProcessing(video)) return 'processing';
+  // ★ 선두 비식별 재시도는 배치 상태를 선점하지 않으므로 진행 사실을 비식별 이력의 최신 회차로 읽는다.
+  if (isLeadDeidentRunning(video)) return 'processing';
+  // ★ 선두 비식별 실패는 배치 상태가 대기지만 **지금 실패**다(「직전」이 아니다) — 재기동이 받는 형상이다.
+  if (isLeadDeidentFailed(video)) return 'failure';
   if (hasBatchFailure(video)) return isBatchFailed(video) ? 'failure' : 'lastFailure';
   // ★ 여기까지 오면 배치 축에는 아무 실패 신호가 없다. 그래도 **묶음 하나가 실패해 있을 수 있다** —
   //   시계열 위탁 실패가 정확히 그 경우다(파이프라인을 멈추지 않아 배치 축이 조용하다). 이 분기가
@@ -323,6 +334,28 @@ function bundleMemberSubtitle(bundle: StageBundle): string | undefined {
 const RETRY_HINT_ID = 'batch-retry-hint';
 
 /**
+ * 선두 비식별 실패 영상의 사유 자리 문구. [@design SCREEN-009]
+ *
+ * 이 영상은 서버가 배치 실패 사유를 내려주지 않는다(선두 비식별은 배치 진행 로그를 남기지 않는다).
+ * 원인을 지어내지 않고 **확정된 사실**(비식별이 끝나지 않았다)과 **확인할 곳**만 말한다.
+ * 서버 문구가 아니므로 「서버가 보낸 그대로」 표식을 붙이지 않는다.
+ */
+const LEAD_DEIDENT_REASON =
+  '비식별 처리가 완료되지 않아 마킹을 시작할 수 없습니다. 회차별 처리 상태는 아래 비식별 이력에서 확인하세요.';
+
+/**
+ * 선두 비식별 실패 영상의 재기동 안내. [@design SCREEN-009] [@design API-167]
+ *
+ * ★ 이 영상에서 재기동은 **마킹 이후 단계가 아니라 적재 직후와 같은 선두 비식별 단계**를 다시 돈다.
+ *   일반 안내(「실패한 단계부터 이어서」)를 그대로 쓰면 무엇이 다시 도는지를 틀리게 말한다.
+ */
+const LEAD_DEIDENT_RETRY_HINT =
+  '요청을 접수하면 적재 직후와 같은 비식별 단계를 처음부터 다시 수행합니다. 성공하면 마킹을 시작할 수 있는 상태가 됩니다. 진행 상황은 아래 비식별 이력에서 확인하세요.';
+
+/** 선두 비식별 재시도 접수 응답의 단계 값 — 배치 상태를 선점하지 않아 대기 그대로다. [@design API-167] */
+const RETRY_ACCEPTED_STAGE_PENDING = 'PENDING';
+
+/**
  * 재수행 파괴 경고 id — **묶음마다 유일**해야 한다. [@design API-201]
  *
  * 이 문단은 버튼을 <b>누르기 전에</b> 이미 화면에 있고, 그 묶음의 재수행 버튼이 `aria-describedby`
@@ -436,12 +469,17 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   const [rerunConfirmTarget, setRerunConfirmTarget] = useState<StageBundle | null>(null);
 
   const retry = useRetryBatch(video.id, {
-    onSuccess: () => {
+    onSuccess: (data) => {
       // ★ "재실행을 시작했다"가 아니다 — 서버는 접수만 확정하고 실행은 비동기로 넘긴다.
       //   완료로 읽히는 문구를 쓰면 사용자가 결과를 다 본 것으로 오해한다.
+      // ★ 단계 값이 대기(PENDING)여도 **정상 접수**다 — 선두 비식별 재시도는 배치 상태를 선점하지
+      //   않는다(API-167). 오류로 다루지 않고, 진행을 볼 곳만 비식별 이력으로 바꿔 알린다.
       pushToast({
         variant: 'success',
-        message: '배치 재실행 요청을 접수했습니다. 진행 상황은 처리 단계에서 확인하세요.',
+        message:
+          data?.stage === RETRY_ACCEPTED_STAGE_PENDING
+            ? '배치 재실행 요청을 접수했습니다. 비식별 단계부터 다시 수행하며 진행 상황은 비식별 이력에서 확인하세요.'
+            : '배치 재실행 요청을 접수했습니다. 진행 상황은 처리 단계에서 확인하세요.',
       });
     },
     onError: (err) =>
@@ -498,12 +536,15 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   const mode = batchPanelMode(video);
   const processing = mode === 'processing';
   // ★ "실패 기록이 있는가"(축)와 "실패로 말할 것인가"(모드)를 분리한다 — 처리 중에도 기록은 남는다.
-  const failed = hasBatchFailure(video);
+  // ★ 선두 비식별 실패 — 배치 진행 로그가 없어 아래 두 축(`failed`·`currentlyFailed`)이 모두 거짓으로
+  //   나온다. 그대로 두면 사유 영역도 재기동 버튼도 서지 않는다(SCREEN-009 · API-167).
+  const leadDeidentFailed = isLeadDeidentFailed(video);
+  const failed = hasBatchFailure(video) || leadDeidentFailed;
   // ★ 그리고 "지금 실패 상태인가"는 **또 다른 축**이다. `failed` 는 진행 로그(서버가 남긴 기록)에서
   //   오고, 이 값은 **영상 상태**에서 온다. 묶음 재수행이 실패하면 서버는 영상을 완주로 원상 복구하되
   //   로그에는 실패를 남기므로 두 값이 갈린다 — 그 구간에서 둘을 같은 것으로 다루면 화면이 "전 단계
   //   완료"와 "배치 처리 실패"를 동시에 내밀고, 그때의 전체 재기동 버튼은 누를 때마다 막힌다.
-  const currentlyFailed = isBatchFailed(video);
+  const currentlyFailed = isBatchFailed(video) || leadDeidentFailed;
   // 전체 재기동(배치 재실행) 창구를 둘 것인가 — 서버가 받는 조건은 **영상 상태가 실패**뿐이다.
   //   ⚠ 처리 중은 그 실패 상태를 **방금 선점한 같은 흐름**이라 버튼을 지우지 않고 남긴다(비활성 +
   //     사유 문구). 여기서 지우면 접수 직후 버튼이 사라졌다가 다시 나타나 사용자가 무엇이 일어났는지
@@ -511,7 +552,9 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   //   ⚠ 실패 기록 자체가 없으면(건너뛴 채 완주한 영상 등) 예전처럼 두지 않는다 — 조건을 넓히지 않는다.
   const canShowRetry = failed && (currentlyFailed || processing);
   // 실패 **단계**는 사유 영역의 표시에만 쓴다 — 조작 축(묶음)은 아래 `failedBundles` 가 소유한다.
-  const failedStage = stages.find((s) => s.status === 'FAIL') ?? null;
+  //   선두 비식별 실패는 진행 로그가 없어 `stages` 에 FAIL 이 없으므로 그 단계 이름을 직접 세운다.
+  const failedStageName =
+    stages.find((s) => s.status === 'FAIL')?.name ?? (leadDeidentFailed ? 'DEIDENTIFY' : null);
   // ★ 건너뛰기를 열 **묶음**은 서버 판정(`failedStages`)이 정한다 — 화면이 `stages` 에서 재유도하지
   //   않는다. 구 구현은 진행 축의 FAIL 을 묶음으로 역해석했는데, 시계열 위탁 실패는 그 축에 아무
   //   흔적을 남기지 않아 **버튼이 영영 뜨지 않았다**(ADR-050 의 두 입구 중 하나가 닫혀 있었다).
@@ -541,7 +584,9 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   const showRetry = canShowRetry && !isDerivative;
   // 서버 문구임을 드러내는 표식(시안 `.fp-verbatim`)은 **단계 칩이 없을 때**만 둔다 — 칩이 있으면
   // 사유가 어디서 왔는지가 이미 분명하고, 늘 붙이면 표식이 배경 소음이 된다.
-  const showVerbatimNote = failed && (!failedStage || isDerivative);
+  //   ⚠ 선두 비식별 실패의 사유 자리 문구는 화면 문구라 표식을 붙이지 않는다.
+  const reasonFromServer = !(leadDeidentFailed && !video.batchFailureReason);
+  const showVerbatimNote = failed && reasonFromServer && (!failedStageName || isDerivative);
 
   return (
     <section
@@ -612,7 +657,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
               <span className="text-label text-danger-700">
                 {currentlyFailed ? '실패 단계' : '직전 실패 단계'}
               </span>
-              {failedStage ? (
+              {failedStageName ? (
                 // 시안 `.fp-stage-chip` — 단계를 본문에서 떼어 알약으로 세운다.
                 <span
                   className="inline-flex items-center gap-1.5 rounded-sm bg-danger-100 px-2.5 py-0.5 text-label text-danger-700"
@@ -622,7 +667,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                     className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger-500"
                     aria-hidden
                   />
-                  {stageLabel(failedStage.name)}
+                  {stageLabel(failedStageName)}
                 </span>
               ) : (
                 <span className="text-body-md text-danger-700" data-testid="batch-failure-stage">
@@ -635,7 +680,8 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
               className="whitespace-pre-wrap text-body-md text-danger-800"
               data-testid="batch-failure-reason"
             >
-              {video.batchFailureReason ?? '기록된 사유가 없습니다.'}
+              {video.batchFailureReason ??
+                (leadDeidentFailed ? LEAD_DEIDENT_REASON : '기록된 사유가 없습니다.')}
             </p>
             {showVerbatimNote && (
               <p
@@ -882,7 +928,9 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
             >
               {processing
                 ? '이미 처리 중이라 지금은 다시 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤 결과를 확인하세요.'
-                : '요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요.'}
+                : leadDeidentFailed
+                  ? LEAD_DEIDENT_RETRY_HINT
+                  : '요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요.'}
             </p>
           )}
           {showRetry && (
@@ -894,7 +942,11 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                 disabled={busy || processing}
                 loading={retry.isPending}
                 aria-describedby={RETRY_HINT_ID}
-                onClick={() => retry.mutate()}
+                onClick={() =>
+                  retry.mutate({
+                    deidentBaselineProcLogSn: video.deidentHistory?.[0]?.procLogSn ?? null,
+                  })
+                }
               >
                 배치 재실행
               </Button>

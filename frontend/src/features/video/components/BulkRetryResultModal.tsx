@@ -60,6 +60,15 @@ export function BulkRetryResultModal({
           접수 <strong className="tabular-nums">{result.successCount}</strong>건 · 접수하지 못함{' '}
           <strong className="tabular-nums">{result.failureCount}</strong>건
         </p>
+        {/* [@design SCREEN-008] [@design API-199] 한 건도 접수되지 않은 경우를 **말로** 짚는다.
+            ★ 전건이 받아들여지지 않아도 서버는 200 이고 이 창은 열린다 — 그런데 숫자 0 만 있으면
+              「아무 일도 없었다」로 읽혀 사용자가 같은 선택을 반복한다(사용자 신고: 「선택해서 재시도해도
+              아무 반응이 없다」). 무엇을 봐야 하는지를 숫자 옆이 아니라 문장으로 알린다. */}
+        {result.successCount === 0 && (
+          <p className="text-body-md font-medium text-danger-700" data-testid="bulk-retry-none-accepted">
+            한 건도 접수되지 않았습니다. 아래 영상별 사유를 확인하세요.
+          </p>
+        )}
         {/* 접수 = 재기동을 받아들였다는 뜻이지 처리가 끝났다는 뜻이 아니다. */}
         {result.successCount > 0 && (
           <p className="text-caption text-gray-600" data-testid="bulk-retry-accepted-note">
