@@ -22,6 +22,7 @@ set -euo pipefail
 #     ./scripts/make-patch-media.sh --baseline=<커밋> --id klid-at-patch-YYYYMMDD
 #     ./scripts/make-patch-media.sh --baseline=<커밋> --out <디렉터리>
 #     ./scripts/make-patch-media.sh --baseline=<커밋> --no-tar   # tar.gz 생략
+#     ./scripts/make-patch-media.sh --baseline=<커밋> --no-src   # 소스(onprem/src) 미포함 — 산출물만
 #
 #   ⚠ 기준선은 <추측하지 않는다>. 현장에 실제로 깔린 판이며, 모르면 만들지 않는다.
 #     증분 목록이 그 값에서 나오므로 틀리면 적용해야 할 스키마 변경이 <조용히 빠진다>.
@@ -37,14 +38,15 @@ source "${SELF_DIR}/lib/schema_targets.sh"
 REPO="$(repo_root)"
 ONPREM="$(onprem_root)"
 
-BASELINE=""; PATCH_ID=""; OUT_PARENT="${REPO}/deploy"; DO_TAR=1
+BASELINE=""; PATCH_ID=""; OUT_PARENT="${REPO}/deploy"; DO_TAR=1; DO_SRC=1
 for arg in "$@"; do
   case "${arg}" in
     --baseline=*) BASELINE="${arg#*=}" ;;
     --id=*)       PATCH_ID="${arg#*=}" ;;
     --out=*)      OUT_PARENT="${arg#*=}" ;;
     --no-tar)     DO_TAR=0 ;;
-    --help|-h)    sed -n '3,30p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    --no-src)     DO_SRC=0 ;;
+    --help|-h)    sed -n '3,29p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "알 수 없는 옵션: ${arg} (--help 로 사용법)" ;;
   esac
 done
@@ -335,6 +337,9 @@ info "[patch] 실린 증분과 대조 결과 — db/incremental/증분-대조-�
 #   klid_export_source 주석에 있다(구 제외목록 방식은 backend/storage 의 운영 영상·프레임
 #   636MB 를 매체로 함께 내보낼 상태였다). 그 헬퍼가 그동안 <호출처가 없어> 실제로는
 #   돌지 않았다 — 여기가 첫 배선이다.
+# ★ 기본은 소스를 싣는다. `--no-src` 는 산출물만 필요한 회차용 선택 옵션이며(2026-09-17 사용자
+#   확정), 그때는 onprem/src 를 만들지 않고 VERSION.txt 의 source= 도 그 사실대로 적는다.
+if [[ "${DO_SRC}" == "1" ]]; then
 SRC_DEST="${MEDIA}/onprem/src"
 klid_export_source backend   "${SRC_DEST}"
 klid_export_source frontend  "${SRC_DEST}"
@@ -356,6 +361,9 @@ _src_media="$(find "${SRC_DEST}" -type f \( -iname '*.mp4' -o -iname '*.jpg' -o 
                -o -iname '*.png' -o -iname '*.webp' \) ! -path '*/src/test/resources/*' -print -quit)"
 [[ -z "${_src_media}" ]] || die "[patch] 소스에 시험 픽스처가 아닌 미디어가 있습니다(개인정보 유출 위험): ${_src_media}"
 ok "[patch] 소스 반입 검증 통과 — 운영 데이터 0 · 픽스처 밖 미디어 0"
+else
+  info "[patch] --no-src — 소스 반입과 그 검증을 건너뜁니다(onprem/src 미생성 · 산출물만)"
+fi
 
 # GPU — 이 회차와 무관하나 읽기 전용 점검 수단은 함께 싣는다.
 [[ -f "${REPO}/deploy/onprem-gpu-delta/scripts/check-gpu-readiness.sh" ]] \
@@ -386,7 +394,11 @@ _n_runtime="$(git -C "${REPO}" diff --name-only "${BASELINE}" HEAD -- backend/sr
   echo "db_increments_shipped=$(printf '%s\n' "${SHIP_MIGS}" | sed '/^$/d' | sed 's/__.*//' | paste -sd, - || true)"
   echo "war_flavors=api.war(${CTX_PASS}) api-strip.war(${CTX_STRIP})"
   echo "fe_channels=${FE_CHANNELS// /,}"
-  echo "source=onprem/src/{backend,frontend,ai-server}   # git 추적 파일만 · SOURCE-INFO.txt 참조"
+  if [[ "${DO_SRC}" == "1" ]]; then
+    echo "source=onprem/src/{backend,frontend,ai-server}   # git 추적 파일만 · SOURCE-INFO.txt 참조"
+  else
+    echo "source=none   # --no-src — 소스 미포함(산출물만)"
+  fi
   echo "gpu_delta_included=no   # 휠이 3.5GB 라 별도 매체"
 } > "${MEDIA}/VERSION.txt"
 
