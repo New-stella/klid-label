@@ -132,13 +132,66 @@ export interface PortalDatasetVideo {
   lastSavedAt: string | null;
 }
 
+/**
+ * 데이터셋 영상 등록 실패 사유 — BE `PortalDatasetRegistrationFailureReason` 미러. @design API-253 @design API-262
+ *
+ * ★ 사유를 문자열 메시지에서 파싱하지 않는다 — 서버가 값으로 보존하는 이유가 그것이다.
+ * ⚠ 값역은 서버가 넓힐 수 있다. 응답 타입은 `string` 으로 받고 판정은 모르는 값을 견딘다
+ *   (표시 축은 런타임 폴백이 가드다 — 타입은 선언일 뿐 강제가 아니다).
+ * ⚠ 어느 값도 경로·표식 파일 이름을 담지 않는다.
+ */
+export const PortalDatasetRegistrationFailureReason = {
+  /** 해제본에 등록할 내용이 없다. */
+  CONTENT_MISSING: 'CONTENT_MISSING',
+  /** 해제본 안의 심볼릭 링크를 열지 않고 멈췄다(fail-closed). */
+  SYMLINK_REJECTED: 'SYMLINK_REJECTED',
+  /** 배포본에 영상이 없다. */
+  NO_VIDEO: 'NO_VIDEO',
+  /** 문서에 영상 파일명이 없다 — 파서가 배포본 스키마를 읽지 못한 경우(2026-09-16 실사고의 사유). */
+  VIDEO_FILENAME_MISSING: 'VIDEO_FILENAME_MISSING',
+  /** 영상 키가 여럿에 걸린다. */
+  AMBIGUOUS_VIDEO_KEY: 'AMBIGUOUS_VIDEO_KEY',
+  /** 영상 키 형식이 맞지 않는다. */
+  INVALID_VIDEO_KEY: 'INVALID_VIDEO_KEY',
+  /** 이미지·문서 짝이 맞지 않는다. */
+  PAIR_MISMATCH: 'PAIR_MISMATCH',
+  /** 문서를 읽을 수 없다. */
+  DOCUMENT_UNREADABLE: 'DOCUMENT_UNREADABLE',
+  /** 이미지가 JPEG 가 아니다. */
+  IMAGE_NOT_JPEG: 'IMAGE_NOT_JPEG',
+  /** 문서의 값이 규격에 맞지 않는다. */
+  INVALID_VALUE: 'INVALID_VALUE',
+  /** 등록이 배포 설정으로 꺼져 있다 — 운영자 설정. */
+  DISABLED: 'DISABLED',
+  /** 등록 중 입출력이 실패했다 — 일시 장애. */
+  IO_ERROR: 'IO_ERROR',
+} as const;
+export type PortalDatasetRegistrationFailureReason =
+  (typeof PortalDatasetRegistrationFailureReason)[keyof typeof PortalDatasetRegistrationFailureReason];
+
 /** 데이터셋 영상 목록 응답 — 페이지 + 등록 상태. @design API-253 */
 export interface PortalDatasetVideoPage {
   /** 서버가 값역을 넓힐 수 있어 문자열로도 받는다 — 모르는 값은 화면이 완료로 읽지 않는다. */
   registrationState: string;
+  /**
+   * 등록 실패 사유 — `FAILED` 일 때만 값이 있고 그 밖에는 `null`. @design API-253
+   * 값역은 `PortalDatasetRegistrationFailureReason` 이나 서버가 넓힐 수 있어 문자열로 받는다.
+   */
+  registrationFailureReason: string | null;
   content: PortalDatasetVideo[];
   totalElements: number;
   totalPages: number;
   number: number;
   size: number;
+}
+
+/**
+ * 등록 재착수 응답 — 목록 응답의 등록 상태·실패 사유와 **같은 값역**을 쓴다. @design API-262
+ *
+ * ⚠ 재착수를 접수했건 이미 완료·진행 중이었건 응답 코드는 언제나 200 이고 구분은 이 본문이 싣는다.
+ *   재착수가 접수됐을 때 `registrationFailureReason` 은 비어 있다.
+ */
+export interface PortalDatasetRegistrationResult {
+  registrationState: string;
+  registrationFailureReason: string | null;
 }
