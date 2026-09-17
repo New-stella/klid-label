@@ -61,7 +61,7 @@
             "success": false,
             "errorCode": "UNAUTHORIZED"
           },
-          "description": "인증 실패. ErrorCode=UNAUTHORIZED 서명 쿼리 호출에서 nonce 쿠키(klid_stream_nonce)가 없거나 유효하지 않아 서명 검증에 실패한 경우를 포함한다.",
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED. Authorization 헤더 없이 호출한 요청에서 클라이언트 바인딩 쿠키(klid_stream_nonce)가 없거나, 봉인 검증에 실패하거나, 다른 사용자에게 발급된 쿠키인 경우를 포함한다. 주소의 서명 쿼리는 이 판정에 쓰이지 않으므로 서명 쿼리가 유효해도 쿠키가 없으면 401 이고, 서명 만료 시각이 지났어도 유효한 쿠키가 있으면 401 이 아니다.",
           "content_type": "application/json"
         },
         "403": {
@@ -131,6 +131,7 @@
       },
       "brownfield": {
         "status": "new",
+        "decided_by": "ADR-071",
         "change_kind": [
           "capability-add"
         ],
@@ -154,10 +155,11 @@
             "type": "string"
           },
           "required": false,
-          "description": "서명 쿼리 호출 방식의 클라이언트 바인딩 nonce. 서명 URL 발급 API 가 응답과 함께 내려주며, URL 에 실리지 않고 서명 검증의 입력으로 쓰인다. 서명 쿼리 호출에서는 필수이며 부재·불일치 시 401 로 거부한다(fail-closed). Authorization 헤더로 직접 호출할 때는 사용하지 않으므로 스키마상 required 로 두지 않는다."
+          "description": "재생 요소 호출(부분 요청 포함)의 인증 판정 수단인 클라이언트 바인딩 쿠키. 서명 URL 발급 API 가 응답과 함께 내려주며(HttpOnly), URL 에 실리지 않는다. 서버는 봉인을 서버 비밀로 검증해 발급자를 복원하고 그 발급자로 영상 단위 인가를 매 요청 다시 판정한다. 재생 요소 호출에서는 필수이며 부재·봉인 검증 실패·다른 사용자에게 발급된 쿠키는 401 로 거부한다(fail-closed). Authorization 헤더로 직접 호출할 때는 사용하지 않으므로 스키마상 required 로 두지 않는다."
         }
       ],
-      "description": "영상 파일을 HTTP Range 지원으로 스트리밍한다(마킹 화면 배속 재생용). 인증된 사용자. 호출 방식은 둘 중 하나다 — ①Authorization 헤더의 JWT(REVIEWER/WORKER)로 직접 호출, ②역할 게이트된 GET /v1/videos/{rawSn}/stream-url 에서 발급받은 단기 서명 쿼리(만료시각·서명 파라미터, Authorization 헤더 없음)로 호출. 서명은 발급 시점에 REVIEWER/WORKER 검증을 거치므로 최종 접근 가능 역할 집합은 동일하다. ②의 서명 검증은 URL 파라미터만으로 이뤄지지 않는다 — 서명 URL 발급 API 가 함께 내려준 nonce 쿠키(klid_stream_nonce)가 요청에 동반되어야 하며, 그 쿠키가 없거나 유효하지 않으면 서명 검증이 실패해 401 이다(fail-closed). URL 만 확보한 제3자의 재사용을 막는 클라이언트 바인딩 장치다. ①의 Authorization 헤더 직접 호출은 이 쿠키를 필요로 하지 않는다.",
+      "description": "영상 파일을 HTTP Range 지원으로 스트리밍한다(마킹 화면 배속 재생용). 인증된 사용자. 호출 방식은 둘 중 하나다 — ①Authorization 헤더의 JWT(REVIEWER/WORKER)로 직접 호출, ②재생 요소가 역할 게이트된 GET /v1/videos/{rawSn}/stream-url 에서 발급받은 주소로 호출(Authorization 헤더 없음). ②의 인증은 발급 창구가 함께 내려준 클라이언트 바인딩 쿠키(klid_stream_nonce) 하나로 판정한다. 부분 요청(Range)을 포함한 매 요청마다 쿠키의 봉인을 서버 비밀로 검증해 발급자를 복원하고, 그 발급자로 영상 단위 인가(REVIEWER 는 전체, WORKER 는 본인 배정분)를 요청 진입부에서 다시 판정한다. 인가는 캐시 뒤가 아니라 진입부에서 판정하므로 캐시가 적중해도 인가를 건너뛰지 않는다. 쿠키가 없거나 봉인 검증에 실패하거나 다른 사용자에게 발급된 쿠키이면 401 로 거부한다(fail-closed). ②의 주소에는 발급 창구가 붙인 서명 쿼리(만료 시각 · 발급자 · 서명)가 계속 실려 오지만 재생 구간의 인증 수단으로 쓰이지 않는다 — 만료 시각이 지났더라도 유효한 쿠키가 동반되면 요청은 통과하고, 서명 쿼리만 있고 유효한 쿠키가 없으면 거부된다. 따라서 주소만 확보한 제3자는 재생할 수 없다. ①의 Authorization 헤더 직접 호출은 이 쿠키를 필요로 하지 않는다. 인증 방식과 무관하게 다음은 종전대로 적용된다 — 비식별이 완료되지 않은 영상의 재생 거부(404, 원본 노출 차단), 비식별 누락 신고가 열린 영상의 재생 차단, 원본 재생은 REVIEWER 가 명시할 때만 허용, Range 부분 응답(206). 포털 업로드 영상의 재생도 같은 인증 축(클라이언트 바인딩 쿠키 판정)을 따른다.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -176,12 +178,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "서명 쿼리 호출 방식의 전제를 명시했다 — 서명 URL 발급 API 가 내려준 nonce 쿠키(klid_stream_nonce)가 요청에 동반되어야 서명 검증이 성립하며, 부재·불일치는 401(fail-closed)이다. Authorization 헤더 직접 호출은 이 쿠키를 쓰지 않는다. 쿠키를 in=cookie 파라미터로 모델링하되 헤더 직접 호출에는 불필요하므로 required=false 로 두고 조건부 필수임을 설명에 명시했다. 기존 서술·응답·파라미터는 삭제 없이 보존했다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T07:52:31.846Z",
+    "change_summary": "재생 구간 인증을 클라이언트 바인딩 쿠키 단독 판정으로 바꾼 결정(ADR-071)을 반영했다. 종전 사양은 「서명 쿼리 호출에서는 nonce 쿠키가 동반되어야 서명 검증이 성립한다」로 주소의 단기 서명(기본 60초)과 쿠키 두 겹을 요구했는데, 짧은 서명이 먼저 만료돼 재생 중 부분 요청이 401 로 거부되고 주소 재발급 시 재생 위치가 처음으로 돌아가는 결함이 있었다. 변경 — ①description: 인증은 쿠키 봉인 검증 → 발급자 복원 → 영상 단위 인가(검수자 전체/작업자 본인 배정분)를 매 요청 진입부에서 재판정(캐시 뒤 아님), 부재·봉인 실패·타 사용자 쿠키는 401. 서명 쿼리(만료 시각·발급자·서명)는 주소에 계속 실리나 재생 인증에 쓰이지 않으며 만료가 지나도 유효 쿠키면 통과함을 명시. 비식별 미완료 거부·신고 차단·원본은 검수자 명시 시에만·Range 동작은 불변. 포털 업로드 영상 재생도 같은 축. ②쿠키 파라미터 설명을 「재생 요소 호출의 인증 판정 수단」으로 교체, required=false(헤더 직접 호출 불요) 유지. ③401 설명을 쿠키 판정 기준으로 교체. ④brownfield.decided_by=ADR-071. 서명 쿼리는 parameters 배열에 원소로 모델링돼 있지 않아 description 서술로만 역할 변경을 적었다. 배열 원소 삭제 없음.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-16T08:56:46.606Z",
     "created_at": "2026-05-30T07:58:33.360Z"
   }
 }

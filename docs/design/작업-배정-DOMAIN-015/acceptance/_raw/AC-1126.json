@@ -46,30 +46,48 @@
       "is_negative": true,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": [],
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "서버 인가 — 작업자는 제외·복원 모두 403, 거부 뒤 상태·이력 불변"
+          },
+          {
+            "done": true,
+            "description": "토큰 없음(401)과 권한 없음(403)이 다른 결말"
+          },
+          {
+            "done": true,
+            "description": "관리자가 검수자 역할 별도 부여 없이 역할 계층으로 통과"
+          },
+          {
+            "done": true,
+            "description": "화면에서 작업자에게 제외·복원 동작 미노출 — 영상 처리 현황은 검수자에게만 「제외됨 N건」·제외 버튼을 두고(VideoListExclusion.test.tsx), 작업 목록·검수 목록은 역할과 무관하게 제외·복원 동작을 두지 않는다(각 exclusion 시험)"
+          }
+        ],
+        "last_updated": "2026-09-16T07:59:38.625Z",
         "module_paths": []
       },
       "derived_domain_ids": [
         "DOMAIN-003"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-043"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 5,
     "stale": true,
-    "stale_reason": "ADR-069의 data.references 변경 — based_on",
-    "change_summary": "파생 사용례를 잇는다 — 영상 제외·복원 사용례가 신설되어 그동안 비워 두었던 파생 출처가 확정됐다. 본문 무변경, 링크 필드만 채운다.",
+    "stale_reason": "SCREEN-008의 data.sections 변경 — references",
+    "change_summary": "검증 상태를 통과로 올린다. 화면 축의 회귀 시험이 생겼고 독립 검증이 확인했다. 작업자에게 제외·복원 동작과 건수 표시가 노출되지 않는다는 것, 작업 목록과 검수 목록에는 역할과 무관하게 그 동작이 없다는 것이 단언으로 고정됐다. 서버 인가 축은 종전대로 별개로 결박돼 있으며 이번 라운드에서 서버 코드는 한 줄도 바뀌지 않았다. 단정과 시나리오는 한 글자도 고치지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T15:14:48.230Z",
+    "last_updated_at": "2026-09-16T08:19:21.195Z",
     "created_at": "2026-09-15T15:06:53.064Z"
   }
 }

@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (144건)
+# UI 컴포넌트 카탈로그 (147건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -146,6 +146,9 @@
 | UI-142 | display: WorkerNameSub | display |
 | UI-143 | display: RateGaugeCard | display |
 | UI-144 | display: ProcessingStackBar | display |
+| UI-156 | overlay: FloatingWindow | overlay |
+| UI-157 | display: TimeseriesAnnotationSummaryCard | display |
+| UI-158 | action: AnnotationWindowStrip | action |
 
 ---
 
@@ -3231,7 +3234,7 @@ display
 
 ## description
 
-마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 단기 서명 스트리밍 URL이며, 로드 실패(서명 만료 등) 시 onSrcError로 상위에 재발급을 요청한다.
+마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 스트리밍 주소이며, 그 주소로 하는 요청의 인증 방식은 주소를 발급한 창구가 정한다(마킹 화면의 내부 영상은 재생 인증 쿠키로 판정하고 주소의 만료 시각은 재생 인증에 쓰지 않는다 — ADR-071). 로드 실패(재생 인증 거부 등) 시 onSrcError로 상위에 재발급을 요청한다. 상위가 src를 교체해도 재생 위치는 보존된다 — 교체 직전 재생 위치를 새 소스의 메타데이터가 불러와진 시점에 복원하며, 소스 교체로 재생이 처음으로 돌아가지 않는다.
 
 ## props_schema
 
@@ -3239,7 +3242,7 @@ display
 
 - **type**: string
 - **required**: true
-- **description**: 영상 스트리밍 URL(HTTP Range 지원, 단기 서명 URL)
+- **description**: 영상 스트리밍 주소(HTTP Range 지원). 인증 방식은 주소를 발급한 창구가 정한다
 
 ### className
 
@@ -3251,13 +3254,17 @@ display
 
 - **type**: () => void
 - **required**: false
-- **description**: 영상 로드 실패(서명 URL 만료 등) 시 호출 — 상위가 스트림 URL을 재발급해 src를 교체한다
+- **description**: 영상 로드 실패(재생 인증 거부 등) 시 호출 — 상위가 스트림 주소를 재발급해 src를 교체하며, 교체 직전 재생 위치는 새 소스의 메타데이터가 불러와진 시점에 복원된다
 
 ### onDurationChange
 
 - **type**: (sec: number) => void
 - **required**: false
 - **description**: 메타데이터 로드로 실제 영상 길이(초)를 얻으면 호출 — 유효한 값(NaN/Infinity 아님, 0 초과)일 때만 통지한다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -10429,4 +10436,428 @@ DS-001
 ## accessibility_notes
 
 role="progressbar" 를 쓰지 않았다 — aria-valuenow 하나만 실을 수 있어 4구간 중 3구간이 소리로 사라지기 때문이다. 대신 role="img" + aria-label 에 네 구간을 한 문장으로 담고(예: '처리현황 분포 — 완료 3,180건 69퍼센트, …'), 눈으로는 범례가 같은 값을 전달한다. 범례 스와치는 aria-hidden 이고 구간 이름은 한글 텍스트로 읽힌다. 구간 폭은 인라인 style 이 아니라 값 단계 클래스(.w-688 등)로 만든다.
+
+
+---
+
+<!-- UI-156 -->
+
+# overlay: FloatingWindow
+
+## name
+
+FloatingWindow
+
+## tags
+
+- common
+- overlay
+- window
+- non-modal
+- draggable
+- resizable
+
+## category
+
+overlay
+
+## variants
+
+### default
+
+- **description**: 기본 크기·기억된 위치로 떠 있는 형태.
+
+### maximized
+
+- **description**: 「크게」로 화면 크기까지 넓힌 형태. 제목 표시줄 버튼이 「원래 크기」로 바뀐다.
+
+### folded
+
+- **description**: 「잠시 접기」로 숨긴 형태. 창 자리는 쓰는 화면의 띠가 대신한다.
+
+## description
+
+뒤 화면을 막지 않는 비모달 창. 제목 표시줄을 끌어 옮기고 모서리를 끌어 크기를 바꾸며, 창이 떠 있는 동안에도 뒤 화면을 계속 조작할 수 있다. 백드롭을 두지 않고 포커스를 창 안에 가두지 않는다는 점에서 Modal·Drawer 와 다르다 — 화면 조작과 창 안 입력을 오가야 하는 작업에 쓴다.
+
+제목 표시줄: 제목·부제·미저장 표시와 조작 버튼(「잠시 접기」 · 「크게」/「원래 크기」 · 닫기)을 둔다. 창 안에 저장되지 않은 변경이 있으면 제목 표시줄에 미저장 표시를 보이며 그 문구는 쓰는 화면이 정한다.
+
+크기: 기본 크기와 최소 크기를 받는다. 「크게」는 창을 화면 크기로 넓히고 「원래 크기」는 넓히기 전 크기로 되돌린다.
+
+접기: 「잠시 접기」는 창을 숨긴다. 숨긴 창은 쓰는 화면이 띄우는 띠의 「펼치기」로 되돌리며, 접는 동안에도 창 안 입력값은 유지된다.
+
+기억: 위치·크기를 브라우저에 기억해 다음에 열 때 복원하며 서버에는 저장하지 않는다. 복원할 위치가 화면 밖이거나 저장소를 읽지 못하면 기본 위치로 연다.
+
+동시에 하나: 한 화면에서 이 창은 동시에 하나만 열린다. 이미 열려 있을 때 여는 동작을 다시 하면 새로 만들지 않고 창을 앞으로 가져온다.
+
+닫기: 제목 표시줄 닫기 · 하단 「닫기」 · Esc(창 안에 포커스가 있을 때만)로 닫기를 요청한다. 저장되지 않은 변경이 있으면 바로 닫지 않고 확인(ConfirmDialog)을 거친다.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 제목 표시줄 제목. 창의 접근성 이름으로도 쓴다.
+
+### subtitle
+
+- **type**: string
+- **required**: false
+- **description**: 제목 옆 부제.
+
+### dirty
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 저장되지 않은 변경 여부. 참이면 제목 표시줄에 미저장 표시를 보이고 닫기 요청 시 확인을 거친다.
+
+### dirtyLabel
+
+- **type**: string
+- **required**: false
+- **description**: 제목 표시줄 미저장 표시 문구.
+
+### folded
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 「잠시 접기」로 숨긴 상태.
+
+### onFoldChange
+
+- **type**: (folded: boolean) => void
+- **required**: false
+
+### maximized
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 「크게」로 넓힌 상태.
+
+### onMaximizeChange
+
+- **type**: (maximized: boolean) => void
+- **required**: false
+
+### defaultSize
+
+- **type**: { width: number; height: number }
+- **required**: false
+- **description**: 처음 열 때와 복원 실패 시의 크기.
+
+### minSize
+
+- **type**: { width: number; height: number }
+- **required**: false
+- **description**: 크기조절의 하한.
+
+### storageKey
+
+- **type**: string
+- **required**: false
+- **description**: 위치·크기를 브라우저에 기억할 때 쓰는 구분 이름.
+
+### onRequestClose
+
+- **type**: () => void
+- **required**: true
+- **description**: 닫기 요청. 미저장 확인은 이 요청을 받은 쪽이 거친다.
+
+### footer
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 하단 바 슬롯.
+
+### children
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 본문.
+
+## usage_example
+
+SCREEN-005 라벨링 캔버스 화면·SCREEN-019 검수 상세 화면의 「영상 분석 설명 · 이벤트 어노테이션」 창. 제목 「영상 분석 설명 · 이벤트 어노테이션」, 부제는 라벨링 「외부 분석 설명과 사건 판단 정보를 크게 보고 고치는 창 · 영상 전체에 해당하므로 프레임을 넘겨도 같습니다」 / 검수 「외부 분석 설명과 사건 판단 정보를 크게 보는 창 · 영상 전체에 해당하므로 프레임을 넘겨도 같습니다」, 미저장 문구 「저장 안 된 변경」. 기본 크기 1440×810(뷰포트 약 75%), 최소 560×640. 뒤 화면의 캔버스·타임라인·우측 탭은 창이 떠 있어도 조작할 수 있다. 본문은 왼쪽 TimeseriesSidePanel · 오른쪽 EventAnnotationPanel 두 칸(폭 비율 5:7)이며, 창 폭이 880 미만이면 두 칸을 위아래로 쌓는다. 라벨링은 하단 바에 「바뀐 칸만 저장합니다 — {칸 이름}」(바뀐 게 없으면 「고친 내용이 없습니다.」)과 「닫기」「저장」을 두고, 검수는 하단 바를 두지 않는다. 저장 안 된 변경이 있는 채로 닫기를 요청하면 확인(ConfirmDialog)을 거치며, 제목은 「저장하지 않은 변경이 있습니다」, 본문은 「닫으면 고친 내용이 사라집니다. 바뀐 칸: {칸 이름}」, 버튼은 「저장하고 닫기」「저장하지 않고 닫기」「계속 작성」이다. 우측 메타 탭의 TimeseriesAnnotationSummaryCard 가 이 창을 열고, 접힘·근거 지정 중에는 AnnotationWindowStrip 이 창 자리를 대신한다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=dialog 에 aria-modal=false 를 주어 비모달임을 알리고 제목을 접근성 이름으로 쓴다. 포커스를 가두지 않아 뒤 화면으로 탭 이동할 수 있다. 끌기를 대신하는 수단으로 제목 표시줄의 「잠시 접기」·「크게」/「원래 크기」 버튼을 두고, 아이콘만 있는 버튼마다 이름을 준다. Esc 는 창 안에 포커스가 있을 때만 닫기를 요청한다. 창 안 입력에 포커스가 있는 동안에는 뒤 화면의 단축키가 동작하지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-019
+
+
+---
+
+<!-- UI-157 -->
+
+# display: TimeseriesAnnotationSummaryCard
+
+## name
+
+TimeseriesAnnotationSummaryCard
+
+## tags
+
+- feature:label
+- review
+- annotation
+- summary
+- card
+- window
+
+## category
+
+display
+
+## variants
+
+### editable
+
+- **description**: 라벨링(SCREEN-005). 검토 상태 행을 두고 닫힌 상태 버튼은 「크게 보기 · 작성」. 보조 설명의 두 번째 문장은 「전문은 「크게 보기 · 작성」으로 여는 창에서 보고 고칩니다.」다.
+
+### readOnly
+
+- **description**: 검수(SCREEN-019). 검토 상태 행을 두지 않고 닫힌 상태 버튼은 「크게 보기」. 보조 설명의 두 번째 문장은 「전문은 「크게 보기」로 여는 읽기 전용 창에서 확인합니다.」다.
+
+## description
+
+라벨링·검수 화면의 우측 메타 탭에서 「영상 분석 설명 · 이벤트 어노테이션」 창을 여는 요약 카드. 공통 Card 표면 위에 제목 「영상 분석 설명 · 이벤트 어노테이션」과 설명 「외부 분석이 적은 영상 설명과, 학습데이터에 함께 저장되는 사건 판단 정보입니다.」를 두고, 그 아래 요약 항목과 맨 아래 버튼 하나를 둔다. 설명 아래에는 왜 이 자리에 요약만 두는지 알리는 보조 설명 한 줄을 둔다 — 검수는 「좁은 탭에서 읽기 어려워 여기에는 간추린 값만 둡니다. 전문은 「크게 보기」로 여는 읽기 전용 창에서 확인합니다.」이고, 라벨링은 창이 읽기 전용이 아니고 버튼 문구도 달라 두 번째 문장을 「전문은 「크게 보기 · 작성」으로 여는 창에서 보고 고칩니다.」로 쓴다. 이 설명 두 줄은 메타 탭 패널의 도움말 토글이 켜졌을 때만 보이며 기본은 감춤이다 — 토글은 이 카드가 아니라 패널이 소유하고 탭의 설명 문장을 한꺼번에 여닫는다. 필드·섹션별 팝업이나 카드 안 편집 동선은 두지 않는다 — 편집·열람은 창에서 한다. 이 카드에서는 「시계열」이 아니라 「영상 분석 설명」이라고 쓴다.
+
+항목: 이벤트 분류(이름 + 코드, 이름을 모르는 코드는 코드만) · 영상 분석 설명(첫 줄) · 검토 상태(라벨링에서만 — 이벤트 어노테이션 상태). 검수에서는 검토 상태 행을 두지 않는다. 아직 채우지 않은 항목을 알리는 행은 두지 않는다 — 창을 열면 무엇이 비었는지 바로 보인다.
+
+버튼과 상태 표시: 창이 닫혀 있으면 라벨링 「크게 보기 · 작성」, 검수 「크게 보기」를 보인다. 창이 열려 있으면 「창 앞으로 가져오기」와 상태 표시 「창 열림」, 접혀 있으면 「창 펼치기」와 「창 접힘」을 보인다. 근거 지정 중에는 비활성 버튼 「근거 지정 중 — 위쪽 띠의 「완료」로 창이 돌아옵니다」와 상태 표시 「근거 지정 중」을 보인다.
+
+## props_schema
+
+### mode
+
+- **type**: 'editable'|'readOnly'
+- **required**: true
+- **description**: editable=라벨링, readOnly=검수(검토 상태 행 없음).
+
+### windowState
+
+- **type**: 'closed'|'open'|'folded'|'picking'
+- **required**: true
+- **description**: 창 상태. 버튼 문구·활성 여부와 상태 표시를 정한다.
+
+### eventTypeCd
+
+- **type**: string | null
+- **required**: false
+- **description**: 이벤트 분류 코드.
+
+### eventTypeName
+
+- **type**: string | null
+- **required**: false
+- **description**: 이벤트 분류 이름. 없으면 코드만 보인다.
+
+### descriptionFirstLine
+
+- **type**: string | null
+- **required**: false
+- **description**: 영상 분석 설명의 첫 줄.
+
+### unfilledItems
+
+- **type**: string[]
+- **required**: false
+- **description**: [폐기] 아직 채우지 않은 항목 행을 없애 이 속성을 쓰지 않는다 — 창을 열면 무엇이 비었는지 바로 보이므로 좁은 메타 탭에 그 행을 두지 않는다.
+
+### reviewStatus
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 이벤트 어노테이션 검토 상태. editable 에서만 보인다.
+
+### onOpenWindow
+
+- **type**: () => void
+- **required**: true
+- **description**: 버튼 동작 — 닫혀 있으면 창을 열고, 열려 있으면 앞으로 가져오고, 접혀 있으면 펼친다.
+
+### helpVisible
+
+- **type**: boolean
+- **required**: false
+- **description**: 메타 탭 패널이 소유한 도움말 토글의 상태. 참일 때만 카드의 설명 두 줄을 보인다. 기본은 거짓(감춤)이다.
+
+## usage_example
+
+SCREEN-005 라벨링 캔버스 화면의 우측 메타 탭(editable) · SCREEN-019 검수 상세 화면의 우측 메타 탭(readOnly). 두 화면 모두 TimeseriesSidePanel·EventAnnotationPanel 이 있던 자리에 이 카드를 두고, 버튼으로 FloatingWindow 창을 연다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+카드 영역에 이름을 준다. 창 상태는 버튼 문구와 상태 표시 글자로 함께 알려 테두리 강조 같은 시각 표시만으로 전하지 않는다. 비활성 버튼은 누를 수 없는 이유를 버튼 문구 자체에 적는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-019
+
+
+---
+
+<!-- UI-158 -->
+
+# action: AnnotationWindowStrip
+
+## name
+
+AnnotationWindowStrip
+
+## tags
+
+- feature:label
+- review
+- annotation
+- evidence
+- strip
+- window
+
+## category
+
+action
+
+## variants
+
+### pick
+
+- **description**: 라벨링 근거 지정 — 담기 두 버튼, 담은 수, 「취소」「완료」, 안내 문장. 「취소」도 「완료」와 같이 창을 원래 크기·위치로 바로 되돌린다.
+
+### evidenceJump
+
+- **description**: 근거 프레임 이동 뒤 접힘 — 「근거 {n} · 프레임 {i}」, 안내, 「펼치기」. 검수(읽기 전용)와 라벨링(편집) 모두 같다.
+
+### folded
+
+- **description**: 「잠시 접기」로 접힘 — 「펼치기」. 안내 한 줄 「영상 분석 설명 · 이벤트 어노테이션 창을 잠시 접었습니다. 다시 보려면 펼치세요.」를 두고, 저장 안 된 변경이 있으면 「저장 안 된 변경 있음」을 병기한다.
+
+## description
+
+「영상 분석 설명 · 이벤트 어노테이션」 창이 숨거나 접혀 있는 동안 화면 위쪽에 떠서 창 자리를 대신하는 띠. 뒤 화면을 가리는 면적을 줄이려고 창 대신 띠만 남기며, 쓰임에 따라 세 형태가 있다.
+
+근거 지정(pick · 라벨링): 이벤트 어노테이션 패널의 근거 후보에서 「화면에서 지정」을 누르면 창을 숨기고 이 형태가 뜬다. 머리 「근거 {n} 지정 중」, 상태 「지금 프레임 {i}/{N} · 고른 객체: {label} (번호 {id})」, 버튼 「지금 프레임 담기」「고른 객체 담기」, 담은 수 「담은 것 · 프레임 {n} · 객체 {m}」, 버튼 「취소」「완료」와 안내 「프레임을 넘기고 화면에서 객체를 고른 뒤 담기 버튼을 누르세요. 「완료」를 누르면 창이 돌아오고 담은 값이 근거 {n}에 들어갑니다. 「취소」는 이번에 담은 것만 버립니다.」를 둔다. 두 담기 버튼은 이벤트 어노테이션 패널의 「현재 프레임 추가」「선택 객체 추가」와 같은 동작이다. 「완료」는 창을 되돌리고 담은 값을 그 근거 후보에 반영하며, 「취소」는 이번 지정에서 담은 것만 버린다. 「취소」도 「완료」와 같이 창을 원래 크기·위치로 바로 되돌린다 — 두 버튼의 창 복원 동작은 같고, 담은 값을 반영하는지만 다르다.
+
+근거 프레임 이동(evidenceJump · 검수·라벨링): 창에서 근거의 프레임 칩을 누르면 뒤 화면이 그 프레임으로 이동하고 창이 접히며 이 형태가 뜬다. 읽기 전용(검수)과 편집(라벨링)이 같다. 「근거 {n} · 프레임 {i}」, 안내 「근거로 적힌 프레임으로 이동했습니다. 확인이 끝나면 창을 펼치세요.」, 버튼 「펼치기」를 둔다.
+
+접힘(folded): 창 제목 표시줄의 「잠시 접기」로 창을 접었을 때 뜨며 「펼치기」로 창을 되돌린다. 안내 한 줄 「영상 분석 설명 · 이벤트 어노테이션 창을 잠시 접었습니다. 다시 보려면 펼치세요.」를 두고, 저장 안 된 변경이 있으면 「저장 안 된 변경 있음」을 병기한다.
+
+어느 형태에서든 창 안에서 입력하던 값은 유지된다. 이 영상에 없는 프레임 번호를 눌렀을 때의 안내 「{번호} — 이 영상에 없는 프레임 번호라 이동하지 않았습니다.」는 이 띠가 아니라 Toast 로 알린다.
+
+## props_schema
+
+### variant
+
+- **type**: 'pick'|'evidenceJump'|'folded'
+- **required**: true
+
+### evidenceNo
+
+- **type**: number
+- **required**: false
+- **description**: 근거 후보 번호(저장 키의 숫자). pick·evidenceJump 에서 쓴다.
+
+### frameIndex
+
+- **type**: number
+- **required**: false
+- **description**: 지금 프레임 순번. pick 의 「{i}/{N}」, evidenceJump 의 「프레임 {i}」.
+
+### frameTotal
+
+- **type**: number
+- **required**: false
+- **description**: 영상의 프레임 수. pick 에서 쓴다.
+
+### selectedObject
+
+- **type**: { label: string; id: string } | null
+- **required**: false
+- **description**: 화면에서 고른 객체의 분류 이름과 번호. pick 에서 쓴다.
+
+### pickedCounts
+
+- **type**: { frames: number; objects: number }
+- **required**: false
+- **description**: 이번 지정에서 담은 프레임·객체 수. pick 에서 쓴다.
+
+### onCaptureFrame
+
+- **type**: () => void
+- **required**: false
+- **description**: 「지금 프레임 담기」.
+
+### onCaptureObject
+
+- **type**: () => void
+- **required**: false
+- **description**: 「고른 객체 담기」.
+
+### onCancel
+
+- **type**: () => void
+- **required**: false
+- **description**: 「취소」 — 이번에 담은 것만 버린다.
+
+### onComplete
+
+- **type**: () => void
+- **required**: false
+- **description**: 「완료」 — 창을 되돌리고 담은 값을 반영한다.
+
+### onExpand
+
+- **type**: () => void
+- **required**: false
+- **description**: 「펼치기」 — evidenceJump·folded 에서 창을 되돌린다.
+
+## usage_example
+
+SCREEN-005 라벨링 캔버스 화면(pick · evidenceJump · folded) · SCREEN-019 검수 상세 화면(evidenceJump · folded). FloatingWindow 창이 숨거나 접힌 동안에만 보이며, 그동안 우측 메타 탭의 TimeseriesAnnotationSummaryCard 는 「근거 지정 중」 또는 「창 접힘」 상태를 보인다.
+
+## attached_files
+
+_(empty)_
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+띠를 이름을 가진 영역으로 두고 머리 문구(예 「근거 1 지정 중」)를 이름으로 쓴다. 띠의 버튼은 모두 키보드로 조작할 수 있고, 띠가 떠 있어도 뒤 화면의 프레임 이동·객체 선택은 그대로 쓸 수 있다. 담은 수가 바뀌면 글자로 갱신해 보조기술이 읽을 수 있게 한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-019
 

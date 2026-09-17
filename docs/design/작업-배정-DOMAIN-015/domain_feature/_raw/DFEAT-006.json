@@ -39,11 +39,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-350"
+          "IMPREC-350",
+          "IMPREC-481"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:19.660Z",
+        "last_updated": "2026-09-16T01:22:26.345Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -70,8 +71,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "제목 열거에 해제를 더한다 — 이 제목은 배정 쓰기 능력을 열거하는 형식인데 이번 라운드에 더한 배정 해제가 빠져 있었다. 본문에는 이미 들어가 있어 제목과 본문이 같은 ITEM 안에서 어긋난 상태였고, 열거만 보고 해제가 없다고 읽히는 것을 막는다. 다른 ITEM 은 제목이 아니라 번호로 참조하므로 파급이 없고 키트 표는 동기화로 재생성된다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T15:27:50.212Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-16T01:22:26.345Z",
     "created_at": "2026-05-29T06:27:25.405Z"
   }
 }

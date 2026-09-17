@@ -16,13 +16,13 @@
         "forwardRef"
       ],
       "category": "display",
-      "description": "마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 단기 서명 스트리밍 URL이며, 로드 실패(서명 만료 등) 시 onSrcError로 상위에 재발급을 요청한다.",
+      "description": "마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 스트리밍 주소이며, 그 주소로 하는 요청의 인증 방식은 주소를 발급한 창구가 정한다(마킹 화면의 내부 영상은 재생 인증 쿠키로 판정하고 주소의 만료 시각은 재생 인증에 쓰지 않는다 — ADR-071). 로드 실패(재생 인증 거부 등) 시 onSrcError로 상위에 재발급을 요청한다. 상위가 src를 교체해도 재생 위치는 보존된다 — 교체 직전 재생 위치를 새 소스의 메타데이터가 불러와진 시점에 복원하며, 소스 교체로 재생이 처음으로 돌아가지 않는다.",
       "props_schema": [
         {
           "name": "src",
           "type": "string",
           "required": true,
-          "description": "영상 스트리밍 URL(HTTP Range 지원, 단기 서명 URL)"
+          "description": "영상 스트리밍 주소(HTTP Range 지원). 인증 방식은 주소를 발급한 창구가 정한다"
         },
         {
           "name": "className",
@@ -34,7 +34,7 @@
           "name": "onSrcError",
           "type": "() => void",
           "required": false,
-          "description": "영상 로드 실패(서명 URL 만료 등) 시 호출 — 상위가 스트림 URL을 재발급해 src를 교체한다"
+          "description": "영상 로드 실패(재생 인증 거부 등) 시 호출 — 상위가 스트림 주소를 재발급해 src를 교체하며, 교체 직전 재생 위치는 새 소스의 메타데이터가 불러와진 시점에 복원된다"
         },
         {
           "name": "onDurationChange",
@@ -43,6 +43,7 @@
           "description": "메타데이터 로드로 실제 영상 길이(초)를 얻으면 호출 — 유효한 값(NaN/Infinity 아님, 0 초과)일 때만 통지한다"
         }
       ],
+      "attached_files": [],
       "design_system_id": "DS-001",
       "accessibility_notes": "버퍼링/탐색 중 오버레이는 role=status로 노출해 스크린리더에 상태를 알린다.",
       "referenced_by_screen_ids": [
@@ -51,12 +52,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "props_schema가 src 하나뿐이던 것을 실제 컴포넌트 계약(className·onSrcError·onDurationChange)으로 채우고, description의 \"현재 시간/프레임(30fps) 조회\"를 정정 — fps는 고정값이 아니라 호출부가 실제 영상 fps를 넘기는 필수 인자다(다른 fps 영상에서 프레임 위치가 어긋나는 것을 막기 위한 설계). 버퍼링 스피너의 role=status 접근성 사실을 신규 기재.",
+    "change_summary": "재생 인증·재발급 서술을 ADR-071 에 맞춘다 — src 를 「단기 서명 URL」로 한정하던 서술을 「인증 방식은 발급 창구가 정한다(내부 마킹 영상은 재생 인증 쿠키)」로 바꾸고(포털 업로드 영상은 종전 단기 서명이라 채널 중립으로 적었다), 로드 실패 원인을 「재생 인증 거부」로, src 교체 시 재생 위치 보존(메타데이터 로드 시점 복원)을 명시했다. SCREEN-006 v55 와 정합. status 는 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T19:13:48.675Z",
+    "last_updated_at": "2026-09-16T09:21:14.218Z",
     "created_at": "2026-06-02T13:13:02.259Z"
   }
 }

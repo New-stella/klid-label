@@ -642,6 +642,27 @@
               "visibility": "public",
               "is_abstract": false,
               "return_type": "void"
+            },
+            {
+              "name": "lockRawForDeidentRetry",
+              "params": [
+                "rawSn: Long",
+                "ownerId: String"
+              ],
+              "is_static": true,
+              "visibility": "public",
+              "description": "선두 비식별 실패 영상의 배치 재시작 작업락 생성 — 영상 단위(TARGET_RAW)·lockId 에 재시작 접두·6시간 만료. 같은 영상의 활성 락 유일성으로 동시 선점은 1건만 성립한다.",
+              "is_abstract": false,
+              "return_type": "AuthWorkLock"
+            },
+            {
+              "name": "isDeidentRetryLock",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "선두 비식별 재시작이 잡은 락인가(lockId 접두 판정) — 해제 범위를 이 종류로 한정하는 판정.",
+              "is_abstract": false,
+              "return_type": "boolean"
             }
           ],
           "attributes": [
@@ -796,7 +817,7 @@
               }
             }
           ],
-          "description": "비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK)",
+          "description": "비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK) 선두 비식별 실패 영상의 배치 재시작도 같은 영상 단위 작업락을 잡으며, 스키마 변경 없이 lockId 접두로 그 종류를 가린다. 이 재시작 작업락은 선두 비식별의 성공·모든 실패 종결에서 해제되고, 해제는 그 종류의 락에만 한정돼 다른 기능이 잡은 락은 풀지 않는다.",
           "enum_values": [],
           "stereotypes": []
         },
@@ -869,6 +890,14 @@
           "label": "stage",
           "to_multiplicity": "0..1",
           "from_multiplicity": "0..*"
+        },
+        {
+          "to": "AuthWorkLock",
+          "from": "DeidentProcLog",
+          "kind": "dependency",
+          "label": "선두 비식별 종결 시 재시작 작업락만 해제(동일 DATA_RAW_SN)",
+          "to_multiplicity": "0..*",
+          "from_multiplicity": "1"
         }
       ],
       "attached_files": [],
@@ -893,12 +922,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
-    "stale": true,
-    "stale_reason": "AC-1067의 data.scenario 변경이 depicts로 2-hop 전파",
-    "change_summary": "비식별 처리 이력 요청종류 값역에 EXCLUDED(비식별 제외)가 더해지고 선두 비식별 단계에 출처유형 제외 분기가 생긴 것(ADR-066 · ERD-017 · DFEAT-041)을 도메인 모델에 반영한다. ①다이어그램 설명의 「전체 영상을 대상으로 적재 직후 자동 시작한다」 문장 뒤에 예외 문단을 순수 삽입했다 — 제외 목록에 든 출처유형 영상은 위탁 대신 원본 복사로 완료하고 요청종류 EXCLUDED 행을 남기며(성공 SUCCEEDED+복사본 경로 / 실패 FAILED), 외부 진행 상태가 없어 폴링·수락 대기 유예 회수 대상이 아니고, 검수 완료 재비식별은 이 제외를 타지 않는다. ②DeidentProcLog 클래스 설명의 「위탁·폴링 이력」 뒤에 「(출처유형 제외 행 포함)」을 삽입했다(클래스 설명 상한 500자라 짧은 표기만 넣고 상세는 속성·다이어그램 설명으로 보냈다). ③설명이 비어 있던 reqKndCd 속성에 값역(null·REDEIDENT·EXCLUDED)과 EXCLUDED 행의 성질을 적었다. 클래스·메서드·enum·관계는 추가·삭제하지 않았고 기존 서술은 한 글자도 바꾸지 않았다. 제외 출처유형 목록을 보유하는 속성은 이 도메인 모델에 두지 않았다 — 배포 설정 값이라 도메인 객체의 속성으로 그릴지는 설계자 확인 대상이다.",
+    "current_version": 16,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "CO-20260916-선두비식별-실패-수동재시도 구현 후 대조. 작업락 엔티티(AuthWorkLock)에 선두 비식별 실패 영상 배치 재시작용 생성 메서드 lockRawForDeidentRetry 와 종류 판정 isDeidentRetryLock 을 추가하고(스키마 변경 없이 lockId 접두로 종류 구분), 클래스 설명 끝에 재시작 작업락의 존재·해제 범위를 순수 삽입했다. DeidentProcLog → AuthWorkLock 의존 관계(선두 비식별 종결 시 재시작 작업락만 해제)를 추가했다. 기존 클래스·속성·메서드·관계·서술은 바꾸지 않았다. 재시작 판정·선점 협력자는 이 다이어그램이 서비스 계층을 클래스로 그리지 않는 관례라 클래스로 넣지 않았고, 위탁 프로젝트 이름 규칙(첫 위탁 raw{n}, 재위탁 raw{n}r{이력번호})은 어느 엔티티에도 저장되지 않는 위탁 요청 조립 규칙이라 도메인 모델에 두지 않았다(정본 INT-004 · DFEAT-041). 쓰기 전 stale 사유: AC-1133 scenario 변경의 depicts 2-hop 전파(이번 CO 2차 라운드와 같은 축).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-14T03:51:57.175Z",
+    "last_updated_at": "2026-09-17T01:09:13.398Z",
     "created_at": "2026-06-02T08:48:21.895Z"
   }
 }

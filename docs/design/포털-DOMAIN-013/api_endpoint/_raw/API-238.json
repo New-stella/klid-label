@@ -215,12 +215,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
-    "change_summary": "신설 — 포털 업로드 영상 재생 창구(구간 요청 지원). 마킹 화면이 마킹할 영상을 재생하는 데 쓰며, 이 경로의 자산에는 비식별 단계가 없어 사용자가 올린 원본을 서빙한다. 재생은 프레임 추출 여부를 묻지 않는다 — 마킹이 추출보다 앞서기 때문이다. 본인 자산이 아닌 경우와 없는 자산은 포털 자산 창구와 같은 규칙으로 한 코드로 거부한다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "포털 재생 인증 서술을 v1 로 복원한다. 사용자 결정(2026-09-16): 재생 구간 쿠키 단독 인증(ADR-071)은 내부 채널에만 적용하고 포털은 이번 범위에서 제외한다 — 포털은 호스트 화면 안에서 실행되는 환경이라 쿠키가 스트림 요청에 실리는지 확인되지 않았다. v2 의 쿠키 단독 서술(본문 호출 방식 절 · 401 설명)을 걷어내고 v1 원문으로 되돌린다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T08:33:52.994Z",
+    "last_updated_at": "2026-09-16T09:15:15.672Z",
     "created_at": "2026-09-02T08:33:52.994Z"
   }
 }

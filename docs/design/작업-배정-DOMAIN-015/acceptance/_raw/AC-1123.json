@@ -40,30 +40,33 @@
       "is_negative": true,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-480"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-09-16T01:22:06.202Z",
         "module_paths": []
       },
       "derived_domain_ids": [
         "DOMAIN-015"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-029"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": true,
-    "stale_reason": "ADR-069의 data.references 변경 — based_on",
-    "change_summary": "말미 귀결 한 줄의 범위를 앞 본문과 맞춘다(ADR-069). 구 서술은 「작업이 진행된 영상은 제외할 수 없다」로 넓어, 이 기준 자신이 결박한 「반려는 해제된다」와 한 ITEM 안에서 모순이었다 — 반려도 작업이 진행된 상태이기 때문이다. 범위를 검수 단계에 들어간 영상(검수 대기·검수 중·승인)으로 좁히고, 반려된 영상은 배정을 해제한 뒤 제외할 수 있다를 함께 적는다. 처음부터 부정확했던 서술이라 폐기 병기가 아니라 교체다. 그 한 줄 외에는 제목·본문·시험 단계·기대결과·관측점·거부 상태 열거·전용 오류 어휘 서술·링크 배열을 하나도 건드리지 않았다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검증 상태를 통과로 올린다. 화면 축의 회귀 시험이 생겼고 독립 검증이 양방향 변이로 확인했다. 검수 대기와 검수 중과 승인은 해제가 미리 막히고 반려는 열린다는 갈림이, 막는 집합에 반려를 더하는 변이와 그 집합에서 하나를 빼는 변이 양쪽에서 각각 실패로 드러났다. 막는 것과 여는 것의 짝이 모두 있어야 이 기준이 결박된다. 서버 축은 종전대로 별개로 결박돼 있다. 단정과 시나리오는 한 글자도 고치지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-15T15:24:52.146Z",
+    "last_updated_at": "2026-09-16T08:19:32.513Z",
     "created_at": "2026-09-15T15:05:58.365Z"
   }
 }

@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-09-15T15:38:38.072Z (session 21) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 165 |
+| Last sync | 2026-09-17T01:18:26.023Z (session 22) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 172 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
@@ -15,11 +15,18 @@
 |---|---|---|---|---|---|
 | [[AC-1022]] | acceptance | UC-038 배치 자동 처리 — 비식별 선두→마킹 대기→마킹완료 시 잔여단계 논블로킹 수행 (happy) | 7 | true | UNCHANGED |
 | [[AC-1023]] | acceptance | UC-038 파이프라인 분기 — 프리셋 없어 오토라벨 보류·전체 건너뛰기·선점 노드 멈춤 회수 (edge) | 6 | true | UNCHANGED |
+| [[AC-1063]] | acceptance | UC-011 비식별 처리 요청 — KPST 위탁(공유마운트 경로만)→폴링 완료 감지→비식별본 저장·원본 유지·이력·출처유형 제외 시 원본 복사로 완료 (happy) | 9 | true | UNCHANGED |
+| [[AC-1064]] | acceptance | UC-011 비식별 위탁 예외 — 연동 실패 F·원본 보존·수동 재비식별·응답 유실 폴링 회수 F 마감·취소 종결만 상태 불변·신고 구간 보류·제외 복사 실패 F·제외 행 회수 대상 아님·제외 출처유형 오표기는 검수 중 신고로 회수 (negative) | 13 | true | UNCHANGED |
+| [[AC-1066]] | acceptance | UC-016 비식별 상태·이력·누락 신고·해소 — 상태 확인→신고(작업락+F, 라벨 보존)→구간 차단→산출물 선택(무결성 판정)→resolve 원자 클레임·단계별 재개 (happy) | 11 | true | UNCHANGED |
+| [[AC-1067]] | acceptance | UC-016 신고·해소 예외 — 무결성 불통과 409·이미 잠금 409·재-resolve 409·마킹 조건 412·파생 412·타인 403·비식별 실패 F (negative) | 8 | true | UNCHANGED |
+| [[AC-1133]] | acceptance | UC-011 선두 비식별 실패 후 배치 재시작 — 건별·일괄 접수(stage=PENDING·선점 없음)→선두 비식별 1회 재수행→비식별 완료·마킹 준비·잠금 해제, 미실패 영상 불변·자동 재시도 없음 (happy) | 3 | false | UNCHANGED |
+| [[AC-1134]] | acceptance | UC-011 선두 비식별 실패 재시작 거부 — 파생 400·승인 이력/열린 신고/진행 중 위탁 409·동시 요청 1건만 수락·영상 없음 404·작업자 403·재수행 없음 (negative) | 1 | true | UNCHANGED |
+| [[AC-1135]] | acceptance | UC-011 선두 비식별 실패 재시작 잠금 해제 — 모든 실패 종결과 제외 복사 성공에서 해제돼 재요청 수락·다른 기능 잠금 유지 (negative) | 2 | true | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 28 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 9 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 6 | false | UNCHANGED |
-| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 10 | false | UNCHANGED |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 7 | false | UNCHANGED |
+| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 12 | true | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 9 | true | UNCHANGED |
@@ -29,11 +36,11 @@
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
 | [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 17 | false | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 6 | false | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 78 | true | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 80 | true | UNCHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 19 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 24 | false | UNCHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 34 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 27 | true | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 35 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -75,7 +82,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |

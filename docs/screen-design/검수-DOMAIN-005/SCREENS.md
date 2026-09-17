@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-09-15T15:41:37.419Z (session 20) |
+| last sync | 2026-09-17T01:18:28.782Z (session 21) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 147건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |

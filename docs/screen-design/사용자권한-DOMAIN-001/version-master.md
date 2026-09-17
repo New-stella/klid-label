@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-09-15T15:38:38.564Z (session 21) |
+| Last sync | 2026-09-17T01:18:28.199Z (session 22) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 181 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 
@@ -15,8 +15,8 @@
 |---|---|---|---|---|---|
 | [[AC-1016]] | acceptance | UC-041 인증 인계와 채널·역할 인가 — 토큰 인계→발급처 검증→채널·역할 해석→인가 (happy) | 17 | true | UNCHANGED |
 | [[AC-1017]] | acceptance | UC-041 인가 거부 — 역할 미해석·채널 어긋남·토큰 없음/만료 (negative) | 12 | true | UNCHANGED |
-| [[AC-1018]] | acceptance | UC-030 사용자 계정·역할 관리 — 조회·검색·필터·역할 변경(유효창 가산) (happy) | 7 | true | UNCHANGED |
-| [[AC-1019]] | acceptance | UC-030 역할 변경 거부 — 유효창 없음/만료·화이트리스트 밖 400·마지막 관리자 409 (negative) | 6 | false | UNCHANGED |
+| [[AC-1018]] | acceptance | UC-030 사용자 계정·역할 관리 — 조회·검색·필터·역할·표시 이름 변경(유효창 가산) (happy) | 9 | false | UNCHANGED |
+| [[AC-1019]] | acceptance | UC-030 사용자 수정 거부 — 유효창 없음/만료·역할 화이트리스트 밖 400·마지막 관리자 409·표시 이름 빈값/폭 초과 400 (negative) | 10 | false | UNCHANGED |
 | [[AC-1098]] | acceptance | UC-041 역할 미부여 진입자의 이름 조달과 창구 개폐 판정 — 자기 정보 조회→개폐 조회→도착지 갈림 (happy) | 5 | true | UNCHANGED |
 | [[AC-1104]] | acceptance | 관제 채널 토큰 추종과 세션 갱신 — 매 요청 현재 토큰·선제 갱신 1회·401 후 1회 재시도·관제 형식 저장·탭 간 중복 갱신 방지 (happy) | 3 | true | UNCHANGED |
 | [[AC-1105]] | acceptance | 관제 채널 세션 만료 연장 팝업 — 임계 도달 시 표시(감시 주기 되풀이 없음)·「로그아웃」·「로그인 연장」 두 버튼만(ESC·배경 클릭 무반응)·만료 시 로그아웃·셸 밖 전체 화면 적용·미저장 편집 경고와 만료 시 확인 없이 이동 | 8 | false | UNCHANGED |
@@ -24,7 +24,7 @@
 | [[API-001]] | api_endpoint | GET /v1/users | 10 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
 | [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 6 | false | UNCHANGED |
-| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 10 | true | UNCHANGED |
+| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 12 | false | UNCHANGED |
 | [[API-005]] | api_endpoint | GET /v1/users/me | 6 | false | UNCHANGED |
 | [[API-006]] | api_endpoint | GET /v1/me | 13 | false | UNCHANGED |
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 17 | true | UNCHANGED |
@@ -41,14 +41,14 @@
 | [[SCREEN-002]] | screen_spec | 관리자 등록 화면 | 34 | true | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 16 | false | UNCHANGED |
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 18 | false | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 35 | true | UNCHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 39 | false | UNCHANGED |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 13 | false | UNCHANGED |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 6 | true | UNCHANGED |
 | [[SD-018]] | screen_design | SCREEN-002 관리자 등록 화면 | 8 | false | UNCHANGED |
 | [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | UNCHANGED |
 | [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 5 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 17 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 21 | false | UNCHANGED |
 | [[UC-041]] | use_case | 인증 인계와 채널·역할 인가 | 29 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
@@ -91,7 +91,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |

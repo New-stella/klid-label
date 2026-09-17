@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "배치 자동 처리 파이프라인 — 비식별을 선두로, 마킹 완료 뒤 잔여 단계가 잇따른다",
-      "source": "sequenceDiagram\n    participant batch as 주기 배치(BatchQuartzJob)\n    actor worker as 라벨링 작업자(WORKER)\n    participant ingestBridge as IngestDeidentifyBridge\n    participant deidRunner as AsyncDeidentifyRunner\n    participant deidStep as DeidentifyStep\n    participant deidSvc as 외부 비식별 서버\n    participant markingBridge as MarkingBatchBridge\n    participant pipeline as BatchOrchestrator\n    participant vlmStep as VlmTimeseriesStep\n    participant vendor as 외부 시계열 분석 서비스\n    participant frameStep as FfmpegFrameExtractor\n    participant yoloStep as YoloAutolabelStep\n    participant ai as AI 추론 서버\n    participant db as LS_DATA_RAW · LS_BATCH_PROC_LOG\n    actor reviewer as 검수자(REVIEWER)\n\n    batch-)ingestBridge: 적재 사건을 받는다\n    Note over ingestBridge: 적재만으로는 마킹에 진입할 수 없다 — 비식별이 선두 단계다\n    ingestBridge-)deidRunner: 비식별을 시작한다\n    deidRunner->>deidStep: run(ctx)\n    alt 출처유형이 배포 설정의 비식별 제외 목록에 있음 — 기본값 GENERATED (ADR-066)\n        deidStep->>deidStep: 외부 위탁 없이 원본 영상을 비식별 영상 쓰기 위치에 원본 파일명 그대로 일반 파일로 복사한다\n        deidStep->>db: 비식별 처리 이력에 성공 행을 남긴다 — SUCCEEDED · 요청종류 EXCLUDED · 비식별 영상 경로는 복사본 경로\n        deidStep->>db: 영상 비식별여부를 'Y' 로 두고 마킹 대기 상태로 전이 — 외부 위탁이 동기로 끝난 경우와 같은 흐름\n        Note over deidStep: [대안] 복사가 실패하면 영상에 실패 표식('F')을 세우고 요청종류 EXCLUDED 인 실패 이력을 남기며 마킹 대기로 전이하지 않는다. 원본은 지우거나 고치지 않는다. 제외 이력은 외부 진행 상태를 갖지 않아 주기 폴링과 ACK 대기 회수 대상이 아니다\n    else 그 밖의 출처유형 — 외부 비식별 서버에 위탁\n        deidStep->>deidSvc: 비식별 위탁\n        deidSvc-->>deidStep: 비식별 산출물 경로\n        deidStep->>db: 비식별 처리 이력 기록\n        deidStep->>db: 영상을 마킹 대기 상태로 전이\n        Note over deidStep: [대안] 비식별이 실패하면 영상에 실패 표식을 세우고 원본은 지우지 않는다. 회수는 외부 비식별 프로그램에서 다시 비식별한 뒤 해소 경로로 한다\n        Note over deidStep: [대안] 수락 응답을 끝내 관측하지 못한 건은 주기 폴링 잡이 ACK 대기 유예 만료로 회수한다 — 실패 사유로 원장을 마감하고 영상에도 같은 실패 표식을 세우며 재위탁하지 않는다. 비식별 축에는 전용 미결 스위퍼가 없다. 외부에 프로젝트가 살아 있을 수 있어 사람이 확인해야 한다. 유예 값은 설정값이다\n    end\n    worker-)markingBridge: 마킹 완료 — 커밋 이후에 신호가 나간다\n    markingBridge-)pipeline: 잔여 단계를 시작한다\n    Note over pipeline: 잔여 단계 순서는 마킹 적재 · 시계열 위탁 · 프레임 추출 · 오토라벨링 · 분할 · 트랙 보간이다. 각 단계는 앞 단계의 결과를 입력으로 삼아 순서를 바꿔 실행할 수 없다\n    pipeline->>db: 후보를 조건부 갱신으로 원자적으로 선점한다\n    db-->>pipeline: 선점 성공\n    Note over pipeline: 여러 노드가 함께 도는 형상이라 트리거 중복 방지만으로는 부족하다 — 잡 안쪽의 선점이 원자적이어야 한다\n    opt 시계열 위탁 — 전체 건너뛰기가 꺼져 있을 때\n        pipeline->>vlmStep: 시계열 위탁 단계 실행\n        vlmStep->>vlmStep: 마킹 본문의 프레임 위치로 요청을 조립한다 — 선커밋 이전에 끝낸다\n        vlmStep->>db: 위탁 원장 행을 선커밋한다\n        vlmStep-)vendor: 위탁 제출\n        Note over vlmStep: 논블로킹 제출이라 파이프라인 스레드를 붙잡지 않는다. 이 단계가 확정적으로 말하는 것은 제출을 개시했다는 사실뿐이다\n        vlmStep-->>pipeline: 제출 개시\n        Note over vlmStep: [대안] 전체 건너뛰기가 켜져 있으면 외부를 부르지 않고 건너뜀 표식만 남긴다. 사람이 남긴 표식이 이미 있으면 자동 표식이 그것을 덮지 않는다\n    end\n    pipeline->>frameStep: 프레임 추출 단계 실행\n    frameStep->>frameStep: 마킹이 가리킨 위치에서 프레임을 뽑는다\n    Note over frameStep: 위치 계산은 마킹이 만들어질 때 고정된 초당 프레임 수를 쓰고 그 사이 영상 기술메타가 바뀌어도 다시 조회하지 않는다\n    frameStep->>db: 원본과 비식별본 두 벌의 프레임과 목록 파일을 남긴다\n    opt 오토라벨링 — 실효 프리셋이 있을 때\n        pipeline->>yoloStep: 오토라벨링 단계 실행\n        yoloStep->>db: 그 영상의 이벤트 유형에 매핑된 실효 프리셋 조회\n        db-->>yoloStep: 실효 프리셋\n        Note over yoloStep: [대안] 실효 프리셋이 없으면 탐지 라벨을 하나도 저장하지 않고 분할과 보간도 실행하지 않는다. 보류와 사유를 이력에 남기고 배치를 완료로 마감하지 않으며 선점을 해제해 이후 진입이 막히지 않게 한다\n        yoloStep->>ai: 원본 프레임으로 탐지와 분할을 수행\n        ai-->>yoloStep: 검출과 분할 결과\n        Note over yoloStep: 오토라벨링은 원본 프레임에만 실행한다 — 좌표는 해상도가 같아 비식별본과 공유하므로 두 번 실행하지 않는다\n        yoloStep->>db: 탐지 라벨 저장\n    end\n    pipeline->>pipeline: 트랙을 보간한다\n    pipeline->>db: 단계마다 처리 이력을 남긴다\n    pipeline->>db: 완료 시 작업 상태를 배정 상태로 되돌린다\n    Note over pipeline: 검수 종결은 검수 승인 시점이므로 배치 완료가 그 자리로 점프시키지 않는다\n    opt 콜백이 나중에 도착하면\n        vendor-)vlmStep: 콜백으로 시계열 결과가 나중에 도착한다\n        vlmStep->>db: 시계열 메타를 적재하고 검토 대기로 올린다\n        Note over vlmStep: 이 단계의 조치 완료 여부는 배치 완주가 아니라 산출물 보유로 판정한다\n        Note over vlmStep: [대안] 아무 신호도 오지 않으면 미결 스위퍼가 회수한다. 수락 응답을 못 본 창과 결과 콜백을 기다리는 창은 임계가 서로 달라 하나로 덮지 않는다\n    end\n    opt 운영자가 처리 현황 화면에서 손을 대면\n        reviewer->>pipeline: 처리 현황 화면에서 묶음을 재수행한다 — 확인 창을 거친다\n        reviewer->>pipeline: 시계열 위탁의 건너뛰기를 해제한다\n        Note over pipeline: [대안] 선점한 노드가 죽어 처리 중으로 고착되면 정해진 시간 뒤 회수되어 다음 주기에 다시 처리된다. 회수는 스캔보다 먼저 돌고 회수 실패가 그 주기의 정상 처리를 막지 않는다\n    end\n",
+      "source": "sequenceDiagram\n    participant batch as 주기 배치(BatchQuartzJob)\n    actor worker as 라벨링 작업자(WORKER)\n    participant ingestBridge as IngestDeidentifyBridge\n    participant deidRunner as AsyncDeidentifyRunner\n    participant deidStep as DeidentifyStep\n    participant deidSvc as 외부 비식별 서버\n    participant markingBridge as MarkingBatchBridge\n    participant pipeline as BatchOrchestrator\n    participant vlmStep as VlmTimeseriesStep\n    participant vendor as 외부 시계열 분석 서비스\n    participant frameStep as FfmpegFrameExtractor\n    participant yoloStep as YoloAutolabelStep\n    participant ai as AI 추론 서버\n    participant db as LS_DATA_RAW · LS_BATCH_PROC_LOG\n    actor reviewer as 검수자(REVIEWER)\n\n    batch-)ingestBridge: 적재 사건을 받는다\n    Note over ingestBridge: 적재만으로는 마킹에 진입할 수 없다 — 비식별이 선두 단계다\n    ingestBridge-)deidRunner: 비식별을 시작한다\n    deidRunner->>deidStep: run(ctx)\n    alt 출처유형이 배포 설정의 비식별 제외 목록에 있음 — 기본값 GENERATED (ADR-066)\n        deidStep->>deidStep: 외부 위탁 없이 원본 영상을 비식별 영상 쓰기 위치에 원본 파일명 그대로 일반 파일로 복사한다\n        deidStep->>db: 비식별 처리 이력에 성공 행을 남긴다 — SUCCEEDED · 요청종류 EXCLUDED · 비식별 영상 경로는 복사본 경로\n        deidStep->>db: 영상 비식별여부를 'Y' 로 두고 마킹 대기 상태로 전이 — 외부 위탁이 동기로 끝난 경우와 같은 흐름\n        Note over deidStep: [대안] 복사가 실패하면 영상에 실패 표식('F')을 세우고 요청종류 EXCLUDED 인 실패 이력을 남기며 마킹 대기로 전이하지 않는다. 원본은 지우거나 고치지 않는다. 제외 이력은 외부 진행 상태를 갖지 않아 주기 폴링과 ACK 대기 회수 대상이 아니다\n    else 그 밖의 출처유형 — 외부 비식별 서버에 위탁\n        deidStep->>deidSvc: 비식별 위탁\n        deidSvc-->>deidStep: 비식별 산출물 경로\n        deidStep->>db: 비식별 처리 이력 기록\n        deidStep->>db: 영상을 마킹 대기 상태로 전이\n        Note over deidStep: [대안] 비식별이 실패하면 영상에 실패 표식을 세우고 원본은 지우지 않는다. 회수는 외부 비식별 프로그램에서 다시 비식별한 뒤 해소 경로로 한다\n        Note over deidStep: [대안] 수락 응답을 끝내 관측하지 못한 건은 주기 폴링 잡이 ACK 대기 유예 만료로 회수한다 — 실패 사유로 원장을 마감하고 영상에도 같은 실패 표식을 세우며 재위탁하지 않는다. 비식별 축에는 전용 미결 스위퍼가 없다. 외부에 프로젝트가 살아 있을 수 있어 사람이 확인해야 한다. 유예 값은 설정값이다\n    end\n    Note over deidStep: [대안] 신고 없이 선두 비식별이 실패해 마킹 대기에 못 간 영상(제외 복사 실패 포함)은 검수자가 배치 재시작(건별·일괄)으로 같은 선두 비식별 단계를 다시 수행한다 — 사람이 누를 때만이다. 그 밖의 영상 재시작은 마킹 이후 잔여 단계를 재기동한다\n    worker-)markingBridge: 마킹 완료 — 커밋 이후에 신호가 나간다\n    markingBridge-)pipeline: 잔여 단계를 시작한다\n    Note over pipeline: 잔여 단계 순서는 마킹 적재 · 시계열 위탁 · 프레임 추출 · 오토라벨링 · 분할 · 트랙 보간이다. 각 단계는 앞 단계의 결과를 입력으로 삼아 순서를 바꿔 실행할 수 없다\n    pipeline->>db: 후보를 조건부 갱신으로 원자적으로 선점한다\n    db-->>pipeline: 선점 성공\n    Note over pipeline: 여러 노드가 함께 도는 형상이라 트리거 중복 방지만으로는 부족하다 — 잡 안쪽의 선점이 원자적이어야 한다\n    opt 시계열 위탁 — 전체 건너뛰기가 꺼져 있을 때\n        pipeline->>vlmStep: 시계열 위탁 단계 실행\n        vlmStep->>vlmStep: 마킹 본문의 프레임 위치로 요청을 조립한다 — 선커밋 이전에 끝낸다\n        vlmStep->>db: 위탁 원장 행을 선커밋한다\n        vlmStep-)vendor: 위탁 제출\n        Note over vlmStep: 논블로킹 제출이라 파이프라인 스레드를 붙잡지 않는다. 이 단계가 확정적으로 말하는 것은 제출을 개시했다는 사실뿐이다\n        vlmStep-->>pipeline: 제출 개시\n        Note over vlmStep: [대안] 전체 건너뛰기가 켜져 있으면 외부를 부르지 않고 건너뜀 표식만 남긴다. 사람이 남긴 표식이 이미 있으면 자동 표식이 그것을 덮지 않는다\n    end\n    pipeline->>frameStep: 프레임 추출 단계 실행\n    frameStep->>frameStep: 마킹이 가리킨 위치에서 프레임을 뽑는다\n    Note over frameStep: 위치 계산은 마킹이 만들어질 때 고정된 초당 프레임 수를 쓰고 그 사이 영상 기술메타가 바뀌어도 다시 조회하지 않는다\n    frameStep->>db: 원본과 비식별본 두 벌의 프레임과 목록 파일을 남긴다\n    opt 오토라벨링 — 실효 프리셋이 있을 때\n        pipeline->>yoloStep: 오토라벨링 단계 실행\n        yoloStep->>db: 그 영상의 이벤트 유형에 매핑된 실효 프리셋 조회\n        db-->>yoloStep: 실효 프리셋\n        Note over yoloStep: [대안] 실효 프리셋이 없으면 탐지 라벨을 하나도 저장하지 않고 분할과 보간도 실행하지 않는다. 보류와 사유를 이력에 남기고 배치를 완료로 마감하지 않으며 선점을 해제해 이후 진입이 막히지 않게 한다\n        yoloStep->>ai: 원본 프레임으로 탐지와 분할을 수행\n        ai-->>yoloStep: 검출과 분할 결과\n        Note over yoloStep: 오토라벨링은 원본 프레임에만 실행한다 — 좌표는 해상도가 같아 비식별본과 공유하므로 두 번 실행하지 않는다\n        yoloStep->>db: 탐지 라벨 저장\n    end\n    pipeline->>pipeline: 트랙을 보간한다\n    pipeline->>db: 단계마다 처리 이력을 남긴다\n    pipeline->>db: 완료 시 작업 상태를 배정 상태로 되돌린다\n    Note over pipeline: 검수 종결은 검수 승인 시점이므로 배치 완료가 그 자리로 점프시키지 않는다\n    opt 콜백이 나중에 도착하면\n        vendor-)vlmStep: 콜백으로 시계열 결과가 나중에 도착한다\n        vlmStep->>db: 시계열 메타를 적재하고 검토 대기로 올린다\n        Note over vlmStep: 이 단계의 조치 완료 여부는 배치 완주가 아니라 산출물 보유로 판정한다\n        Note over vlmStep: [대안] 아무 신호도 오지 않으면 미결 스위퍼가 회수한다. 수락 응답을 못 본 창과 결과 콜백을 기다리는 창은 임계가 서로 달라 하나로 덮지 않는다\n    end\n    opt 운영자가 처리 현황 화면에서 손을 대면\n        reviewer->>pipeline: 처리 현황 화면에서 묶음을 재수행한다 — 확인 창을 거친다\n        reviewer->>pipeline: 시계열 위탁의 건너뛰기를 해제한다\n        Note over pipeline: [대안] 선점한 노드가 죽어 처리 중으로 고착되면 정해진 시간 뒤 회수되어 다음 주기에 다시 처리된다. 회수는 스캔보다 먼저 돌고 회수 실패가 그 주기의 정상 처리를 막지 않는다\n    end\n",
       "messages": [
         {
           "to": "ingestBridge",
@@ -95,6 +95,12 @@
           "from": "deidStep",
           "kind": "note",
           "label": "[대안] 수락 응답을 끝내 관측하지 못한 건은 주기 폴링 잡이 ACK 대기 유예 만료로 회수한다 — 실패 사유로 원장을 마감하고 영상에도 같은 실패 표식을 세우며 재위탁하지 않는다. 비식별 축에는 전용 미결 스위퍼가 없다. 외부에 프로젝트가 살아 있을 수 있어 사람이 확인해야 한다. 유예 값은 설정값이다"
+        },
+        {
+          "to": "deidStep",
+          "from": "deidStep",
+          "kind": "note",
+          "label": "[대안] 신고 없이 선두 비식별이 실패해 마킹 대기에 못 간 영상(제외 복사 실패 포함)은 검수자가 배치 재시작(건별·일괄)으로 같은 선두 비식별 단계를 다시 수행한다 — 사람이 누를 때만이다. 그 밖의 영상 재시작은 마킹 이후 잔여 단계를 재기동한다"
         },
         {
           "to": "markingBridge",
@@ -332,26 +338,26 @@
         {
           "kind": "opt",
           "label": "시계열 위탁 — 전체 건너뛰기가 꺼져 있을 때",
-          "end_index": 26,
-          "start_index": 20
+          "end_index": 27,
+          "start_index": 21
         },
         {
           "kind": "opt",
           "label": "오토라벨링 — 실효 프리셋이 있을 때",
-          "end_index": 38,
-          "start_index": 31
+          "end_index": 39,
+          "start_index": 32
         },
         {
           "kind": "opt",
           "label": "콜백이 나중에 도착하면",
-          "end_index": 46,
-          "start_index": 43
+          "end_index": 47,
+          "start_index": 44
         },
         {
           "kind": "opt",
           "label": "운영자가 처리 현황 화면에서 손을 대면",
-          "end_index": 49,
-          "start_index": 47
+          "end_index": 50,
+          "start_index": 48
         }
       ],
       "brownfield": {
@@ -361,11 +367,13 @@
         ],
         "diff_summary": "2차 신규 — UC-038 의 흐름을 참가자와 메시지로 처음 시각화한다."
       },
-      "description": "영상이 적재되면 사람이 부르지 않아도 처리가 이어지도록 하는 흐름을 그린다. 순서는 비식별화가 선두이고 비식별이 끝나야 마킹이 열리며, 마킹이 완료되면 시계열 위탁과 프레임 추출과 오토라벨링과 트랙 보간이 잇따른다. 각 단계는 앞 단계의 결과를 입력으로 삼으므로 순서를 바꿔 실행할 수 없다.\n\n비식별 단계는 모든 영상이 거친다. 다만 출처유형이 배포 설정 authoring.deidentify.excluded-src-types(기본값 GENERATED)의 비식별 제외 목록에 든 영상은 외부 비식별 서버에 위탁하지 않고, 원본을 비식별 영상 쓰기 위치에 원본 파일명 그대로 복사한 뒤 요청종류 EXCLUDED 인 성공 이력을 남기고 마킹 대기로 넘어간다(ADR-066). 복사에 실패하면 실패 표식을 세우고 마킹 대기로 넘어가지 않는다. 판정은 비식별 단계가 그 영상을 처리할 때 한 번 하며 설정을 바꿔도 소급하지 않는다.\n\n단계마다 소유자가 다르다. 비식별 위탁 자체와 마킹과 시계열 결과의 검토는 각각 다른 흐름이 소유한다. 이 흐름이 소유하는 것은 단계를 잇는 순서와 그 사이의 프레임 추출 · 오토라벨링 · 트랙 보간, 그리고 처리 이력과 재수행 · 건너뛰기 운영이다.\n\n프레임은 마킹이 가리킨 위치에서 뽑으며 원본과 비식별본 두 벌을 만든다. 위치 계산은 마킹이 만들어질 때 고정된 초당 프레임 수를 쓰고 그 사이 영상 기술메타가 바뀌어도 다시 조회하지 않는다. 오토라벨링은 원본 프레임에만 실행한다 — 좌표는 해상도가 같아 비식별본과 공유하므로 두 번 실행하지 않는다.\n\n시계열 위탁은 논블로킹 제출이다. 제출까지만 하고 결과는 나중에 콜백으로 따로 도착하므로, 이 단계의 조치 완료 여부는 배치 완주가 아니라 산출물 보유로 판정한다.\n\n여러 노드가 함께 도는 형상이라 트리거 중복 방지만으로는 부족하고 잡 안쪽의 선점이 조건부 갱신으로 원자적이어야 한다. 행별 처리를 분리해 한 건의 실패가 같은 주기의 나머지를 깨뜨리지 않게 한다.",
+      "description": "영상이 적재되면 사람이 부르지 않아도 처리가 이어지도록 하는 흐름을 그린다. 순서는 비식별화가 선두이고 비식별이 끝나야 마킹이 열리며, 마킹이 완료되면 시계열 위탁과 프레임 추출과 오토라벨링과 트랙 보간이 잇따른다. 각 단계는 앞 단계의 결과를 입력으로 삼으므로 순서를 바꿔 실행할 수 없다.\n\n비식별 단계는 모든 영상이 거친다. 다만 출처유형이 배포 설정 authoring.deidentify.excluded-src-types(기본값 GENERATED)의 비식별 제외 목록에 든 영상은 외부 비식별 서버에 위탁하지 않고, 원본을 비식별 영상 쓰기 위치에 원본 파일명 그대로 복사한 뒤 요청종류 EXCLUDED 인 성공 이력을 남기고 마킹 대기로 넘어간다(ADR-066). 복사에 실패하면 실패 표식을 세우고 마킹 대기로 넘어가지 않는다. 판정은 비식별 단계가 그 영상을 처리할 때 한 번 하며 설정을 바꿔도 소급하지 않는다. 신고 없이 선두 비식별이 실패해 마킹 대기에 이르지 못한 영상은 검수자가 배치 재시작(건별 API-167 · 일괄 API-199)으로 적재 직후와 같은 선두 비식별 단계를 다시 수행하고, 그 밖의 배치 실패 영상의 재시작은 마킹 이후 잔여 단계를 재기동한다. 사람이 누를 때만 돌며 자동 재시도는 없다.\n\n단계마다 소유자가 다르다. 비식별 위탁 자체와 마킹과 시계열 결과의 검토는 각각 다른 흐름이 소유한다. 이 흐름이 소유하는 것은 단계를 잇는 순서와 그 사이의 프레임 추출 · 오토라벨링 · 트랙 보간, 그리고 처리 이력과 재수행 · 건너뛰기 운영이다.\n\n프레임은 마킹이 가리킨 위치에서 뽑으며 원본과 비식별본 두 벌을 만든다. 위치 계산은 마킹이 만들어질 때 고정된 초당 프레임 수를 쓰고 그 사이 영상 기술메타가 바뀌어도 다시 조회하지 않는다. 오토라벨링은 원본 프레임에만 실행한다 — 좌표는 해상도가 같아 비식별본과 공유하므로 두 번 실행하지 않는다.\n\n시계열 위탁은 논블로킹 제출이다. 제출까지만 하고 결과는 나중에 콜백으로 따로 도착하므로, 이 단계의 조치 완료 여부는 배치 완주가 아니라 산출물 보유로 판정한다.\n\n여러 노드가 함께 도는 형상이라 트리거 중복 방지만으로는 부족하고 잡 안쪽의 선점이 조건부 갱신으로 원자적이어야 한다. 행별 처리를 분리해 한 건의 실패가 같은 주기의 나머지를 깨뜨리지 않게 한다.",
       "invokes_apis": [
         "API-065",
         "API-213",
-        "API-214"
+        "API-214",
+        "API-167",
+        "API-199"
       ],
       "participants": [
         {
@@ -465,7 +473,8 @@
       ],
       "related_acceptances": [
         "AC-1022",
-        "AC-1023"
+        "AC-1023",
+        "AC-1133"
       ],
       "related_requirements": [],
       "referenced_integrations": [
@@ -476,12 +485,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "선두 비식별 구간에 출처유형 제외 분기를 alt 조각으로 더한다(ADR-066, 2026-09-14 확정). 출처유형이 배포 설정 authoring.deidentify.excluded-src-types(기본값 GENERATED)에 든 영상은 외부 비식별 서버를 부르지 않고 원본을 비식별 영상 쓰기 위치에 복사해 요청종류 EXCLUDED 인 성공 이력을 남기고 비식별여부 'Y'·마킹 대기로 전이하는 분기를 새로 그렸고, 복사 실패와 제외 이력이 폴링·ACK 대기 회수 대상이 아니라는 점은 [대안] 노트로 적었다. 기존 외부 위탁 메시지(위탁·산출물 경로 반환·이력 기록·마킹 대기 전이)와 두 [대안] 노트는 문구를 바꾸지 않고 else 분기로 감쌌다. 정형 messages 에는 새 메시지 4건을 순수 삽입하고 뒤따르는 기존 opt 조각 인덱스를 그만큼 옮겼다. 설명에는 첫 문단 뒤에 제외 분기 문단을 순수 삽입했다. 쓰기 전 stale=true, stale_reason='INT-002의 data.brownfield 변경 — references' — 이번 축(비식별 제외)과 무관한 전파라 이 쓰기로 표식이 지워지더라도 INT-002 brownfield 변경의 영향은 따로 재확인해야 한다. 이번에 INT-002 본문은 대조하지 않았다.",
+    "current_version": 9,
+    "stale": true,
+    "stale_reason": "AC-1133의 data.scenario 변경 — verifies",
+    "change_summary": "CO-20260916-선두비식별-실패-수동재시도 — 신설 수용기준 연결 (쓰기 전 stale=False 사유=None)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-14T03:55:35.015Z",
+    "last_updated_at": "2026-09-16T14:09:39.027Z",
     "created_at": "2026-09-03T06:52:04.310Z"
   }
 }

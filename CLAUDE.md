@@ -1028,6 +1028,14 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★★★★★★ **2026-09-17 SYNC — 구현 15 키트 전량 (선두 비식별 실패 수동 재시도 라운드 · `CO-20260916-선두비식별-실패-수동재시도`).**
+> 계기는 설계 선반영 약 30건(`ADR-006` v7 · `API-167` v12 · `API-199` v4 · `UC-011` v27 · `DFEAT-041` v25 · `INT-004` v18 · `SCREEN-008` v55 · `SCREEN-009` v80 · 신규 `AC-1133`~`1135` 등)이다.
+> **1차 변경 184건**(D003 44 · D012 24 · D015 22 · D001 15 · D014 13 · D011·D013 12 · D005 9 · D010 8 · D004 6 · D016·D017 5 · D006 4 · D007 3 · D009 2) · **2차는 승격분 25건만** · 3차 전건 변경 0.
+> **검증**: 15키트 전건 `서버 건수 = pin 건수` · 직전 커밋 `version-master.md` 대비 **유실 0** · 전 키트 표 버전이 서버 현재 버전과 **불일치 0** · 전건 무열화 통과.
+> **승격 25건**: D012 6(`AC-1133`~`1135`·`ADR-072` 소속 · `API-167`·`API-199` — pin `DFEAT-041` 이 implements) · D003 11(`AC-1129`~`1131` — pin `SCREEN-038` covered_by · `AC-1133`~`1135`·`SEQ-012`·`DFEAT-041` — 이 도메인 소유 창구를 검증·호출·구현 · `ADR-071`·`UC-044` 소속 · `UC-019` — pin `SCREEN-006`·`SEQ-036` 과 realizes) · D014 3(`AC-1129`·`1130`·`UC-044`) · D013 3(`AC-1132`·`ADR-070`·`API-262`) · D010 1(`AC-1128`) · D011 1(`ADR-071`).
+> **기각**: 앞방향 인용뿐인 것 — D012 `ADR-071` · D007 `ADR-072` · D003 `CMP-003`·`ADR-022`·`ADR-025`. 제외 타입(IMPREC·MOD·LEGACY·NAV·SHELL·REQ·RFP·CTX·DEP). **보류(선례 유지)**: `SETT-001`(D007·D014) · `OSS-102`(D003·D013) · D003 의 직전 판정분(`ADR-037`·`038`·`067`·`CDIAG-007`·`SEQ-017`·`DFEAT-006`). 근거는 각 `.kit-scope.json` 의 `note_promoted`/`note_pruned`.
+> ⚠ **`version-master.md` 의 changelog 는 마지막(3차) 실행분이라 `CHANGED 0` 으로 찍혀 있다** — 바뀐 ITEM 파일의 `status: CHANGED` 배너는 남는다. 델타는 git 으로 본다.
+>
 > ★★★★★★★ **2026-09-14 2차 SYNC — 구현 15 키트 전량 (관제 계정 창구 주소 분리 라운드 · `CO-20260914-관제계정창구-주소분리` · PR #218).**
 > 계기는 설계 선반영 21건(`INT-015` v8 · `API-247` v5 · `API-246` v4 · `ADR-012` v22 · **`NFR-013` v14 — 전역이라 15개 전부 영향권** · `ADR-046` v18 · `SCREEN-042` v27 · `DOMAIN-014` v9 등)이다.
 > **검증**: 15키트 전건 `서버 건수 = pin 건수` · 직전 커밋 대비 **유실 0** · 두 바퀴 무열화 통과 · 이번 라운드 ITEM 이 들어가야 할 키트에 **전부 서버 현재 버전**(불일치 0).
@@ -1100,21 +1108,21 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 121 | implemented 41 / in_progress 1 / planned 61 / (미기재) 18 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 183 | implemented 84 / in_progress 3 / verified 1 / planned 63 / (미기재) 32 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 179 | implemented 81 / in_progress 7 / planned 60 / (미기재) 31 | TEST 통합시험 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 137 | implemented 64 / in_progress 1 / verified 1 / planned 50 / (미기재) 21 | CONST 상수값 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 136 | implemented 50 / in_progress 1 / planned 65 / (미기재) 20 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 218 | implemented 113 / in_progress 5 / verified 1 / planned 65 / (미기재) 34 | CONST 상수값 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 185 | implemented 82 / in_progress 7 / planned 65 / (미기재) 31 | TEST 통합시험 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 158 | implemented 77 / in_progress 2 / verified 1 / planned 50 / (미기재) 28 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 75 | implemented 20 / planned 47 / (미기재) 8 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, C4 컴포넌트, INT 외부 연동 |
 | DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 110 | implemented 37 / in_progress 1 / planned 50 / (미기재) 22 | CONST 상수값 |
 | DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 74 | implemented 23 / planned 45 / (미기재) 6 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 201 | implemented 102 / in_progress 1 / planned 68 / (미기재) 30 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 87 | implemented 24 / in_progress 2 / planned 47 / (미기재) 14 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 122 | implemented 40 / in_progress 2 / planned 56 / (미기재) 24 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 129 | implemented 48 / in_progress 3 / planned 64 / (미기재) 14 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 131 | implemented 58 / in_progress 1 / planned 55 / (미기재) 17 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 72 | implemented 21 / planned 47 / (미기재) 4 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 97 | implemented 28 / in_progress 2 / planned 54 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 106 | implemented 34 / in_progress 4 / planned 55 / (미기재) 13 | CONST 상수값, C4 컴포넌트 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 209 | implemented 104 / in_progress 1 / planned 69 / (미기재) 35 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 88 | implemented 24 / in_progress 2 / planned 47 / (미기재) 15 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 128 | implemented 46 / in_progress 2 / planned 55 / (미기재) 25 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 176 | implemented 67 / in_progress 3 / planned 78 / (미기재) 28 | CONST 상수값 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 139 | implemented 63 / in_progress 1 / planned 56 / (미기재) 19 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 82 | implemented 29 / in_progress 1 / planned 46 / (미기재) 6 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 98 | implemented 29 / in_progress 2 / planned 53 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 115 | implemented 40 / in_progress 4 / planned 56 / (미기재) 15 | CONST 상수값, C4 컴포넌트 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -1140,6 +1148,13 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ★ **2026-09-17 SYNC — 7개 키트 전부 (선두 비식별 실패 수동 재시도 라운드 · `CO-20260916-선두비식별-실패-수동재시도`).** 전 키트 `서버 건수 = pin 건수` · 직전 커밋 대비 유실 0 · 최종 재실행 전건 변경 0 · 표 버전 = 서버 현재 버전 · `design.html`/`design.css` 원본 74개 변경 0 · 키트 루트 디렉터리 구성 변화 0 · `표 − 배치본 파일` = 렌더 전용 SD 뿐.
+> 1차 변경 95건(통합 49 · D015 17 · D005 9 · D003·D001 7 · D010 4 · D009 2) — 통합 키트 `SCREEN-008` v55 · `SCREEN-009` v80 과 두 와이어프레임 미러가 최신이다(`source_hash` 가 서버 `sections` 해시와 일치).
+> **승격(pin 항목의 서버 구조 링크를 pin 과 차집합해 찾았다 — 이번에도 누락이 있었다)**: 통합 26건 — 수용기준 19(`AC-1016`·`1017`·`1034`·`1035`·`1050`·`1051`·`1098`·`1107`·`1118`~`1120`·`1128`~`1135`) · `UC-044` · **`SCREEN-046`(포털 데이터셋 소재 조달 화면 — 서버 활성 화면이라 편입, 39화면)** 과 그 폐포 `API-248`·`249`·`253`·`262` · **`DS-002`**(pin `UI-146`~`155` 가 based_on · 서버 활성 확인 — 직전 라운드 보류분 해소). 폐포는 세 번 떠서 닫혔다. D010 18(pin UC covered_by 수용기준 13 · `AC-1108` · `API-043` · `UI-156`~`158`) · D003 7(`AC-1063`·`1064`·`1066`·`1067`·`1133`~`1135`) · D005 7(`AC-1077`·`1078`·`1095`~`1097`·`1121`·`1127`) · D015 1(`AC-1121`).
+> **기각(소형 키트 규칙 — pin 화면 링크·pin UC 의 covered_by 만 인정)**: D003 `API-199` · D001 `API-247` · D010 `API-254` · UC↔UC includes(D005 `UC-007` · D010 `UC-023`).
+> ⚠ **서버 와이어프레임 22건이 현재 `sections` 보다 낡았다** — 통합 키트 14화면(`SCREEN-002`·`003`·`005`·`012`·`018`·`019`·`024`·`026`·`028`·`029`·`033`·`038`·`044`·`045`)의 `source_hash` 가 서버 `sections` 해시와 다르다(소형 키트 8건은 그 사본). 동기화 결함이 아니라 **서버 렌더 재게시 대기**다.
+> ⚠ 서버에서 사라진 옛 ID 의 추적 파일이 남아 있다(D003 `AC-011` 등 5 · D005 2 · D010 13 · 통합 `AC-121`~`123`·`API-139`·`SCREEN-034`). 이번 실행이 만든 것이 아니며 손대지 않았다.
+>
 > ★ **2026-09-14 2차 SYNC — 7개 키트 전부 (관제 계정 창구 주소 분리 라운드 · PR #218).** 전 키트 `서버 건수 = pin 건수` · 유실 0 · 재실행 변경 0 · `design.html`/`design.css` 원본 변경 0.
 > 반영: 통합 키트 `SCREEN-042` v25→**v27** · `SD-036` v14→**v16**(미러 갱신) · `UC-031` v21 · `API-069` v13 / D001 `AC-1105` v8 · `AC-1106` v9.
 > ★ **같은 날 후속(s41) — 통합 키트 전 화면 재승격 (사용자 확정 「전체 재승격」).** pin 에 있는 ITEM 들의 서버 그래프 링크가 가리키는데 pin 에 없던 화면 키트 스코프 타입 **101건을 승격**했다(수용기준 75 · API 14 · UC 4 · UI 10 — `AC-1072`·`AC-1074` · `API-226`~`230` · `UC-038`~`041` · `UI-146`~`155` 포함). 후보 전건이 서버에서 활성(draft/approved)이라 **폐기 제외 0건**. pin 476 → **577** · 서버 = pin · 직전 커밋 대비 유실 0 · 두 바퀴째 변경 0 · `design.html`/`design.css` 원본 변경 0 · 키트 루트 평평 디렉터리 무변경. 판정 근거는 `.kit-scope.json` 의 `rule`·`note_promoted`.
@@ -1223,13 +1238,13 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (38화면)** | 38개 (SCREEN-001~045 중 38건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 155건 | **2026-09-14 (s41)** | 577 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-14 (s19) | 227 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-14 (s19) | 180 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-14 (s19) | 166 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-14 (s20) | 165 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-14 (s19) | 172 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-14 (s20) | 181 |
+| **전체 통합 (39화면)** | 39개 (SCREEN-001~046 중 39건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 158건 | **2026-09-17 (s43)** | 634 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 147건 | 2026-09-17 (s21) | 245 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 147건 | 2026-09-17 (s21) | 211 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-17 (s21) | 181 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-17 (s22) | 172 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-17 (s21) | 172 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-17 (s22) | 181 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
