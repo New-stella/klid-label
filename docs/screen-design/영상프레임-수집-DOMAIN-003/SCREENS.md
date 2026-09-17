@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-09-17T01:18:26.017Z (session 22) |
+| last sync | 2026-09-17T02:12:05.728Z (session 23) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |

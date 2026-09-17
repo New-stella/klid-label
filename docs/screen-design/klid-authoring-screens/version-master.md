@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 전체 통합 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038, SCREEN-039, SCREEN-040, SCREEN-041, SCREEN-042, SCREEN-043, SCREEN-044, SCREEN-045, SCREEN-046 |
-| Last sync | 2026-09-17T01:18:31.524Z (session 43) |
+| Last sync | 2026-09-17T02:12:07.565Z (session 44) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 634 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
@@ -415,7 +415,7 @@
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 22 | true | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 19 | true | UNCHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 20 | true | UNCHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 11 | true | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 9 | true | UNCHANGED |
 | [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 6 | true | UNCHANGED |
@@ -424,7 +424,7 @@
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | UNCHANGED |
 | [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | UNCHANGED |
 | [[SD-012]] | screen_design | SCREEN-006 마킹 화면 | 11 | true | UNCHANGED |
-| [[SD-013]] | screen_design | SCREEN-008 영상 처리 현황 화면 | 7 | true | UNCHANGED |
+| [[SD-013]] | screen_design | SCREEN-008 영상 처리 현황 화면 | 8 | true | UNCHANGED |
 | [[SD-014]] | screen_design | SCREEN-011 대시보드 화면 | 5 | false | UNCHANGED |
 | [[SD-015]] | screen_design | SCREEN-025 시스템 설정 화면 | 9 | true | UNCHANGED |
 | [[SD-016]] | screen_design | 공통 — 전역 레이아웃(헤더·좌측 주 메뉴) | 6 | false | UNCHANGED |

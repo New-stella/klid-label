@@ -1238,11 +1238,11 @@ HTTP 상태코드(`201 Created`) · 구현 용어(`@Async`·`AFTER_COMMIT`·`set
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (39화면)** | 39개 (SCREEN-001~046 중 39건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 158건 | **2026-09-17 (s43)** | 634 |
+| **전체 통합 (39화면)** | 39개 (SCREEN-001~046 중 39건 — 서버 활성 전건) | docs/screen-design/klid-authoring-screens/ | 158건 | **2026-09-17 (s44)** | 634 |
 | DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 147건 | 2026-09-17 (s21) | 245 |
 | DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 147건 | 2026-09-17 (s21) | 211 |
 | DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-17 (s21) | 181 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-17 (s22) | 172 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-17 (s23) | 172 |
 | DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-17 (s21) | 172 |
 | DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-17 (s22) | 181 |
 
