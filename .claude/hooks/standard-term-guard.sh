@@ -73,7 +73,7 @@ signals = ', '.join(ddl_signals)
 
 # --- 사람용 경고 (stderr) ---
 sys.stderr.write(f"[standard-term-guard] ⚠ {kind} 에 스키마 정의 감지: {basename} ({signals})\n")
-sys.stderr.write("  새 컬럼/테이블은 물리명 + 타입 + 크기를 표준/산업 표준용어·도메인으로 검증해야 합니다.\n")
+sys.stderr.write("  새 컬럼/테이블은 물리명 + 타입 + 크기를 표준용어·표준도메인으로 검증해야 합니다(행안부 → 사업 순, docs/rules/klid-db-policy.md).\n")
 
 # --- 모델용 리마인더 (stdout JSON: additionalContext) ---
 reminder = (
@@ -81,11 +81,12 @@ reminder = (
     "커밋/다음 단계 전에 이 파일의 새 컬럼·테이블에 대해 아래를 반드시 검증하고, 어긋나면 지금 정정하라:\n"
     "1) 물리명 = 표준단어 약어 조합인가? (임의 약어 금지)\n"
     "2) 타입 + 크기 = 그 용어의 표준도메인과 일치하는가? (예: 코드값=VARCHAR(20). 32 등 임의 크기 금지 — 드리프트 결함)\n"
-    "검증처(오프라인 정본 우선): `/Users/ck/Documents/workspace/klid/docs/표준용어/` — "
-    "산업용어/(사업표준단어.csv·사업표준도메인.csv) 우선, 없으면 공공 표준용어/(공통표준단어.csv·공통표준도메인.csv). "
+    "우선순위: ① 행안부 공통표준 → ② 사업 표준 → ③ 둘 다 없을 때만 신규 등록. 같은 개념이 양쪽에 있으면 행안부 약어를 쓴다(예: 재시도 RTRY ○ / RTY ✗). 도메인(타입·크기)도 같은 순서다. "
+    "검증처(판정은 CSV 로만, 레포 안 정본): `docs/LogiCraft-공공표준용어-2026.08.05 151557/`(공통표준단어·공통표준도메인·공통표준용어.csv) 먼저, "
+    "`docs/LogiCraft-사업용어-2026.08.05 151552/`(사업표준단어·사업표준도메인·사업표준용어.csv) 다음. 디렉터리명에 공백이 있으니 따옴표로 감싼다(인코딩 utf-8-sig). "
     "조회: `grep -E \"^{한글단어},\" <csv>` 로 영문약어, 도메인 CSV 로 타입·길이. "
-    "또는 MCP program_word_search/gov_word_search/gov_domain_get/gov_suggest_for_column. "
-    "메모리 [[columns-must-use-standard-glossary]]·[[evnt-type-cd-standard-length-20]] 의 확정 조회값 재사용. "
+    "MCP program_word_search/gov_word_search 는 개별 확인용이다 — 검색 0건을 「미등록」 근거로 쓰지 말 것(조회 상한 때문에 누락된다). "
+    "상세 규칙 정본: `docs/rules/klid-db-policy.md`. 메모리 [[columns-must-use-standard-glossary]]·[[standard-term-csv-is-the-only-source]] 참조. "
     "이 검증은 수동 규칙·사후 QA 가 놓쳐 재작업을 유발한 지점이므로 생략 금지."
 )
 
