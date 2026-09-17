@@ -604,3 +604,57 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .char-count { color: var(--n-6); font-variant-numeric: tabular-nums; flex: 0 0 auto; white-space: nowrap; }
+
+/* ── 18. 2026-09-17 추가 — 일괄 처리 결과 창 · 제외/복원 (값은 전부 위 토큰) ── */
+
+/* 일괄 작업 바 — 조작별 접수 대상 안내는 문장이 길어 버튼 줄 아래 한 줄을 통째로 쓴다.
+   버튼 줄 사이에 끼우면 버튼 자리가 문장 길이에 따라 흔들린다. */
+.bulk-bar .bulk-actions { order: 1; }
+.bulk-bar .bulk-hint { order: 2; flex: 1 1 100%; word-break: keep-all; }
+
+/* 「제외됨 N건」 — 0건이어도 상시. 총 건수 옆에 구분선을 두고 붙인다. */
+.table-head { align-items: center; }
+.excluded-bar { display: flex; align-items: center; gap: var(--sp-xs); flex-wrap: wrap; }
+.excluded-sep { background: var(--n-2); margin: 0 var(--sp-xs); }
+.excluded-toggle { color: var(--n-7); }
+/* 눌린 상태 — 기본 목록이 아니라는 사실을 면·경계·문구 셋으로 알린다(색만으로 구분하지 않는다). */
+.btn-ghost[aria-pressed="true"] {
+  background: var(--p-0);
+  border-color: var(--p-2);
+  color: var(--p-7);
+}
+.excluded-notice { color: var(--n-6); padding: 0 var(--sp-xs); }
+
+/* 행 동작 — 제외 버튼이 늘어 줄을 넘길 수 있다. 막힌 사유는 버튼 아래 줄에 오른쪽 정렬로 둔다. */
+.cell-action { flex-wrap: wrap; row-gap: 2px; }
+.exclude-blocked { order: 1; flex: 1 1 100%; text-align: right; color: var(--n-6); }
+
+/* 파괴적 확정 버튼 (UI-001 danger — SCREEN-005 시안과 같은 값) */
+.btn-danger { background: var(--e-5); color: var(--bg-page); }
+.btn-danger:hover:not(:disabled) { background: var(--e-6); }
+
+/* 모달 본문 문장 · 작은 확인 창 */
+.text-body { color: var(--n-7); }
+.modal-box--sm { width: min(440px, calc(100% - var(--sp-lg) * 2)); }
+
+/* 일괄 처리 결과 — 접수 건수와 거부 건수를 한 줄에, 거부 영상은 건별 목록으로 */
+.result-summary { color: var(--n-8); }
+.result-summary strong { font-size: 18px; font-weight: 600; color: var(--n-10); }
+.result-summary .sep { color: var(--n-5); margin: 0 var(--sp-xs); }
+.result-group { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.result-heading { color: var(--n-7); }
+.result-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.result-list li {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--e-5);
+  border-radius: var(--radius-md);
+  background: var(--n-0);
+}
+.result-name { font-size: 17px; font-weight: 500; line-height: 1.5; color: var(--n-8); }
+.result-reason { color: var(--n-7); word-break: keep-all; }
+
+/* 전건 거부 — 숫자 0 만으로는 「아무 일도 없었다」로 읽히므로 문장 + 아이콘으로 짚는다 */
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert .alert-strong { font-weight: 600; }

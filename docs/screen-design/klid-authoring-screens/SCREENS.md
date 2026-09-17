@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 전체 통합 |
-| last sync | 2026-09-17T01:18:31.518Z (session 43) |
+| last sync | 2026-09-17T02:12:07.559Z (session 44) |
 | 화면 수 | 39개 |
 | ui_component 카탈로그 | populated 158건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |

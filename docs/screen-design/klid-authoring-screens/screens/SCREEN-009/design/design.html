@@ -493,6 +493,134 @@
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral">참고</span>
+      <span class="t-body-sm text-muted">선두 비식별 단계가 실패한 영상에서 '배치 실패 사유 · 조치' 영역이 보이는 모습입니다 — 비식별을 통과하지 못해 배치 대기에 머문 영상도 배치 실패로 보아 이 영역과 재기동 버튼을 둡니다. 새 버튼을 따로 두지 않고 같은 자리의 재기동이 적재 직후와 같은 비식별 단계를 처음부터 다시 수행합니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑥ 선두 비식별 실패 — 재기동은 비식별 단계부터 다시</p>
+        <section class="failure-panel" role="region" aria-label="배치 처리 실패 — 선두 비식별 단계 실패">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">배치 처리 실패</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-secondary">검수자 전용</span>
+          </div>
+          <div class="alert alert-error fp-reason">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <div class="fp-reason-body">
+              <div class="fp-stage-line">
+                <span class="t-label" style="color:var(--e-7)">실패 단계</span>
+                <span class="fp-stage-chip"><span class="dot" aria-hidden="true"></span>비식별</span>
+              </div>
+              <p class="t-body-md fp-reason-text">비식별 처리가 완료되지 않아 마킹을 시작할 수 없습니다. 회차별 처리 상태는 아래 비식별 이력에서 확인하세요.</p>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <p class="t-caption fp-note" id="lead-deid-retry-hint">요청을 접수하면 적재 직후와 같은 비식별 단계를 처음부터 다시 수행합니다. 성공하면 마킹을 시작할 수 있는 상태가 됩니다. 진행 상황은 아래 비식별 이력에서 확인하세요.</p>
+            <div class="fp-foot-actions">
+              <button type="button" class="btn btn-primary btn-sm" aria-describedby="lead-deid-retry-hint">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path></svg>
+                <span class="t-button" style="font-size:15px">전체 재기동</span>
+              </button>
+            </div>
+          </div>
+        </section>
+        <p class="t-caption ref-note">서버가 사유를 내려주지 않는 영상이라 원인을 짐작해 적지 않고, 확정된 사실(비식별 미완료)과 확인할 곳(비식별 이력)만 말합니다. 화면 문구이므로 '서버가 보낸 그대로' 표식을 붙이지 않으며, 서버가 사유를 내려주면 그 문구를 그대로 씁니다.</p>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑦ 다시 요청한 비식별이 진행 중 — 재기동 비활성</p>
+        <section class="failure-panel" data-tone="info" role="region" aria-label="배치 처리 중 — 다시 요청한 비식별 진행 중">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">배치 처리 중</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-secondary">검수자 전용</span>
+          </div>
+          <p class="t-body-md fp-processing">요청이 접수되어 비식별 단계를 다시 수행하고 있습니다. 앞선 작업이 있으면 순서를 기다린 뒤 시작합니다. 진행 상황은 아래 비식별 이력에서 확인하세요.</p>
+          <div class="alert alert-error fp-reason">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <div class="fp-reason-body">
+              <div class="fp-stage-line">
+                <span class="t-label" style="color:var(--e-7)">직전 실패 단계</span>
+                <span class="fp-stage-chip"><span class="dot" aria-hidden="true"></span>비식별</span>
+              </div>
+              <p class="t-body-md fp-reason-text">비식별 처리가 완료되지 않아 마킹을 시작할 수 없습니다. 회차별 처리 상태는 아래 비식별 이력에서 확인하세요.</p>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <p class="t-caption fp-note" id="lead-deid-busy-hint">이미 처리 중이라 지금은 다시 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤 결과를 확인하세요.</p>
+            <div class="fp-foot-actions">
+              <button type="button" class="btn btn-primary btn-sm" disabled aria-describedby="lead-deid-busy-hint">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path></svg>
+                <span class="t-button" style="font-size:15px">전체 재기동</span>
+              </button>
+            </div>
+          </div>
+        </section>
+        <p class="t-caption ref-note">다시 요청한 비식별은 배치 상태를 처리 중으로 바꾸지 않아, 진행 여부는 비식별 이력의 최신 회차가 처리 중(요청됨)인지로 판단합니다. 이때 재기동을 누르면 서버가 반드시 막으므로 버튼을 비활성으로 두고 그 이유를 옆 안내가 말합니다.</p>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑧ 재기동 요청 결과 — 접수 · 거부 알림</p>
+        <div class="card">
+          <div class="card-content toast-stack">
+            <p class="t-caption ref-caption">접수 — 응답 단계가 대기여도 정상 접수로 안내</p>
+            <div class="toast toast-success" role="status">
+              <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5 11 15l4.5-5"></path></svg>
+              <span class="toast-body">
+                <span class="sr-only">성공: </span>
+                <span class="t-body-sm toast-title">재기동 요청을 접수했습니다</span>
+                <span class="t-caption toast-sub">비식별 단계부터 다시 수행하며 진행 상황은 비식별 이력에서 확인하세요.</span>
+              </span>
+            </div>
+            <p class="t-caption ref-caption">거부 — 서버가 내려준 사유 문구를 그대로 표시</p>
+            <div class="toast toast-error" role="alert">
+              <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+              <span class="toast-body">
+                <span class="sr-only">오류: </span>
+                <span class="t-body-sm toast-title">비식별 누락 신고가 열려 있는 영상입니다. 외부 재비식별 후 신고 해소로 처리해 주세요.</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <p class="t-caption ref-note">접수는 요청을 받았다는 뜻이지 처리가 끝났다는 뜻이 아니므로 '시작했다'·'완료'로 말하지 않습니다. 거부 사유(승인 이력 있음 · 열린 비식별 누락 신고 · 진행 중인 비식별 위탁 · 같은 영상 요청이 이미 수락됨 등)는 화면이 바꿔 쓰지 않습니다.</p>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑨ 파생영상 — 선두 비식별 실패여도 재기동 없음</p>
+        <section class="failure-panel" data-tone="neutral" role="region" aria-label="파생영상 배치 실패 사유 — 선두 비식별 단계">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">배치 실패 사유</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral">파생영상</span>
+          </div>
+          <div class="alert alert-error fp-reason">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <div class="fp-reason-body">
+              <div class="fp-stage-line">
+                <span class="t-label" style="color:var(--e-7)">실패 단계</span>
+                <span class="fp-stage-chip"><span class="dot" aria-hidden="true"></span>비식별</span>
+              </div>
+              <p class="t-body-md fp-reason-text">비식별 처리가 완료되지 않아 마킹을 시작할 수 없습니다. 회차별 처리 상태는 아래 비식별 이력에서 확인하세요.</p>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <p class="t-caption fp-note">파생영상은 이 영역의 조작 대상이 아닙니다 — 재기동·건너뛰기·재수행 버튼을 표시하지 않습니다.</p>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral">참고</span>
       <span class="t-body-sm text-muted">기본 정보 탭 맨 아래 '비식별 이력' 영역이 회차 구성에 따라 달라지는 모습입니다 — 위 '배치 실패 사유 · 조치' 와 달리 검수자와 라벨링 작업자가 함께 보는 영역이고, 어느 경우에도 파일 경로는 표시하지 않습니다.</span>
     </div>
     <div class="reference-grid cols-2">
