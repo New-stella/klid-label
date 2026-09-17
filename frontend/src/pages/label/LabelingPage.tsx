@@ -11,7 +11,17 @@
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
 
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -89,6 +99,7 @@ import {
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 
 import { cn } from '@/lib/cn';
+import { usePortalEditorFill } from '@/lib/portalEditorFill';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useToolLabelPicker } from '@/features/label/hooks/useToolLabelPicker';
@@ -213,6 +224,23 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
 
   // 채널/역할 가드
   const portalMode = useAuthStore((s) => s.claims?.channel === 'PORTAL');
+  /*
+    ★임베드에서는 편집기를 <b>흐름 안</b>에 세운다 — Host 가 우리 자리에 `contain: layout` 을
+      걸어 두어 `fixed` 가 화면이 아니라 그 자리 안쪽을 덮고, 흐름 밖이라 그 자리가 제 최소
+      높이로 주저앉는 되먹임이 생긴다(2026-09-17 실화면 실측 — 캔버스가 343 이었다).
+      까닭·실험 근거는 `lib/portalEditorFill.ts` 가 갖는다.
+    ⚠ 가르는 축은 사용자 채널이 아니라 <b>빌드 형상</b>이다 — 관제·독립 배포본은 문서 전체를
+      우리가 가지므로 종전 `fixed` 그대로다.
+  */
+  const {
+    embedded: editorEmbedded,
+    ref: editorFillRef,
+    height: editorFillHeight,
+  } = usePortalEditorFill();
+  const editorShellClass = editorEmbedded ? 'relative w-full' : 'fixed inset-0';
+  const editorShellStyle: CSSProperties = editorEmbedded
+    ? { height: editorFillHeight }
+    : { zIndex: 50 };
   const role = useAuthStore((s) => s.claims?.role);
   const isWorker = role === Role.WORKER;
   const isReviewer = roleSatisfies(role, Role.REVIEWER);
@@ -1609,8 +1637,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (!uploadSource && Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1638,8 +1667,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (uploadNotice) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1666,8 +1696,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="flex flex-col items-center gap-3">
@@ -1691,8 +1722,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (isPortalUnavailable) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="portal-forbidden-screen"
       >
         <div className="text-center">
@@ -1717,8 +1749,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (error) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1769,8 +1802,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
 
   return (
     <div
-      className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden"
-      style={{ zIndex: 50 }}
+      ref={editorFillRef}
+      className={cn('bg-gray-50 flex flex-col overflow-hidden', editorShellClass)}
+      style={editorShellStyle}
       data-testid="labeling-page"
     >
       <LabelHeader

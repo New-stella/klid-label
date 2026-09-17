@@ -184,7 +184,38 @@ describe('포털 라벨링 — 킷 부품 이관', () => {
     });
   });
 
-  describe('⑤ 우측 칸의 묶음 이름·빈 자리가 킷 것이다', () => {
+  describe('⑤ 임베드에서는 편집기가 흐름 안에 선다', () => {
+    /*
+      ★이 갈래는 <b>빌드 형상</b>이 가른다(사용자 채널이 아니다). 시험 환경은 관제 빌드라
+        기본은 종전 `fixed` 이고, 임베드로 세우면 흐름 안으로 바뀐다.
+      ⚠ 판정 축을 채널(`claims.channel`)로 옮기지 말 것 — 같은 포털 사용자라도 독립
+        배포본에서는 문서 전체를 우리가 가지므로 `fixed` 가 맞다.
+    */
+    it('★관제·독립 빌드는 종전 그대로 화면을 덮는다', async () => {
+      await renderPortalLabel();
+      const page = screen.getByTestId('labeling-page');
+      expect(page).toHaveClass('fixed', 'inset-0');
+      expect(page.style.zIndex).toBe('50');
+    });
+
+    it('★★임베드 빌드는 흐름 안에 서고 높이를 스스로 채운다', async () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+      try {
+        await renderPortalLabel();
+        const page = screen.getByTestId('labeling-page');
+        // 흐름 밖으로 나가지 않는다 — 나가면 Host 자리가 주저앉는다.
+        expect(page).not.toHaveClass('fixed');
+        expect(page).toHaveClass('relative');
+        // 높이는 우리가 잰 값으로 채운다.
+        expect(page.style.height).toContain('calc(100vh -');
+        expect(page.style.height).toContain('max(');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+  });
+
+  describe('⑥ 우측 칸의 묶음 이름·빈 자리가 킷 것이다', () => {
     it('★「객체 목록」이 킷 판 머리 줄이다 — 건수를 배지로 두르지 않는다', async () => {
       await renderPortalLabel();
       const count = screen.getByTestId('object-count-badge');
