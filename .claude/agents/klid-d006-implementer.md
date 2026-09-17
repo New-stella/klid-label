@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/통계대시보드-DOMAIN-006/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
