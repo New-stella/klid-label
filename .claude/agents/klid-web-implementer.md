@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 화면 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail`(CO 의 프론트 섹션)이 진실원이고, `design_refs` 의 SCREEN/API ITEM 이 계약의 원본이다. 화면 키트·와이어프레임은 레이아웃·규격 확인용 배경 참고다.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 백엔드 도메인 에이전트(`klid-d0NN-implementer`)와 짝을 이룬다. 백엔드가 API/ERD/service 라면 당신은 **화면(SCREEN)·UI 컴포넌트·라우팅·상태·API 연동**을 다룬다. 백엔드 응답 계약에 의존하므로 보통 **백엔드 뒤**에 온다.
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
