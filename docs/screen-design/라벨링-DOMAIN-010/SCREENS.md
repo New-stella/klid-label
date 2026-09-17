@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-09-15T15:38:39.608Z (session 20) |
+| last sync | 2026-09-17T01:18:30.141Z (session 21) |
 | 화면 수 | 2개 |
-| ui_component 카탈로그 | populated 144건 |
+| ui_component 카탈로그 | populated 147건 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
@@ -26,9 +26,9 @@
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 144 |
+| ui_component | _shared/ui-catalog.md | 147 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 51 |
+| api_endpoint | _shared/api/ | 52 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -55,6 +55,10 @@
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
+
+> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
+> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
+> - AC-1128 — SCREEN-026, SCREEN-026
 
 ## git 권장
 

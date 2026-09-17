@@ -3231,7 +3231,7 @@ display
 
 ## description
 
-마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 단기 서명 스트리밍 URL이며, 로드 실패(서명 만료 등) 시 onSrcError로 상위에 재발급을 요청한다.
+마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 스트리밍 주소이며, 그 주소로 하는 요청의 인증 방식은 주소를 발급한 창구가 정한다(마킹 화면의 내부 영상은 재생 인증 쿠키로 판정하고 주소의 만료 시각은 재생 인증에 쓰지 않는다 — ADR-071). 로드 실패(재생 인증 거부 등) 시 onSrcError로 상위에 재발급을 요청한다. 상위가 src를 교체해도 재생 위치는 보존된다 — 교체 직전 재생 위치를 새 소스의 메타데이터가 불러와진 시점에 복원하며, 소스 교체로 재생이 처음으로 돌아가지 않는다.
 
 ## props_schema
 
@@ -3239,7 +3239,7 @@ display
 
 - **type**: string
 - **required**: true
-- **description**: 영상 스트리밍 URL(HTTP Range 지원, 단기 서명 URL)
+- **description**: 영상 스트리밍 주소(HTTP Range 지원). 인증 방식은 주소를 발급한 창구가 정한다
 
 ### className
 
@@ -3251,13 +3251,17 @@ display
 
 - **type**: () => void
 - **required**: false
-- **description**: 영상 로드 실패(서명 URL 만료 등) 시 호출 — 상위가 스트림 URL을 재발급해 src를 교체한다
+- **description**: 영상 로드 실패(재생 인증 거부 등) 시 호출 — 상위가 스트림 주소를 재발급해 src를 교체하며, 교체 직전 재생 위치는 새 소스의 메타데이터가 불러와진 시점에 복원된다
 
 ### onDurationChange
 
 - **type**: (sec: number) => void
 - **required**: false
 - **description**: 메타데이터 로드로 실제 영상 길이(초)를 얻으면 호출 — 유효한 값(NaN/Infinity 아님, 0 초과)일 때만 통지한다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 

@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-09-15T15:36:23.722Z |
+| Last sync | 2026-09-17T01:15:46.421Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 186 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 44건
-  ℹ️  api_endpoint: 이번 키트 37건 / 스코프 밖 200건
+  ℹ️  api_endpoint: 이번 키트 37건 / 스코프 밖 201건
   ℹ️  erd: 이번 키트 3건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 10건 / 스코프 밖 26건 (그중 domain_id 없음 11건)
   ℹ️  screen_spec: 이번 키트 6건 / 스코프 밖 33건
-  ℹ️  use_case: 이번 키트 8건 / 스코프 밖 28건
+  ℹ️  use_case: 이번 키트 8건 / 스코프 밖 29건
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 27건 / 스코프 밖 88건 (그중 domain_id 없음 8건)
+  ℹ️  acceptance: 이번 키트 27건 / 스코프 밖 96건 (그중 domain_id 없음 13건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
-  ℹ️  adr: 이번 키트 22건 / 스코프 밖 40건 (그중 domain_id 없음 7건)
+  ℹ️  adr: 이번 키트 22건 / 스코프 밖 43건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 3건 / 스코프 밖 11건 (그중 domain_id 없음 10건)
 ```
 
@@ -76,7 +76,7 @@
 | [[AC-1108]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-008]] | adr | 4 | UNCHANGED |
-| [[ADR-013]] | adr | 24 | UNCHANGED |
+| [[ADR-013]] | adr | 25 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-026]] | adr | 7 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
@@ -155,7 +155,7 @@
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[INFRA-001]] | infra_component | 8 | UNCHANGED |
 | [[INFRA-003]] | infra_component | 8 | UNCHANGED |
-| [[INT-004]] | integration_point | 16 | UNCHANGED |
+| [[INT-004]] | integration_point | 18 | UNCHANGED |
 | [[LEGACY-005]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-066]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-067]] | legacy_artifact | 1 | UNCHANGED |
@@ -171,7 +171,7 @@
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
-| [[NFR-017]] | nfr | 11 | UNCHANGED |
+| [[NFR-017]] | nfr | 12 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
 | [[NFR-020]] | nfr | 11 | UNCHANGED |
@@ -192,7 +192,7 @@
 | [[NFR-035]] | nfr | 1 | UNCHANGED |
 | [[NFR-036]] | nfr | 1 | UNCHANGED |
 | [[NFR-037]] | nfr | 1 | UNCHANGED |
-| [[NFR-038]] | nfr | 1 | UNCHANGED |
+| [[NFR-038]] | nfr | 3 | UNCHANGED |
 | [[NFR-039]] | nfr | 1 | UNCHANGED |
 | [[NFR-040]] | nfr | 1 | UNCHANGED |
 | [[NFR-041]] | nfr | 1 | UNCHANGED |
@@ -221,10 +221,10 @@
 | [[SEQ-025]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-030]] | diagram_sequence | 10 | UNCHANGED |
-| [[SEQ-031]] | diagram_sequence | 7 | UNCHANGED |
+| [[SEQ-031]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-032]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-035]] | diagram_sequence | 7 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 18 | UNCHANGED |
+| [[SHELL-001]] | app_shell | 19 | UNCHANGED |
 | [[UC-004]] | use_case | 19 | UNCHANGED |
 | [[UC-005]] | use_case | 14 | UNCHANGED |
 | [[UC-006]] | use_case | 12 | UNCHANGED |

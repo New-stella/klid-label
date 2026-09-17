@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-09-15T15:36:09.624Z",
+  "synced_at": "2026-09-17T01:16:13.464Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -117,8 +117,8 @@
     "ADR-068": {
       "type": "adr",
       "domain_id": "DOMAIN-013",
-      "version": 3,
-      "content_hash": "fa8de7eba916869266766b668cdc96374f9916ae2c8b63995751855ae7fde443"
+      "version": 8,
+      "content_hash": "a675036086b3422dcfafa4858f4e7eb9e88590dab44698ae17bb6ca946657f9b"
     },
     "API-013": {
       "type": "api_endpoint",
@@ -357,8 +357,8 @@
     "INT-004": {
       "type": "integration_point",
       "domain_id": "DOMAIN-012",
-      "version": 16,
-      "content_hash": "03523fe341dcf09f18db3f64b064694d51d5715514f71129af42fa90f353ede8"
+      "version": 18,
+      "content_hash": "c7d1e90df7e71c0d480a3df7f7c957cacaf5c0a6cc9475f718bdfa9078bc2dd4"
     },
     "NFR-008": {
       "type": "nfr",
@@ -417,8 +417,8 @@
     "NFR-017": {
       "type": "nfr",
       "domain_id": null,
-      "version": 11,
-      "content_hash": "a53862b11992bbfcd36756d416200ad1611d4a731c0b4eb049389df817e1ef3c"
+      "version": 12,
+      "content_hash": "e1ca9a1a7f277b284bfa1f7206d7a5e2480fd489b9c3f2103fbe802af200138f"
     },
     "NFR-018": {
       "type": "nfr",
@@ -543,8 +543,8 @@
     "NFR-038": {
       "type": "nfr",
       "domain_id": null,
-      "version": 1,
-      "content_hash": "eb9e38d3f05ab435e2ed1d8b8316219ad4cb00b4ee779df3ec9c08a9eee85788"
+      "version": 3,
+      "content_hash": "8c8d288da3e44889fb84e0412e51aec7af4817122533216eac286bfc9acfb812"
     },
     "NFR-039": {
       "type": "nfr",
@@ -645,8 +645,8 @@
     "SCREEN-018": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-005",
-      "version": 37,
-      "content_hash": "879430c3ed6ef310936541b0e4d80512d86d1606a0549a993e211cda9dbefd78"
+      "version": 38,
+      "content_hash": "479d8bf1e009a90b48bde3adab2f889ca7cd5d86930d829abe7af95500a0ea44"
     },
     "SCREEN-019": {
       "type": "screen_spec",

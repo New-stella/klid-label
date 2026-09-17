@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
-  "synced_at": "2026-09-15T15:36:14.743Z",
+  "synced_at": "2026-09-17T01:16:11.911Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -63,8 +63,8 @@
     "ADR-013": {
       "type": "adr",
       "domain_id": "DOMAIN-013",
-      "version": 24,
-      "content_hash": "cd9a1886bab2d13348e6248dc6ebc1c5aa73da3e48acfe3afefc8d85ffdf6575"
+      "version": 25,
+      "content_hash": "2d8cfffd41fc81d2121f768f4101656f7f9b4f34d1573fecf4e3434c5cfb6090"
     },
     "ADR-020": {
       "type": "adr",
@@ -105,8 +105,8 @@
     "ADR-069": {
       "type": "adr",
       "domain_id": "DOMAIN-003",
-      "version": 4,
-      "content_hash": "d67a6d36fff5a70705fc084e166c296264bf3d452c51160e37e5d66cdfd6ad5c"
+      "version": 5,
+      "content_hash": "b59589a00cda14b063dcf170b08909a906d975f1e2091f94ea0116d08eb2e39b"
     },
     "API-074": {
       "type": "api_endpoint",
@@ -220,7 +220,7 @@
       "type": "domain_feature",
       "domain_id": "DOMAIN-015",
       "version": 12,
-      "content_hash": "ad9cb84411b60fed5b3eed6c7d2403ef70719103495f1c70861f29ef63e79c97"
+      "content_hash": "9858bf803b11f266b46fef8dee4100a14526a0352e57a5d974584b96ee4c27b4"
     },
     "DFEAT-043": {
       "type": "domain_feature",
@@ -369,8 +369,8 @@
     "NFR-017": {
       "type": "nfr",
       "domain_id": null,
-      "version": 11,
-      "content_hash": "a53862b11992bbfcd36756d416200ad1611d4a731c0b4eb049389df817e1ef3c"
+      "version": 12,
+      "content_hash": "e1ca9a1a7f277b284bfa1f7206d7a5e2480fd489b9c3f2103fbe802af200138f"
     },
     "NFR-018": {
       "type": "nfr",
@@ -495,8 +495,8 @@
     "NFR-038": {
       "type": "nfr",
       "domain_id": null,
-      "version": 1,
-      "content_hash": "eb9e38d3f05ab435e2ed1d8b8316219ad4cb00b4ee779df3ec9c08a9eee85788"
+      "version": 3,
+      "content_hash": "8c8d288da3e44889fb84e0412e51aec7af4817122533216eac286bfc9acfb812"
     },
     "NFR-039": {
       "type": "nfr",

@@ -179,7 +179,10 @@
     "UI-152",
     "UI-153",
     "UI-154",
-    "UI-155"
+    "UI-155",
+    "AC-1132",
+    "ADR-070",
+    "API-262"
   ],
   "pending": [
     "SHELL-001",
@@ -227,7 +230,7 @@
     "IMPREC-400",
     "OSS-102"
   ],
-  "last_sync_at": "2026-09-15T15:36:22.743Z",
-  "note_pruned": "제외 타입 43건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 1건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다): OSS-102",
-  "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 44건 승격: AC-1104, AC-1105, AC-1107, AC-1108, AC-1118, AC-1119, AC-1120, ADR-048, ADR-068, API-020, API-093, API-123, API-124, API-177, API-193, API-204, API-246, API-247, API-248, API-249, API-253, API-254, API-255, API-256, API-257, API-258, ERD-012, FEAT-001, FEAT-007, INT-015, SCREEN-005, SCREEN-046, UI-131, UI-146, UI-147, UI-148, UI-149, UI-150, UI-151, UI-152, UI-153, UI-154, UI-155, UC-034."
+  "last_sync_at": "2026-09-17T01:16:05.539Z",
+  "note_pruned": "제외 타입 43건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 1건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다): OSS-102 | 2026-09-17 선두 비식별 실패 수동 재시도 라운드(CO-20260916-선두비식별-실패-수동재시도) 머지 후 회수. 제외 타입 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP — 매 SYNC 마다 다시 올라오는 것이 정상); OSS-102 는 미분류 타입이라 선례대로 보류.",
+  "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 44건 승격: AC-1104, AC-1105, AC-1107, AC-1108, AC-1118, AC-1119, AC-1120, ADR-048, ADR-068, API-020, API-093, API-123, API-124, API-177, API-193, API-204, API-246, API-247, API-248, API-249, API-253, API-254, API-255, API-256, API-257, API-258, ERD-012, FEAT-001, FEAT-007, INT-015, SCREEN-005, SCREEN-046, UI-131, UI-146, UI-147, UI-148, UI-149, UI-150, UI-151, UI-152, UI-153, UI-154, UI-155, UC-034. | 2026-09-17 선두 비식별 실패 수동 재시도 라운드(CO-20260916-선두비식별-실패-수동재시도) 머지 후 회수. 핵심 타입 3건 승격: AC-1132(derived_domain=이 도메인·pin API-253·SCREEN-046 참조) · ADR-070·API-262(이 도메인 소속)."
 }

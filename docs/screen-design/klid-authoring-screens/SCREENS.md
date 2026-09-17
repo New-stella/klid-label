@@ -8,8 +8,8 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 전체 통합 |
-| last sync | 2026-09-15T15:41:05.940Z (session 42) |
-| 화면 수 | 38개 |
+| last sync | 2026-09-17T01:18:31.518Z (session 43) |
+| 화면 수 | 39개 |
 | ui_component 카탈로그 | populated 158건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
@@ -56,15 +56,16 @@
 | [[SCREEN-043]] | 위험 작업 화면 | UNCHANGED | ✅ |  | [[ROLE-004]] |
 | [[SCREEN-044]] | 포털 증강 화면 | UNCHANGED | ✅ | [[API-232]], [[API-233]], [[API-157]], [[API-159]] | [[ROLE-003]] |
 | [[SCREEN-045]] | 포털 업로드 영상 마킹 화면 | UNCHANGED | ✅ | [[API-238]], [[API-239]], [[API-240]], [[API-241]], [[API-140]] | [[ROLE-003]] |
+| [[SCREEN-046]] | 포털 데이터셋 소재 조달 화면 | UNCHANGED | ✅ | [[API-248]], [[API-249]], [[API-253]], [[API-262]] | [[ROLE-003]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
-| design_system | _shared/design-system.md | 1 |
+| design_system | _shared/design-system.md | 2 |
 | ui_component | _shared/ui-catalog.md | 158 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 230 |
+| api_endpoint | _shared/api/ | 234 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -121,6 +122,7 @@
 | 36 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
 | 37 | [[SCREEN-044]] — 포털 증강 화면 | screens/SCREEN-044/SCREEN-044.md | wireframe.html | uc/ | ac/ |
 | 38 | [[SCREEN-045]] — 포털 업로드 영상 마킹 화면 | screens/SCREEN-045/SCREEN-045.md | wireframe.html | uc/ | ac/ |
+| 39 | [[SCREEN-046]] — 포털 데이터셋 소재 조달 화면 | screens/SCREEN-046/SCREEN-046.md | wireframe.html | uc/ | ac/ |
 
 ## Obsidian 볼트로 보기
 
@@ -128,14 +130,14 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 63건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 79건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
 > - UC-011 — SCREEN-008, SCREEN-009
 > - UC-016 — SCREEN-009, SCREEN-032
 > - UC-023 — SCREEN-018, SCREEN-019
-> - UC-024 — SCREEN-028, SCREEN-029
+> - UC-024 — SCREEN-028, SCREEN-029, SCREEN-046
 > - UC-027 — SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
 > - UC-032 — SCREEN-026, SCREEN-038
 > - UC-034 — SCREEN-005, SCREEN-029
@@ -143,6 +145,8 @@
 > - UC-040 — SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037
 > - UC-041 — SCREEN-001, SCREEN-002, SCREEN-003
 > - UC-043 — SCREEN-008, SCREEN-012, SCREEN-018
+> - AC-1016 — SCREEN-001, SCREEN-002, SCREEN-003
+> - AC-1017 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1022 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
 > - AC-1023 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-025
 > - AC-1028 — SCREEN-005, SCREEN-025
@@ -154,6 +158,8 @@
 > - AC-1040 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1041 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1042 — SCREEN-018, SCREEN-019, SCREEN-019
+> - AC-1050 — SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037
+> - AC-1051 — SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037
 > - AC-1054 — SCREEN-005, SCREEN-010
 > - AC-1055 — SCREEN-005, SCREEN-010
 > - AC-1056 — SCREEN-005, SCREEN-010
@@ -163,8 +169,8 @@
 > - AC-1064 — SCREEN-008, SCREEN-009
 > - AC-1066 — SCREEN-009, SCREEN-032
 > - AC-1067 — SCREEN-009, SCREEN-032
-> - AC-1068 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029
-> - AC-1069 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029
+> - AC-1068 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029, SCREEN-046
+> - AC-1069 — SCREEN-028, SCREEN-028, SCREEN-029, SCREEN-029, SCREEN-046
 > - AC-1070 — SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
 > - AC-1071 — SCREEN-029, SCREEN-033, SCREEN-033, SCREEN-044, SCREEN-044, SCREEN-045
 > - AC-1082 — SCREEN-032, SCREEN-039
@@ -173,10 +179,11 @@
 > - AC-1085 — SCREEN-021, SCREEN-021
 > - AC-1086 — SCREEN-027, SCREEN-027
 > - AC-1087 — SCREEN-027, SCREEN-027
+> - AC-1098 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1104 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1105 — SCREEN-001, SCREEN-002, SCREEN-003
 > - AC-1106 — SCREEN-001, SCREEN-002, SCREEN-003
-> - AC-1108 — SCREEN-005, SCREEN-028, SCREEN-029, SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045
+> - AC-1108 — SCREEN-005, SCREEN-028, SCREEN-029, SCREEN-029, SCREEN-029, SCREEN-033, SCREEN-044, SCREEN-045, SCREEN-046
 > - AC-1109 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1110 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1111 — SCREEN-018, SCREEN-019, SCREEN-019
@@ -186,6 +193,9 @@
 > - AC-1115 — SCREEN-018, SCREEN-019, SCREEN-019
 > - AC-1116 — SCREEN-018, SCREEN-018, SCREEN-019
 > - AC-1117 — SCREEN-018, SCREEN-018, SCREEN-019
+> - AC-1118 — SCREEN-028, SCREEN-029, SCREEN-046
+> - AC-1119 — SCREEN-028, SCREEN-029, SCREEN-046
+> - AC-1120 — SCREEN-028, SCREEN-029, SCREEN-046
 > - AC-1121 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-018
 > - AC-1122 — SCREEN-012, SCREEN-012
 > - AC-1123 — SCREEN-012, SCREEN-012
@@ -193,6 +203,14 @@
 > - AC-1125 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-018
 > - AC-1126 — SCREEN-008, SCREEN-008, SCREEN-012, SCREEN-012, SCREEN-018, SCREEN-018
 > - AC-1127 — SCREEN-008, SCREEN-012, SCREEN-012, SCREEN-012, SCREEN-018
+> - AC-1128 — SCREEN-026, SCREEN-026, SCREEN-038
+> - AC-1129 — SCREEN-038, SCREEN-038
+> - AC-1130 — SCREEN-038, SCREEN-038
+> - AC-1131 — SCREEN-038, SCREEN-038
+> - AC-1132 — SCREEN-028, SCREEN-029, SCREEN-046, SCREEN-046
+> - AC-1133 — SCREEN-008, SCREEN-008, SCREEN-009, SCREEN-009
+> - AC-1134 — SCREEN-008, SCREEN-009
+> - AC-1135 — SCREEN-008, SCREEN-009
 
 ## git 권장
 

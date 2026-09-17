@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-09-15T15:38:39.071Z (session 20) |
+| Last sync | 2026-09-17T01:18:29.512Z (session 21) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 172 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 
@@ -39,7 +39,7 @@
 | [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | true | UNCHANGED |
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | UNCHANGED |
 | [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
 | [[UC-040]] | use_case | 공지·가이드라인 관리와 열람 | 5 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
@@ -82,7 +82,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |

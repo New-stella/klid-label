@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-006</span><span class="sep">/</span><span>마킹 화면</span></div>
       <h1 style="white-space:nowrap">마킹 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">영상 스트리밍(서명 URL 선행 조회 후 HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(1=수동/2=자동 모드 전환은 항상 발화, Space=마킹/Del·Backspace=삭제/Enter=완료는 수동 모드에서만 발화)로 이벤트 시점을 마킹. 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱해 화면에 표시한다. 외부 시계열 위탁 요청에 싣는 검증 이벤트 유형은 이와 다른 컬럼인 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 별도로 조달하며, 두 컬럼은 서로 다른 값이라 대체·통합하거나 한쪽에서 … · route /marking/:rawSn</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">영상 스트리밍(재생 주소 선행 조회 후 HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(1=수동/2=자동 모드 전환은 항상 발화, Space=마킹/Del·Backspace=삭제/Enter=완료는 수동 모드에서만 발화)로 이벤트 시점을 마킹. 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱해 화면에 표시한다. 외부 시계열 위탁 요청에 싣는 검증 이벤트 유형은 이와 다른 컬럼인 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 별도로 조달하며, 두 컬럼은 서로 다른 값이라 대체·통합하거나 한쪽에서 유… · route /marking/:rawSn</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 영상 플레이어 (스트리밍·배속)</h2>
@@ -18,7 +18,7 @@
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
-        <span class="wf-muted">VideoPlayer</span><span class="wf-help">GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 &lt;video src&gt; 에 바인딩(HTTP Range 재생). &lt;video&gt; 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/…</span>
+        <span class="wf-muted">VideoPlayer</span><span class="wf-help">GET /v1/videos/{rawSn}/stream-url 로 재생 주소를 먼저 받아 &lt;video src&gt; 에 바인딩(HTTP Range). &lt;video&gt; 는 Authorization 헤더를 못 붙여 인증 스트림을 직접 재생하지 못한다. 재생 인증은 발급 응답과 함께 내려온 쿠키(kl…</span>
         <button class="wf-btn wf-btn-secondary">재생 / 일시정지</button>
         <span class="wf-muted">SpeedButtons</span>
         <span class="wf-muted">SeekBar</span>
@@ -112,8 +112,12 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 영상 플레이어 (스트리밍·배속)</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 &lt;video src&gt;에 바인딩해 HTTP Range 로 재생한다(&lt;video&gt; 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 서명 URL 재생이 성립하려면 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)가 후속 스트림 요청에 함께 실려야 한다. 그 쿠키는 스크립트가 다룰 수 없고 브라우저가 자동으로 부착하므로, 재생 요청이 동일 오리진이면서 쿠키가 실리는 경로여야 한다는 제약이 따른다. 쿠키가 없거나 유효하지 않으면 서명 검증이 실패해 401 이며, 위의 1회 재시도는 서명 만료뿐 아니라 이 401 도 포괄한다 — 재발급을 받으면 쿠키도 함께 새로 내려오기 때문이다. 쿠키 속성 전문은 API-114 가 정하므로 이 화면 사양에 옮겨 적지 않는다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(영상 플레이어)<p class="wf-help" style="margin:2px 0 0">GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 &lt;video src&gt; 에 바인딩(HTTP Range 재생). &lt;video&gt; 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도. 서명 URL 재생은 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)를 전제로 한다 — 브라우저가 자동으로 실어 보내고 스크립트로는 다룰 수 없어, 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 쿠키가 없거나 유효하지 않으면 401 이며, 위 1회 재시도가 이 401 도 포괄한다.</p></li><li>Button(재생 / 일시정지)</li><li>Custom(배속 0.25x~4x)</li><li>Custom(탐색 슬라이더)</li><li>Heading(현재시각 / 총길이 (mm:ss))</li><li>Custom(버퍼링/탐색 중 스피너)<p class="wf-help" style="margin:2px 0 0">video 의 waiting·seeking 이벤트에서 노출되고 canplay·playing·seeked 시 해제된다. 느린 네트워크에서 재생이 멈춘 이유를 시각적으로 안내한다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(재생 주소 발급)을 조회하고 응답의 재생 주소를 &lt;video src&gt;에 바인딩해 HTTP Range 로 재생한다(&lt;video&gt; 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 재생 구간(부분 요청 포함)의 인증은 발급 응답과 함께 내려온 쿠키(klid_stream_nonce)로 판정한다. 쿠키는 스크립트가 다룰 수 없고 브라우저가 자동으로 실으므로 재생 요청은 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 쿠키 속성 전문은 API-114 가 정한다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.
+
+[재생 주소 구성] 발급 주소는 배포 접두를 포함하지 않는 API 기준 경로라 이 화면의 배포 접두를 앞에 붙여 최종 주소를 만든다(재발급 주소도 동일). 붙이지 않으면 스트림에 도달하지 못해 재생되지 않는다.
+
+[재발급 시 재생 위치 보존] 쿠키가 거부되는 등 재생에 실패하면 stream-url 을 재발급받아(쿠키도 새로 내려온다) 소스를 바꾼다. 바꾸기 직전 재생 위치를 기억했다가 새 소스의 메타데이터가 불러와진 시점에 복원한다 — 교체된 영상은 일시정지 상태라 재생 시작 신호를 기다리면 복원되지 않는다. 만료 시각·유효 초는 인증 수명이 아니라 재발급 시점 판단에 쓰지 않는다. 재발급·재시도는 상한까지만 하고 이후 재생 실패를 알린다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(영상 플레이어)<p class="wf-help" style="margin:2px 0 0">GET /v1/videos/{rawSn}/stream-url 로 재생 주소를 먼저 받아 &lt;video src&gt; 에 바인딩(HTTP Range). &lt;video&gt; 는 Authorization 헤더를 못 붙여 인증 스트림을 직접 재생하지 못한다. 재생 인증은 발급 응답과 함께 내려온 쿠키(klid_stream_nonce)로 판정되며 브라우저가 자동으로 싣는다 — 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 인증 거부 등 재생 오류 시 재발급받아 소스를 바꾸고, 직전 재생 위치를 기억했다가 새 소스의 loadedmetadata 시점에 복원한다(교체 뒤 일시정지라 재생 시작을 기다리면 복원되지 않는다). 만료 시각·유효 초는 재발급 판단에 쓰지 않는다. 발급 주소 앞에 배포 접두를 붙인다. 재발급·재시도는 상한까지만 하고 이후 재생 실패를 알린다.</p></li><li>Button(재생 / 일시정지)</li><li>Custom(배속 0.25x~4x)</li><li>Custom(탐색 슬라이더)</li><li>Heading(현재시각 / 총길이 (mm:ss))</li><li>Custom(버퍼링/탐색 중 스피너)<p class="wf-help" style="margin:2px 0 0">video 의 waiting·seeking 이벤트에서 노출되고 canplay·playing·seeked 시 해제된다. 느린 네트워크에서 재생이 멈춘 이유를 시각적으로 안내한다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-114</li><li>API-084</li></ul></div>
     </div>
   </div>

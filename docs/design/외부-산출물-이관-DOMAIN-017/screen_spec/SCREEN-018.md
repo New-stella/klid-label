@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-018
 type: screen_spec
-version: 37
+version: 38
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-15T15:34:10.945Z
+synced_at: 2026-09-17T01:12:57.583Z
 status: CHANGED
-prev_version: 33
-content_hash: 879430c3ed6ef310936541b0e4d80512d86d1606a0549a993e211cda9dbefd78
-stale: false
+prev_version: 37
+content_hash: 479d8bf1e009a90b48bde3adab2f889ca7cd5d86930d829abe7af95500a0ea44
+stale: true
 raw: ./_raw/SCREEN-018.json
 links:
   based_on: ["[[ADR-002]]"]
@@ -564,7 +564,7 @@ _(empty)_
 
 #### [15]
 
-- **note**: 목록 표 바로 위에 둔다. 제외 처리된 영상의 건수를 보인다. 0건이어도 감추지 않는다 — 제외분이 기본 목록에서 빠져 있다는 사실 자체를 알려야 한다. 숫자는 KPI 집계 창구(API-138)에서 받으며 지금 걸린 필터 범위 안의 값이라 눌렀을 때 나오는 건수와 일치한다. 누르면 제외분만 보는 목록으로 전환한다.
+- **note**: 목록 표 바로 위에 둔다. 제외 처리된 영상의 건수를 보인다. 0건이어도 감추지 않는다 — 제외분이 기본 목록에서 빠져 있다는 사실 자체를 알려야 한다. 숫자는 KPI 집계 창구(API-138)에서 받으며 지금 걸린 필터 범위 안의 값이라 눌렀을 때 나오는 건수와 일치한다. 누르면 제외분만 보는 목록으로 전환한다. 전환할 때는 검수 상태 축 조건을 빼고 요청한다 — 그 조건을 그대로 둔 채 전환하면 결과가 누른 숫자보다 적어진다. 검색어 같은 그 밖의 필터는 그대로 유지한다.
 - **type**: Button
 - **label**: 제외됨 {n}건
 

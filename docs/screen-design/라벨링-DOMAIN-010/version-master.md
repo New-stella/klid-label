@@ -5,14 +5,26 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-09-15T15:38:39.613Z (session 20) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 227 |
+| Last sync | 2026-09-17T01:18:30.147Z (session 21) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 245 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
+| [[AC-1024]] | acceptance | UC-004 객체 자동 추적 — 시드 지정→SAM2 track 전파→자동 라벨 저장·보간 (happy) | 7 | true | UNCHANGED |
+| [[AC-1025]] | acceptance | UC-004 추적 실패·정확도 저하 — 서킷 브레이커·원본 유지·수동 보정 (negative) | 5 | true | UNCHANGED |
+| [[AC-1026]] | acceptance | UC-005 객체 외곽 경계 자동 밀착 — SAM2 segment→폴리곤 단순화·적용 (happy) | 5 | true | UNCHANGED |
+| [[AC-1027]] | acceptance | UC-005 밀착 실패 — 외곽 인식 실패 수동 전환·추론 실패 502·시드 유지 (negative) | 5 | true | UNCHANGED |
+| [[AC-1028]] | acceptance | UC-006 라벨링 정밀도 조절 — epsilon 영속 설정·요청 1회성 override·폴백 (happy) | 4 | true | UNCHANGED |
+| [[AC-1029]] | acceptance | UC-006 정밀도 설정 거부 — 범위 초과 400·WORKER 권한 부족 403 (negative) | 5 | true | UNCHANGED |
+| [[AC-1030]] | acceptance | UC-034 온디맨드 AI 자동 추적 — 구간 다객체 조회·묶음 수락/자동반영·labelId 보존 저장 (happy) | 4 | true | UNCHANGED |
+| [[AC-1031]] | acceptance | UC-034 온디맨드 추적 분기 — labelId 없는 검출 미반영·묶음 제외·미저장 미확정 (edge) | 5 | true | UNCHANGED |
+| [[AC-1034]] | acceptance | UC-039 온라인 AI 객체 탐지 — 락·배정 확인→마스터 교집합→문턱 결정→좌표만 응답 (happy) | 6 | true | UNCHANGED |
+| [[AC-1035]] | acceptance | UC-039 온라인 탐지 분기 — 미매핑 외부호출 안 함·실패/목 자동적용 안 함·추론 뒤 락 충돌 (negative) | 5 | true | UNCHANGED |
+| [[AC-1036]] | acceptance | UC-022 VLM 시계열 메타 검토 — 두 창구 콜백 적재·검수큐 진입·어노 초안 채움·창 검토·승인 (happy) | 9 | false | UNCHANGED |
+| [[AC-1037]] | acceptance | UC-022 VLM 결과 오류 — 검수자 직접 수정 후 승인 또는 반려 (edge) | 7 | false | UNCHANGED |
 | [[AC-1052]] | acceptance | UC-007 라벨 버전 저장·이력 추적 — 승인 시점 전체 스냅샷 적재·해시 식별·이력 기록 (happy) | 9 | true | UNCHANGED |
 | [[AC-1053]] | acceptance | UC-007 비식별 미완료로 승인 거부 시 버전 미생성 — 스냅샷·해시·이력·재생성·통지 미발생 (negative) | 7 | true | UNCHANGED |
 | [[AC-1054]] | acceptance | UC-008 버전 비교·복구 — 버전 목록→로드 모달(최신 기본)→작업본 diff→전체 불러오기·저장 (happy) | 6 | true | UNCHANGED |
@@ -22,6 +34,8 @@
 | [[AC-1058]] | acceptance | UC-021 라벨 편집 예외 — 타인 403·APPROVED 수정 재검토·신고 구간 412·값 검증·저장 충돌 409 (negative) | 10 | true | UNCHANGED |
 | [[AC-1061]] | acceptance | UC-032 라벨 프리셋 CRUD — 이벤트유형+라벨 멀티셀렉트(이름·설명 없음)·labelId 실시간 join·보류 재개 (happy) | 7 | true | UNCHANGED |
 | [[AC-1062]] | acceptance | UC-032 프리셋 저장 분기 — 라벨 0건=오토라벨 제외·중복 409·미지정 400·미연결 자동제외·AI 미매핑 저장+경고 (negative) | 5 | true | UNCHANGED |
+| [[AC-1108]] | acceptance | 포털 라벨링 AI 보조 — AI 탐지·AI 분할·AI 자동 추적 노출·작업 대상 인가·요청량 한도·비식별 판정 미적용·채널 격리·관제향 화면 무변경 (happy·negative) | 3 | true | UNCHANGED |
+| [[AC-1128]] | acceptance | 프리셋 편집에서 라벨을 상한보다 많이 고르면 저장할 수 없고 막힌 사유가 저장 수단 곁에서 보인다 (negative) | 3 | false | UNCHANGED |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 5 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
@@ -39,6 +53,7 @@
 | [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | UNCHANGED |
 | [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | UNCHANGED |
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 28 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
 | [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 15 | false | UNCHANGED |
@@ -82,10 +97,10 @@
 | [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 17 | false | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 6 | false | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 118 | true | UNCHANGED |
-| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 41 | true | UNCHANGED |
+| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 43 | false | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 22 | true | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 9 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 18 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
 | [[UC-004]] | use_case | 객체 자동 추적 | 19 | false | UNCHANGED |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 14 | false | UNCHANGED |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 12 | false | UNCHANGED |
@@ -93,7 +108,7 @@
 | [[UC-008]] | use_case | 버전 비교·복구 | 18 | false | UNCHANGED |
 | [[UC-021]] | use_case | 라벨 편집·임시저장 | 25 | false | UNCHANGED |
 | [[UC-022]] | use_case | VLM 시계열 메타 검토 | 31 | true | UNCHANGED |
-| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 16 | false | UNCHANGED |
+| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 18 | true | UNCHANGED |
 | [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 9 | false | UNCHANGED |
 | [[UC-039]] | use_case | 온라인 AI 객체 탐지 | 5 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
@@ -137,7 +152,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
@@ -240,3 +255,6 @@
 | [[UI-142]] | ui_component | display: WorkerNameSub | 1 | false | UNCHANGED |
 | [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |
 | [[UI-144]] | ui_component | display: ProcessingStackBar | 1 | false | UNCHANGED |
+| [[UI-156]] | ui_component | overlay: FloatingWindow | 2 | false | UNCHANGED |
+| [[UI-157]] | ui_component | display: TimeseriesAnnotationSummaryCard | 3 | false | UNCHANGED |
+| [[UI-158]] | ui_component | action: AnnotationWindowStrip | 3 | false | UNCHANGED |

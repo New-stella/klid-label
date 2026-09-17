@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-09-15T15:36:19.753Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 209 |
+| Last sync | 2026-09-17T01:15:54.283Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 210 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,14 +20,14 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 10건 / 스코프 밖 39건
-  ℹ️  api_endpoint: 이번 키트 62건 / 스코프 밖 175건
+  ℹ️  api_endpoint: 이번 키트 62건 / 스코프 밖 176건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 23건
   ℹ️  diagram_sequence: 이번 키트 10건 / 스코프 밖 26건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 30건
-  ℹ️  use_case: 이번 키트 12건 / 스코프 밖 24건
+  ℹ️  use_case: 이번 키트 12건 / 스코프 밖 25건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 12건 / 스코프 밖 103건 (그중 domain_id 없음 13건)
-  ℹ️  adr: 이번 키트 20건 / 스코프 밖 42건 (그중 domain_id 없음 7건)
+  ℹ️  acceptance: 이번 키트 13건 / 스코프 밖 110건 (그중 domain_id 없음 17건)
+  ℹ️  adr: 이번 키트 20건 / 스코프 밖 45건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 5건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -58,10 +58,11 @@
 | [[AC-1061]] | acceptance | 7 | UNCHANGED |
 | [[AC-1062]] | acceptance | 5 | UNCHANGED |
 | [[AC-1108]] | acceptance | 3 | UNCHANGED |
+| [[AC-1128]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 3 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
-| [[ADR-006]] | adr | 6 | UNCHANGED |
+| [[ADR-006]] | adr | 7 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-009]] | adr | 5 | UNCHANGED |
 | [[ADR-010]] | adr | 1 | UNCHANGED |
@@ -154,7 +155,7 @@
 | [[DFEAT-016]] | domain_feature | 2 | UNCHANGED |
 | [[DFEAT-017]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-020]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-048]] | domain_feature | 20 | UNCHANGED |
+| [[DFEAT-048]] | domain_feature | 21 | UNCHANGED |
 | [[DFEAT-050]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-052]] | domain_feature | 3 | UNCHANGED |
@@ -176,7 +177,7 @@
 | [[NFR-014]] | nfr | 5 | UNCHANGED |
 | [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
-| [[NFR-017]] | nfr | 11 | UNCHANGED |
+| [[NFR-017]] | nfr | 12 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 3 | UNCHANGED |
 | [[NFR-020]] | nfr | 11 | UNCHANGED |
@@ -197,7 +198,7 @@
 | [[NFR-035]] | nfr | 1 | UNCHANGED |
 | [[NFR-036]] | nfr | 1 | UNCHANGED |
 | [[NFR-037]] | nfr | 1 | UNCHANGED |
-| [[NFR-038]] | nfr | 1 | UNCHANGED |
+| [[NFR-038]] | nfr | 3 | UNCHANGED |
 | [[NFR-039]] | nfr | 1 | UNCHANGED |
 | [[NFR-040]] | nfr | 1 | UNCHANGED |
 | [[NFR-041]] | nfr | 1 | UNCHANGED |
@@ -213,14 +214,14 @@
 | [[ROLE-003]] | permission_role | 17 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 6 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 118 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 78 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 80 | UNCHANGED |
 | [[SCREEN-010]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 47 | UNCHANGED |
-| [[SCREEN-026]] | screen_spec | 41 | UNCHANGED |
+| [[SCREEN-026]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-029]] | screen_spec | 58 | UNCHANGED |
 | [[SCREEN-035]] | screen_spec | 19 | UNCHANGED |
-| [[SCREEN-038]] | screen_spec | 15 | UNCHANGED |
+| [[SCREEN-038]] | screen_spec | 20 | UNCHANGED |
 | [[SD-002]] | screen_design | 22 | UNCHANGED |
 | [[SD-006]] | screen_design | 9 | UNCHANGED |
 | [[SD-022]] | screen_design | 4 | UNCHANGED |
@@ -247,7 +248,7 @@
 | [[UC-022]] | use_case | 31 | UNCHANGED |
 | [[UC-023]] | use_case | 37 | UNCHANGED |
 | [[UC-028]] | use_case | 9 | UNCHANGED |
-| [[UC-032]] | use_case | 16 | UNCHANGED |
+| [[UC-032]] | use_case | 18 | UNCHANGED |
 | [[UC-034]] | use_case | 9 | UNCHANGED |
 | [[UC-039]] | use_case | 5 | UNCHANGED |
 | [[UI-056]] | ui_component | 8 | UNCHANGED |

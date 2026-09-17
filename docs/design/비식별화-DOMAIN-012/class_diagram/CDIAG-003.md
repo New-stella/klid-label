@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-003
 type: class_diagram
-version: 15
+version: 16
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-14T05:33:11.264Z
+synced_at: 2026-09-17T01:12:41.907Z
 status: CHANGED
-prev_version: 13
-content_hash: d6bd9587a906e5fc45ea1af2a3f6df67add835febe2b6125ee1229ade290697c
-stale: true
+prev_version: 15
+content_hash: 24595833b7b4f5ca3f0561d3a29258e4f95bd19a9349ed2f36bfee952d85a9ca
+stale: false
 raw: ./_raw/CDIAG-003.json
 links:
   belongs_to_domain: ["[[DOMAIN-012]]"]
@@ -1278,6 +1278,31 @@ _(empty)_
 - **is_abstract**: false
 - **return_type**: void
 
+#### lockRawForDeidentRetry
+
+**params**:
+
+- rawSn: Long
+- ownerId: String
+
+- **is_static**: true
+- **visibility**: public
+- **description**: 선두 비식별 실패 영상의 배치 재시작 작업락 생성 — 영상 단위(TARGET_RAW)·lockId 에 재시작 접두·6시간 만료. 같은 영상의 활성 락 유일성으로 동시 선점은 1건만 성립한다.
+- **is_abstract**: false
+- **return_type**: AuthWorkLock
+
+#### isDeidentRetryLock
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 선두 비식별 재시작이 잡은 락인가(lockId 접두 판정) — 해제 범위를 이 종류로 한정하는 판정.
+- **is_abstract**: false
+- **return_type**: boolean
+
 **attributes**:
 
 #### workLockSn
@@ -1610,7 +1635,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK)
+- **description**: 비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK) 선두 비식별 실패 영상의 배치 재시작도 같은 영상 단위 작업락을 잡으며, 스키마 변경 없이 lockId 접두로 그 종류를 가린다. 이 재시작 작업락은 선두 비식별의 성공·모든 실패 종결에서 해제되고, 해제는 그 종류의 락에만 한정돼 다른 기능이 잡은 락은 풀지 않는다.
 
 **enum_values**:
 
@@ -1722,6 +1747,15 @@ Deidentification
 - **label**: stage
 - **to_multiplicity**: 0..1
 - **from_multiplicity**: 0..*
+
+### [6]
+
+- **to**: AuthWorkLock
+- **from**: DeidentProcLog
+- **kind**: dependency
+- **label**: 선두 비식별 종결 시 재시작 작업락만 해제(동일 DATA_RAW_SN)
+- **to_multiplicity**: 0..*
+- **from_multiplicity**: 1
 
 ## attached_files
 
