@@ -1,0 +1,43 @@
+{
+  "item": {
+    "id": "FEAT-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "feature",
+    "title": "이벤트 마킹 (자동·수동 이벤트 시점 식별)",
+    "slug": "이벤트-마킹-자동수동-이벤트-시점-식별",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "must",
+      "complexity": "moderate",
+      "user_story": {
+        "goal": "영상에서 이벤트가 일어난 시점을 짚어 두기를 원한다",
+        "actor": "라벨링 작업자",
+        "benefit": "필요한 구간만 골라 프레임을 뽑고 라벨링에 들어갈 수 있다"
+      },
+      "description": "비식별이 끝난 영상에서 이벤트가 일어난 시점을 식별해 표시하는 기능이다. 정해진 프레임 간격으로 자동 식별하거나 작업자가 재생 화면에서 직접 지정한다. 마킹이 끝나면 시계열 메타 위탁·프레임 추출·오토라벨링으로 이어지는 잔여 배치가 시작되므로, 이 기능은 수집과 라벨링 사이를 잇는 관문이다. 이벤트 유형과 검증 질문 문구가 이 단계에서 정해져 뒤따르는 위탁 요청에 실린다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "implements_requirements": [
+        "REQ-019",
+        "REQ-026"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "신설 — 이벤트 마킹이 기능 계층에 없었다. 마킹 유스케이스와 도메인 기능은 있었으나 상위 기능이 없어 요구사항까지 닿지 않았다. 구현 요구사항 근거는 둘이다. REQ-019(RQ-SFR-11-04)가 처리 흐름을 \"비식별·마킹·오토라벨링 배치\"로 열거해 마킹을 명시하고, REQ-026(RQ-SFR-17)이 저작도구의 가공 단계에 \"환경·이벤트 메타 부여\"를 포함한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T05:58:23.417Z",
+    "created_at": "2026-09-08T05:58:23.417Z"
+  }
+}

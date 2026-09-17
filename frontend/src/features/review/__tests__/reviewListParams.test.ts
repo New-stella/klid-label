@@ -19,7 +19,13 @@ import {
 
 describe('reviewListParams — 검수목록 필터·정렬 매핑', () => {
   it('진입_기본값은_검수요청_과_제출일_오름차순이다', () => {
-    expect(DEFAULT_REVIEW_FILTERS).toEqual({ q: '', status: 'REVIEW_PENDING' });
+    // `excludedOnly` 는 「어느 쪽을 볼까」(가시 범위) 축이며 기본값은 **거짓**이다 —
+    // 기본 목록이 이 축을 모르던 시절과 같은 집합이어야 한다.
+    expect(DEFAULT_REVIEW_FILTERS).toEqual({
+      q: '',
+      status: 'REVIEW_PENDING',
+      excludedOnly: false,
+    });
     expect(toReviewSortParam(DEFAULT_REVIEW_SORT)).toBe('submittedAt,asc');
   });
 
@@ -32,7 +38,7 @@ describe('reviewListParams — 검수목록 필터·정렬 매핑', () => {
 
   it('전체_선택은_ALL_로_URL_에_기록되고_다시_읽으면_필터_미적용이다', () => {
     const url = toReviewSearchParams(
-      { q: '', status: '' },
+      { q: '', status: '', excludedOnly: false },
       DEFAULT_REVIEW_SORT,
       { page: 0, size: 20 },
     );
@@ -64,10 +70,11 @@ describe('reviewListParams — 검수목록 필터·정렬 매핑', () => {
   });
 
   it('빈_문자열_필터값은_요청_파라미터에서_생략된다', () => {
-    const params = buildReviewListParams({ q: '   ', status: '' }, DEFAULT_REVIEW_SORT, {
-      page: 0,
-      size: 20,
-    });
+    const params = buildReviewListParams(
+      { q: '   ', status: '', excludedOnly: false },
+      DEFAULT_REVIEW_SORT,
+      { page: 0, size: 20 },
+    );
     expect(params).not.toHaveProperty('q');
     expect(params).not.toHaveProperty('status');
     expect(params.page).toBe(0);
@@ -76,7 +83,7 @@ describe('reviewListParams — 검수목록 필터·정렬 매핑', () => {
 
   it('검색어는_BE_상한_100자로_잘려_전송된다', () => {
     const params = buildReviewListParams(
-      { q: 'a'.repeat(200), status: '' },
+      { q: 'a'.repeat(200), status: '', excludedOnly: false },
       DEFAULT_REVIEW_SORT,
       { page: 0, size: 20 },
     );
@@ -84,8 +91,15 @@ describe('reviewListParams — 검수목록 필터·정렬 매핑', () => {
   });
 
   it('summary_파라미터에는_q_만_실린다', () => {
-    const params = buildReviewSummaryParams({ q: '강남', status: 'REJECTED' });
+    // 가시 범위 축도 넘겨 본다 — 검수 집계는 이 값을 **싣지 않는다**(제외됨 건수는 서버가
+    // 지금 보는 갈래와 무관하게 언제나 제외분으로 세므로 보낼 이유가 없다).
+    const params = buildReviewSummaryParams({
+      q: '강남',
+      status: 'REJECTED',
+      excludedOnly: true,
+    });
     expect(params).toEqual({ q: '강남' });
     expect(params).not.toHaveProperty('status');
+    expect(params).not.toHaveProperty('excludedOnly');
   });
 });

@@ -41,6 +41,7 @@ class BatchReprocessServiceTest {
     private BatchStatusService batchStatusService;
     private AsyncBatchReprocessRunner reprocessRunner;
     private BatchRetryQueue retryQueue;
+    private LeadDeidentRetryService leadDeidentRetryService;
     private BatchReprocessService service;
 
     @BeforeEach
@@ -50,8 +51,97 @@ class BatchReprocessServiceTest {
         batchStatusService = mock(BatchStatusService.class);
         reprocessRunner = mock(AsyncBatchReprocessRunner.class);
         retryQueue = mock(BatchRetryQueue.class);
+        // 기본은 「선두 비식별 실패 형상이 아님」(mock 기본 false) — 기존 시험은 기존 경로를 그대로 탄다.
+        leadDeidentRetryService = mock(LeadDeidentRetryService.class);
         service = new BatchReprocessService(videoRepository, transitionService, batchStatusService,
-                reprocessRunner, retryQueue);
+                reprocessRunner, retryQueue, leadDeidentRetryService);
+    }
+
+    // ── 선두 비식별 실패 형상 갈래 [@design API-167] [@design AC-1133] [@design AC-1134] [@design AC-1135] ──
+
+    @Test
+    @DisplayName("★선두비식별_실패영상은_잠금선점후_선두비식별_실행기로_넘기고_단계_PENDING을_돌려준다")
+    void 선두비식별_실패영상은_실행기로_넘기고_PENDING() {
+        long rawSn = 501L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(leadDeidentRetryService.tryClaim(rawSn)).thenReturn(true);
+
+        BatchReprocessResponse res = service.retry(rawSn);
+
+        assertThat(res.rawSn()).isEqualTo(rawSn);
+        assertThat(res.stage()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(leadDeidentRetryService, reprocessRunner);
+        inOrder.verify(leadDeidentRetryService).tryClaim(rawSn);
+        // 수동 재기동 전용 풀(포화 시 거부)의 진입으로 넘긴다 — 선두 비식별 풀(호출자 실행)이 아니다.
+        inOrder.verify(reprocessRunner).runLeadDeidentRetryAsync(rawSn);
+        // 배치 단계 선점·선점 표식·자동 재시도 대기 행 정리·마킹 이후 재기동을 하지 않는다.
+        verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
+        verify(transitionService, never()).isReviewOwnedWorkStatus(anyLong());
+        verify(batchStatusService, never()).recordReprocessClaimOpened(anyLong(), anyString());
+        verify(retryQueue, never()).clearIfIdle(anyLong());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
+        verify(leadDeidentRetryService, never()).releaseClaim(anyLong());
+    }
+
+    @Test
+    @DisplayName("★선두비식별_형상의_거부는_그대로_전달되고_실행기도_기존경로도_타지_않는다")
+    void 선두비식별_거부는_전달되고_실행_0() {
+        long rawSn = 502L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(leadDeidentRetryService.tryClaim(rawSn)).thenThrow(
+                new CustomException(ErrorCode.CONFLICT, LeadDeidentRetryService.OPEN_REPORT_REASON));
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(LeadDeidentRetryService.OPEN_REPORT_REASON);
+
+        verify(reprocessRunner, never()).runLeadDeidentRetryAsync(anyLong());
+        verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("★선두비식별_재시도_디스패치가_거부되면_잡은_잠금을_풀고_503")
+    void 선두비식별_디스패치거부는_잠금해제_503() {
+        long rawSn = 503L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(leadDeidentRetryService.tryClaim(rawSn)).thenReturn(true);
+        doThrow(new TaskRejectedException("full")).when(reprocessRunner).runLeadDeidentRetryAsync(rawSn);
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+
+        verify(leadDeidentRetryService).releaseClaim(rawSn);
+        verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("선두비식별_실패형상이_아니면_기존_재기동_경로를_그대로_탄다")
+    void 형상이_아니면_기존경로() {
+        long rawSn = 504L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(leadDeidentRetryService.tryClaim(rawSn)).thenReturn(false);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+
+        BatchReprocessResponse res = service.retry(rawSn);
+
+        assertThat(res.stage()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
+        verify(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+        verify(reprocessRunner, never()).runLeadDeidentRetryAsync(anyLong());
+    }
+
+    @Test
+    @DisplayName("영상이_없으면_선두비식별_판정전에_404")
+    void 영상없음은_판정전_404() {
+        when(videoRepository.existsById(505L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.retry(505L))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+        verify(leadDeidentRetryService, never()).tryClaim(anyLong());
     }
 
     @Test

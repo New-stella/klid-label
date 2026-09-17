@@ -50,6 +50,11 @@ export interface UseAutoTrackOptions {
    * 이어 보내는 중에도 갱신된다(멈춘 것처럼 보이지 않게).
    */
   onProgress?: (done: number, total: number) => void;
+  /**
+   * 포털 채널이면 포털 전용 자동 추적 창구·취소 창구를 쓴다(이어 보내는 조각 전부). 판정은 화면의
+   * portalMode 에서 파생해 넘긴다. 기본값 false — 내부 경로 무회귀.
+   */
+  portal?: boolean;
 }
 
 export interface UseAutoTrackResult {
@@ -67,7 +72,8 @@ export function useAutoTrack(
   srcSn: number | undefined,
   options: UseAutoTrackOptions = {},
 ): UseAutoTrackResult {
-  const { runExclusiveOrNotify } = useBusyTask({ srcSn });
+  const portal = options.portal ?? false;
+  const { runExclusiveOrNotify } = useBusyTask({ srcSn, portal });
   const isRunning = useIsBusyKind('AI_AUTO_TRACK', srcSn);
   // 실행 시점의 프레임 — 이 실행은 "누른 그 프레임" 기준으로만 성립한다.
   const requestedSrcSnRef = useRef<number | undefined>(undefined);
@@ -92,6 +98,7 @@ export function useAutoTrack(
               const res = await requestAutoTrackAll(requestedSrcSn, nextSrcSns, {
                 signal,
                 requestId,
+                portal,
                 onProgress: (done, total) => {
                   // ★ 진행이 관측됐다 — 잠금 상한을 그 시점부터 다시 센다. 서버가 잘라 보내 화면이
                   //   이어 보내는 동안 잠금이 먼저 풀리면, 서버는 잘 돌고 있는데 결과가 버려진다.
@@ -126,7 +133,7 @@ export function useAutoTrack(
         return false;
       }
     },
-    [srcSn, runExclusiveOrNotify],
+    [srcSn, portal, runExclusiveOrNotify],
   );
 
   const truncatedCountOf = useCallback(

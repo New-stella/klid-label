@@ -80,11 +80,21 @@ const AugmentResultPage = /* @__PURE__ */ lazyWithRetry(() =>
   })),
 );
 
-// 포털 채널 틀 — 포털 저장소의 부품·토큰을 끌어다 쓴다. 관제 산출물에 스킨이 새지 않게 지연 로드한다.
-const PortalFrameLayout = /* @__PURE__ */ lazyWithRetry(() =>
-  import('@/components/layout/PortalFrameLayout').then((m) => ({ default: m.PortalFrameLayout })),
-);
 // Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
+/**
+ * 포털 셸 — **지연 로드한다.** 이 모듈이 포털 모습 CSS(KRDS 킷 + 부모 포털 토큰)를 끌고 오는데,
+ * 그 킷은 `html{font-size:62.5%}` 를 전역에 깔아 **관제 축 Tailwind 치수를 전부 줄인다.**
+ * 정적 import 로 두면 CSS 는 부수효과라 나무흔들기에 걸리지 않아 **관제 산출물에도 실려 나간다.**
+ * 지연 로드로 두면 이 호출이 아래 `IS_PORTAL_CHANNEL_BUILD` 가지 안에만 있어(산출 시점에 접히는
+ * 상수다) 관제 빌드에서 통째로 사라진다.
+ *
+ * ⚠ `isDevLoginEnabled()` 처럼 **함수 호출**로 가른 자리는 접히지 않는다(router 아래 ★★ 참조).
+ *   이 자리는 접히는 상수라 접힌다 — 둘을 같은 것으로 다루지 말 것.
+ */
+const PortalLayout = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/components/layout/PortalLayout').then((m) => ({ default: m.PortalLayout })),
+);
+
 const PortalHomePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 );
@@ -106,6 +116,13 @@ const PortalUploadMarkingPage = /* @__PURE__ */ lazyWithRetry(() =>
 // 요청을 거는 자리는 여기가 아니라 포털 업로드 화면의 자산별 액션이다.
 const PortalAugmentPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalAugmentPage').then((m) => ({ default: m.PortalAugmentPage })),
+);
+// 포털 데이터셋 소재 조달 화면 — 포털 데이터셋 상세의 「저작도구로 열기」가 떨어뜨리는 자리다.
+// [@design INT-014] [@design INT-013]
+const PortalDatasetMaterialsPage = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/pages/portal/PortalDatasetMaterialsPage').then((m) => ({
+    default: m.PortalDatasetMaterialsPage,
+  })),
 );
 // 폐기된 업로드 자산 라벨링 주소를 통합 라벨링 화면으로 넘기는 갈아타기 lazy 로드.
 // 화면이 아니라 **이미 나가 있는 주소**를 위한 호환 조각이다(어디서도 그리로 보내지 않는다).
@@ -702,7 +719,7 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
       // PORTAL 채널 — 별도 PortalLayout (LNB 없음, 모바일 친화)
       {
         path: '/portal',
-        element: withSuspense(<PortalFrameLayout />),
+        element: withSuspense(<PortalLayout />),
         errorElement: <AppErrorPage status={500} />,
         children: [
           {
@@ -734,6 +751,18 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
             //   대신 이 문자열과 진입 주소 조립기가 어긋나지 않는지를 회귀 가드가 확인한다.
             path: 'uploads/:uldSn/marking',
             element: <PortalRoute>{withSuspense(<PortalUploadMarkingPage />)}</PortalRoute>,
+          },
+          {
+            // 데이터셋 소재 조달 — **포털이 우리를 여기로 보낸다.** 포털 데이터셋 상세의
+            // 「저작도구로 열기」가 `{기준 경로}/portal/datasets/{데이터셋 숫자 식별자}` 로 떨어뜨리며,
+            // 이 자리가 비면 그 진입이 포털 채널 안내 화면으로 흘러 사용자가 막힌다.
+            // ⚠ **질의 문자열이 아니라 경로 변수**다 — 포털이 질의 문자열을 시도했다가 우리
+            //   라우터에 걸리지 않아 홈으로 흐르는 실패를 겪고 바꿨다. 되돌리지 말 것.
+            // ⚠ 경로를 상수로 빼 오지 않는다 — 이 파일은 **두 채널 산출물의 공통 입구**라, 포털
+            //   전용 모듈을 여기서 import 하면 죽은 가지에 있어도 모듈 순서가 밀려 관제 산출물의
+            //   압축 결과가 바뀐다(형제 경로들이 같은 이유로 문자열이다).
+            path: 'datasets/:datasetId',
+            element: <PortalRoute>{withSuspense(<PortalDatasetMaterialsPage />)}</PortalRoute>,
           },
           {
             // 폐기된 목적지 — 통합 라벨링 화면(`label/:id`)으로 갈아탄다. 목록·메뉴·탭 어디서도

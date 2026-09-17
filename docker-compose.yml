@@ -265,6 +265,11 @@ services:
       # VLM 콜백 outbound 허용 호스트(SSRF 방어). BE 는 WEBHOOK_CALLBACK_BASE_URL=
       #   http://klid-backend:8080/api 로 콜백 주소를 넘기므로 klid-backend 가 정상 경로다.
       MOCK_CALLBACK_ALLOWED_HOSTS: ${MOCK_CALLBACK_ALLOWED_HOSTS:-klid-backend,localhost,127.0.0.1}
+      # 관제 계정 창구 목(POST /api/account/auth/refresh)이 새 토큰에 서명할 키 — BE 와 <같은 키>여야
+      #   BE 가 그 토큰을 인증에 쓸 수 있다. 새 비밀값을 만들지 않고 BE 와 같은 출처(.env 의 JWT_SECRET)를 넘긴다.
+      #   비어 있으면 목의 갱신 창구는 503(BE 에는 일시 장애)이고 로그아웃 창구는 그대로 동작한다.
+      #   ⚠ base 를 쓰는 모든 도커 스택(dev 포함)의 목도 이 키를 받는다 — 목은 루프백(127.0.0.1)에만 발행된다.
+      MOCK_CONTROL_JWT_SECRET: ${JWT_SECRET:-}
       # ── 워터마크 인코딩 GPU(NVENC) 사용 — GPU 가 있는 호스트에서만 실제로 활성화된다 ──
       #   목적: 비식별 산출 영상에 마크를 박아 <b>프레임이 원본이 아니라 비식별본에서 추출됐는지</b>를
       #   육안으로 확인한다. 4K 실자산의 CPU(libx264) 인코딩은 0.05x(80초 영상 27분)라 타임아웃·OOM 으로

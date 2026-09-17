@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/마킹-DOMAIN-011/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 **★ 개인정보·비식별 신고 규칙의 정본은 `docs/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
 
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
@@ -110,6 +112,11 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - (비어있음 — 첫 구현 후 채운다)
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

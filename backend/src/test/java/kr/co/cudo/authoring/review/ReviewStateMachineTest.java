@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.review.service.ReviewStateMachine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -76,5 +77,39 @@ class ReviewStateMachineTest {
         assertThatThrownBy(() -> machine.verify(LsRawDataStatus.STTS_APPROVED, LsRawDataStatus.STTS_REJECTED))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    // ---------------------------------------------------- 승인 자격의 상태 축 (ADR-067 · API-250)
+
+    /**
+     * ★<b>일괄 승인 자격의 상태 축은 이 판정 하나가 소유한다.</b> 목록 표시(자격 여부)와 일괄 승인
+     * 창구가 같은 메서드를 부르므로, 여기가 흔들리면 「단건은 되는데 일괄에는 안 보이는」 어긋남이 난다.
+     */
+    @Test
+    @DisplayName("★재검수_건은_승인_상태에_머물러도_승인_자격이_있다_검수진행으로_좁히면_영영_빠진다")
+    void recheckOnApprovedStillAllowsApproval() {
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_APPROVED, true)).isTrue();
+        assertThat(machine.isReapproval(LsRawDataStatus.STTS_APPROVED, true)).isTrue();
+    }
+
+    @Test
+    @DisplayName("검수_진행_상태는_승인_자격이_있다")
+    void inReviewAllowsApproval() {
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_IN_REVIEW, false)).isTrue();
+        // 검수 진행은 재승인 갈래가 아니다 — 정상 전이를 타야 한다.
+        assertThat(machine.isReapproval(LsRawDataStatus.STTS_IN_REVIEW, false)).isFalse();
+    }
+
+    @Test
+    @DisplayName("재검토_표시가_없는_승인_영상과_검수_대기_반려는_승인_자격이_없다")
+    void otherStatesDoNotAllowApproval() {
+        // 표시가 없는 승인 영상을 다시 승인하면 무수정 재확정이 된다 — 열어 두지 않는다.
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_APPROVED, false)).isFalse();
+        // 검수 대기에서 승인으로 직행할 수 없다(검수 진행을 거쳐야 한다).
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_PENDING, false)).isFalse();
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_REJECTED, false)).isFalse();
+        assertThat(machine.allowsApproval(LsRawDataStatus.STTS_ASSIGNED, false)).isFalse();
+        // 값역 밖 상태도 조용히 허용되지 않는다(fail-closed).
+        assertThat(machine.allowsApproval("UNKNOWN_STATE", true)).isFalse();
     }
 }

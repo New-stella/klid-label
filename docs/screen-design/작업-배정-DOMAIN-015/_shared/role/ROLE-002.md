@@ -1,7 +1,7 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 9
+version: 10
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/ROLE-002.json
@@ -163,21 +163,11 @@ WORKER
 
 - view
 
-- **condition**: [폐기] 영상 상세 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
-- **target_id**: SCREEN-009
-- **target_kind**: screen_spec
-
-### [11]
-
-**actions**:
-
-- view
-
 - **condition**: 대시보드 — 본인 배정분 기준
 - **target_id**: SCREEN-011
 - **target_kind**: screen_spec
 
-### [12]
+### [11]
 
 **actions**:
 
@@ -187,17 +177,7 @@ WORKER
 - **target_id**: SCREEN-020
 - **target_kind**: screen_spec
 
-### [13]
-
-**actions**:
-
-- view
-
-- **condition**: [폐기] 영상 처리 현황 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
-- **target_id**: SCREEN-008
-- **target_kind**: screen_spec
-
-### [14]
+### [12]
 
 **actions**:
 
@@ -207,7 +187,7 @@ WORKER
 - **target_id**: SCREEN-030
 - **target_kind**: screen_spec
 
-### [15]
+### [13]
 
 **actions**:
 
@@ -218,6 +198,10 @@ WORKER
 - **target_kind**: screen_spec
 
 ## inherits_from
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

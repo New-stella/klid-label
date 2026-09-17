@@ -237,8 +237,6 @@ describe('작업 목록 — 페이지네이션 공용 컨트롤 수렴', () => {
               workerName: null,
               assignedAt: null,
               firstSrcSn: null,
-              reviewerId: null,
-              reviewerName: null,
             },
           ],
           totalPages,

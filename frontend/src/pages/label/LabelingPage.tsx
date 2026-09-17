@@ -11,7 +11,17 @@
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
 
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -54,13 +64,20 @@ import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates'
 import { DscdYn, LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
-import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
+import { AnnotationWindow } from '@/features/label/components/AnnotationWindow';
+import { TimeseriesAnnotationSummaryCard } from '@/features/label/components/TimeseriesAnnotationSummaryCard';
+import { reviewStatusLabel } from '@/features/label/components/annotationWording';
+import { eventTypeNameOf } from '@/features/label/annotationSummary';
+import { useAnnotationSummary } from '@/features/label/hooks/useAnnotationSummary';
+import { useAnnotationWindow } from '@/features/label/hooks/useAnnotationWindow';
 import { FrameDescriptionPanel } from '@/features/label/components/FrameDescriptionPanel';
-import { EventAnnotationPanel } from '@/features/label/components/EventAnnotationPanel';
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
+import { VideoTechnicalMetaPanel } from '@/features/label/components/VideoTechnicalMetaPanel';
 import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
+import { MetaHelpProvider, MetaHelpToggleButton } from '@/features/label/components/metaHelp';
+import { useMetaHelpPreference } from '@/features/label/components/metaHelpPreference';
 import { PortalWorkMetaTab } from '@/features/portal/work/components/PortalWorkMetaTab';
 import {
   isPortalUnavailableError,
@@ -80,6 +97,9 @@ import {
   summarizeDiscardSave,
 } from '@/features/label/discardSaveSummary';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
+
+import { cn } from '@/lib/cn';
+import { usePortalEditorFill } from '@/lib/portalEditorFill';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
 import { useToolLabelPicker } from '@/features/label/hooks/useToolLabelPicker';
@@ -122,7 +142,6 @@ import {
   unresolvedFrameCount,
   type LoadedVersionDraft,
 } from '@/features/version/loadedVersionDraft';
-import { IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
@@ -144,25 +163,17 @@ const CanvasShell = lazy(() =>
   import('@/features/label/canvas/CanvasShell').then((m) => ({ default: m.CanvasShell })),
 );
 
-// @design SCREEN-029 — 포털판 본문. 포털 저장소의 부품·스킨 CSS 를 끌어오므로 따로 불러온다 —
-//   정적으로 묶으면 관제판이 이 화면을 여는 순간 그 스킨이 관제 화면에도 실린다.
-//   산출 시점 상수로 가른다 — 관제 산출물에서는 이 지연 로드가 통째로 사라져 조각 파일도 만들어지지 않는다.
-const PortalLabelingView = IS_PORTAL_CHANNEL_BUILD
-  ? lazy(() =>
-      import('@/features/portal/label/PortalLabelingView').then((m) => ({
-        default: m.PortalLabelingView,
-      })),
-    )
-  : null;
-
 // 캔버스 컨테이너에서 자동 측정해 ResponsiveCanvas로 전달
+// ★콜백 ref 로 요소를 state 에 담는다 — 이 화면은 조회 중·오류 화면을 먼저 그리고 캔버스 영역은
+//   그 뒤에야 생긴다. 객체 ref + 빈 의존성으로 첫 렌더에만 찾으면 그때는 요소가 없어 영영 붙지
+//   않고, 크기가 0 으로 남아 캔버스가 기본값(1280×720)으로 그려진다(포털 좁은 슬롯에서 프레임이
+//   잘려 보인 원인 — 2026-09-15 실측).
 function useContainerSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
+  const [el, setEl] = useState<T | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   // useLayoutEffect — 첫 페인트 전 동기 측정으로 캔버스 마운트 가드(`size.width > 0`) 통과 보장
   useLayoutEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const update = () => {
       const rect = el.getBoundingClientRect();
@@ -172,9 +183,9 @@ function useContainerSize<T extends HTMLElement>() {
     observer.observe(el);
     update();
     return () => observer.disconnect();
-  }, []);
+  }, [el]);
 
-  return [ref, size] as const;
+  return [setEl, size] as const;
 }
 
 export interface LabelingPageProps {
@@ -195,8 +206,15 @@ export interface LabelingPageProps {
  * SCR-LABEL-001 라벨링 캔버스 페이지 (라이트 풀스크린).
  *
  * ★내부(`/label/:id`)와 포털(`/portal/label/:id`) 두 라우트가 **같은 컴포넌트를 재사용**한다.
- *   포털 갈래에서 가려지는 것(AI 보조·트랙 편집·검수·버전관리·비식별 신고·프레임 폐기)은 전부
+ *   포털 갈래에서 가려지는 것(스켈레톤·선택 객체 AI 추적·트랙 편집·검수·버전관리·비식별 신고·
+ *   프레임 폐기)과 갈리는 것(AI 보조 창구 경로·도구바 묶음·AI 탐지 팝업 실행 버튼)은 전부
  *   `portalMode` 단일 축이 판정한다 — <b>두 번째 게이팅 축을 만들지 말 것</b>.
+ *   분기 축은 셋이다 — API 경로 / 노출 요소 / 이동 경로. AI 보조 창구 경로는 이 화면이 portalMode 를
+ *   훅·부품에 넘기고, 경로 조립은 `lib/api/aiRoutes` 한 곳이 한다.
+ * ⚠ [폐기] 구 서술 — *"포털 갈래에서 AI 보조가 가려진다"*. 2026-09-15 에 포털도 AI 탐지·AI 분할·
+ *   AI 자동 추적을 쓰게 됐다(SCREEN-029).
+ *
+ * @design SCREEN-005, SCREEN-029, API-255, API-257, API-254, API-256, API-258
  */
 export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   const { id } = useParams<{ id: string }>();
@@ -206,6 +224,23 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
 
   // 채널/역할 가드
   const portalMode = useAuthStore((s) => s.claims?.channel === 'PORTAL');
+  /*
+    ★임베드에서는 편집기를 <b>흐름 안</b>에 세운다 — Host 가 우리 자리에 `contain: layout` 을
+      걸어 두어 `fixed` 가 화면이 아니라 그 자리 안쪽을 덮고, 흐름 밖이라 그 자리가 제 최소
+      높이로 주저앉는 되먹임이 생긴다(2026-09-17 실화면 실측 — 캔버스가 343 이었다).
+      까닭·실험 근거는 `lib/portalEditorFill.ts` 가 갖는다.
+    ⚠ 가르는 축은 사용자 채널이 아니라 <b>빌드 형상</b>이다 — 관제·독립 배포본은 문서 전체를
+      우리가 가지므로 종전 `fixed` 그대로다.
+  */
+  const {
+    embedded: editorEmbedded,
+    ref: editorFillRef,
+    height: editorFillHeight,
+  } = usePortalEditorFill();
+  const editorShellClass = editorEmbedded ? 'relative w-full' : 'fixed inset-0';
+  const editorShellStyle: CSSProperties = editorEmbedded
+    ? { height: editorFillHeight }
+    : { zIndex: 50 };
   const role = useAuthStore((s) => s.claims?.role);
   const isWorker = role === Role.WORKER;
   const isReviewer = roleSatisfies(role, Role.REVIEWER);
@@ -710,6 +745,28 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //     포털이 그것을 그대로 쓰면 원장 수정·재검토 표시·관제 통지가 일어나 단방향 불변이 깨진다.
   const showMeta = true;
   const hasTabs = showMeta || showIssues;
+
+  /**
+   * 「영상 분석 설명 · 이벤트 어노테이션」 창 — 우측 메타 탭의 요약 카드가 연다.
+   * [@design SCREEN-005] [@design UI-156] [@design UI-157]
+   *
+   * ★상태를 창이 아니라 화면이 든다 — 요약 카드가 같은 상태를 보고 버튼 문구(「크게 보기 · 작성」/
+   *   「창 앞으로 가져오기」/「창 펼치기」)를 바꾸기 때문이다. 창 안에 두면 닫힌 동안 그 상태를
+   *   아는 주체가 사라진다.
+   * ★포털 채널은 이 창을 두지 않는다 — 내부 창구(메타·이벤트 어노테이션)를 부르므로 단방향 불변이
+   *   깨진다(포털 본문은 PortalWorkMetaTab 이 따로 그린다).
+   */
+  const annotationWindow = useAnnotationWindow();
+  // 요약 조회는 <b>그 카드가 보이거나 창이 떠 있을 때만</b> 켠다 — 페이지 진입마다 켜면 메타 탭을
+  // 한 번도 열지 않는 작업자에게도 요청이 두 건 늘어난다.
+  const annotationDataOn = !portalMode && (rightTab === 'meta' || annotationWindow.mounted);
+  const annotationSummary = useAnnotationSummary(
+    annotationDataOn ? data?.videoId : undefined,
+    annotationDataOn ? data?.srcSn : undefined,
+  );
+  // 메타 탭 도움말 — 설명문을 한꺼번에 여닫는다. ★기본은 감춤이며 창의 도움말과 <b>별개 키</b>다
+  //   (기본값이 서로 반대라 한 키를 공유하면 의도하지 않은 상태로 넘어간다 — `metaHelpPreference`).
+  const [metaHelpVisible, toggleMetaHelp] = useMetaHelpPreference();
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
@@ -1070,7 +1127,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     pushToast({ variant: 'success', message: '작업본에 되돌렸습니다. 저장해야 확정됩니다.' });
   }, [revertTarget, currentFrame, isLocked, revertSaveEvent, pushToast]);
 
-  // Phase 4 — AI Tool 수동 트리거. 포털은 오토라벨 미제공(ADR-013 — 버튼 자체 미노출).
+  // Phase 4 — AI Tool 수동 트리거. 포털 채널도 쓴다 — 포털 전용 창구로 보낸다(portal 플래그).
   // 검출 결과는 BE 미저장(Phase 3 전환) → 재조회가 아니라 작업본에 병합한다. mock 응답은 자동적용 차단.
   //
   // 병합·안내는 onApply 로 넘겨 **진행 중(busy) 보호 구간 안에서** 수행한다. 바깥에서 병합하면
@@ -1100,6 +1157,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   );
   const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn, {
     onApply: applyAutolabelResult,
+    portal: portalMode,
   });
   // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
@@ -1116,11 +1174,11 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   //   조회를 두 번 하지 않고 예산 발행까지 겸하는 훅을 쓴다 — 예산이 화면 상수로 남아 있으면
   //   서버가 재시도 예산을 바꿀 때 화면만 조용히 어긋나고, «화면이 더 짧은» 방향이면 정상 동작이
   //   «AI 실패» 로 보인다.
-  //   ★<b>포털 채널에서는 이 조회를 하지 않는다.</b> 그 채널에는 AI 도구가 없어 쓸 값이 없고,
-  //   포털 사용자는 검수자도 작업자도 아니라 이 창구가 <b>403</b> 이다 — 진입마다 실패 요청이
-  //   두 번씩 쌓인다. 위 주석이 「작업자 진입마다 403 이 쌓였다」고 적어 고친 그 결함이 채널
-  //   하나 옆에서 재발한 것이라, 같은 방식(호출을 막는다)으로 닫는다.
-  const { data: aiDefaults } = useAiWaitBudgetSync(!portalMode);
+  //   ★<b>포털 채널은 포털 전용 창구(`/v1/portal/ai-defaults`)로 조회한다</b> (2026-09-15).
+  //   내부 창구는 포털 토큰으로 403 이라 그대로 부르면 진입마다 실패가 쌓인다(작업자 403 이 쌓였던
+  //   결함과 같은 계열). ⚠ [폐기] 구 서술 — *"포털 채널에서는 이 조회를 하지 않는다 · 그 채널에는
+  //   AI 도구가 없다"*. 지금은 포털도 AI 보조를 쓰므로 조회를 막으면 대기 예산이 폴백으로 남는다.
+  const { data: aiDefaults } = useAiWaitBudgetSync(true, portalMode);
   const defaultConfThreshold =
     aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
   const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
@@ -1179,6 +1237,26 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     () => frames.slice(frameIdx + 1).map((f) => f.srcSn),
     [frames, frameIdx],
   );
+
+  // (포털) 좌측 도구바 「AI 자동 추적」 — 실행하지 않고 우측 「객체」 탭의 자동 추적 패널로 이동·포커스.
+  //   탭 전환은 렌더를 거쳐야 패널이 서므로, 요청 번호를 올려 두고 커밋 뒤 effect 에서 옮긴다.
+  const autoTrackFocusRef = useRef<HTMLDivElement>(null);
+  const [autoTrackFocusRequest, setAutoTrackFocusRequest] = useState(0);
+  const handleFocusAutoTrack = useCallback(() => {
+    setRightTab('objects');
+    setAutoTrackFocusRequest((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (autoTrackFocusRequest === 0) return;
+    const el = autoTrackFocusRef.current;
+    if (!el) return;
+    // jsdom 등 scrollIntoView 가 없는 환경에서도 포커스 이동은 이어간다.
+    el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, [autoTrackFocusRequest]);
+  // 도구바에서 미리 보일 비활성 사유 — 패널의 실행 조건과 같은 판정(뒤따르는 프레임 유무)을 쓴다.
+  const autoTrackUnavailableReason =
+    nextSrcSns.length === 0 ? '뒤따르는 프레임이 없어 AI 자동 추적을 쓸 수 없습니다.' : undefined;
 
   // R12 — 추적 성공분(tracked)을 srcSn 별로 분리해 반영한다(사일런트 데이터 유실 수정).
   //  - tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 과거 필터(=== data.srcSn)는 항상
@@ -1520,7 +1598,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         );
       },
     },
-    // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
+    // 포털 모드에서는 포털 미제공 도구(선택 객체 AI 추적·스켈레톤) 단축키 게이팅(툴바 숨김과 정합).
     //
     // 모달 열림 중 단축키 억제는 **여기서 나열하지 않는다**(NF-4②) — 훅이 열린 모달을 DOM
     // 단일 판정(hasOpenModalDialog)으로 직접 본다. 손으로 나열하던 방식은 새 모달(신고·삭제
@@ -1554,119 +1632,14 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
     [labelPicker],
   );
 
-  // @design SCREEN-029 — 포털판은 모든 훅이 끝난 이 자리에서 포털 모습의 본문으로 갈라 그린다.
-  //   흐름(데이터 · 저장 · 단축키 · 캔버스 · 확인 절차)은 위에서 계산한 값을 그대로 넘기고, 판정을 다시
-  //   세우지 않는다. 불러오는 중 · 접근 불가 · 조회 실패 · 자산 안내 같은 앞선 갈래도 뷰 안에서 같은
-  //   순서로 가른다. ⚠ 이 갈래를 훅 위로 올리지 말 것 — 채널에 따라 훅 순서가 바뀐다.
-  if (portalMode && PortalLabelingView) {
-    return (
-      <Suspense fallback={null}>
-        <PortalLabelingView
-          status={{
-            invalidId: !uploadSource && Number.isNaN(numericId),
-            uploadNotice,
-            isLoading,
-            error,
-            onBack: () => navigate(-1),
-          }}
-          header={{
-            title: uploadSource
-              ? (uploadLabelSource.assetName ?? undefined)
-              : data
-                ? `프레임 #${data.srcSn}`
-                : undefined,
-            dirty: dirtyCount > 0 || discardPending || loadedDraft !== null,
-            saving,
-            onClose: handleClose,
-          }}
-          frames={{
-            list: frames,
-            index: frameIdx,
-            current: currentFrame,
-            onRequestGoTo: requestJumpTo,
-            savedSrcSns,
-            discardedSrcSns,
-            uploadSource,
-          }}
-          edit={{
-            labels,
-            dirtyCount,
-            isEditBlocked,
-            isLocked,
-            isDiscarded,
-            discardPending,
-            onSave: handleSave,
-          }}
-          view={{
-            rotation,
-            onRotate: handleRotate,
-            zoomAreaMode,
-            onToggleZoomArea: handleToggleZoomArea,
-            showGrid,
-            onToggleGrid: handleToggleGrid,
-            onSelectTool: handleSelectTool,
-          }}
-          canvas={{
-            handleRef: canvasHandleRef,
-            onLabelAdd: addLabel,
-            onImageSize: handleImageSize,
-            onKeypointPlacingChange: setKeypointPlacingIndex,
-            immediateSegment: immediateDraw,
-            segmentSimplifyTolerance: segmentTolerance,
-            imageLoading,
-            imageError,
-            imageErrorHint: frameImageErrorHint,
-            frameNaturalSize,
-          }}
-          busy={{
-            kind: busyKind,
-            startedAt: busyStartedAt,
-            limitMs: busyLimitMs,
-            onCancel: cancelBusy,
-          }}
-          panel={{
-            tab: rightTab,
-            onTabChange: setRightTab,
-            srcSn: data?.srcSn,
-            rawSn: data?.videoId,
-          }}
-          labelPicker={labelPicker}
-          dialogs={{
-            close: {
-              open: closeConfirmOpen,
-              dirtyCount,
-              closing,
-              onSaveAndClose: handleConfirmSaveAndClose,
-              onDiscardAndClose: handleDiscardAndClose,
-              onStay: handleStayOnPage,
-            },
-            nav: {
-              open: navGuardTarget !== null,
-              dirtyCount,
-              saving: navGuardSaving,
-              onSaveAndMove: handleNavSaveAndMove,
-              onDiscardAndMove: handleNavDiscardAndMove,
-              onCancel: handleNavCancel,
-            },
-            conflict: {
-              open: saveConflictMessage !== null,
-              onReload: handleReloadAfterConflict,
-              onKeep: () => setSaveConflictMessage(null),
-            },
-            shortcuts: { open: cheatSheetOpen, onOpenChange: setCheatSheetOpen },
-          }}
-        />
-      </Suspense>
-    );
-  }
-
   // 잘못된 ID — 풀스크린 에러. 업로드 갈래는 `:id` 가 자산이라 안내 문구가 다르며,
   // 그 판정(형식·범위)은 아래 `uploadNotice` 한 곳이 갖는다.
   if (!uploadSource && Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1694,8 +1667,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (uploadNotice) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1722,8 +1696,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="flex flex-col items-center gap-3">
@@ -1747,8 +1722,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (isPortalUnavailable) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="portal-forbidden-screen"
       >
         <div className="text-center">
@@ -1773,8 +1749,9 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
   if (error) {
     return (
       <div
-        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
-        style={{ zIndex: 50 }}
+        ref={editorFillRef}
+        className={cn('bg-gray-50 flex items-center justify-center text-gray-900', editorShellClass)}
+        style={editorShellStyle}
         data-testid="labeling-page"
       >
         <div className="text-center">
@@ -1825,11 +1802,13 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
 
   return (
     <div
-      className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden"
-      style={{ zIndex: 50 }}
+      ref={editorFillRef}
+      className={cn('bg-gray-50 flex flex-col overflow-hidden', editorShellClass)}
+      style={editorShellStyle}
       data-testid="labeling-page"
     >
       <LabelHeader
+        portalMode={portalMode}
         cctvName={cctvName}
         eventType={headerEventType}
         currentFrame={frameIdx}
@@ -1992,11 +1971,14 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         portalMode={portalMode}
       />
 
-      {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 확정 시 shape/classIds/mode 로 실행. */}
+      {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 실행). 확정 시 shape/classIds/mode 로 실행.
+          포털은 [탐지 실행] 하나 — 트랙 진입은 우측 「AI 자동 추적」 패널이 유일한 자리다(SCREEN-029). */}
       <AiToolModal
         open={autolabelModalOpen}
         onClose={() => setAutolabelModalOpen(false)}
         onConfirm={runAiTool}
+        runMode={portalMode ? 'detectOnly' : 'detectOrTrack'}
+        portalMode={portalMode}
         canTrack={nextSrcSns.length > 0}
         candidates={detectCandidates}
         candidatesLoading={detectCandidatesLoading}
@@ -2028,6 +2010,8 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
           onToggleZoomArea={handleToggleZoomArea}
           showGrid={showGrid}
           onToggleGrid={handleToggleGrid}
+          onFocusAutoTrack={portalMode ? handleFocusAutoTrack : undefined}
+          autoTrackUnavailableReason={portalMode ? autoTrackUnavailableReason : undefined}
         />
 
         {/* 캔버스 열 — 상단 옵션바 + 캔버스 */}
@@ -2089,6 +2073,7 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 rotation={rotation}
                 showGrid={showGrid}
                 zoomAreaMode={zoomAreaMode}
+                portalMode={portalMode}
               />
             </Suspense>
           ) : (
@@ -2129,7 +2114,60 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
           <div data-testid="keypoint-guide-slot" className="shrink-0 px-2">
             <KeypointGuide placingIndex={keypointPlacingIndex} />
           </div>
-          {hasTabs && (
+          {hasTabs && portalMode && (
+            /*
+              ★**KRDS 탭의 생김새를 그대로 쓴다** (2026-09-16 사용자 지적). 종전에는 같은 모양을
+                Tailwind 로 손수 그렸는데 밑줄 굵기·활성 글자색이 부모 포털과 갈려 있었다.
+                킷 클래스를 입으면 **토큰이 값을 정한다** — 우리 포털 테마가 그 토큰을 부모 포털과
+                같은 값으로 덮어 두었으므로 저절로 맞는다.
+              ★여기는 셸 이동 탭과 달리 **진짜 탭**이다(같은 문서 안의 tabpanel 을 가른다).
+                그래서 킷과 같은 ARIA(`tablist`/`presentation`/`tab`)를 그대로 쓴다.
+              ★이슈 탭은 포털에 오지 않는다(`showIssues` 가 내부 채널 전용) — 감추는 것이 아니라
+                값이 없어 서지 않는다.
+              ⚠ 아래 관제 블록은 **손대지 않는다**(관제향 화면 불변 구속).
+            */
+            <div className="krds-tab-area shrink-0">
+              {/* ★`full` — 두 탭이 패널 폭을 **반씩 나눠 채운다**(킷 `<Tab size="full">` 과 같은 값).
+                  이 한 낱말이 빠져 있어 탭이 왼쪽에 몰려 서고 패널 오른쪽이 비어 있었다
+                  (2026-09-16 사용자 지적). 킷 규칙이 `.tab.full>ul{display:flex}` ·
+                  `.tab.full>ul>li{flex:1 1 0}` 로 폭을 나누므로 우리가 값을 적지 않는다. */}
+              <div className="tab line full">
+                <ul role="tablist" aria-label="우측 패널 탭">
+                  {[
+                    { key: 'objects' as const, label: '객체', show: true },
+                    { key: 'meta' as const, label: '메타', show: showMeta },
+                  ]
+                    .filter((t) => t.show)
+                    .map((t) => {
+                      const on = rightTab === t.key;
+                      return (
+                        <li
+                          key={t.key}
+                          role="presentation"
+                          className={cn('tab-item', on && 'active')}
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            id={`right-tab-${t.key}`}
+                            aria-selected={on}
+                            aria-controls={`right-panel-${t.key}`}
+                            data-testid={`right-tab-${t.key}`}
+                            className="btn-tab"
+                            onClick={() => setRightTab(t.key)}
+                          >
+                            {t.label}
+                            {/* 지금 어느 탭인지는 색·밑줄로만 보인다 — 킷이 두는 화면 밖 글을 그대로 둔다. */}
+                            {on && <i className="sr-only">선택됨</i>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            </div>
+          )}
+          {hasTabs && !portalMode && (
             <div
               className="flex shrink-0 border-b border-gray-200"
               role="tablist"
@@ -2234,33 +2272,62 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                  *   그대로 쓰면 내부 창구가 불려 원장 컬럼 쓰기·재검토 표시·관제 통지·동결본
                  *   재동결이 일어나 「원본·데이터마트를 수정하지 않는다(단방향)」가 깨진다.
                  *   이 위반은 「중복 구현을 피하자」는 가장 자연스러운 판단에서 나온다.
-                 * 세로 순서(촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 →
-                 *   시계열 메타 → 이벤트 어노테이션)는 두 채널이 같다.
+                 * ⚠ [폐기] 구 서술 — *"세로 순서(… → 시계열 메타 → 이벤트 어노테이션)는 두 채널이
+                 *   같다"*. 2026-09-14 이후 <b>내부 채널만</b> 그 두 패널이 요약 카드 한 장으로
+                 *   바뀌었다(전문은 창에서 다룬다). 포털 채널은 두 패널을 그대로 두므로 지금은
+                 *   앞의 네 패널까지만 같고 그 뒤가 갈린다. 「같다」를 근거로 한쪽을 다른 쪽에
+                 *   맞추지 말 것 — 갈린 것이 확정 사양이다.
                  */
                 <PortalWorkMetaTab srcSn={data?.srcSn} rawSn={data?.videoId} />
               ) : (
-                <>
+                <MetaHelpProvider visible={metaHelpVisible}>
+              {/* 도움말 토글 — 메타 탭 머리에 하나만 두고 전 구역의 설명문을 한꺼번에 여닫는다.
+                  ★기본은 감춤이다(창의 도움말과 반대 — 근거는 `metaHelpPreference`).
+                  검수 화면(ReviewMetaPanel)과 같은 부품·같은 자리다. */}
+              <div className="flex items-center justify-end border-b border-gray-100 px-4 py-2">
+                <MetaHelpToggleButton visible={metaHelpVisible} onToggle={toggleMetaHelp} />
+              </div>
               {/* 촬영환경(날씨·시간대·계절) — 영상(rawSn) 단위, 내부 채널만. */}
               <EnvironmentMetaPanel rawSn={data?.videoId} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
               <VideoPrivacyMetaPanel rawSn={data?.videoId} />
               {/* ★패널 순서는 사양 고정이다: 촬영환경 → 영상축 개인정보 → 프레임 설명 →
-                  프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션. 임의로 바꾸지 말 것. */}
+                  프레임축 개인정보 → <b>영상 분석 설명 · 이벤트 어노테이션 요약 카드</b> →
+                  이관 원문 정보 → 영상 기술 정보. 임의로 바꾸지 말 것.
+                  ⚠ [폐기] 구 서술 — *"… → 시계열 메타 → 이벤트 어노테이션"*. 그 두 패널은
+                    2026-09-14 에 요약 카드 한 장으로 옮겨갔다. 이 문장이 지시문으로 남아 있으면
+                    다음 라운드가 두 패널을 여기에 되살려 그 확정을 되돌린다. */}
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
               <FramePrivacyMetaPanel srcSn={data?.srcSn} />
-              {/* 시계열 메타 — 외부 시스템 책임인 것은 외부 분석 서버로 나가는 위탁 연동(호출·
-                  콜백)이지 그 결과물의 표시·편집이 아니다(ADR-013 v10). 포털 렌더가 없는 것은
-                  아직 만들지 않았기 때문이며 ADR 이 막은 것이 아니다. */}
-              <TimeseriesSidePanel srcSn={data?.srcSn} />
-              {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
-              <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
+              {/* 영상 분석 설명(저장 축은 시계열 메타) + 이벤트 어노테이션 — 이 자리에는 요약과
+                  버튼 하나만 두고 전문은 큰 창에서 다룬다. 폭 288px 패널에서 수백 자 서술과
+                  후보 목록을 읽고 쓰는 것이 불가능해서다(SCREEN-005 · 2026-09-14 확정).
+                  ★두 패널이 사라진 것이 아니라 창의 두 칸으로 옮겨갔다 — 되돌려 여기에 다시
+                    붙이지 말 것. */}
+              <TimeseriesAnnotationSummaryCard
+                mode="editable"
+                windowState={annotationWindow.state}
+                eventTypeCd={annotationSummary.eventTypeCd}
+                eventTypeName={eventTypeNameOf(
+                  videoDetail?.allVrfcEvntTypes,
+                  annotationSummary.eventTypeCd,
+                )}
+                descriptionFirstLine={annotationSummary.descriptionFirstLine}
+                reviewStatus={reviewStatusLabel(annotationSummary.reviewStatus)}
+                onOpenWindow={annotationWindow.openOrFocus}
+              />
               {/* 참고 정보 — 이관 원문(읽기 전용). ★위 여섯 패널 <b>뒤</b>가 사양 고정 자리이며
                   여섯의 나열 순서는 바꾸지 않는다. 이관으로 들어온 영상에서만 스스로 렌더한다
                   (그 밖의 영상에서는 목록이 비어 있는 것이 정상이라 패널째 감춘다). */}
               <ImportedMetaPanel srcSn={data?.srcSn} />
-                </>
+              {/* 참고 정보 — 영상 기술 정보(읽기 전용). ★검수 화면과 <b>같은 부품</b>이다 —
+                  사양이 두 화면의 문구를 글자 단위로 같게 정해 두었고, 화면마다 따로 그리면
+                  한쪽만 다듬어져 같은 값이 서로 다른 이름·단위로 보인다. 네 항목이 하나도 없는
+                  영상에서는 스스로 렌더하지 않는다. */}
+              <VideoTechnicalMetaPanel srcSn={data?.srcSn} />
+                </MetaHelpProvider>
               )}
             </div>
           ) : (
@@ -2285,15 +2352,39 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }
                 : {})}
             >
-              <div className="flex min-h-[10rem] flex-1 flex-col overflow-hidden">
+              {/* ★최소 높이가 채널마다 다르다 — 줄 높이가 다르기 때문이다.
+                  관제 줄은 한 줄(약 30)이라 160 이면 다섯 줄이 보인다. 포털 줄은 시안대로
+                  **두 줄 + 도구**(실측 88)라 같은 160 에서는 한 줄 반밖에 못 보고, 목록이
+                  거의 스크롤 상자가 된다. 세 줄이 보이도록 머리 줄(40)까지 더해 304 로 둔다.
+                  ⚠ 값을 줄이려면 줄 높이를 함께 재고 줄여야 한다 — 숫자만 되돌리면 다시 막힌다. */}
+              <div
+                className={cn(
+                  'flex flex-1 flex-col overflow-hidden',
+                  portalMode ? 'min-h-[304px]' : 'min-h-[160px]',
+                )}
+              >
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
-                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
-                <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  <span>객체 목록</span>
+                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다.
+                    ★생김새가 채널마다 갈린다 — 포털은 킷 판 머리 줄(이름 15 · 오른쪽 보조 글 13)이고
+                      <b>건수를 배지로 두르지 않는다</b>(부모 포털 규칙 「수치는 배지 없이 글자만」).
+                      ⚠ <b>사라지는 정보는 없다</b> — 같은 글이 같은 자리에 서고 이름·시험 후크도 그대로다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'flex items-center gap-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>객체 목록</span>
                   <span
                     data-testid="object-count-badge"
                     aria-label="객체 수"
-                    className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700"
+                    className={cn(
+                      portalMode
+                        ? 'klid-tool-panel-aside'
+                        : 'ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700',
+                    )}
                   >
                     {objectCount}개 객체
                   </span>
@@ -2308,28 +2399,45 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                 />
               </div>
               {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리(객체 목록 바로 아래)에 둔다.
-                  포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다.
+                  포털 채널도 노출한다(SCREEN-029 — 포털 전용 창구). 포털 좌측 도구바의 「AI 자동 추적」
+                  버튼이 이 패널 제목으로 포커스를 옮긴다(focusTargetRef — 포털에서만 지정).
+                  ⚠ [폐기] 구 서술 — *"포털은 오토라벨·추적 미제공이라 진입 자체를 두지 않는다"*.
                   ★목록 블록 **밖**에 둔다 — 안에 두면 `shrink-0` 인 이 패널이 목록의 높이를 먹어
                     객체 목록이 0px 로 사라진다(위 스크롤 계약 주석 참조). */}
-              {!portalMode && (
-                <AutoTrackPanel
-                  srcSn={data?.srcSn}
-                  frames={frames}
-                  nextSrcSns={nextSrcSns}
-                  onApply={handleAutoTrackApply}
-                  disabled={isEditBlocked || isLocked}
-                />
-              )}
-              <div className="flex min-h-[12rem] flex-1 flex-col overflow-hidden border-t border-gray-200">
-                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  속성
+              <AutoTrackPanel
+                srcSn={data?.srcSn}
+                frames={frames}
+                nextSrcSns={nextSrcSns}
+                onApply={handleAutoTrackApply}
+                disabled={isEditBlocked || isLocked}
+                portal={portalMode}
+                focusTargetRef={portalMode ? autoTrackFocusRef : undefined}
+              />
+              <div className="flex min-h-[192px] flex-1 flex-col overflow-hidden border-t border-gray-200">
+                {/* ★포털은 킷 판 머리 줄 꼴이다 — 좌측 도구 칸의 묶음 이름과 같은 층(15)으로 선다.
+                    ⚠ 블록 사이 선은 <b>두 채널 모두 남긴다</b>. 시안은 여백으로 가르지만 우리 칸은
+                      목록과 속성이 각자 스크롤하는 두 칸이라, 선이 없으면 어디까지가 한 묶음인지
+                      스크롤 중에 사라진다. */}
+                <div
+                  className={cn(
+                    'shrink-0 px-3 py-2',
+                    portalMode
+                      ? 'klid-tool-panel-head'
+                      : 'text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200',
+                  )}
+                >
+                  <span className={portalMode ? 'klid-tool-panel-title' : undefined}>속성</span>
                 </div>
                 <ObjectAttributePanel
                   labels={labels}
+                  // 포털이면 속성 라디오를 포털 라디오로 그린다(Host 스타일이 네이티브 라디오를 숨긴다).
+                  portalMode={portalMode}
                   // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
                   imageWidth={frameNaturalSize?.width}
                   imageHeight={frameNaturalSize?.height}
-                  // AI 추적은 내부(INTERNAL) 채널 전용이다(ADR-013 — 포털 미제공).
+                  // 선택 객체 AI 추적은 내부(INTERNAL) 채널 전용이다 — 포털은 AI 자동 추적 패널로 대신한다
+                  // (SCREEN-029 — 같은 목적의 중복 진입을 포털에 두지 않는다). AI 분할 정밀도(segment)는
+                  // 두 채널 모두 넘긴다.
                   // ★채널 분기를 **여기서 명시적으로** 건다 (2026-08-18). 구 코드는 분기 없이 항상
                   //   넘기고 패널이 `activeTool === TRACK` 으로 게이트하는 데 기대고 있었는데, 그
                   //   도구 모드 게이트가 사양 정합으로 제거되면서(선택 객체가 있으면 상시 노출)
@@ -2363,9 +2471,10 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
                   }}
                 />
               </div>
-              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
+              {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함).
+                  ★포털은 킷 판·킷 막대를 입는다(부품만 갈리고 범위·배선·문구는 같다). */}
               <div className="shrink-0 border-t border-gray-200 p-2">
-                <ImageAdjustPanel />
+                <ImageAdjustPanel portalMode={portalMode} />
               </div>
             </div>
           )}
@@ -2407,6 +2516,29 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         />
       )}
 
+      {/* 「영상 분석 설명 · 이벤트 어노테이션」 창 — 비모달이라 창이 떠 있어도 캔버스·타임라인·
+          우측 탭을 그대로 조작한다(근거로 쓸 프레임·객체를 화면에서 골라야 하기 때문이다).
+          ★닫으면 언마운트된다 — 다시 열면 서버값으로 새로 시작한다(그래서 미저장 닫기는 확인을
+            거친다). 접힘·근거 지정 중에는 마운트를 유지해 입력값을 잃지 않는다. */}
+      {!portalMode && annotationWindow.mounted && (
+        <AnnotationWindow
+          mode="editable"
+          rawSn={data?.videoId}
+          srcSn={data?.srcSn}
+          state={annotationWindow.state}
+          focusRequestedAt={annotationWindow.focusRequestedAt}
+          onClose={annotationWindow.close}
+          onFold={annotationWindow.fold}
+          onExpand={annotationWindow.expand}
+          onPickingChange={annotationWindow.setPicking}
+          // 이벤트 분류 이름은 영상 상세의 전체 유형 목록에서 찾는다 — 관리 화면 조회 경로는
+          // 검수자 전용이라 작업자에게 403 이다(API-043).
+          eventTypes={videoDetail?.allVrfcEvntTypes}
+          frameIndex={frameIdx + 1}
+          frameTotal={frames.length}
+        />
+      )}
+
       {/* R4·R5 — 폐기 프레임 저장 확인. 취소해도 편집 상태는 그대로 남는다(동의 없이 버리지 않는다). */}
       <DiscardSaveConfirmModal
         open={discardSaveConfirmOpen}
@@ -2438,9 +2570,15 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
         onCancel={() => setRevertTarget(null)}
       />
 
-      {/* 하단 — 썸네일 strip + 슬라이더 */}
-      <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
-        <div style={{ height: 60 }}>
+      {/* 하단 — 썸네일 strip + 슬라이더
+          ★높이가 채널마다 다르다. 관제는 종전 고정 60+60 이고, <b>포털은 내용 높이</b>다 —
+            킷 낱장이 76×16:9 에 번호 줄을 그림 «아래» 두고 킷 재생 줄의 누르는 자리가 44 라,
+            60 에 밀어 넣으면 번호와 막대가 잘린다(시안도 이 줄을 내용 높이로 둔다). */}
+      <div
+        className={cn('shrink-0 flex flex-col border-t border-gray-200')}
+        style={portalMode ? undefined : { height: 120 }}
+      >
+        <div style={portalMode ? undefined : { height: 60 }}>
           <FrameFilmstrip
             frames={frames}
             currentIndex={frameIdx}
@@ -2453,13 +2591,17 @@ export function LabelingPage({ source = 'datamart' }: LabelingPageProps = {}) {
             disabled={isEditBlocked}
           />
         </div>
-        <div style={{ height: 60 }}>
+        <div
+          className={portalMode ? 'border-t border-gray-200' : undefined}
+          style={portalMode ? undefined : { height: 60 }}
+        >
           <DarkFrameSlider
             currentIndex={frameIdx}
             totalFrames={Math.max(frames.length, 1)}
             onSelect={requestJumpTo}
             dirtyGuard={dirtyCount > 0}
             disabled={isEditBlocked}
+            portalMode={portalMode}
           />
         </div>
       </div>

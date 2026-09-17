@@ -1,13 +1,13 @@
 ---
 logicraft_item: INTSPEC-002
 type: integration_spec
-version: 16
+version: 17
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-07T15:15:47.474Z
+synced_at: 2026-09-15T13:21:55.599Z
 status: CHANGED
-prev_version: 12
-content_hash: f5c696b425e1b2c5511ff60d1563f147122b6b0ffa7ea3d1bd689d9670ebd963
+prev_version: 16
+content_hash: 7bc1dbe67570aed7ea751c11c8db8caf932385eb99fc3d22713a8f1e89cbe36d
 stale: false
 raw: ./_raw/INTSPEC-002.json
 links:
@@ -67,7 +67,7 @@ markdown
 
 ## 1-1. ★ 인증 대체 — 무서명 3계층 방어
 벤더가 서명 헤더를 제공하지 않아 서명 검증 미적용은 **확정 설계**다(임시 방편 아님). 대신:
-1. **IP allowlist** `webhook.vlm.allowed-ip-cidrs` — 증강 콜백과 달리 미설정 시 완화(경고) 동작이며 fail-closed 가 아니다(증강과의 차이는 재확인 권고).
+1. **IP allowlist** `webhook.vlm.allowed-ip-cidrs` — 빈 값이면 미적용이다. local/dev 는 그대로 기동하고 운영 프로파일(stg/prd)은 기동을 막으며, `none` 은 명시적 미적용이다. 미설정 시 전면 차단(fail-closed)인 증강 콜백과 이 점이 다르다. 값 형식은 INT-003 을 따른다.
 2. **rate limit + 본문 크기 상한** — 인증 이전 자원 소모 방지.
 3. **요청 식별자 발급 게이트** — 저작도구가 발급한 적 없는 `request_id` 는 거부한다.
 

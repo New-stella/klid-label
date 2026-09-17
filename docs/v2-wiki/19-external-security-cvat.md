@@ -30,6 +30,14 @@
 - **Resilience4j** — 모든 외부 호출 타임아웃/재시도/서킷 [폐기 표기 — 아래 참조]
 - **웹훅 멱등성** — `webhook/` + `LS_WEBHOOK_IDEMPOTENCY` (In-Memory/Persistent Ledger), HMAC + idempotencyKey
 - **Fallback 큐** — `LS_CONTROL_NOTIFY_FALLBACK` [폐기 표기 — 아래 참조]
+- **외부 호출 로그 (2026-09-16 신설 · `NFR-038` v3 · `CO-20260916-외부연동-호출로그`)** — 외부향 WebClient 7개(비식별·시계열·AI 추론·관제 통지·관제 계정 창구·포털 소재·증강)의 **맨 마지막 필터** `common/client/ExternalCallLoggingFilter` 가 호출마다 한 줄을 남긴다. 계기: 시계열 벤더가 400 을 냈는데 거부 사유(응답 본문 `detail`)를 버려 원인을 판별할 수 없었다.
+  - `[ExternalCall] completed integration=VLM method=POST target=host:port/path status=400 elapsedMs=163` — 2xx·3xx INFO, 4xx·5xx WARN. `target` 에 스킴·userinfo·쿼리·프래그먼트는 없고 **헤더는 읽지 않는다**. 재작성·핀 적용 **후** 실제로 나간 주소다(필터가 맨 뒤라서 — 앞으로 옮기면 배포 기본값이 조용히 찍힌다).
+  - `[ExternalCall] error body integration=.. status=.. length=.. [truncated=true] body=..` — **4xx·5xx 에서만**. 64KB 선절단 → 자격증명 키 값 마스킹(선형 스캐너, 객체·배열 포함, 비정형이면 입력 끝까지) → 제어문자 치환 → 1000자. 읽은 본문은 되돌려 **하류의 벤더 코드 파싱이 그대로 동작**한다. 마스킹이 실패하면 `error body skipped` 만 남기고 응답은 그대로 넘긴다(관측이 결과를 바꾸면 안 된다 — 1차 구현은 긴 토큰 값에서 스택이 넘쳐 호출자가 400 대신 타임아웃을 받았다).
+  - `failed`(연결 실패 등, 예외 단순 클래스명만) · `cancelled`(대기 시간 초과·취소 — AI 추론은 INFO, 그 외 WARN) — 한 호출에 한 줄.
+  - **관제 계정 창구는 본문을 읽지 않는다**(세션 토큰). **주기 점검**(시계열 장비 상태점검·헬스 인디케이터·비식별 헬스 핑)은 요청 속성 `PERIODIC_PROBE_ATTRIBUTE` 로 표시해 **성공 시 DEBUG**(prd 에서 안 보임), 실패는 평소 레벨. 위탁 직전 상태 조회는 INFO.
+  - KPST 진행 조회(`kpstDeidProgressHttpClient`)는 reactor-netty 직사용이라 훅으로 completed·failed·cancelled 만 남기고 **오류 본문은 남기지 않는다**.
+  - ⚠ 한계: 요청 본문은 남기지 않는다(보류) · 문자열 안에 이스케이프된 JSON·폼 인코딩은 이 필터가 가리지 않는다(전역 마스커가 `k=v` 를 덮음) · DB(`LS_BATCH_PROC_LOG`)에는 남기지 않는다.
+  - 현장 확인: `grep -F "[ExternalCall]" server.log` · 특정 연동만 `grep -F "integration=VLM"`.
 
 > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 두 항목을 정정한다.
 > 1. **"VLM 45s, ai-server 60s, 비식별 ~70s"** — ai-server 는 60s(`AiWaitBudgetPolicy.PER_CALL_TIMEOUT`)로 맞다. 그러나 **VLM 45s 는 폐지된 구 모델의 수치**다 — VLM·KPST 위탁은 더 이상 단순 동기 호출 타임아웃이 아니라 **논블로킹 제출**(선커밋 → `subscribe()` 후 즉시 반환)이며, 실제 설정값은 `vlm.client.timeout-seconds: 10`(제출 자체의 HTTP 호출 타임아웃)이고, 그 뒤의 수락(ACK)·결과 대기는 별도의 두 창으로 관리된다 — **ACK 창** `authoring.batch.vlm.submit-reclaim.stale-timeout-minutes`(기본 **30분**) / **콜백 창** `authoring.batch.vlm.submit-reclaim.callback-timeout-minutes`(기본 **360분**), 미수신 시 `batch/vlm/VlmSubmitPendingSweeper` 가 회수한다. 비식별(KPST)의 "~70s"도 근거를 찾지 못했다 — 실측된 값은 WebClient 응답 안전망 `common/config/KpstWebClientConfig.java(RESPONSE_TIMEOUT)` **60초** + 위탁 전체 진행 타임아웃 `kpst.deid.poll-timeout-minutes`(기본 **180분**, `KPST_DEID_POLL_TIMEOUT_MINUTES`)이며, 완료 감지는 위 표에서 정정한 대로 **폴링**(콜백 아님)이다. 근거: `application.yml`(`vlm.client.timeout-seconds`·`kpst.deid.poll-timeout-minutes`), `VlmSubmitPendingSweeper.java`(`@Value` 기본값), `KpstWebClientConfig.java(RESPONSE_TIMEOUT)`.
@@ -46,7 +54,8 @@
 | 대상 | 설정 키 |
 |------|--------|
 | 비식별 서버 | `kpst.deid.base-url` |
-| 관제 통지 수신처 | `authoring.control-notify.url` |
+| 관제 통지 수신처 | `authoring.control-notify.url` (**통지 전용** — 세션 중계는 쓰지 않는다) |
+| 관제 계정 창구 | `authoring.control-account.url` (**2026-09-14 신설** — 관제 채널 세션 연장·로그아웃 중계 전용. 통지 수신처와 별개이고 **폴백 없음** · 배포 기본값 **비움**(관제 채널 배포본은 반드시 설정). ⚠ 관제는 계정 창구(`/api/account/`)와 데이터셋 창구(`/api/data-set/`)를 **서로 다른 WAS** 에 둔다 — 한 주소를 공유하면 WAS 직접 연결 시 한쪽이 404 이고 현장에서 실제로 세션 연장이 전부 실패했다. ⚠ **잔여 위험(인지·수용, `NFR-013`)** — 이 주소를 바꾸면 사용자 세션 자격증명이 그 주소로 전송된다) |
 | 외부 증강 벤더 | `authoring.augment.external.base-url` (**2026-09-08 신설** — ⚠ 구 서술 폐기: *「교체 창구에 아직 미등록 — 채워야 할 잔여」*. 그 잔여가 닫혔다. ⚠ **비어 있는 것이 「아직 연동 안 됨」의 유일한 표현**이라 미리 채우지 말 것 · **콜백을 받을 출처 허용 목록과 짝**이라 주소만 채우면 위탁은 나가는데 결과를 못 받는다) |
 
 ⚠ **구 서술 폐기(2026-09-08)** — 이 표는 *"외부 연동 **4종**"* 으로 **AI 추론 서버

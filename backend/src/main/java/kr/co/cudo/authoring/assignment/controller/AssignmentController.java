@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -88,6 +89,44 @@ public class AssignmentController {
                                                     @Valid @RequestBody ReassignRequest req,
                                                     @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(assignmentService.reassign(assignmentId, req, actor));
+    }
+
+    /**
+     * <b>배정 해제</b> — 담당을 <b>없앤다</b>(재배정은 담당을 <b>바꾼다</b>).
+     * [@design ADR-069] [@design API-259] [@design AC-1122] [@design AC-1123]
+     *
+     * <p>요청 본문을 받지 않는다 — 사유를 받지 않으며(감추는 쪽만 사유를 남긴다), 사유를 주소에 실으면
+     * 접근 기록에 개인정보가 남는다.
+     */
+    @Operation(
+            summary = "배정 해제",
+            description = "작업자 배정을 푼다. 그 배정이 사라져 영상이 미배정 상태로 돌아간다. " +
+                    "검수자 이상이 수행하며 역할 계층으로 관리자도 그대로 수행한다(작업자는 403).\n\n" +
+                    "- **배정만 푼다** — 그 작업의 라벨과 라벨 이력은 한 건도 지우지 않는다.\n" +
+                    "- **검수 대기·검수 중·승인 상태의 배정은 409**(ASSIGNMENT_SUBMITTED) — 배정이 그 " +
+                    "워크플로의 전제라 풀면 검수 흐름이 주인 없는 상태가 된다.\n" +
+                    "- **반려 상태는 해제된다** — 워크플로가 작업자에게 되돌아온 상태라 그 작업 자체를 " +
+                    "접을 수 있어야 한다. 그 귀결로 「반려 → 해제 → 제외」가 이어진다.\n" +
+                    "- 되돌리려면 다시 배정한다(POST /v1/assignments). 해제를 취소하는 창구는 없다.\n" +
+                    "- 작업 이벤트 원장에 해제 이벤트가 남는다 — 행위자·그 시점 역할·발생일시, " +
+                    "배정이 풀린 작업자는 대상 사용자 칸.\n\n" +
+                    "⚠ 검수 축의 '점유 해제'(검수 중 표시가 유예로 저절로 풀리는 것)와는 다른 축이다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "해제 성공 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "검수자 이상 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "배정 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "검수에 들어간 배정 (ASSIGNMENT_SUBMITTED)")
+    })
+    @DeleteMapping("/{assignmentId}")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ResponseEntity<Void> unassign(
+            @Parameter(description = "해제할 배정 PK", required = true, example = "100")
+            @PathVariable Long assignmentId,
+            @AuthenticationPrincipal TokenClaims actor) {
+        assignmentService.unassign(assignmentId, actor);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

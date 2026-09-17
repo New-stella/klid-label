@@ -265,9 +265,10 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
             vlm_sim.build_failed_callback(request_id),
         )
     else:
-        # 성공 콜백은 대상 영상의 <b>실제 길이</b>를 조회해 그 길이에 걸맞은 서술을 만든다.
+        # 성공 콜백은 대상 영상의 <b>실제 길이</b>를 조회해 그 길이에 걸맞은 분량의 서술을 만든다.
         # 길이 조회(ffprobe)는 블로킹이라 페이로드 생성을 백그라운드로 미룬다 — accepted 응답을
         # 지연시키지 않기 위함. 조회 실패는 폴백 길이로 degrade 한다(콜백은 항상 발사).
+        # event_type 은 「상황」·「심각성」 문장을 이벤트 유형에 맞게 고르는 데 쓴다.
         background_tasks.add_task(
             vlm_sim.schedule_describe_callback,
             str(req.callback_url),
@@ -275,6 +276,7 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
             req.media.path,
             req.media.duration_sec,
             get_settings().callback_delay_seconds,
+            req.event_type,
         )
     return AcceptedResponse(request_id=request_id, status="accepted")
 

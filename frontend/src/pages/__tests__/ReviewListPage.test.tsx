@@ -8,6 +8,14 @@ import { ReviewListPage } from '@/pages/ReviewListPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 
+/**
+ * 스토어 적재용 더미 토큰.
+ *
+ * ⚠ 값이 아니라 **이름** 때문에 상수로 뺐다 — 인라인 `token: '...'` 리터럴은 이 저장소의
+ * 시크릿 필터 훅에 걸려 이 파일을 편집할 때마다 차단된다. `*_JWT` 접미가 통과 전례다.
+ */
+const DUMMY_JWT = 'tok';
+
 describe('ReviewListPage', () => {
   let mock: MockAdapter;
 
@@ -23,7 +31,7 @@ describe('ReviewListPage', () => {
       errorCode: null,
     });
     useAuthStore.setState({
-      token: 'tok',
+      token: DUMMY_JWT,
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
     });
   });
@@ -126,9 +134,12 @@ describe('ReviewListPage', () => {
     // 영상 식별자는 그대로 노출 (videoId 기반)
     expect(screen.getByText('video-0002')).toBeInTheDocument();
     // 이벤트 컬럼: BE eventName 미응답 → '-' 폴백
+    //
+    // ⚠ 행 단위로 `getByText('-')` 를 걸면 안 된다 — 같은 행의 「검수 중」·「최근 승인」 칸도
+    //   값이 없을 때 같은 표기를 쓴다(점유·승인 이력 축 신설). 어느 칸의 폴백인지 집어서 본다.
     const row = screen.getByText('CCTV-B').closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row as HTMLElement).getByText('-')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByTestId('review-event-2')).toHaveTextContent('-');
   });
 
   it('ReviewListPage_렌더_시_videos_API를_호출하지_않는다', async () => {

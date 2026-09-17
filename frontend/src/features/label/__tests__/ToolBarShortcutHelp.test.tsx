@@ -7,7 +7,7 @@
 //  ③ 표 내용은 SHORTCUT_KEYMAP 단일 출처에서 파생된다(도구바가 표기를 복제하지 않는다)
 //  ④ 포털 모드에서는 미제공 도구 안내를 노출하지 않는다(모달 표면과 동일 정책)
 
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -118,14 +118,18 @@ describe('ToolBar — 단축키 도움말 표면', () => {
   });
 
   it('포털_모드면_미제공_도구의_단축키_안내를_노출하지_않는다', () => {
-    // ADR-013 — 포털은 SAM2 분할/추적·키포인트 미제공. 모달 표면과 동일 정책이어야 한다
-    // (표면마다 정책이 갈리면 한쪽에서만 존재하지 않는 기능을 안내하게 된다).
+    // 포털 미제공 도구(선택 객체 AI 추적·스켈레톤)는 안내하지 않는다 — 모달 표면과 동일 정책이어야
+    // 한다(표면마다 정책이 갈리면 한쪽에서만 존재하지 않는 기능을 안내하게 된다).
+    // ★반전(2026-09-15) — AI 분할(G)은 포털에서도 동작하므로 안내에 선다. 도구바 버튼 이름과 섞이지
+    //   않게 판정 범위를 도움말 패널로 좁힌다.
     renderWithProviders(<ToolBar portalMode />);
     fireEvent.mouseEnter(screen.getByTestId(HELP_BUTTON));
+    const panel = screen.getByTestId('label-toolbar-shortcut-panel');
 
-    expect(screen.queryByText('AI 분할')).toBeNull();
-    expect(screen.queryByText('AI 추적')).toBeNull();
+    expect(within(panel).getByText('AI 분할')).toBeInTheDocument();
+    expect(within(panel).queryByText('AI 추적')).toBeNull();
+    expect(within(panel).queryByText('스켈레톤')).toBeNull();
     // 제공 도구 안내는 그대로 — 과잉 차단 회귀 가드.
-    expect(screen.getByText('BBOX 도구')).toBeInTheDocument();
+    expect(within(panel).getByText('BBOX 도구')).toBeInTheDocument();
   });
 });

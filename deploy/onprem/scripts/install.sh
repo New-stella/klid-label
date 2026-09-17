@@ -372,6 +372,8 @@ if klid_role_has was; then
   info "          CONTROL_DB_*        ← 현장이 제공하는 데이터베이스 주소"
   info "          KPST_DEID_BASE_URL  ← 비식별 서버"
   info "          CONTROL_NOTIFY_URL  ← 관제 통지 수신처(CONTROL_NOTIFY_ENABLED=true 일 때)"
+  info "          CONTROL_ACCOUNT_URL ← 관제 계정 창구(세션 연장·로그아웃 중계). ★ 관제 채널 배포본 필수"
+  info "                                ⚠ 통지 주소와 별개 — 비우면 세션 연장이 동작하지 않는다"
   info "        고친 뒤 주소만 다시 확인:  sudo KLID_ROLE=was ${SELF_DIR}/install/21-verify-ai-server-url.sh"
   info "   2) ★ WAS 설정 이관 — 건너뛰면 대용량 업로드만 조용히 깨진다:"
   info "        docs/10-was-settings.md 의 점검 체크리스트를 끝까지 수행"

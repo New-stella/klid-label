@@ -85,7 +85,8 @@ diff <(keys env.template) <(keys application.properties.template)
 | control DB | `CONTROL_DB_HOST` · `CONTROL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
 | 비식별(KPST) 서버 | `KPST_DEID_BASE_URL` | A · `application.properties` | `https://127.0.0.1:9201` | ★ 동거 KPST 주소로 교체(스킴에 따라 CA 필요) |
 | 비식별 헬스 핑 | `DEIDENTIFY_API_URL` | A · `application.properties` | `http://127.0.0.1:9200` | 헬스 인디케이터 전용 — 실 비식별 호출에는 쓰이지 않는다 |
-| 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | `CONTROL_NOTIFY_ENABLED=true` 일 때만 의미가 있다 |
+| 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | **통지 전용** — `CONTROL_NOTIFY_ENABLED=true` 일 때만 쓰인다. 관제 웹서버 주소, 또는 데이터셋 창구(`/api/data-set/`)를 가진 WAS 주소 |
+| **관제 계정 창구** | `CONTROL_ACCOUNT_URL` | A · `application.properties` | **(빈 값)** | ★ **관제 채널 배포본은 반드시 채운다** — 비우면 세션 연장·로그아웃 중계가 관제를 부르지 않고 실패한다(통지 수신처 주소로 대체하지 않는다). 관제 웹서버 주소, 또는 계정 창구(`/api/account/`)를 가진 WAS 주소. ⚠ 관제는 계정 창구와 데이터셋 창구를 **서로 다른 WAS** 에 두므로 WAS 를 직접 가리키면 두 칸에 서로 다른 WAS 를 넣는다(관제 웹서버 주소면 같은 값이어도 된다). 확인: `curl -s -X POST <주소>/api/account/auth/refresh` → **401 JSON 이면 맞는 주소, 404 HTML 이면 틀린 주소** |
 | 외부 시계열 분석 벤더 | `VLM_SERVICE_URL` | A · `application.properties` | **(빈 값)** | ⚠ **비워 두는 것이 정상** — 아래 ② |
 | 외부 생성형 AI 증강 벤더 | `AUGMENT_API_BASE_URL` | A · `application.properties` | (빈 값 = 미연동) | 주소가 곧 연동 여부다. 채우면 `WEBHOOK_GENAI_ALLOWED_IP_CIDRS` 도 **함께** 채운다 |
 | 증강 콜백이 되돌아올 우리 주소 | `WEBHOOK_CALLBACK_BASE_URL` | A · `application.properties` | `http://127.0.0.1:8080/api` | 외부가 <우리를> 부를 수 있는 주소여야 한다 |
@@ -231,6 +232,12 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
 | `JWT_ISSUER` / `JWT_ALLOWED_ISSUERS` | · | 기본 `klid-auth` / `klid-auth,klid,klid-portal` |
 | `PORTAL_CLEANUP_API_KEY` | · | **포털 정리 삭제 트리거 창구의 사전 공유 키**(기본 빈 값). 포털이 학습데이터셋의 새 버전을 받으면 그 창구(`/v1/portal-system/dataset-cleanups`)를 부르는데, 부르는 쪽이 사람이 아니라 포털 서버라 **토큰이 아니라 사전에 나눠 가진 고정 문자열**로 가른다. **비면 그 창구가 닫힌다** — 어떤 요청도 통과하지 못한다(fail-closed). 값이 없을 때 열리는 것이 아니라 **닫히는** 방향이라 안전하다. ⚠ 포털이 호출을 시작했는데 이 값이 비어 있으면 **전건 거부**가 되고 포털에는 「키가 틀렸다」로 보인다 — 연동을 켤 때 반드시 채울 것. ⚠ **관제지원 수신 채널이 쓰는 키와 섞지 않는다**(연동 축마다 별도 키). 저작도구가 생성해 안전한 채널로 포털에 공유한다 |
+| `PORTAL_MATERIALS_REPO_ROOT_ALLOWLIST` | · | **포털이 준 소재 경로를 인정할 허용 루트 목록**(쉼표로 여럿, 절대경로, 기본 빈 값). ⚠⚠ **이것이 경로 봉쇄의 «기준점»이다** — 없으면 봉쇄가 봉쇄가 아니다. 응답이 «함께 준» 저장소 루트만 믿으면, 상대가 루트를 `/` 로·소재 경로를 아무 시스템 파일로 주었을 때 표기·실경로·정규파일 판정을 **전부 통과**한다(2026-09-15 실측). 그래서 **우리가 아는 값**을 따로 둔다. ⚠ **비면 조달이 닫힌다**(fail-closed) — 기동은 정상이고 그 창구만 안 열린다. 기동 로그에 그 상태가 한 줄 남는다 |
+| `PORTAL_MATERIALS_BASE_URL` | · | **포털 소재 조회 조달처 주소**(기본 빈 값). ⚠ **위 정리 트리거와 방향이 반대다** — 그쪽은 포털이 우리를 부르고, 이쪽은 **우리가 포털을 부른다**. 포털 **내부 WAS** 주소이며 ⚠ **포털 웹 주소로는 안 된다**(외부망에서 그 내부 경로는 앞단이 차단한다). ⚠ **대역 차단을 하지 않는다** — 내부망 주소가 정상이라 사설·루프백을 막지 않는다(검증은 스킴·형식뿐). ⚠ 관리자 설정 화면에서 바꾸는 연동 주소 5종에 **넣지 않았다** — 그 화면이 포털 채널에 비노출이라 정작 쓰는 쪽에선 보이지 않는다 |
+| `PORTAL_MATERIALS_API_KEY` | · | **포털 소재 조회용 사전 공유 키**(기본 빈 값). ⚠⚠ **발급 주체가 `PORTAL_CLEANUP_API_KEY` 와 반대다** — cleanup 키는 **저작도구가 발급해 포털에 주고**, 이 키는 **포털이 발급해 우리에게 준다**. **같은 값을 넣지 말 것**(연동 축마다 별도 키 — 한 축이 유출돼도 다른 축으로 번지지 않게 한다) |
+| `PORTAL_MATERIALS_TIMEOUT_SECONDS` | · | 조달 요청 타임아웃(기본 10). 경로 목록만 받고 파일 바이트를 싣지 않아 짧아도 된다 |
+| `PORTAL_MATERIALS_MAX_ENTRIES` | · | 배포 압축본 해제 시 **항목 수 상한**(기본 200000). ⚠ 설계에 확정된 사양값이 아니라 **자원 고갈 방어용 안전값**이다(zip bomb · CWE-409/770) |
+| `PORTAL_MATERIALS_MAX_TOTAL_BYTES` | · | 해제 **총량 상한**(기본 21474836480 = 20 GiB). **원본 사본 복사와 해제 둘 다**에 적용된다. ⚠ 압축본이 **선언한** 크기가 아니라 **실제로 흘러간 바이트**로 센다 — 선언값은 조작할 수 있다 |
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
 | `STREAM_URL_TTL_SECONDS` | · | 기본 60 (5~600) |
 | `STREAM_COOKIE_SECURE` | · | 스트림 nonce 쿠키(`klid_stream_nonce`)에 `Secure` 를 붙일지. **기본 `false`** 이고 이 배포는 프런트가 평문 HTTP(`:80`)라 그대로 두는 것이 맞다 — `true` 면 브라우저가 쿠키를 저장하지 않아 스트림이 **전건 401**(영상 재생 불가)이 된다. 앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스하면 `true`. ⚠ **빈 값 금지** — 비우면 기동 실패(`Invalid boolean value []`). `true` 또는 `false` 만 사용 |
@@ -244,7 +251,8 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `WEBHOOK_HMAC_SECRET_AUGMENT` | ★(prd) | 미설정/빈 값이면 `BeanInitializationException` 으로 부팅 실패. 32B(256bit) 미만이거나 **리포에 커밋된 placeholder 값**이면 부팅 차단(공개 키 서명 위조 차단, DEV_FIX H-1) |
 | `WEBHOOK_HMAC_TIMESTAMP_WINDOW` | · | 기본 300 |
 | `WEBHOOK_TRUSTED_PROXY_CIDRS` | ★(prd·stg) | 신뢰 프록시 CIDR(CSV). 이 대역에서 온 요청의 `X-Forwarded-For` 만 해석. **직접 노출이면 `none` 명시**. 미설정 시 부팅 차단. **형식 오류(오타·호스트명)도 부팅 차단**(DEV_FIX N-4 — 조용히 무시하면 방어가 꺼진 채 기동) |
-| `WEBHOOK_VLM_ALLOWED_IP_CIDRS` | ★(prd·stg) | VLM 무서명 콜백 허용 출처 CIDR(CSV). **미적용을 의도하면 `none` 명시**. 미설정 시 부팅 차단. 형식 오류도 부팅 차단 |
+| `WEBHOOK_VLM_ALLOWED_IP_CIDRS` | ★(prd·stg) | VLM 무서명 콜백 허용 출처 CIDR(CSV). **미적용을 의도하면 `none` 명시**. 미설정 시 부팅 차단. 형식 오류도 부팅 차단. ★ **템플릿 기본값은 전면 허용 `0.0.0.0/0`**(2026-09-14 사용자 확정 — 외부 유입은 인프라 방화벽이 막는다). IPv6 발신까지 열려면 `0.0.0.0/0,::/0`(IPv4·IPv6 리터럴 또는 CIDR, `::` 압축 표기 허용, 호스트명 불가). 요청 제한·`request_id` 발급 게이트는 남는다 |
+| `WEBHOOK_GENAI_ALLOWED_IP_CIDRS` | · | 증강 결과 무서명 콜백 허용 출처 CIDR(CSV). **비우거나 `none` 이면 전면 차단**(fail-closed) — 기동은 정상이고 콜백만 전건 403. 전면 허용은 `0.0.0.0/0` 을 **명시**한다(요청 제한·`request_id` 발급 게이트는 남는다). 형식 오류는 부팅 차단. ★ **템플릿 기본값은 전면 허용 `0.0.0.0/0`**(2026-09-14 사용자 확정 — 외부 유입은 인프라 방화벽이 막는다). IPv6 발신까지 열려면 `0.0.0.0/0,::/0`(IPv4·IPv6 리터럴 또는 CIDR, `::` 압축 표기 허용, 호스트명 불가). ⚠ 2026-09-11 전 템플릿에는 이 줄이 없었다 — 기존 현장 파일에는 손으로 추가해야 한다 |
 
 > 외부 증강 콜백을 받지 않더라도, prd 로 기동하려면 `WEBHOOK_HMAC_SECRET_AUGMENT` 에 **임의의 강한 시크릿**을 채워야 부팅된다.
 > 생성: `openssl rand -hex 32`. 예시 문서의 값을 복사해 쓰지 말 것(공개 키 = 위조 가능).
@@ -360,8 +368,9 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 | 외부 시스템 | 토글(env) | 설정 |
 |-------------|-----------|------|
-| **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원 |
+| **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원. 단 `DEIDENTIFY_EXCLUDED_SRC_TYPES`(기본 `GENERATED`)에 든 출처유형은 위탁 없이 원본 복사로 완료(아래 표) |
 | 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | 외부 있으면 `true` + `CONTROL_NOTIFY_URL`, 없으면 `false`(기본) |
+| 관제 계정 창구(세션 연장·로그아웃 중계) | (토글 없음 — 통지 토글과 무관) | 관제 채널 배포본은 `CONTROL_ACCOUNT_URL` **필수**. 비우면 세션 연장이 동작하지 않는다. 포털 채널 배포본은 이 창구가 닫혀 있어 비워 둔다 |
 | 외부 VLM 시계열 | `VLM_SERVICE_URL` | 외부 있으면 실제 주소 + `VLM_SERVICE_TOKEN`, 없으면 **빈 값**(기본). 활성/비활성 토글은 폐지됐다 — 비우면 기동은 정상이고 위탁만 실패하므로, 연동 전 구간에는 시계열 묶음을 화면에서 스킵한다 |
 | 외부 증강 | (콜백 수신, HMAC 시크릿만) | 콜백 안 받아도 HMAC 시크릿만 채워 부팅 통과 |
 
@@ -379,6 +388,7 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   | 변수 | 의미 / 기본 |
   |------|-------------|
   | `KPST_DEID_ENABLED` | **항상 `true`**(기본). 폴링 위탁 단일 경로 |
+  | `DEIDENTIFY_EXCLUDED_SRC_TYPES` | 기본 **`GENERATED`**. 쉼표 구분 복수. 여기 든 출처유형(`LS_DATA_RAW.SRC_TYPE`) 영상은 **KPST 에 위탁하지 않고 원본을 비식별 영상 자리에 복사**해 비식별 단계를 끝낸다 — 이력은 `LS_DEIDENT_PROC_LOG` 성공 행 + 요청종류 `EXCLUDED`(비식별 제외), 이후 마킹·프레임 추출·관제 조회는 일반 영상과 같다. ⚠ **원천 CCTV 출처유형 `ORIGINAL` · `RELAY` · `IMPORTED` 를 넣지 말 것** — 그 유형 전체가 마스킹 없이 흐른다. **기동 시 값 검사는 하지 않으며** 적용 목록은 기동 로그 INFO 한 줄로만 남는다(설치 후 로그로 확인). 비우면 모든 영상 위탁(안전측). 판정은 영상마다 처리 시점 1회·**소급 없음**. **관리자 화면 설정이 아니다**(설정 저장 API 도 이 키를 거부) — 이 파일에서 바꾸고 재기동. `KPST_DEID_ENABLED` 와 무관하게 동작. 잘못 인입된 영상은 **검수 중 비식별 누락 신고 → 외부 재비식별**로 회수한다(승인 이후는 신고 불가 — 기존 정책) |
   | `KPST_DEID_BASE_URL` | 동거 KPST 주소. `https://IP:PORT`(CA 필수) **또는** `http://IP:PORT`(격리망 평문, CA 불요). 본 패키지 템플릿 기본값 `https://127.0.0.1:9201`(Spring 코드 기본은 `localhost`이나 `env.template`을 진실원으로 봄) → 실주소로 교체 |
   | `KPST_DEID_CA_CERT_PATH` | **https 일 때만 필수**. KPST 사설 CA(ca.crt) 경로. https 인데 비었거나 못 읽으면 **위탁·산출이 거부**된다(CWE-295 — 검증할 수 없으면 보내지 않는다). ⚠ **구 서술 폐기(2026-09-03)**: *"부팅 fail-closed"* 는 사실이 아니다 — 설정 한 줄로 앱 전체가 멈추지 않도록 **막는 자리를 기동 → 전송 시점으로 옮겼다**(막는 규칙·강도는 그대로, 우회 없음). 기동 시 ERROR 로그가 남는다. http 면 비워둔다 |
   | `KPST_DEID_CREATOR_ID` | 기본 `authoring`. `/project` 호출 기본값 |
@@ -396,6 +406,12 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
   `mock-mode=true` 자족 비식별은 application-local.yml 전용이고 `local` 프로파일은 `LocalProfileGuard`
   가 운영 호스트에서 거부한다. `KPST_DEID_ENABLED=false` 이고 mock 도 아니면 `DeidentifyStep` 이
   설정오류로 거부한다. **비식별을 끄면 PII 노출 + 마킹/프레임추출 차단**이므로 KPST 동거 연동을 반드시 갖춘다.
+
+- **출처유형 비식별 제외는 우회가 아니라 대상 판정 예외다 (2026-09-14 확정)**: `DEIDENTIFY_EXCLUDED_SRC_TYPES`
+  에 든 출처유형(기본 생성형 영상 `GENERATED`)은 실제 인물이 없어 KPST 위탁 없이 원본 복사로 비식별 단계를
+  완료한다. 비식별 단계 자체를 건너뛰는 것이 아니며(비식별 여부 `Y` · 마킹 대기로 같은 흐름) 그 밖의 출처유형은
+  여전히 KPST 연동이 필수다. 관제 조회 뷰의 비식별 여부 `Y` 가 제외 영상에도 서지만 관제는 비식별 작업을 하지 않아
+  영향이 없다(2026-09-14 관제 회신 — 관제 수정 사항 없음).
 
 - **미연동 시 증상·진단**: 영상이 비식별 실패(`DE_IDENT_YN='F'`) 상태로 남고, 비식별 미완료라 마킹
   스트리밍/프레임추출이 차단된다. 부팅 거부·연결 실패 진단은
@@ -571,7 +587,17 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 |---|---|---|
 | DB | control PostgreSQL(관제지원 소유·이중화) | 포털 PostgreSQL(별도 서버) |
 | NAS | 공유 NAS(관제지원 소유) | 포털 NAS |
-| ai-server | 있음 | 없음 |
+| ai-server(전용 프로세스) | 있음(이 매체가 관제 채널의 ai-server 본체) | 없음(전용 프로세스를 새로 두지 않는다) |
+
+⚠ **구 서술 폐기(2026-09-15 사용자 확정 · `ADR-012` v23)** — 위 표의 `ai-server` 행이 「없음」인 것은
+**포털 배포본이 ai-server 를 아예 쓰지 않는다는 뜻이 아니다.** 포털 라벨링 화면의 온디맨드 AI 보조
+(AI 탐지·AI 분할·AI 자동 추적)가 2026-09-15 로 포털에도 제공되며, **포털 배포본은 이 관제 채널 배포본이
+띄운 ai-server(서버 B) 를 그대로 호출**한다 — 별도 AI 서버 프로세스를 새로 두지 않을 뿐이다. 위 표는
+「ai-server *프로세스*가 어느 매체에 있는가」를 말하는 것이지 「포털이 AI 추론을 쓰는가」가 아니다.
+포털 배포본의 `application.properties`(또는 `backend.env`)에도 `AI_SERVER_URL` 을 이 ai-server 주소로
+채워야 하고, 포털 배포본 WAS → 이 ai-server 로 가는 네트워크 경로(두 배포는 별개 인프라이므로 방화벽·
+라우팅)가 열려 있어야 한다. 추론 이외 AI 파이프라인(외부 시계열 위탁·비식별·배치 오토라벨링)은
+여전히 관제 채널 배포본에만 있다(상세는 저작도구 위키 16장 「포털」 §16.3b 참고).
 
 #### 설정에서 할 일은 하나뿐이다
 

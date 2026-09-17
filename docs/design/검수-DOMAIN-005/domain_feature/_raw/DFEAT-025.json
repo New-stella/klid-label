@@ -27,8 +27,9 @@
         "i_want": "검수 이력을 조회하기를",
         "so_that": "검수 과정을 추적·감사한다"
       },
-      "description": "검수 제출·승인·반려 등 검수 이력을 조회한다.",
+      "description": "검수 제출·검수 시작·승인·반려 등 검수 이력을 한 타임라인으로 조회한다.\n\n[검수 시작이 이력에 남는다] 검수를 시작하면 그 사람이 그 영상을 점유하고, 그 점유는 전용 컬럼이나 별도 표가 아니라 이 이력에 「검수 시작」을 남기는 것으로 표현한다([[ADR-067]]). 그래서 이 기능은 점유의 표현 수단이자 「언제 처음 열었는가」의 보존처다 — 검수 시작이 배정·제출·승인·반려와 같은 타임라인에 함께 놓인다.\n\n[행위 시점 역할] 이력 항목마다 행위자와 함께 그 행위를 한 시점의 역할이 남는다. 조회 시점에 현재 역할을 다시 읽은 값이 아니라서 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로다 — 관리자가 승인한 건은 관리자로 남는다. 역할 칸이 생기기 전에 쌓인 옛 이력은 역할을 복원할 수 없어 비어 있을 수 있으며, 그때 화면은 역할을 비워 두고 지어낸 값으로 채우지 않는다.\n\n[연속 재진입은 한 줄로 합쳐 보인다] 같은 행위자가 잇달아 남긴 「검수 시작」은 점유 시각을 갱신한 것이라 건마다 한 줄씩 늘어놓지 않고 한 줄로 합쳐, 최초 시작 시각과 마지막 재진입 시각을 함께 보인다. 최초 시작 시각을 덮어쓰지 않는 것이 이 표시의 전제다.",
       "invokes_apis": [],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -37,12 +38,14 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:20.824Z"
+        "last_updated": "2026-08-29T01:26:20.824Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
       "persists_in_tables": [
-        "LS_DATA_ISSUE"
+        "LS_DATA_ISSUE",
+        "LS_TASK_EVNT_LOG"
       ],
       "related_acceptances": [],
       "specializes_feature": "FEAT-008",
@@ -54,12 +57,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "추적성 링크가 전건 공란이었다. '검수 이력'은 코드상 GET /v1/reviews/{videoId}/issues(API-011, LS_DATA_ISSUE 조회)로 구현된다. 단 이 DFEAT 를 검증하는 acceptance 는 현재 프로젝트에 없다(AC-022 는 승인·반려·버전확정만 다루고 이력 열람을 검증하지 않는다) — related_acceptances 는 신규 AC 등록이 필요한 갭이라 공란으로 남기고 별도 보고한다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:20.824Z",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "ADR-067의 2개 필드 변경 — references",
+    "change_summary": "직전 판에서 결정 근거를 본문에 적었으나 평문이라 추적 링크가 생기지 않았다. 위키링크 표기로 바꿔 근거 결정이 그래프에 이어지게 한다 — 문장과 뜻은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T06:08:44.182Z",
     "created_at": "2026-05-29T06:31:37.911Z"
   }
 }

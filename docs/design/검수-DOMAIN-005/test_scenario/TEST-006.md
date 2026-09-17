@@ -1,17 +1,17 @@
 ---
 logicraft_item: TEST-006
 type: test_scenario
-version: 2
+version: 3
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:04:20.175Z
-status: NEW
-prev_version: null
-content_hash: a14fdc5202e505b4a7d57cfb5f0b9f3f838b54b37d4bcc187f4ceac77cdb49b9
+synced_at: 2026-09-15T13:21:55.916Z
+status: CHANGED
+prev_version: 2
+content_hash: 8a2c97c2f91ee99d47f312bc1abfa20541b344e7d0a495f2e5a23542a089732d
 stale: true
 raw: ./_raw/TEST-006.json
 links:
-  references: ["[[API-014]]", "[[DOMAIN-005]]", "[[DOMAIN-006]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[UC-023]]", "[[UC-033]]"]
+  references: ["[[API-014]]", "[[API-250]]", "[[DOMAIN-005]]", "[[DOMAIN-006]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[UC-023]]", "[[UC-033]]"]
 ---
 
 # 검수 승인 시 전체·작업자 통계 즉시 반영
@@ -58,24 +58,52 @@ integration
 - **screen_ref**: SCREEN-020
 - **preconditions**: 순번3 확인을 마쳤다
 
+### [5]
+
+- **seq**: 5
+- **note**: 한 번에 승인하면 같은 수치 갱신이 여러 건에 동시에 걸린다
+- **action**: 여러 건을 한 번에 승인 실행
+- **expected**: 1. 결과 창에 성공 건수와 실패 건수가 나뉘어 표시된다. 2. 성공한 건만 목록에서 검수완료로 바뀐다.
+- **test_item**: 검수 목록에서 여러 영상을 골라 한 번에 검수완료한다. 그중 한 건은 승인될 수 없는 영상을 섞는다
+- **input_data**: 본인이 점유한 검수 대기 영상 세 건과 승인될 수 없는 영상 한 건
+- **screen_ref**: SCREEN-018
+- **preconditions**: 순번4 확인을 마쳤다. 검수 대기 영상 여러 건을 점유하고 있다
+
+### [6]
+
+- **seq**: 6
+- **note**: 요청한 건수가 아니라 실제로 승인된 건수만큼 늘어야 한다
+- **action**: 통계 재조회 — 한 번에 승인한 건들의 반영
+- **expected**: 1. 검수완료 기준 영상 건수가 순번5 의 성공 건수만큼 늘어난다. 2. 실패한 건은 그 수치에 들어가지 않는다. 3. 기다리거나 다시 시도하지 않아도 한 번의 조회로 갱신된 값이 나온다.
+- **test_item**: 한 번에 승인한 건이 모두 반영되고 실패한 건은 반영되지 않는지 확인한다
+- **input_data**: 없음
+- **screen_ref**: SCREEN-021
+- **preconditions**: 순번5 일괄 승인을 마쳤다
+
 ## status
 
 draft
 
 ## objective
 
-REVIEWER 가 실제 검수 승인 절차(UC-023)를 수행했을 때, 별도 이벤트 전파나 캐시 없이 통계 조회(GET /v1/stats/overall, GET /v1/stats/worker)가 즉시 정합된 수치를 반환하는지 검증한다. DOMAIN-006 은 자체 테이블·도메인 이벤트가 없는 읽기 전용 집계 계층이므로, 이 정합은 요청마다 라이브 테이블을 직접 읽는다는 설계 전제가 실제로 지켜지는지를 검증하는 것이 목적이다.
+REVIEWER 가 실제 검수 승인 절차(UC-023)를 수행했을 때, 별도 이벤트 전파나 캐시 없이 통계 조회(GET /v1/stats/overall, GET /v1/stats/worker)가 즉시 정합된 수치를 반환하는지 검증한다. DOMAIN-006 은 자체 테이블·도메인 이벤트가 없는 읽기 전용 집계 계층이므로, 이 정합은 요청마다 라이브 테이블을 직접 읽는다는 설계 전제가 실제로 지켜지는지를 검증하는 것이 목적이다. 여러 건을 한 번에 승인하는 경로도 같은 수치 갱신을 한꺼번에 일으키므로, 요청한 건수가 아니라 실제로 승인된 건수만큼만 집계가 느는지 함께 본다.
 
 ## related_apis
 
 - API-014
+- API-250
 
 ## preconditions
 
 - 대상 영상이 검수 대기(REVIEW_PENDING) 상태다
 - REVIEWER 로 인증되어 있다
+- 한 번에 승인할 검수 대기 영상이 여러 건 있고, 그중 한 건은 승인될 수 없는 영상이다
 
 ## verifies_nfrs
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 
@@ -94,6 +122,7 @@ _(empty)_
 - SCREEN-019
 - SCREEN-021
 - SCREEN-020
+- SCREEN-018
 
 ## verifies_requirements
 

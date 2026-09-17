@@ -207,10 +207,10 @@ describe('IssueThreadPanel — 서버 등록 이슈의 단독 열람처', () => 
     await waitFor(() =>
       expect(screen.getByTestId('issue-thread-card-1')).toBeInTheDocument(),
     );
-    expect(screen.getByTestId('issue-type-badge-1')).toHaveTextContent('반려');
+    // ★종류 낱말은 「반려 / 문의」다(2026-09-14 확정). 구 낱말 「검수자 확인 요청」은 사양
+    //   어느 자리에도 없던 구현 고유 문구였다 — 저장 코드값(REJECTION·INQUIRY)은 그대로다.
+    expect(screen.getByTestId('issue-type-badge-1').textContent).toBe('반려');
     expect(screen.getByTestId('issue-thread-card-2')).toBeInTheDocument();
-    expect(screen.getByTestId('issue-type-badge-2')).toHaveTextContent(
-      '검수자 확인 요청',
-    );
+    expect(screen.getByTestId('issue-type-badge-2').textContent).toBe('문의');
   });
 });

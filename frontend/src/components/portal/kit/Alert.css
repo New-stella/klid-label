@@ -1,0 +1,105 @@
+@charset "utf-8";
+/* 인라인 알림 — 표식 + 타이틀 + 서브텍스트 한 꼴.
+   tone 은 **면 색과 테두리**로 말한다. 글자는 검정 (design.md §8 색·상태) */
+
+.klid-alert {
+  /* 타이틀 활자 — 표식이 이 값으로 자기 높이를 잡으므로 한 자리에서 관리한다 (아래 § 왼쪽 표식) */
+  --klid-alert-title-size: 1.5rem;
+  --klid-alert-title-lh: 1.6;
+
+  display: flex;
+  align-items: flex-start; /* 표식은 첫 줄(타이틀)에 선다 — 아래 § 왼쪽 표식 */
+  gap: var(--krds-gap-4);
+  width: 100%;
+  padding: var(--krds-padding-6); /* 상하좌우 한 값 — 표식·글이 어느 쪽으로도 치우치지 않는다 */
+  border-radius: 0.8rem; /* 내용 상자는 8 (design.md §7) */
+  border: 0.1rem solid;
+  font-size: 1.4rem;
+  line-height: 1.55;
+}
+
+/* ── 왼쪽 표식 ──
+   글 덩어리 한가운데가 아니라 **첫 줄(타이틀) 한가운데**에 선다. 덩어리 기준으로 세우면
+   서브텍스트가 길어질수록 표식이 아래로 흘러 타이틀과 어긋난다 — 눈이 짝지어 읽는 것은
+   표식과 타이틀이다. 타이틀과 같은 활자를 물려 높이를 한 줄(1lh)로 잡고 그 안에서 가운데를
+   잡으므로, 글자 크기·줄간을 바꿔도 따라온다 (실측 상수를 박지 않는다) */
+.klid-alert-mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  font-size: var(--klid-alert-title-size);
+  line-height: var(--klid-alert-title-lh);
+  height: 1lh;
+}
+/* 타이틀 없이 서브텍스트만 서면(토스트가 대개 그렇다) 표식은 **서브텍스트 첫 줄** 한가운데에 선다.
+   타이틀 활자를 그대로 물면 한 줄 칸이 글줄보다 커서 표식이 아래로 처진다 — 띠 본문 활자를 물린다 */
+.klid-alert:not(:has(.klid-alert-title)) .klid-alert-mark {
+  font-size: inherit;
+  line-height: inherit;
+}
+.klid-alert-mark svg {
+  /* 18 — 단독 20 에서 한 단 내렸다. 곁에 선 타이틀이 15 라 20 은 글보다 표식이 커 보인다 */
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+/* ── 글 덩어리 ──
+   타이틀과 서브텍스트 **둘 다 검정**이다. 위계는 크기(15 / 14)와 굵기(600 / 400)가 진다
+   (§2 스케일). 사이는 4 로 밀착한다 — 한 사람이 이어서 하는 말이라 블록 간격(§6)을 쓰면
+   두 문장이 남남으로 갈린다 */
+.klid-alert-body {
+  color: var(--krds-color-light-gray-90);
+}
+.klid-alert-title {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: var(--klid-alert-title-size);
+  line-height: var(--klid-alert-title-lh);
+  font-weight: 600;
+}
+/* 서브텍스트를 문장마다 낱줄로 (Alert.Line). 사이를 벌리지 않는다 — 한 사람이 이어서 하는
+   말이라 줄만 갈리고 문단은 하나다 */
+.klid-alert-line {
+  display: block;
+}
+
+/* ── tone ── (2026-08-25)
+   세 단으로 갈라 얹는다: **면 5 · 선 20 · 표식 50.** 면은 성격을 알아볼 만큼만 얹고 글에
+   자리를 내주고, 선은 그 옅은 면이 어디서 끝나는지 긋고, 표식이 성격을 또렷하게 짊어진다.
+   한 단씩 벌어져 있어야 셋이 서로를 뭉개지 않는다 */
+.klid-alert[data-tone='success'] {
+  background-color: var(--krds-color-light-success-5);
+  border-color: var(--krds-color-light-success-20);
+}
+.klid-alert[data-tone='success'] .klid-alert-mark {
+  color: var(--krds-color-light-success-50);
+}
+.klid-alert[data-tone='danger'] {
+  background-color: var(--krds-color-light-danger-5);
+  border-color: var(--krds-color-light-danger-20);
+}
+.klid-alert[data-tone='danger'] .klid-alert-mark {
+  color: var(--krds-color-light-danger-50);
+}
+.klid-alert[data-tone='warning'] {
+  background-color: var(--krds-color-light-warning-5);
+  border-color: var(--krds-color-light-warning-20);
+}
+.klid-alert[data-tone='warning'] .klid-alert-mark {
+  color: var(--krds-color-light-warning-50);
+}
+/* 코발트 갈래 — 지금 이 화면의 사정을 말하는 띠. info(회색)보다 한 급 무겁다 */
+.klid-alert[data-tone='primary'] {
+  background-color: var(--krds-color-light-primary-5);
+  border-color: var(--krds-color-light-primary-20);
+}
+.klid-alert[data-tone='primary'] .klid-alert-mark {
+  color: var(--krds-color-light-primary-50);
+}
+.klid-alert[data-tone='info'] {
+  background-color: var(--krds-color-light-gray-5);
+  border-color: var(--krds-color-light-gray-20);
+}
+.klid-alert[data-tone='info'] .klid-alert-mark {
+  color: var(--krds-color-light-gray-60);
+}

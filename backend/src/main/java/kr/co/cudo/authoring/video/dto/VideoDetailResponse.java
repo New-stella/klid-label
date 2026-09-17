@@ -229,8 +229,35 @@ public record VideoDetailResponse(
          * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
          * 영향받지 않는다(추가만 — 하위호환).
          */
-        List<SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes
+        List<SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes,
+        /*
+         * 검증 이벤트 유형 <b>전체</b> 목록 — 코드·이름. 정렬순서 오름차순, 같으면 코드 오름차순.
+         * [@design API-043]
+         *
+         * ★ 왜 필요한가: 화면이 이벤트 어노테이션의 이벤트 분류를 「이름 + 코드」로 보여줘야 하는데,
+         * 그 분류는 마킹에서 고른 값이거나 사람이 고친 값일 수 있어 vrfcEvntTypeCd(관제 인입 값)로는
+         * 이름을 정할 수 없다. 유형 이름을 주는 다른 조회 경로는 검수자 전용이라 작업자가 쓸 수 없다.
+         *
+         * ★ selectableVrfcEvntTypes 와 <서로 대신하지 않는다> — 그 목록은 관제가 유형을 보낸 영상에서
+         * 빈 배열이고 비었는지가 유형 선택 노출을 가르는 계약이라, 이 용도로 채우면 그 계약이 깨진다.
+         * 이 목록은 관제 수신 여부와 무관하게 늘 같은 전체 목록이며 질문 목록은 담지 않는다.
+         *
+         * 등록된 유형이 없으면 빈 배열이다(null 아님). 기존 from(...) 오버로드로 만든 응답도 빈 배열이라
+         * 이 필드가 추가돼도 기존 소비자는 영향받지 않는다(추가만 — 하위호환).
+         */
+        List<VrfcEvntTypeDto> allVrfcEvntTypes
 ) {
+    /**
+     * 검증 이벤트 유형 1건 — 코드와 화면에 보여줄 이름만. [@design API-043]
+     *
+     * <p>질문 목록을 담지 않는다 — 이름 표시가 목적이라 질문까지 실으면 영상 상세 응답이 카탈로그
+     * 전체의 질문을 매번 끌고 다닌다.
+     *
+     * @param vrfcEvntTypeCd 검증이벤트유형코드
+     * @param vrfcEvntTypeNm 검증이벤트유형명 — 화면에 보여줄 이름
+     */
+    public record VrfcEvntTypeDto(String vrfcEvntTypeCd, String vrfcEvntTypeNm) {}
+
     /**
      * 작업자가 고를 수 있는 검증 이벤트 유형 1건 — 코드·이름 + 그 유형의 질문 목록.
      * [@design API-043] [@design SCREEN-006] [@design AC-1013]
@@ -585,8 +612,8 @@ public record VideoDetailResponse(
     }
 
     /**
-     * 고를 수 있는 검증 이벤트 유형 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로
-     * 위임한다(하위호환). [@design API-043] [@design SCREEN-006] [@design AC-1013]
+     * 고를 수 있는 검증 이벤트 유형 목록까지 포함한 빌드 — 유형 전체 목록은 빈 배열로 위임한다(하위호환).
+     * [@design API-043] [@design SCREEN-006] [@design AC-1013]
      *
      * @param selectableVrfcEvntTypes 작업자가 고를 수 있는 유형 목록(정렬순서 오름차순). 각 항목은
      *                                그 유형의 질문 목록을 함께 담는다. <b>관제 인입에서 유형을 받은
@@ -613,6 +640,41 @@ public record VideoDetailResponse(
             List<VrfcEvntQuestionDto> vrfcEvntQuestions,
             String resolution,
             List<SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, skippedStages, clearedStages,
+                failedStages, vrfcEvntTypeCd, vrfcEvntQuestions, resolution, selectableVrfcEvntTypes,
+                Collections.emptyList());
+    }
+
+    /**
+     * 검증 이벤트 유형 전체 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환).
+     * [@design API-043]
+     *
+     * @param allVrfcEvntTypes 검증 이벤트 유형 전체 목록(정렬순서 오름차순, 같으면 코드 오름차순).
+     *                         관제 수신 여부와 무관하게 늘 전체다. {@code null} 을 넘겨도 빈 배열로
+     *                         정규화된다 — 응답 계약이 "빈 배열"이다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages,
+            List<String> clearedStages,
+            List<String> failedStages,
+            String vrfcEvntTypeCd,
+            List<VrfcEvntQuestionDto> vrfcEvntQuestions,
+            String resolution,
+            List<SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes,
+            List<VrfcEvntTypeDto> allVrfcEvntTypes
     ) {
         // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 목록 응답과 <같은 판정기>를 쓴다.
         String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
@@ -658,7 +720,8 @@ public record VideoDetailResponse(
                 vrfcEvntTypeCd,
                 (vrfcEvntQuestions != null) ? vrfcEvntQuestions : Collections.emptyList(),
                 resolution,
-                (selectableVrfcEvntTypes != null) ? selectableVrfcEvntTypes : Collections.emptyList()
+                (selectableVrfcEvntTypes != null) ? selectableVrfcEvntTypes : Collections.emptyList(),
+                (allVrfcEvntTypes != null) ? allVrfcEvntTypes : Collections.emptyList()
         );
     }
 }

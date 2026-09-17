@@ -1,0 +1,67 @@
+{
+  "item": {
+    "id": "AC-1110",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-023 검수 시작 본인 재진입 — 멱등 성공·점유 시각 갱신·최초 시작 시각 보존 (edge)",
+    "slug": "uc-023-검수-시작-본인-재진입-멱등-성공점유-시각-갱신최초-시작-시각-보존-edge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "충돌이 아니라 성공으로 돌아오고 상태가 바뀌지 않는다",
+          "점유 시각이 갱신되어 보던 도중에 만료되지 않는다",
+          "이미 쌓인 기록은 고쳐지거나 지워지지 않고 최초 시작 시각이 보존된다",
+          "이력 화면에서 연속 재진입이 한 줄로 합쳐져 최초 시작 시각과 마지막 재진입 시각이 함께 보인다"
+        ],
+        "when": [
+          "같은 영상의 검수 시작을 다시 누른다"
+        ],
+        "given": [
+          "요청자가 그 영상의 유효 점유 주인이다"
+        ]
+      },
+      "statement": "유효 점유의 주인이 같은 영상의 검수 시작을 다시 누르면 충돌이 아니라 성공으로 돌려주고 상태를 바꾸지 않는다. 이때 점유 시각을 갱신해 보던 도중에 만료되지 않게 한다. 갱신은 「검수 시작」을 새로 남기는 것으로 하며 이미 쌓인 기록을 고치거나 지우지 않는다. 최초 시작 시각은 보존한다 — 그 시각을 덮어쓰면 언제 처음 열었는지가 이력에서 사라지기 때문이다. 같은 행위자가 잇달아 남긴 「검수 시작」은 이력 화면에서 한 줄로 합쳐 최초 시작 시각과 마지막 재진입 시각을 함께 보인다.",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-067",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "유효 점유 주인의 재진입이 충돌이 아니라 멱등 성공이며 최초 시작 시각이 보존된다는 것을 검증하는 수용기준 신설."
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-467"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-15T13:27:08.439Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-005"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-023"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "ADR-067 검수 배정 폐지·점유 라운드 — 유효 점유 주인의 재진입이 충돌이 아니라 멱등 성공이며 최초 시작 시각이 보존된다는 것을 검증하는 수용기준 신설.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-15T13:27:08.439Z",
+    "created_at": "2026-09-15T06:03:52.676Z"
+  }
+}

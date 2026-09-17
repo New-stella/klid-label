@@ -22,14 +22,16 @@ import { publishAiWaitBudgets } from '../aiBudget';
  * 조회를 두 번 하지 않게 한다.
  *
  * @param enabled 조회할지. 끄면 발행도 하지 않아 <b>판정기가 폴백 예산을 그대로 쓴다</b> —
- *   AI 도구가 없는 채널에서는 그것이 옳다(쓰지 않는 값을 받으려고 403 을 쌓지 않는다).
+ *   AI 도구가 없는 화면에서는 그것이 옳다(쓰지 않는 값을 받으려고 403 을 쌓지 않는다).
+ * @param portal  포털 채널 창구로 조회할지. 포털 채널도 AI 보조를 쓰므로(2026-09-15) 끄는 것이 아니라
+ *   창구를 갈라 부른다 — 내부 창구는 포털 토큰으로 403 이다.
  *
  * ⚠ 조회 실패·응답에 예산 없음이면 **아무 것도 발행하지 않는다**(폴백 유지). 여기서 빈 값을
  *   발행하면 «서버가 0 을 줬다» 와 «못 받았다» 가 구분되지 않아 제한시간이 0(=즉시 끊김)이 될 수
  *   있다 — 판정기가 필드 단위로 막고 있지만, 발행 자체를 하지 않는 편이 의도가 분명하다.
  */
-export function useAiWaitBudgetSync(enabled = true) {
-  const query = useAiDefaults(enabled);
+export function useAiWaitBudgetSync(enabled = true, portal = false) {
+  const query = useAiDefaults(enabled, portal);
   const waitBudgets = query.data?.waitBudgets;
 
   useEffect(() => {

@@ -401,7 +401,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
   });
 
   // ── AI 보조·검수·버전관리 진입점 부재 ──────────────────────────────────
-  it('★SAM_추적_키포인트_오토라벨_진입점이_하나도_없다', async () => {
+  it('★AI보조_세_진입점은_서고_선택객체추적_키포인트_진입점은_없다', async () => {
     mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
     mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
     catchAllRest();
@@ -410,14 +410,22 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
     await waitForCanvas();
 
     const toolbar = screen.getByRole('toolbar', { name: '라벨링 도구' });
-    // 노출 도구: 선택 / 바운딩 박스 / 폴리곤(사양 §좌측 도구바).
-    expect(within(toolbar).getByRole('button', { name: /바운딩 박스/ })).toBeInTheDocument();
-    expect(within(toolbar).getByRole('button', { name: /폴리곤/ })).toBeInTheDocument();
-    // 미노출: AI 분할/추적, 키포인트, AI 탐지(오토라벨).
-    expect(screen.queryByRole('button', { name: /AI 분할|SAM/i })).toBeNull();
+    // 노출 도구: 선택 / 바운딩 박스 / 폴리곤(사양 §좌측 도구바 「그리기」).
+    expect(within(toolbar).getByRole('radio', { name: /바운딩 박스/ })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('radio', { name: /폴리곤/ })).toBeInTheDocument();
+    // ★반전(2026-09-15 · SCREEN-029) — 업로드 자산에도 AI 보조 세 기능이 선다(자산 출처 무관).
+    //   구 단언(AI 분할·AI 탐지·자동 추적 미노출)만 뒤집고 나머지 미노출 단언은 그대로 둔다.
+    expect(within(toolbar).getByRole('radio', { name: 'AI 분할' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'AI 탐지' })).toBeInTheDocument();
+    expect(
+      within(toolbar).getByRole('button', { name: 'AI 자동 추적 패널로 이동' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('auto-track-panel')).toBeInTheDocument();
+    // 미노출: 선택 객체 AI 추적, 키포인트(스켈레톤), 모델명 표기.
+    expect(screen.queryByRole('button', { name: /SAM/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^AI 추적$/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /키포인트|스켈레톤/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /AI 탐지|오토라벨/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /자동 추적/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /오토라벨/ })).toBeNull();
   });
 
   it('★검수제출_버전관리_비식별신고_프레임폐기_진입점이_없다', async () => {

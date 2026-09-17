@@ -67,17 +67,37 @@ public class Resilience4jConfig {
     }
 
     /**
-     * 관제 계정 세션 창구(갱신·로그아웃) 중계용 CircuitBreaker — 통지와 <b>별도 인스턴스</b>다.
+     * 관제 계정 창구 <b>갱신</b> 중계 전용 CircuitBreaker — 통지와도, 로그아웃 중계와도 <b>별도 인스턴스</b>다.
      *
      * <p>통지 서킷을 공유하면 통지 실패(관제 데이터셋 창구 장애)가 세션 연장까지 막고, 그 반대도
-     * 성립한다. 두 창구는 같은 관제 서버에 있어도 다른 서비스다. 인스턴스명 {@code controlAccount} 는
-     * application.yml resilience4j 설정 키와 일치.
+     * 성립한다. 두 창구는 같은 관제 서버에 있어도 다른 서비스다.
+     *
+     * <p>★ 로그아웃과도 나눈다(2026-09-14 확정) — 공유하면 갱신의 누적 일시 장애가 서킷을 열어
+     * <b>로그아웃 중계까지 막혀 관제 서버 세션이 닫히지 않는다</b>(현장 실사고). 로그아웃은
+     * {@link #controlAccountLogoutCircuitBreaker} 를 쓴다.
+     *
+     * <p>⚠ 인스턴스명 {@code controlAccount} 는 <b>개명하지 않는다</b> — 배포본이 resilience4j 속성을 이
+     * 이름으로 덮어쓰고 있으면 개명이 조용히 무시된다. application.yml resilience4j 설정 키와 일치.
      *
      * @design INT-015
      */
     @Bean(name = "controlAccountCircuitBreaker")
     public CircuitBreaker controlAccountCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("controlAccount");
+    }
+
+    /**
+     * 관제 계정 창구 <b>로그아웃</b> 중계 전용 CircuitBreaker — 갱신 서킷이 열려도 로그아웃은 나간다.
+     *
+     * <p>인스턴스명 {@code controlAccountLogout} 은 application.yml resilience4j 설정 키와 일치.
+     * 근거는 {@link #controlAccountCircuitBreaker}.
+     *
+     * @design INT-015
+     * @design API-246
+     */
+    @Bean(name = "controlAccountLogoutCircuitBreaker")
+    public CircuitBreaker controlAccountLogoutCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker("controlAccountLogout");
     }
 
     /**

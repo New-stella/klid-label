@@ -115,7 +115,8 @@ class TaskBoardControllerTest {
                 .andExpect(jsonPath("$.data.content[0].assignmentId").isEmpty())
                 .andExpect(jsonPath("$.data.content[0].workerId").isEmpty())
                 .andExpect(jsonPath("$.data.content[0].workerName").isEmpty())
-                .andExpect(jsonPath("$.data.content[0].reviewerId").isEmpty())
+                // 검수자 축은 응답에 <없다> — 비어 있는 것이 아니라 필드 자체가 사라졌다(ADR-067).
+                .andExpect(jsonPath("$.data.content[0].reviewerId").doesNotExist())
                 .andExpect(jsonPath("$.data.content[0].status").value("UNASSIGNED"));
     }
 
@@ -295,17 +296,26 @@ class TaskBoardControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER_배정자_정보도_enrich되어_reviewerId_reviewerName_반환")
-    void reviewerInfoEnriched() throws Exception {
+    @DisplayName("옛_검수자_배정_행이_있어도_응답에_검수자_축이_없다")
+    void legacyReviewerAssignmentIsNotExposed() throws Exception {
         LsDataRaw raw = seedCompletedVideo("CLIP-BOARD-REV", "CCTV-002", "EVT-INTRUSION");
 
         authrtRepository.save(LsTaskAssignment.createLabeler(raw.getRawSn(), 100L, 1L));
-        authrtRepository.save(LsTaskAssignment.createReviewer(raw.getRawSn(), 1L, 1L));
+        // 새로 만드는 경로는 없어졌지만 이미 적재된 행은 남는다 — 그 행이 화면으로 새지 않는지 본다.
+        authrtRepository.save(LsTaskAssignment.builder()
+                .userNo(1L)
+                .rawDataId(raw.getRawSn())
+                .taskTypeCd(LsTaskAssignment.TASK_REVIEWER)
+                .regUserNo(1L)
+                .regDt(java.time.LocalDateTime.now())
+                .build());
 
         mockMvc.perform(get("/v1/tasks/board?status=COMPLETED&page=0&size=20")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].reviewerId").value(1))
-                .andExpect(jsonPath("$.data.content[0].reviewerName").value("검수자1"));
+                // 작업자 축은 그대로다(회귀 가드 — 검수자만 걷어냈다).
+                .andExpect(jsonPath("$.data.content[0].workerId").value(100))
+                .andExpect(jsonPath("$.data.content[0].reviewerId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].reviewerName").doesNotExist());
     }
 }

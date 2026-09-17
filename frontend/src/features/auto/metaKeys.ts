@@ -40,7 +40,18 @@ export const EDITABLE_META_KEYS = [DESCRIPTION_META_KEY, MANUAL_TIMESERIES_META_
 
 export type EditableMetaKey = (typeof EDITABLE_META_KEYS)[number];
 
-/** 편집 슬롯 대상 키인지. 여집합(레거시 구간 키 등)은 읽기 전용으로 병기한다. [req: R8][req: R9] */
+/**
+ * 편집 슬롯 대상 키인지. 여집합은 이 판정 밖이다. [req: R8]
+ *
+ * ⚠ <b>[폐기] 구 서술</b> — *"여집합(레거시 구간 키 등)은 읽기 전용으로 <b>병기한다</b>"*.
+ * 이전 방식 구간 키에는 <b>대응하지 않는다</b>(2026-09-14 사용자 확정) — 표시·병기·접기·대체 규칙을
+ * 두지 않는다. 그 값은 분석 결과가 아니라 모의 응답 서버가 만든 값으로 판명됐다.
+ * ★판정 자체는 그대로 옳다(화이트리스트 통과분만 편집 슬롯). 바뀐 것은 <b>여집합을 어떻게 하는가</b>뿐이며,
+ * 이 문장이 지시문으로 남아 있으면 다음 라운드가 그 확정을 되돌린다.
+ *
+ * ★추적 태그에서 {@code [req: R9]} 를 <b>뺀 것은 의도다</b> — 그 요구가 이 자리에 걸려 있던 근거가
+ * 위 폐기된 「여집합 병기」였다. R9 자체는 살아 있고 {@link compareByStartSec} 가 계속 진다.
+ */
 export function isEditableMetaKey(metaKey: string | null | undefined): boolean {
   return (
     typeof metaKey === 'string' &&

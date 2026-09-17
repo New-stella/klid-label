@@ -11,6 +11,12 @@
 
 - **파이프라인 선두 단계**(구현됨): 영상 적재 직후 자동 실행되며, 마킹 단계의 선행 조건이다 → [07](07-batch-pipeline.md#71-파이프라인-순서-구현됨)
 - 대상: **전체 영상 무조건**(`PRVC_TYPE_CD` 게이팅 폐지 — `ANONY` 포함). 비식별 영상이 마킹·작업 대상이 되며 원본은 별도 보존
+  - **★예외 — 출처유형 비식별 제외 (2026-09-14 확정 · ADR-066)**: 배포 설정 `authoring.deidentify.excluded-src-types`(env `DEIDENTIFY_EXCLUDED_SRC_TYPES`, 쉼표 복수, 기본 `GENERATED`)에 든 출처유형 영상은 **KPST 위탁 없이 원본을 비식별 영상 쓰기 위치(`deidVideoDir`)에 원본 파일명 그대로 일반 파일로 복사**해 단계를 끝낸다. 이력 `LS_DEIDENT_PROC_LOG` 성공 행(`REQ_KND_CD='EXCLUDED'`, `DE_IDNTF_FILE_PATH_NM`=복사본) → `DE_IDENT_YN='Y'` → `MARKING_READY`. **단계를 건너뛰지 않는다** — 뒤 소비처(마킹 가드·스트리밍·프레임 두 벌·파생·관제 뷰)는 무변경.
+    - 판정: 비식별 단계(`DeidentifyStep.run`) 처리 시점 1회, KPST 활성 여부 검사보다 앞 · `srcType` null 은 대상 아님 · 비우면 전부 위탁 · **소급 없음** · **기동 시 값 검사 없음**(적용 목록 INFO 로그 1줄) · 관리 화면 설정 아님(`ConfigKeys.ALLOWED` 밖 — 저장 API 거부).
+    - 복사 실패(원본 부재·경로 위반·IO): `'F'` + 이력 `FAILED`(EXCLUDED) + `MARKING_READY` 미전이 + 임시 파일 정리 · 원본 불변.
+    - 제외 행은 `POLL_STTS_CD` 가 비어 KPST 폴링·ACK 유예 회수 대상이 아니다.
+    - **회수 지점은 검수** — 오표기(실제 인물 영상이 `GENERATED`)는 검수 중 비식별 누락 신고(§8.4) → 외부 재비식별 → 해소. ⚠ 검수완료 재비식별(§8.6)은 이미 `'Y'` 인 영상을 거부하므로 **회수 경로가 아니다**. 승인 이후·그 파생본은 경로 밖(인지·수용).
+    - 영상 상세 비식별 이력 패널은 표시를 바꾸지 않았다 — 제외 회차가 「비식별 / 배치 비식별」로 보인다(인지·수용). 관제 뷰 `DE_IDNTF_YN='Y'` 가 제외 영상에도 서지만 관제와 무관하다 — 2026-09-14 관제 회신: 비식별 작업은 전부 저작도구로 이관돼 관제는 이 값으로 판단하지 않고, 생성형 AI 서버에서 생성된 작업은 기존에도 `GENERATED` 로 전달된다(관제 수정 없음).
 - **자동 트리거**: 적재(TUS 업로드 + dev 경로) → `VideoIngestedEvent` → `IngestDeidentifyBridge`(AFTER_COMMIT) → `AsyncDeidentifyRunner`(@Async) → `DeidentifyStep.run` → 성공 시 `LsDataRaw.dataSttsCd = MARKING_READY`
   - ⚠ **증강(augment) 적재 경로는 아직 `VideoIngestedEvent` 미발행** — 선두 비식별 자동화 미연동(planned/후속)
 - 출력: `STORAGE_DEIDENTIFIED_PATH` 하위 강제 (CWE-22 경로 검증)
@@ -69,6 +75,15 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신�
 > ⚠ **레거시 동기 SPI/콜백 경로 제거(UC018)**: 구 `DeidentifyClient`(동기 위탁) + `POST /v1/deidentify/result` 콜백 수신(`DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거되었다. KPST 서비스가 없으면(설정 오류) `DeidentifyStep` 은 레거시 폴백 대신 명확한 설정 오류 예외(내부 정보 미노출)로 처리한다. ⚠ 구 서술 *"mock 도 아니고"* 는 폐기다 — **견줄 mock 분기가 없어 경우의 수는 하나다**.
 
 - 실패 시 `DE_IDENT_YN='F'`, 원본 보존. 재비식별은 외부 솔루션 수동 처리(자동 재비식별 큐 없음).
+- **★선두 비식별 실패는 기존 배치 재시작으로 다시 돌린다 (2026-09-16 사용자 확정 · `ADR-006` v7 · `API-167`·`API-199` · `AC-1133`~`AC-1135`)** — 사용자 신고: *"비식별 실패했을때 다시 할 수단이 없어."* 적재 직후 선두 비식별이 실패한 영상(`DE_IDENT_YN='F'` + 배치 단계 `PENDING`)은 배치 재처리(마킹 이후 단계만)·검수완료 재비식별(승인 영상만)·신고 해소(열린 신고 필요) 어디에도 걸리지 않아 **영구 고착**이었다.
+  - **새 창구·새 버튼은 없다.** *"비식별 실패도 배치 실패아냐?"* — 기존 재시작(건별 `POST /v1/videos/{rawSn}/batch/retry` · 일괄 `POST /v1/videos/batch/retry`)이 이 형상이면 **적재 직후와 같은 선두 비식별 단계**를 다시 수행한다(외부 위탁 또는 출처유형 제외 복사 — 처리 시점 설정으로 판정). 형상이 아니면 종전 동작 그대로다.
+  - 거부: 파생영상 400 · 승인 이력 409 · **열린 비식별 누락 신고 409**(그 `'F'` 는 신고 표식이다 — 246 실데이터 raw 21 처럼 이관 영상은 신고 표식 `'F'` 가 `PENDING` 으로 있을 수 있다) · 진행 중 위탁 409 · 동시 요청 409.
+  - 접수 응답은 `{rawSn, stage:"PENDING"}` — 배치 단계를 선점하지 않는다. 실행은 **수동 재기동 전용 풀**(`batchReprocessExecutor`, AbortPolicy)에서 돈다 — 적재 직후 비식별 풀(CallerRuns)을 쓰면 일괄 재시작이 포화될 때 요청 스레드에서 원본 복사가 돌고 신규 적재 비식별을 굶긴다(독립 QA 1차 fail 로 교정). 포화 시 503.
+  - 재시작은 영상 작업 잠금(`LCK_ID` 접두 `DEIDRETRY-`)을 잡고, **성공·모든 실패 종결에서 그 잠금만** 푼다(트랙 병합·검수완료 재비식별 잠금은 유지). 스키마 변경 없음.
+  - ⚠ **자동 재시도는 여전히 없다** — 사람이 누르는 수동 재시작이라 「자동 재비식별 큐 없음」(`ADR-006` ③)과 양립한다. 외부 재비식별 후 해소는 **열린 신고 영상**의 경로로 한정된다.
+  - 목록 비식별 배지는 최신 회차가 진행 중이면 `'F'` 보다 **진행 중**을 먼저 보인다.
+  - 진단 쿼리: `deploy/onprem/scripts/verify/verify-queries.sql` 14절.
+  - **재위탁 이름은 회차마다 다르다 (2026-09-17)** — 첫 위탁 `raw{영상번호}`, 이후 `raw{영상번호}r{이력 번호}`. 고정 이름이면 위탁이 나간 뒤 실패한 영상의 재시작이 KPST 의 동일 이름 409 로 영원히 막힌다(246 실측). 상세 [22](22-deid-solution-api.md) 22.3.3.
 - 코드(폴링 경로): `KpstDeidentifyClient`(`createProject` → `Mono`), `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`/`KpstSubmitOutcomeRecorder`, `batch/scheduler/KpstDeidentPollJob`
 - 코드(트리거/mock): `batch/step/DeidentifyStep`(mock/KPST/설정오류 3분기)
 - 공유 인프라: `HmacWebhookFilter`/`HmacSigner` + VLM(`/v1/vlm/callback`) 콜백은 그대로 유지. 증강 콜백은 2026-07-27 Phase 7-A2 에서 무서명 `/v1/genai/callback` 으로 교체됐다(→ [14](14-augmentation.md))
@@ -200,7 +215,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
     - **코드값 원문(`MARKING`/`LABELING`)과 내부 컬럼명(`DCLR_STP_CD`)은 화면에 노출하지 않는다** — BE 는 코드를, FE 가 사용자 언어를 담당한다(상태 컬럼과 동일 관례).
     - **`null` 을 빈칸으로 두지 않는다** — 빈칸은 "값이 없다"와 "로딩 실패"가 구분되지 않는다. **'미상'** 은 "단계가 없다"가 아니라 **"기록이 없다"**는 뜻이며(그 신고도 어딘가에서 접수됐다), 이 행은 해소해도 단계별 재개가 없다는 사실을 툴팁이 알린다. **없는 단계를 지어내 표기하지 않는다**(백필 금지 정책과 같은 취지).
 - **신고 관리 목록 `GET /v1/deident-reports?status&page&size` (REVIEWER 전용, SC-032)**: `status` 는 `OPEN`(기본)/`RESOLVED`/`DISMISSED` allowlist 만 허용(그 외 400). 응답 행(`DeidentReportListResponse`)은 신고자를 **두 축**으로 내린다 — `reporterNo`(`USER_NO` 원값, 하위호환) + **`reporterName`**(`LS_ACNT_USER.USER_NM`, 2026-08-04 추가). **화면 '신고자' 컬럼은 `reporterName` 을 표시**한다(내부 번호를 사람 이름 자리에 찍지 않는다). 이름은 페이지의 `USER_NO` 를 **단일 IN 쿼리**로 한 번에 해석하고(N+1 금지), 마스터에 없는 번호(탈퇴·계정 삭제)는 **`null`** 로 남기되 목록 조회 자체는 정상 반환한다(fail-soft). 같은 응답에 **`stage`**(신고 단계, V171)도 optional 로 함께 실린다 — 위 「신고 관리 화면(SC-032)에 신고 단계 노출」 참조.
-- 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)
+- 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW). ⚠ 이것은 **열린 신고 영상**의 경로다 — 신고 없이 선두 비식별이 실패한 영상은 배치 재시작으로 다시 돈다(위 「선두 비식별 실패」 항목)
 - **★라벨 보존 정책 (2026-07-27 사용자 확정 — 구 "전체 라벨 삭제 + 복원 스냅샷" 폐기)**: 신고는 "비식별이 잘못됐다"는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 **해당 영상의 라벨을 삭제하지 않는다**. 구 정책이 삭제 직전에 남기던 `LS_LABEL_VERSION`(`SAVE_REASON='DEIDENT_REPORT'`, `ACTIVE_YN='N'`) **비활성 스냅샷도 더 이상 적재하지 않는다** — 그 스냅샷은 `DATA_SRC_SN=NULL`(영상 스코프)이라 프레임(srcSn) 스코프인 버전 목록·롤백 API 에서 조회·복원할 수 없는 write-only 이력이었다(D-ISSUE-25). 이미 적재된 기존 행은 보존하며, 프레임 스코프가 아닌 버전 해시로 diff 를 호출하면 400 으로 명시 거부한다(구 미처리 500 수정 — D-ISSUE-26). 삭제분 소급 복구는 하지 않는다.
 - **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정(`PUT /v1/frames/{srcSn}/labels`)도 **같은 게이트가 412 로 차단**한다 (2026-08-04, C-ISSUE-22 — 구 서술 *"작업락 409 가 차단한다"* 는 거짓이었다: 작업락은 6h 만료 후 `WorkLockSweepJob` 이 회수하는데 `'F'` 는 resolve 까지 남아 **조회 412 ↔ 저장 200** 비대칭이 열렸고, full-replace 계약상 `items:[]` 저장이 기존 라벨을 전량 삭제했다). 게이트는 **락 검사보다 먼저** 평가해 락 유무와 무관하게 412 로 통일하며, 409 는 **신고와 무관한 락**(트랙 병합 등)에만 남는다. 결과적으로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.

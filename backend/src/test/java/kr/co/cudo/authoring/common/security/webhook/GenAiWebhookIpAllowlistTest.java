@@ -46,6 +46,31 @@ class GenAiWebhookIpAllowlistTest {
     }
 
     @Test
+    @DisplayName("IPv4_IPv6_전체_대역_명시면_IPv4와_IPv6_원격_주소를_모두_허용한다")
+    void IPv4_IPv6_전체_대역_명시면_IPv4와_IPv6_원격_주소를_모두_허용한다() {
+        GenAiWebhookIpAllowlist allowlist = new GenAiWebhookIpAllowlist("0.0.0.0/0,::/0");
+
+        assertThat(allowlist.isAllowed("203.0.113.9")).isTrue();
+        assertThat(allowlist.isAllowed("2001:db8::5")).isTrue();
+        assertThat(allowlist.isAllowed("::1")).isTrue();
+    }
+
+    /**
+     * IPv4-매핑 IPv6 원격 주소의 <b>현행 동작 실측 고정</b> — 바꾸지 않는다.
+     * {@code InetAddress} 가 {@code ::ffff:a.b.c.d} 를 IPv4 주소로 해석하므로 IPv4 대역에 매칭되고
+     * IPv6 대역에는 매칭되지 않는다(매처는 주소 종류가 다르면 불일치로 본다).
+     */
+    @Test
+    @DisplayName("IPv4_매핑_IPv6_원격_주소는_IPv4_대역에만_매칭된다_현행_실측")
+    void IPv4_매핑_IPv6_원격_주소는_IPv4_대역에만_매칭된다_현행_실측() {
+        GenAiWebhookIpAllowlist ipv4Only = new GenAiWebhookIpAllowlist("0.0.0.0/0");
+        GenAiWebhookIpAllowlist ipv6Only = new GenAiWebhookIpAllowlist("::/0");
+
+        assertThat(ipv4Only.isAllowed("::ffff:10.0.0.1")).isTrue();
+        assertThat(ipv6Only.isAllowed("::ffff:10.0.0.1")).isFalse();
+    }
+
+    @Test
     @DisplayName("CIDR_오타는_조용히_무시되지_않고_기동이_차단된다")
     void malformedCidrFailsStartup() {
         assertThatThrownBy(() -> new GenAiWebhookIpAllowlist("203.0.113.0/24;10.0.0.0/8"))

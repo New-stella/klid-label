@@ -55,10 +55,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-431"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-09-01T14:34:05.449Z",
+        "last_updated": "2026-09-08T12:03:40.816Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -74,8 +76,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "AI 장비 원장이 담는 범위와 그 근거를 본문에 명시 — 가르는 축은 「고를 대상이 여럿인가」이며 외부 증강 벤더는 보낼 곳이 하나라 연동 서버 주소 설정 칸이 진실원. 옮겨올 조건도 함께 기록. 이름·경로·계약(요청·응답·상태코드·인가) 무변경",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-08T05:14:31.454Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-08T12:03:40.817Z",
     "created_at": "2026-09-01T14:06:15.467Z"
   }
 }

@@ -1,0 +1,49 @@
+{
+  "item": {
+    "id": "UI-153",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "feedback: PortalListSkeleton",
+    "slug": "feedback-portallistskeleton",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PortalListSkeleton",
+      "tags": [
+        "portal",
+        "ds-002",
+        "skeleton"
+      ],
+      "category": "feedback",
+      "description": "포털 채널 목록 로딩 자리표시자. 불러오는 중이라는 글 한 줄은 아무것도 없는 화면과 모양이 거의 같아서, 자리표시자가 올 것이 있고 그것이 목록 모양이라는 사실을 형태로 먼저 말한다. 결과가 붙는 순간 화면이 튀지 않는 효과도 함께 얻는다. 보조기술에서는 빠진다 — 회색 상자는 읽을 내용이 없어 노출하면 빈 항목이 여러 개 낭독된다. 불러오는 중이라는 사실은 호출부가 별도 문구로 알린다.",
+      "code_snippet": "<PortalListSkeleton rows={3} />",
+      "props_schema": [
+        {
+          "name": "rows",
+          "type": "number",
+          "default": 3,
+          "required": false,
+          "description": "그릴 줄 수. 실제로 올 건수를 모르므로 목록임을 말할 만큼만 둔다."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "usage_example": "포털 내 작업(SCREEN-028)·포털 증강(SCREEN-044)·포털 업로드(SCREEN-033) 세 목록 화면이 함께 쓴다. 호출부는 이 부품과 role=status 문구를 짝으로 둔다 — 자리표시자만 두면 비었다와 모양이 같고, 글만 두면 결과가 붙는 순간 화면이 튄다.",
+      "attached_files": [],
+      "design_system_id": "DS-002",
+      "accessibility_notes": "뿌리에 aria-hidden 을 건다. 로딩 사실은 호출부의 role=status 문구가 단독으로 나른다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: feedback: PortalListSkeleton",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T07:21:56.390Z",
+    "created_at": "2026-09-08T07:21:56.390Z"
+  }
+}

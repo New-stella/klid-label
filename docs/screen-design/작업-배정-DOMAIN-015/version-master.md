@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-09-07T15:22:09.583Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 166 |
+| Last sync | 2026-09-17T01:18:26.575Z (session 21) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 181 |
 | 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
@@ -14,27 +14,42 @@
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
 | [[AC-1075]] | acceptance | UC-029 작업 목록 조회·필터링·배정 — 역할별 범위·일괄 확정 필터·시간축 정렬·KPI 토글·배정/일괄배정 (happy) | 6 | true | UNCHANGED |
-| [[AC-1076]] | acceptance | UC-029 작업 목록 분기 — 미등록 정렬 키 strict 400·옵션 절단 안내·배정 이력 Drawer (negative) | 5 | true | UNCHANGED |
+| [[AC-1076]] | acceptance | UC-029 작업 목록 분기 — 미등록 정렬 키 strict 400·옵션 절단 안내·배정 이력 Drawer (negative) | 6 | true | UNCHANGED |
+| [[AC-1108]] | acceptance | 포털 라벨링 AI 보조 — AI 탐지·AI 분할·AI 자동 추적 노출·작업 대상 인가·요청량 한도·비식별 판정 미적용·채널 격리·관제향 화면 무변경 (happy·negative) | 3 | false | UNCHANGED |
+| [[AC-1121]] | acceptance | 영상 제외의 경계 — 화면 목록에서만 빠지고 배치·관제 통지·데이터마트 조회 뷰·학습데이터 산출물·통계·포털은 그대로다 (happy) | 4 | true | UNCHANGED |
+| [[AC-1122]] | acceptance | ADR-069 배정 해제 — 배정만 풀리고 라벨·이력은 남으며 해제 대상자가 이력에 실린다 (happy) | 1 | true | UNCHANGED |
+| [[AC-1123]] | acceptance | ADR-069 배정 해제 거부 — 검수 단계 배정은 풀리지 않고 반려는 풀린다·작업자는 할 수 없다 (negative) | 3 | false | UNCHANGED |
+| [[AC-1124]] | acceptance | 영상 제외·복원 — 화면 목록 세 곳에서 빠지고 건수·집계가 함께 줄며 되돌리면 다시 보인다 (happy) | 8 | true | UNCHANGED |
+| [[AC-1125]] | acceptance | 영상 제외·복원 멱등 — 같은 값을 다시 보내면 아무것도 바뀌지 않고 이력도 남지 않으며 오류가 아니다 (edge) | 3 | true | UNCHANGED |
+| [[AC-1126]] | acceptance | 영상 제외·복원 인가 — 작업자는 수행할 수 없고 검수자 이상만 수행하며 작업자 화면에는 그 동작이 없다 (negative) | 5 | true | UNCHANGED |
+| [[AC-1127]] | acceptance | ADR-069 배정과 제외의 충돌 — 배정된 영상은 제외 거부·안내가 해제 창구로 이어진다·제외분에는 배정이 없다 (negative) | 8 | false | UNCHANGED |
 | [[API-001]] | api_endpoint | GET /v1/users | 10 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
-| [[API-070]] | api_endpoint | POST /v1/assignments | 10 | false | UNCHANGED |
-| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
-| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
-| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | UNCHANGED |
-| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | UNCHANGED |
-| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | UNCHANGED |
-| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
-| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | UNCHANGED |
+| [[API-070]] | api_endpoint | POST /v1/assignments | 12 | false | UNCHANGED |
+| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 10 | false | UNCHANGED |
+| [[API-072]] | api_endpoint | GET /v1/assignments | 12 | false | UNCHANGED |
+| [[API-073]] | api_endpoint | GET /v1/tasks/board | 12 | false | UNCHANGED |
+| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 10 | false | UNCHANGED |
+| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 6 | false | UNCHANGED |
+| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 7 | false | UNCHANGED |
+| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 4 | false | UNCHANGED |
+| [[API-254]] | api_endpoint | POST /v1/portal/frames/{srcSn}/yolo-track | 5 | false | UNCHANGED |
+| [[API-255]] | api_endpoint | POST /v1/portal/frames/{srcSn}/autolabel | 4 | false | UNCHANGED |
+| [[API-256]] | api_endpoint | GET /v1/portal/ai-defaults | 2 | true | UNCHANGED |
+| [[API-257]] | api_endpoint | POST /v1/portal/frames/{srcSn}/sam2-segment | 4 | false | UNCHANGED |
+| [[API-258]] | api_endpoint | POST /v1/portal/ai-requests/{requestId}/cancel | 3 | true | UNCHANGED |
+| [[API-259]] | api_endpoint | DELETE /v1/assignments/{assignmentId} | 2 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 49 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 16 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 17 | false | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 6 | false | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 54 | false | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 12 | true | UNCHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 13 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 18 | false | UNCHANGED |
+| [[UC-043]] | use_case | 잘못 들어온 영상을 화면 목록에서 제외하고 되돌리기 | 4 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -76,7 +91,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
@@ -90,7 +105,7 @@
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
 | [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
-| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 8 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
 | [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
 | [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |
@@ -117,8 +132,8 @@
 | [[UI-080]] | ui_component | data: WorkerStatsTable | 5 | false | UNCHANGED |
 | [[UI-081]] | ui_component | data: DailyCompletionChart | 4 | false | UNCHANGED |
 | [[UI-082]] | ui_component | data: EventTypePieChart | 4 | false | UNCHANGED |
-| [[UI-083]] | ui_component | overlay: AssignModal | 5 | false | UNCHANGED |
-| [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
+| [[UI-083]] | ui_component | overlay: AssignModal | 6 | false | UNCHANGED |
+| [[UI-084]] | ui_component | overlay: HistoryDrawer | 6 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
@@ -131,7 +146,7 @@
 | [[UI-094]] | ui_component | action: VideoActions | 5 | false | UNCHANGED |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | UNCHANGED |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | UNCHANGED |
-| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | UNCHANGED |
+| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 6 | false | UNCHANGED |
 | [[UI-098]] | ui_component | input: FileInput | 2 | false | UNCHANGED |
 | [[UI-099]] | ui_component | input: Field | 2 | false | UNCHANGED |
 | [[UI-100]] | ui_component | input: DeidentConfigCard | 2 | false | UNCHANGED |
@@ -141,8 +156,8 @@
 | [[UI-104]] | ui_component | display: CountChip | 1 | false | UNCHANGED |
 | [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | UNCHANGED |
 | [[UI-106]] | ui_component | data: KeyValueGrid | 1 | false | UNCHANGED |
-| [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
-| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
+| [[UI-107]] | ui_component | input: EventAnnotationPanel | 7 | false | UNCHANGED |
+| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 3 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |

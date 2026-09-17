@@ -44,13 +44,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 영상 스트림 단기 서명 URL — 발급/검증/만료/변조/헤더경로 회귀 (Round 4 I-3).
+ * 영상 스트림 재생 주소 발급 + 재생 인증 회귀 (Round 4 I-3 → ADR-071 · API-084 · API-114 · AC-1015).
  *
- * <p>&lt;video&gt; 가 Authorization 헤더를 못 붙여 401 이 나는 문제를 단기 HMAC 서명 URL 로 우회한다.
- * 실 HTTP 직렬화 레이어(MockMvc)로 서명 검증 필터 + 보안 체인을 통과시켜 검증한다.
+ * <p>&lt;video&gt; 가 Authorization 헤더를 못 붙여 401 이 나는 문제를, 발급 창구가 내려준
+ * <b>발급자 봉인 쿠키</b>로 우회한다. 실 HTTP 직렬화 레이어(MockMvc)로 재생 인증 필터 + 보안 체인을 통과시켜 검증한다.
  *
- * <p>A-ISSUE-11 이후 서명 입력에 <b>발급자 브라우저에만 내려간 nonce 쿠키</b>가 포함된다. 따라서 URL 만
- * 복사한 요청(쿠키 없음)은 TTL 내여도 401 이다.
+ * <h3>판정은 쿠키 하나다 (ADR-071)</h3>
+ * <p>재생 요청은 쿼리 {@code u} 에게 봉인된 쿠키가 있으면 통과한다. 주소의 {@code exp}·{@code sig} 는 판정에
+ * 쓰이지 않는다 — 구 동작은 서명(60초)이 먼저 만료돼 재생 도중 부분 요청이 401 로 끊겼다. 그래서 만료·변조된
+ * 서명이라도 유효 쿠키가 있으면 통과하는 것이 <b>새 사양</b>이며, 이 클래스가 그것을 고정한다.
+ * 주소만 복사한 요청(쿠키 없음)·봉인 불일치(조작 값·다른 발급자 쿠키·{@code u} 변조)·{@code u} 누락은 401 이다.
+ *
+ * <p>시드 역할(V9001): 1=REVIEWER.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -68,7 +73,7 @@ class StreamSignedUrlControllerTest {
     @Value("${authoring.jwt.issuer}") private String issuer;
     @Value("${authoring.storage.raw-path:./storage/raw}") private String storageRawPath;
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}") private String storageDeidPath;
-    // 만료 서명을 동일 시크릿으로 재현하기 위해 설정값을 주입받는다 (하드코딩 금지).
+    // 만료된 주소를 동일 시크릿으로 재현하기 위해 설정값을 주입받는다 (하드코딩 금지).
     @Value("${authoring.stream.sign-secret}") private String streamSignSecret;
 
     /** 테스트용 nonce — 실제 발급 형식(32 hex)과 동일. 시크릿이 아니라 클라이언트 바인딩 랜덤값이다. */
@@ -168,7 +173,8 @@ class StreamSignedUrlControllerTest {
 
         JsonNode data = objectMapper.readTree(res.getResponse().getContentAsString()).path("data");
         String url = data.path("url").asText();
-        assertThat(url).contains("/api/v1/videos/" + rawSn + "/stream?exp=");
+        // API-114 — 배포 접두 없는 API 기준 경로로 시작한다(로컬 컨텍스트에서도 종전과 같은 값).
+        assertThat(url).startsWith("/api/v1/videos/" + rawSn + "/stream?exp=");
         assertThat(url).contains("&sig=");
     }
 
@@ -206,7 +212,7 @@ class StreamSignedUrlControllerTest {
                 .path("data").path("url").asText();
         String query = url.substring(url.indexOf('?') + 1);
 
-        // when/then: 쿠키 없이(=제3자) URL 만으로 재생 시도 → 401 (TTL 이 남아 있어도)
+        // when/then: 쿠키 없이(=제3자) URL 만으로 재생 시도 → 401 (주소에 비밀이 없으므로 주소만으로는 재생 불가)
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream?" + query))
                 .andExpect(status().isUnauthorized());
     }
@@ -235,8 +241,12 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("서명URL_타인_쿠키로는_재생_불가_401")
-    void issuedUrl_withOtherNonceCookie_401() throws Exception {
+    @DisplayName("같은_발급자에게_봉인된_다른_nonce_쿠키도_유효한_자격이라_재생된다 — 서명과의 nonce 결속 폐기(ADR-071)")
+    void issuedUrl_withSameSubjectDifferentNonceCookie_200() throws Exception {
+        // given: 주소의 서명은 NONCE 로 만들었지만, 쿠키는 같은 발급자("1")에게 봉인된 다른 nonce.
+        //   구 판정은 서명 입력의 nonce 불일치로 401 이었다. 쿠키 단독 판정에서는 "서버가 u=1 에게 발급한
+        //   쿠키" 라는 사실만 보므로 정당한 자격이다(예: 재발급으로 쿠키가 갱신된 뒤 옛 주소로 이어 재생).
+        // ※ 타인 쿠키 거부의 의도는 stream_nonceSealedForOtherSubject_401 이 지킨다.
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
 
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
@@ -244,7 +254,7 @@ class StreamSignedUrlControllerTest {
                         .param("u", "1")
                         .param("sig", p.sig())
                         .cookie(nonceCookie(OTHER_NONCE, "1")))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     // ─────────────── DEV_FIX M-1 — nonce fixation (클라이언트가 준 값을 그대로 신뢰 금지) ───────────────
@@ -284,9 +294,9 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("스트림_봉인없는_nonce_쿠키로는_서명검증_실패_401")
+    @DisplayName("스트림_봉인없는_nonce_쿠키로는_쿠키판정_실패_401")
     void stream_unsealedNonceCookie_401() throws Exception {
-        // given: 공격자가 아는 nonce 로 만든 서명 + 봉인 없는 원시 쿠키 (구 구현에서는 통과했다)
+        // given: 공격자가 아는 nonce 로 만든 서명 + 봉인 없는 원시 쿠키 → 봉인 검증 실패(fail-closed)
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
 
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
@@ -298,8 +308,9 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("스트림_타인_subject_봉인_쿠키로는_서명검증_실패_401")
+    @DisplayName("스트림_타인_subject_봉인_쿠키로는_쿠키판정_실패_401")
     void stream_nonceSealedForOtherSubject_401() throws Exception {
+        // given: 다른 사용자(999)에게 봉인된 쿠키로 u=1 주소를 재생 → 봉인 불일치(타인 쿠키 거부)
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
 
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
@@ -318,14 +329,14 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("스트림_서명없는_쿼리_헤더없음_401")
+    @DisplayName("스트림_쿼리_쿠키_헤더_모두없음_401")
     void stream_noSignature_noHeader_401() throws Exception {
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("스트림_유효서명_200_AcceptRanges")
+    @DisplayName("스트림_유효쿠키_200_AcceptRanges")
     void stream_validSignature_200() throws Exception {
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
@@ -338,7 +349,7 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("스트림_유효서명_Range_206_PartialContent")
+    @DisplayName("스트림_유효쿠키_Range_206_PartialContent")
     void stream_validSignature_range_206() throws Exception {
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
@@ -353,22 +364,24 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
-    @DisplayName("스트림_만료서명_401")
-    void stream_expiredSignature_401() throws Exception {
-        // given: exp 가 과거인 동일 시크릿 서명 (만료 검증 타겟)
+    @DisplayName("★주소_만료후에도_유효쿠키면_재생된다 — 서명 만료로 재생이 끊기지 않는다(AC-1015 · ADR-071)")
+    void stream_expiredAddress_withValidCookie_206() throws Exception {
+        // given: exp 가 과거인 동일 시크릿 서명(발급 후 TTL 이 지난 상황) + 발급자 봉인 쿠키
         long pastExp = Instant.now().minusSeconds(120).getEpochSecond();
         String expiredSig = computeHex(rawSn, pastExp, "1", NONCE);
+        // when/then: 같은 재생 세션의 부분 요청이 계속 성공한다 — 판정은 쿠키 하나다.
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
                         .param("exp", String.valueOf(pastExp))
                         .param("u", "1")
                         .param("sig", expiredSig)
-                        .cookie(nonceCookie(NONCE, "1")))
-                .andExpect(status().isUnauthorized());
+                        .cookie(nonceCookie(NONCE, "1"))
+                        .header(HttpHeaders.RANGE, "bytes=0-1023"))
+                .andExpect(status().isPartialContent());
     }
 
     @Test
-    @DisplayName("스트림_변조서명_401")
-    void stream_tamperedSignature_401() throws Exception {
+    @DisplayName("스트림_서명값이_달라도_유효쿠키면_재생된다 — sig 는 판정에 쓰지 않는다(ADR-071)")
+    void stream_tamperedSignature_withValidCookie_200() throws Exception {
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
         // sig 마지막 글자 변조
         String tampered = p.sig().substring(0, p.sig().length() - 1)
@@ -378,13 +391,17 @@ class StreamSignedUrlControllerTest {
                         .param("u", "1")
                         .param("sig", tampered)
                         .cookie(nonceCookie(NONCE, "1")))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("스트림_다른영상_서명_재사용_401")
-    void stream_signatureForOtherVideo_401() throws Exception {
-        // given: rawSn 으로 발급한 서명을 다른 rawSn 경로에 재사용 → 서명 입력 불일치
+    @DisplayName("스트림_유효쿠키로_다른영상을_요청하면_영상단위_판정이_그대로_걸린다_404")
+    void stream_validCookie_otherVideo_stillJudgedPerVideo() throws Exception {
+        // given: rawSn 으로 발급받은 주소·쿠키를 다른(존재하지 않는) rawSn 경로에 재사용.
+        //   쿠키는 영상에 결속되지 않으므로 인증은 통과한다(구 동작: 서명 입력 불일치 401).
+        //   그 뒤 영상 단위 판정(인가 → 신고 게이트 → 존재·비식별 확인)은 그대로 걸린다.
+        //   사용자 1 은 REVIEWER(V9001 시드)라 인가를 통과하고, 영상이 없으므로 404 다.
+        //   ※ 쿠키가 유효해도 권한 밖 영상이 거부되는 축은 VideoStreamAssignmentAuthorizationTest 가 지킨다.
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
         long otherRawSn = rawSn + 999_999L;
         mockMvc.perform(get("/v1/videos/" + otherRawSn + "/stream")
@@ -392,14 +409,14 @@ class StreamSignedUrlControllerTest {
                         .param("u", "1")
                         .param("sig", p.sig())
                         .cookie(nonceCookie(NONCE, "1")))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("서명URL_의_u_를_변조하면_401")
+    @DisplayName("주소의_u_를_변조하면_쿠키봉인_불일치로_401")
     void stream_tamperedUser_401() throws Exception {
-        // given: userNo='1' 로 서명한 URL 의 u 만 다른 사용자('999')로 변조 → 서명 입력 불일치
-        // (서명이 rawSn.exp.userNo.nonce 전체를 커버하므로 u 변조 시 서명 불일치로 거부)
+        // given: 사용자 '1' 에게 봉인된 쿠키를 들고 주소의 u 만 다른 사용자('999')로 변조.
+        // 봉인은 서버 비밀 + u 로 계산되므로 u='999' 로 계산한 봉인과 쿠키의 봉인이 다르다 → 거부(fail-closed).
         StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
         mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
                         .param("exp", String.valueOf(p.exp()))
@@ -410,10 +427,32 @@ class StreamSignedUrlControllerTest {
     }
 
     @Test
+    @DisplayName("주소에_exp_sig_가_없어도_u_와_유효쿠키만으로_재생된다(ADR-071)")
+    void stream_onlyUserAndCookie_noExpNoSig_206() throws Exception {
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
+                        .param("u", "1")
+                        .cookie(nonceCookie(NONCE, "1"))
+                        .header(HttpHeaders.RANGE, "bytes=0-1023"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, 1024L));
+    }
+
+    @Test
+    @DisplayName("주소에_u_가_없으면_유효쿠키가_있어도_401 — 봉인을 검증할 발급자가 없다")
+    void stream_cookieWithoutUser_401() throws Exception {
+        StreamUrlSigner.SignedParams p = signer.sign(rawSn, "1", NONCE);
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/stream")
+                        .param("exp", String.valueOf(p.exp()))
+                        .param("sig", p.sig())
+                        .cookie(nonceCookie(NONCE, "1")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("서명URL_발급_URL에_u바인딩_포함")
     void issueStreamUrl_includesUserBinding() throws Exception {
         // when: 인증된 사용자(sub=1)가 stream-url 발급
-        // then: 발급 URL 에 u={userNo} 쿼리가 포함되어 서명 입력과 바인딩된다
+        // then: 발급 URL 에 u={userNo} 쿼리가 포함된다 — 재생 판정이 이 값으로 쿠키 봉인을 검증한다
         MvcResult res = mockMvc.perform(get("/v1/videos/" + rawSn + "/stream-url")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -433,7 +472,7 @@ class StreamSignedUrlControllerTest {
                 .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"));
     }
 
-    /** signer 와 동일한 시크릿/canonical 포맷으로 hex 서명 계산 (만료 서명 재현용). */
+    /** signer 와 동일한 시크릿/canonical 포맷으로 hex 서명 계산 (만료된 주소 재현용 — 판정에는 쓰이지 않는다). */
     private String computeHex(long rawSn, long exp, String userNo, String nonce) throws Exception {
         String canonical = rawSn + "." + exp + "." + userNo + "." + nonce;
         Mac mac = Mac.getInstance("HmacSHA256");

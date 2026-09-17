@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.common.config;
 
 import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.client.ControlNotifyTokenProvider;
+import kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
@@ -25,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 외부 연동 {@code WebClient} 구성.
  *
  * <h3>★ 주소는 빈 생성 시점에 고정되지 않는다 (R11)</h3>
- * <p>아래 빈 중 <b>AI 추론·시계열 분석·관제 통지</b> 3종은 {@code baseUrl} 로 <b>배포 기본값</b>을 갖되,
+ * <p>아래 빈 중 <b>AI 추론·시계열 분석·관제 통지·관제 계정 창구</b>는 {@code baseUrl} 로 <b>배포 기본값</b>을 갖되,
  * {@link IntegrationEndpointExchangeFilter} 를 달아 <b>매 호출 시점</b>에 설정 override 를 다시 읽는다.
  * 설정 화면에서 주소를 바꾸면 재기동 없이 다음 호출부터 새 주소로 나간다.
  *
@@ -47,7 +48,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <b>검증 규칙은 그대로이고 적용 시점만 옮겼다</b> — 한 연동의 설정 실수로 저작 업무 전체가 멈추는
  * 편이, 배포 시점에 빨리 아는 것보다 훨씬 비싸기 때문이다.
  *
+ * <h3>★ 외부향 빈은 호출 로그 필터를 맨 마지막에 단다</h3>
+ * <p>{@link kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter} — 재작성·전송 가드·자격증명
+ * 필터를 거친 <b>실제 대상</b>과 결과 코드·소요 시간, 오류 응답 사유를 서버 로그에 남긴다.
+ *
  * @design ADR-062
+ * @design NFR-038
  */
 @Configuration
 public class WebClientConfig {
@@ -113,6 +119,9 @@ public class WebClientConfig {
                 // 빈 base 는 상대 URI 가 되어 loopback:80 으로 나간다 — 전송 자체를 막는다.
                 .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
                         IntegrationEndpoint.AI_SERVER, address.rejectionLabel()))
+                // ★ 호출 로그는 맨 마지막(가장 안쪽) — 재작성·가드를 거친 실제 대상을 기록한다(NFR-038).
+                //   오류 본문은 이 빈의 버퍼 상한(32MB) 안에서 읽고 로그에는 1000자만 남긴다.
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.AI_SERVER.name(), true))
                 .exchangeStrategies(largeBufferStrategies())
                 .build();
     }
@@ -185,6 +194,9 @@ public class WebClientConfig {
             b.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
                     IntegrationEndpoint.VLM, base, VLM_API_KEY_HEADER));
         }
+        // ★ 호출 로그는 맨 마지막(가장 안쪽) — 조건부 자격증명 필터보다도 뒤에 둬야 재작성·핀 적용 후의
+        //   실제 대상을 기록한다. 오류 응답의 벤더 사유(detail)를 남기는 것이 목적이다(NFR-038).
+        b.filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.VLM.name(), true));
         return b.build();
     }
 
@@ -205,6 +217,78 @@ public class WebClientConfig {
 
     /** 관제 inbound SPI 인증 헤더명(API-251 / API-285 계약). */
     static final String CONTROL_NOTIFY_TOKEN_HEADER = "x-access-token";
+
+    /**
+     * 포털 소재 조회 조달의 사전 공유 키 헤더명 — <b>{@code x-api-key}</b>.
+     *
+     * <p>⚠ <b>같은 이름의 인바운드 키와 축이 반대다.</b> 정리 삭제 트리거 수신 축의 키는 <b>우리가
+     * 발급해 포털에 준 값</b>이고, 이 헤더에 싣는 값은 <b>포털이 발급해 우리에게 준 값</b>이다.
+     * 헤더 이름이 같다고 값을 공유하지 말 것 — 연동 축 하나에 키 하나다.
+     */
+    static final String PORTAL_MATERIALS_API_KEY_HEADER = "x-api-key";
+
+    /**
+     * 포털 <b>소재 조회</b> 조달용 WebClient — 우리가 포털 내부 창구를 부르는 축.
+     *
+     * <h3>★ 대역을 차단하지 않는다 (2026-08-10 구속)</h3>
+     * <p>포털 내부 창구는 <b>내부망 주소</b>다. 사설·루프백·링크로컬 어느 대역도 막지 않으며 검증은
+     * <b>스킴({@code http}/{@code https})과 URL 형식</b>뿐이다 — 그래서 {@code VlmUrlPolicy} 같은
+     * 정책을 걸지 않고 {@link ExternalEndpointAddress#formatOnly} 만 태운다. 대역 차단을 되살리면
+     * <b>정상 연동이 전부 막힌다.</b>
+     *
+     * <h3>★ 운영 설정 화면의 주소 5종에 넣지 않는다</h3>
+     * <p>{@link IntegrationEndpoint} 는 관리자 설정 화면에서 주소를 바꾸는 연동의 목록이고,
+     * <b>그 화면은 포털 채널에 노출되지 않는다</b>. 그래서 이 축은 그 enum 에 넣지 않으며
+     * URL 재작성 필터도 달지 않는다 — 주소는 배포 설정이 정본이다.
+     *
+     * <h3>★ 주소가 어떤 상태여도 기동한다</h3>
+     * <p>미설정·파싱 불가면 <b>빈 base</b> 로 낮춘다. 빈 base 는 상대 URI 가 되어 {@code loopback:80}
+     * 으로 실제 TCP 연결이 나가므로 {@link #requireHost} 가 전송 자체를 막는다.
+     * {@code PortalMaterialsClient} 가 앞단에서 한 번 더 닫지만(구성 여부 판정), 그 판정이 미래에
+     * 느슨해져도 요청이 새어 나가지 않도록 <b>전송 계층에도 겹쳐 둔다</b>.
+     *
+     * @design INT-014
+     */
+    @Bean(name = "portalMaterialsWebClient")
+    public WebClient portalMaterialsWebClient(
+            @Value("${authoring.portal.materials.base-url:}") String baseUrl,
+            @Value("${authoring.portal.materials.api-key:}") String apiKey) {
+        ExternalEndpointAddress address = ExternalEndpointAddress
+                .formatOnly("authoring.portal.materials.base-url", baseUrl);
+        String base = address.baseUrl();
+        WebClient.Builder builder = WebClient.builder()
+                .baseUrl(base)
+                .filter(requireHost());
+        if (apiKey != null && !apiKey.isBlank()) {
+            // 값은 설정에서만 온다(CWE-798). 로그에 남기지 않으며 헤더명은 마스킹 패턴이 이미 덮는다.
+            builder.defaultHeader(PORTAL_MATERIALS_API_KEY_HEADER, apiKey.trim());
+        }
+        // ★ 호출 로그는 맨 마지막 — 헤더 값(API 키)은 기록하지 않는다(NFR-038).
+        builder.filter(ExternalCallLoggingFilter.of(ExternalCallLoggingFilter.PORTAL_MATERIALS, true));
+        return builder.build();
+    }
+
+    /**
+     * 최종 URL 에 호스트가 없으면 전송하지 않는다 — 빈 base 가 {@code loopback:80} 으로 새는 것을 막는다.
+     *
+     * <p>{@code IntegrationEndpointTransportGuards} 의 같은 가드를 쓰지 않는 이유는 그것이
+     * {@link IntegrationEndpoint} 값을 요구하기 때문이다. 이 축은 설정 화면 대상이 아니라 그 enum 에
+     * 들어가지 않는다. 메시지에 <b>주소를 싣지 않는다</b>(CWE-209).
+     */
+    private static ExchangeFilterFunction requireHost() {
+        return (request, next) -> {
+            java.net.URI url = request.url();
+            String host = url == null ? null : url.getHost();
+            if (host != null && !host.isBlank()) {
+                return next.exchange(request);
+            }
+            log.error("[PortalMaterials] 조달 주소가 설정되지 않아 요청을 보내지 않았습니다. "
+                    + "설정키=authoring.portal.materials.base-url");
+            return reactor.core.publisher.Mono.error(
+                    new kr.co.cudo.authoring.common.client.NonRetryableExternalException(
+                            "포털 소재 조달 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+        };
+    }
 
     /**
      * Phase 2 — 관제서버 outbound 통지 클라이언트용 WebClient.
@@ -281,6 +365,9 @@ public class WebClientConfig {
                     + "(authoring.control-notify.token 미설정 + JWT_SECRET 미설정) — 관제 SPI 가 {} 를 "
                     + "요구하면 전 통지가 401 로 거부됩니다.", CONTROL_NOTIFY_TOKEN_HEADER);
         }
+        // ★ 호출 로그는 맨 마지막 — 세 갈래(정적 토큰·동적 발급·토큰 없음) 어느 쪽이든 자격증명 필터보다
+        //   뒤에 붙는다. 헤더 값은 기록하지 않는다(NFR-038).
+        builder.filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.CONTROL_NOTIFY.name(), true));
         return builder.build();
     }
 
@@ -297,9 +384,18 @@ public class WebClientConfig {
      * 자리에 통지 토큰이 실려 갱신이 통째로 실패하거나, 통지를 꺼 둔 배포에서 세션 연장이 막힌다.
      * 이 빈에는 <b>자격증명 필터도 토글도 없다</b> — 담을 값은 요청마다 호출자(사용자)의 토큰이다.
      *
-     * <h3>주소는 통지 수신처 설정을 재사용한다 (사용자 확정 2026-09-10)</h3>
-     * <p>같은 관제 서버이므로 별도 키를 두지 않는다. 관리자가 연동 주소 설정에서 바꾼 값이 <b>다음
-     * 호출부터</b> 반영되도록 통지와 같은 재작성 필터·전송 가드를 태운다.
+     * <h3>★ 주소는 관제 계정 창구 설정만 쓴다 — 통지 수신처로 폴백하지 않는다 (사용자 확정 2026-09-14)</h3>
+     * <p>키는 {@code authoring.control-account.url}(연동 대상 {@link IntegrationEndpoint#CONTROL_ACCOUNT})이고
+     * <b>배포 기본값은 비어 있다</b>. 관제는 계정 창구와 데이터셋 창구를 <b>서로 다른 WAS</b> 에 두므로,
+     * 통지 수신처 주소를 나눠 쓰면 WAS 에 직접 붙이는 순간 한쪽이 404 다(현장 실사고 — 세션 연장 전부 실패 후
+     * 서킷 오픈으로 로그아웃 중계까지 막혔다). 폴백을 두면 판정 원천이 둘이 되어 같은 사고가 조용히 재발한다.
+     *
+     * <p>관리자가 연동 주소 설정에서 바꾼 값이 <b>다음 호출부터</b> 반영되도록 재작성 필터·전송 가드를 태운다.
+     * 주소가 비었거나 형식이 틀리면 전송 가드가 {@code NonRetryableExternalException} 으로 전송을 막고,
+     * 그 예외는 서킷 인스턴스의 {@code ignore-exceptions} 에 등록돼 <b>서킷 실패로 세지 않는다</b>.
+     *
+     * <p>⚠ 구 서술 폐기 — <i>"주소는 통지 수신처 설정을 재사용한다(2026-09-10) · 같은 관제 서버이므로 별도
+     * 키를 두지 않는다"</i>. 되살리지 말 것.
      *
      * <p>⚠ <b>자격증명 가드({@code stripCredentialOnHostChange})는 걸지 않는다</b> — 그 가드는 빈 생성
      * 시점에 고정된 <b>우리 발급</b> 자격증명이 새 호스트로 따라가는 것을 막는다. 여기 실리는 것은
@@ -318,11 +414,12 @@ public class WebClientConfig {
      */
     @Bean(name = "controlAccountWebClient")
     public WebClient controlAccountWebClient(
-            @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl,
+            @Value("${authoring.control-account.url:}") String baseUrl,
             IntegrationEndpointResolver endpointResolver) {
         // 주소가 어떤 상태여도 기동한다 — 미설정·파싱 불가면 빈 base 로 낮추고 전송 시점에 막는다.
+        // ★ 통지 수신처(CONTROL_NOTIFY)를 읽지 않는다 — 폴백 없음(2026-09-14 확정).
         ExternalEndpointAddress address = ExternalEndpointAddress
-                .formatOnly(IntegrationEndpoint.CONTROL_NOTIFY.configKey(), baseUrl);
+                .formatOnly(IntegrationEndpoint.CONTROL_ACCOUNT.configKey(), baseUrl);
         String base = address.baseUrl();
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONTROL_ACCOUNT_CONNECT_TIMEOUT_MILLIS)
@@ -331,11 +428,14 @@ public class WebClientConfig {
                 .baseUrl(base)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .filter(IntegrationEndpointExchangeFilter.of(
-                        IntegrationEndpoint.CONTROL_NOTIFY, base, endpointResolver))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, base, endpointResolver))
                 .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
-                        IntegrationEndpoint.CONTROL_NOTIFY, address.rejectionLabel()))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
-                        IntegrationEndpoint.CONTROL_NOTIFY, base))
+                        IntegrationEndpoint.CONTROL_ACCOUNT, base))
+                // ★ 호출 로그는 맨 마지막. 이 창구는 응답에 세션 토큰이 실리므로 <오류 본문도 읽지 않는다>
+                //   — 상태 코드·소요 시간만 남긴다(NFR-038).
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.CONTROL_ACCOUNT.name(), false))
                 .build();
     }
 

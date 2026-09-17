@@ -297,7 +297,10 @@ const SPACING = {
   dense: '10px',
   'in-component': '12px',
   'card-gap': '16px',
-  block: '20px',
+  // DS-002 토큰명은 `block` 이지만 Tailwind 4.3 이 `inline-<간격>`/`block-<간격>` 논리 크기 유틸리티를 두어
+  // `inline-block` 이 `inline-size: 20px` 로도 매칭된다(2026-09-15 포털 실측 — 라디오 타원·트랙 막대 20px).
+  // 값은 DS-002 그대로이며 이름만 투영 층에서 갈린다.
+  'block-gap': '20px',
   column: '24px',
   section: '32px',
   group: '48px',

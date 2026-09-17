@@ -1,13 +1,13 @@
 ---
 logicraft_item: STATE-001
 type: diagram_state
-version: 6
+version: 7
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.796Z
-status: NEW
-prev_version: null
-content_hash: e9b696e8f023d75307ddc27367c450accafc241826cb51b65122feba1b4ccc0e
+synced_at: 2026-09-15T13:21:52.302Z
+status: CHANGED
+prev_version: 6
+content_hash: 1e706b1b4df229e473a0d901a5544c7a214ce8da22fc111b9ff3ee82f56a2151
 stale: false
 raw: ./_raw/STATE-001.json
 links:
@@ -47,6 +47,8 @@ stateDiagram-v2
     note right of PENDING: PENDING 은 배치 진입(→BATCH_QUEUED)과 검수 진입(→IN_REVIEW) 두 흐름이 공유
     note right of PROCESSING: 폐기 — PROCESSING 에서 COMPLETED 로 가는 전이는 지금은 두지 않는다. 배치 완료는 이 축을 ASSIGNED 로 되돌리며, COMPLETED 는 배치 단계 축(LS_DATA_RAW.DATA_STTS_CD)  값이며 STATE-002 가 그린다
     note right of BATCH_QUEUED: 경계 — 배치 단계 축(LS_DATA_RAW.DATA_STTS_CD)은 STATE-002 가 그린다. 이 축이 그 축과 맞물리는 지점은 마킹 완료로 BATCH_QUEUED 에 큐잉되는 것과 배치 종료로 ASSIGNED 또는 FAILED 가 되는 것 둘뿐이다
+    note right of IN_REVIEW: 검수 시작에는 점유 조건이 붙는다 — 남이 유효하게 점유 중인 영상이면 이 전이를 거절하고, 요청자 자신이 점유의 주인이면 전이 없이 멱등으로 받아들인다. 유효 점유가 없고 이미 IN_REVIEW 인 영상은 전이 없이 점유자만 바뀐다. 점유 유예는 배포 설정값이며 기본값은 30분이다
+    note right of APPROVED: 재검수 건의 검수 시작은 이 그림의 전이가 아니다 — 재검토여부 REVLT_YN='Y' 인 APPROVED 영상에 검수 시작을 호출하면 상태는 APPROVED 그대로이고 점유만 선다. 승인 상태를 내리면 관제가 조회하는 데이터마트 뷰에서 이미 통지한 영상의 행이 사라지므로 되돌리지 않으며, 이 경우를 위한 상태값도 새로 만들지 않는다
 
 ## brownfield
 
@@ -59,11 +61,13 @@ new
 - [폐기] "APPROVED 는 최종 상태 — 이후 전이 불가 (CONFLICT)" 는 지금은 그렇게 하지 않는다 — APPROVED 에서 PENDING(재검수 재제출)으로 나가는 전이가 허용된다.
 - FAILED 재시도는 배치 재시도 큐의 최대 시도 횟수 이내에서만, 초과 시 FAILED 고정
 - PENDING 은 배치 진입(→BATCH_QUEUED)과 검수 진입(→IN_REVIEW) 두 흐름이 공유
-- APPROVED 출발 전이는 PENDING(재검수 재제출) 하나만 허용하고 그 외는 모두 CONFLICT 다.
+- APPROVED 출발 전이는 PENDING(재검수 재제출) 하나만 허용하고 그 외는 모두 CONFLICT 다. 검수 시작은 이 제약의 대상이 아니다 — 재검토 필요 표식이 선 APPROVED 영상의 검수 시작은 상태를 바꾸지 않아 애초에 전이가 아니기 때문이다.
 - 재승인은 상태 전이가 아니다 — REVLT_YN='Y'(재검토 필요) 인 APPROVED 영상의 승인은 상태 머신 검증과 APPROVED 재기록을 건너뛰고 재검토 표식만 해제한다. 이 예외가 없으면 승인 후 수정분의 완료·수정 통지가 발행될 수 없다.
 - COMPLETED 는 이 축의 값이 아니다 — 이 축에는 그 값으로 가는 전이를 두지 않는다. 배치 처리 완료는 배치 단계 축 LS_DATA_RAW.DATA_STTS_CD 의 COMPLETED 이며, 그 시점 이 축은 ASSIGNED 로 복귀한다.
 - 재배정(reassign)은 배정 행과 이벤트 로그만 바꾸고 이 축의 상태값을 바꾸지 않는다. APPROVED 영상은 재배정 대상에서 거부된다.
 - 이 축은 LS_RAW_DATA_STATUS.DATA_STTS_CD 한 컬럼만 그린다. 배치 단계 축(LS_DATA_RAW.DATA_STTS_CD)의 PENDING·MARKING_READY·PROCESSING·COMPLETED·FAILED 는 이 축의 값이 아니며 STATE-002 가 그린다. 두 축을 한 그림에 합치면 어느 컬럼에도 없는 전이가 생긴다.
+- 검수 대기에서 검수 진행으로 가는 전이(검수 시작)에는 점유 조건이 붙는다 — 남이 유효하게 점유 중이면 거절하고, 요청자 자신이 점유의 주인이면 전이 없이 멱등으로 받아들인다. 유효 점유가 없고 이미 IN_REVIEW 이면 전이 없이 점유자만 바뀐다. 점유 유예는 배포 설정값이며 기본값은 30분이다.
+- 재검수 건의 검수 시작은 상태 전이가 아니다 — REVLT_YN='Y' 인 APPROVED 영상에 검수 시작을 호출하면 상태는 APPROVED 그대로이고 점유만 선다. 승인 상태를 되돌리지 않는 이유는 관제가 조회하는 데이터마트 뷰가 APPROVED 를 조건으로 행을 노출하기 때문이다 — 상태를 내리면 이미 완료로 통지한 영상의 행이 관제에서 예고 없이 사라진다. 같은 이유로 이 경우를 위한 상태값을 새로 만들지도 않는다. 새 값을 만들면 그 뷰의 노출 조건이 그것을 알지 못해 결국 같은 일이 일어난다.
 
 ## description
 
@@ -72,6 +76,10 @@ new
 [축 구분 — COMPLETED 는 두 개다] 이 다이어그램이 그리는 축은 작업·검수 워크플로 축(LS_RAW_DATA_STATUS.DATA_STTS_CD) 하나다. 같은 이름의 COMPLETED 가 배치 단계 축(LS_DATA_RAW.DATA_STTS_CD)에도 있는데, 그쪽은 실재하며 쓰이는 배치 처리 완료값이고 이 축에는 COMPLETED 로 가는 전이를 두지 않는다. 이 축의 검수 종결값은 APPROVED 이며, 배치가 완료되면 이 축은 COMPLETED 가 아니라 ASSIGNED 로 복귀한다. 두 축을 한 그림에 섞어 읽으면 검수 완료 작업이 상태 매핑에서 조용히 누락된다. 배치 단계 축은 STATE-002 가 그린다.
 
 [재검토·재승인] 승인 이후 라벨·메타가 수정되면 재검토여부 컬럼 REVLT_YN 이 Y 로 서고 그 영상은 재검수 대상이 된다. 재승인은 상태 전이가 아니라, REVLT_YN='Y' 인 APPROVED 영상의 승인에서 상태 머신 검증과 APPROVED 재기록을 건너뛰고 표식만 해제하는 예외다. 따라서 APPROVED 는 라이프사이클 종료 상태이되 흡수 상태가 아니다.
+
+[검수 시작의 점유 조건] 검수 대기에서 검수 진행으로 가는 전이에는 점유 조건이 붙는다 — 남이 유효하게 점유 중인 영상이면 이 전이를 거절하고, 요청자 자신이 점유의 주인이면 전이 없이 멱등으로 받아들인다. 유효 점유가 없고 이미 IN_REVIEW 인 영상은 전이 없이 점유자만 바뀐다. 점유 유예는 배포 설정값이며 기본값은 30분이다.
+
+★재검수 건의 검수 시작은 이 그림의 전이가 아니다. REVLT_YN='Y' 인 APPROVED 영상에 검수 시작을 호출하면 상태는 APPROVED 그대로이고 점유만 선다. 승인 상태를 되돌리지 않는 이유는 관제가 조회하는 데이터마트 뷰가 APPROVED 를 조건으로 행을 노출하기 때문이다 — 상태를 내리면 이미 완료로 통지한 영상의 행이 관제에서 예고 없이 사라진다. 같은 이유로 이 경우를 위한 상태값을 새로 만들지도 않는다. 새 값을 만들면 그 뷰의 노출 조건이 그것을 알지 못해 결국 같은 일이 일어난다. 그 영상의 상태는 재승인이 재검토 표식을 해제할 때까지 APPROVED 그대로다.
 
 [배정·재배정] 배정은 markAssigned 로 이 축을 ASSIGNED 로 세우며 APPROVED 영상은 거부된다. 재배정은 배정 행과 이벤트 로그만 바꾸고 이 축의 상태값을 바꾸지 않는다.
 
@@ -84,6 +92,10 @@ new
 ## initial_state
 
 PENDING
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 
@@ -104,6 +116,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

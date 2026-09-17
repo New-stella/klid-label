@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.augment.integration;
 
 import io.netty.channel.ChannelOption;
+import kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
 import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
 import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
@@ -97,9 +98,14 @@ import java.time.Duration;
  * <p>base-url 은 <b>서버 설정값</b>만 사용하며 사용자 입력으로 호스트를 구성하지 않는다. 인증 헤더는
  * 붙이지 않는다 — 명세서·목 서버 모두 인증 미구현이 확정 계약이다.
  *
+ * <h3>★ 외부향 빈은 호출 로그 필터를 맨 마지막에 단다</h3>
+ * <p>{@link kr.co.cudo.authoring.common.client.ExternalCallLoggingFilter} — 재작성·전송 가드·자격증명
+ * 필터를 거친 <b>실제 대상</b>과 결과 코드·소요 시간, 오류 응답 사유를 서버 로그에 남긴다.
+ *
  * @design ADR-046
  * @design ADR-062
  * @design API-069
+ * @design NFR-038
  */
 @Slf4j
 @Configuration
@@ -164,6 +170,9 @@ public class AugmentApiWebClientConfig {
                 //     계산돼 허용 대역이 비었는데도 위탁이 나간다(= 이 가드가 없어진 것과 같다).
                 .filter(AugmentTransportGuard.requirePairedCallbackIntake(
                         wiringGuard::commissionRejectionLabel))
+                // ★ 호출 로그는 맨 마지막 — 가드가 막은 요청은 가드가 이미 기록하므로 여기까지 오지 않는다.
+                //   오류 응답의 벤더 사유를 남긴다(NFR-038).
+                .filter(ExternalCallLoggingFilter.of(IntegrationEndpoint.AUGMENT.name(), true))
                 .build();
     }
 }

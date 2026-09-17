@@ -32,18 +32,23 @@
         "then": [
           "승인은 DATA_STTS_CD=APPROVED로 전이(응답 status=COMPLETED)",
           "버전 스냅샷 생성 후 export 새 버전 전량 재생성, 산출 성공 뒤 TASK_COMPLETED 통지·approve 기록",
-          "반려는 사유를 LS_DATA_ISSUE에 기록·reject 이벤트로 WORKER 재작업"
+          "반려는 사유를 LS_DATA_ISSUE에 기록·reject 이벤트로 WORKER 재작업",
+          "승인·반려 기록에는 행위자와 함께 그 행위를 한 시점의 역할이 남는다 — 관리자가 하면 관리자로 남는다",
+          "그 기록이 남는 것만으로 검수 점유가 풀린다 — 해제 동작을 따로 두지 않는다",
+          "여러 건을 한 번에 승인해도 성공한 건의 결과는 단건 승인과 같다 — 버전 스냅샷·메타 동결·산출 폴더 새 버전 전량 재생성·완료 통지 가운데 하나도 빠지지 않는다"
         ],
         "when": [
           "검수자가 검토 후 승인 또는 반려한다"
         ],
         "given": [
-          "작업자가 영상 단위 작업을 검수 제출했다"
+          "작업자가 영상 단위 작업을 검수 제출했다",
+          "검수 자격은 역할이 정한다 — 배정 없이 검수 대기 전체에서 집어간다"
         ]
       },
-      "statement": "작업자가 작업을 검수 제출하면(LS_TASK_EVNT_LOG submit) 검수자가 라벨·메타를 검토해, 승인 시 LS_RAW_DATA_STATUS.DATA_STTS_CD를 APPROVED로 전이하고(응답 status는 표시 매핑값 COMPLETED) 버전 스냅샷을 생성(UC-007 include)한 뒤 export 폴더를 새 버전으로 전량 재생성하고, 그 산출이 성공한 뒤 TASK_COMPLETED 통지를 발행하고 approve 이벤트를 기록한다. 반려 시 반려 사유를 LS_DATA_ISSUE에 기록하고 reject 이벤트를 남겨 WORKER가 재작업한다.",
+      "statement": "작업자가 작업을 검수 제출하면(LS_TASK_EVNT_LOG submit) 검수자가 라벨·메타를 검토해, 승인 시 LS_RAW_DATA_STATUS.DATA_STTS_CD를 APPROVED로 전이하고(응답 status는 표시 매핑값 COMPLETED) 버전 스냅샷을 생성(UC-007 include)한 뒤 export 폴더를 새 버전으로 전량 재생성하고, 그 산출이 성공한 뒤 TASK_COMPLETED 통지를 발행하고 approve 이벤트를 기록한다. 반려 시 반려 사유를 LS_DATA_ISSUE에 기록하고 reject 이벤트를 남겨 WORKER가 재작업한다.\n\n검수 자격은 역할이 정하며 배정 없이 검수 대기 전체에서 집어간다. 승인·반려 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남고, 관리자가 승인하면 관리자로 남는다. 그 기록이 남는 것만으로 검수 점유가 풀리며 해제 동작을 따로 두지 않는다. 여러 건을 한 번에 승인하는 경로로 처리해도 성공한 건의 결과는 단건 승인과 같다 — 버전 스냅샷·메타 동결·산출 폴더 새 버전 전량 재생성·완료 통지 가운데 하나도 빠지지 않는다.",
       "brownfield": {
-        "status": "new"
+        "status": "new",
+        "decided_by": "ADR-067"
       },
       "is_negative": false,
       "attached_files": [],
@@ -67,12 +72,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "UC-023의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "ADR-067 — 배정 없는 전체 대기열 전제를 더하고, 승인·반려 기록에 행위 시점 역할이 남는 것·그 기록만으로 점유가 풀리는 것·일괄 승인 경로도 단건과 같은 결과를 내는 것을 결과에 더한다. 기존 승인 연쇄·반려 서술은 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:45.732Z",
+    "last_updated_at": "2026-09-15T06:04:19.676Z",
     "created_at": "2026-08-31T02:15:28.649Z"
   }
 }

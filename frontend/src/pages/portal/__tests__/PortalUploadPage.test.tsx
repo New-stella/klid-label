@@ -92,7 +92,14 @@ describe('PortalUploadPage', () => {
     renderWithProviders(<PortalUploadPage />);
 
     // 짝 케이스 — 위 부정 케이스가 «접수 자리를 통째로 지워도» 통과하는 것을 막는다.
-    expect(screen.getByLabelText(/영상 파일/)).toBeInTheDocument();
+    // ⚠ 2026-09-16 — 받침이 파선 드롭존에서 KRDS 파일 받침으로 바뀌면서 「영상 파일」이
+    //   `<label>` 이 아니라 **받침의 제목**이 됐다. 구 기대값 `getByLabelText(/영상 파일/)` 은
+    //   폐기. 대신 ①제목 ②실제 파일 입력 ③그 입력이 받는 확장자 셋을 함께 고정한다 —
+    //   라벨 한 줄만 보던 구 단언보다 오히려 넓다(껍데기만 남겨도 죽는다).
+    expect(screen.getByRole('heading', { name: '영상 파일' })).toBeInTheDocument();
+    const picker = document.querySelector('input[type="file"]');
+    expect(picker).not.toBeNull();
+    expect(picker?.getAttribute('accept')).toBe('.mp4,.mov,.avi');
     expect(screen.getByRole('button', { name: /영상 업로드/ })).toBeInTheDocument();
     expect(document.body.textContent ?? '').toMatch(/mp4/);
   });
@@ -115,32 +122,49 @@ describe('PortalUploadPage', () => {
     expect(link).toHaveAttribute('href', '/portal/label/5?source=upload');
   });
 
-  it('삭제_확인_후_목록에서_제거', async () => {
+  /*
+   * ⚠ 2026-09-16 — **묻는 자리가 브라우저 기본 창에서 포털 확인 창으로 바뀌었다**(시안 결정).
+   *   구 기대값(`window.confirm` 을 가로채 참·거짓을 돌려준다)은 폐기다. 지키는 것은 그대로다 —
+   *   ①한 번 더 묻고 ②확인해야만 요청이 나가며 ③취소하면 나가지 않는다. 오히려 **기본 창을
+   *   쓰지 않는다**는 축이 하나 늘었다(아래 단언).
+   */
+  it('삭제는_확인_창을_거쳐야_요청이_나간다', async () => {
     const user = userEvent.setup();
     mockList([up({ uldSn: 9, orgnlFileNm: 'del.mp4' })]);
     const deleteAsync = mockDelete();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     renderWithProviders(<PortalUploadPage />);
 
     const row = screen.getByTestId('portal-upload-item-9');
     await user.click(within(row).getByRole('button', { name: /삭제/ }));
+
+    // 누른 것만으로는 아직 나가지 않는다 — 화면 안 창이 떠서 한 번 더 묻는다.
+    expect(deleteAsync).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByText(/되돌릴 수 없습니다/)).toBeInTheDocument();
+
+    await user.click(dialog.getByRole('button', { name: '삭제' }));
 
     await waitFor(() => expect(deleteAsync).toHaveBeenCalledWith(9));
+    confirmSpy.mockRestore();
   });
 
-  it('삭제_취소시_요청_없음', async () => {
+  it('삭제_확인_창에서_취소하면_요청_없음', async () => {
     const user = userEvent.setup();
     mockList([up({ uldSn: 9, orgnlFileNm: 'del.mp4' })]);
     const deleteAsync = mockDelete();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderWithProviders(<PortalUploadPage />);
 
     const row = screen.getByTestId('portal-upload-item-9');
     await user.click(within(row).getByRole('button', { name: /삭제/ }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await user.click(dialog.getByRole('button', { name: '취소' }));
 
     expect(deleteAsync).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('PROCESSING_자산_삭제버튼_비활성화', () => {
@@ -149,8 +173,17 @@ describe('PortalUploadPage', () => {
 
     renderWithProviders(<PortalUploadPage />);
 
+    /*
+     * ⚠ 2026-09-16 — **속성으로 잠그지 않는다**(`disabled` 미사용). WCAG 2.1.1 — native
+     *   `disabled` 는 Tab 순서에서 빠져 **왜 못 누르는지 알 길이 사라진다.** 구 기대값
+     *   `toBeDisabled()` 는 폐기하고 ①`aria-disabled` ②초점이 남는다 ③사유가 붙는다 셋으로
+     *   바꾼다 — 잠김 자체는 그대로 지키면서 사유 도달성까지 함께 고정한다.
+     */
     const row = screen.getByTestId('portal-upload-item-7');
-    expect(within(row).getByRole('button', { name: /삭제/ })).toBeDisabled();
+    const del = within(row).getByRole('button', { name: /삭제/ });
+    expect(del).toHaveAttribute('aria-disabled', 'true');
+    expect(del).not.toHaveAttribute('tabindex', '-1');
+    expect(del).toHaveAccessibleDescription(/프레임을 뽑는 중에는 지울 수 없습니다/);
   });
 
   it('삭제_실패시_alert_노출', () => {

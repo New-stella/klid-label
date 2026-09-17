@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="evntanno-window.css"><meta charset="utf-8" /><title>영상 분석 설명 · 이벤트 어노테이션 창 — 검수(읽기 전용)</title><link rel="stylesheet" href="main.css" /></head>
+<body>
+<div class="win" role="dialog" aria-modal="false" aria-label="영상 분석 설명 · 이벤트 어노테이션"><div class="bar"><span class="grip" aria-hidden="true">⋮⋮</span><span class="wt">영상 분석 설명 · 이벤트 어노테이션</span><span class="wsub">외부 분석 설명과 사건 판단 정보를 크게 보는 창 · 영상 전체에 해당하므로 프레임을 넘겨도 같습니다</span><span class="sp"></span><button class="iconbtn" title="도움말 숨기기" aria-label="도움말 숨기기">?</button><button class="iconbtn" title="잠시 접기" aria-label="잠시 접기">▁</button><button class="iconbtn" title="크게" aria-label="크게">□</button><button class="iconbtn" title="닫기" aria-label="닫기">✕</button></div><div class="cols"><section class="col" aria-label="영상 분석 설명"><div class="colhd"><div class="t"><h2>영상 분석 설명</h2><span class="scope">영상 전체</span></div><p class="d">외부 분석이 영상을 보고 장소·날씨·상황 등을 적은 설명입니다.</p></div><div class="colbody"><p class="ro">장소: 서울특별시 중구 남대문로 1가 (두정역 인근)
+날씨: 맑음 (일반적인 도시 시야 확보 가능)
+상황: 교통사고는 확인되지 않음. 모든 차량들이 정상적으로 신호 및 표지판을 따르며 도로를 운행하고 있으며, 차량 간 충돌, 사람 또는 구조물과의 충돌, 급격한 방향 변경 등 교통사고 특징이 전혀 관찰되지 않았습니다. 일부 차량이 브레이크를 밟아 정지하거나 느린 속도로 통과하긴 하지만, 이는 정상적인 교차로 통행 행위이며 사고 요소가 없습니다.
+환경: 도시 중심부의 광활한 도로, 양쪽에 건물과 녹지, 하늘색 철골 구조물이 있는 복합형 교차로. 차선이 잘 나뉘어 있고, 교차로 위에는 '두정역'이라는 표지판이 설치되어 있습니다. 차량들은 일정한 간격으로 정류장 앞에서 정차하거나, 신호등에 따라 서행합니다.
+심각성: 2점. 교통사고 발생 여부를 판단하기 위한 모든 조건(충돌, 급격한 방향 변화, 밀려남 등)이 충족되지 않았으며, 모든 차량들의 행동은 정상적이고 안전하게 이루어지고 있음.</p></div></section><section class="col" aria-label="이벤트 어노테이션"><div class="colhd"><div class="t"><h2>이벤트 어노테이션</h2><span class="scope">영상 전체</span></div><p class="d">학습데이터에 함께 저장되는 사건 판단 정보입니다.</p></div><div class="colbody"><div class="f"><label>이벤트 분류</label><p class="help">이 영상에서 확인하려는 사건의 종류입니다.</p><p class="ro"><span class="nm">교통사고</span> <span class="code">car_accident</span></p></div><div class="f"><label>질의</label><p class="help">외부 분석에 물어본 질문입니다. 분석을 요청할 때 보낸 문구가 들어 있습니다.</p><p class="ro">영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?</p></div><div class="f"><label>답변</label><p class="help">사람이 적는 최종 답입니다.</p><p class="ro empty">아직 채우지 않았습니다</p></div><div class="sech"><div><h3>캡션</h3><p class="help">사건을 설명하는 문장 후보입니다. 여러 개를 둘 수 있습니다.</p></div></div><div class="cand"><div class="ch"><span>캡션 1<span class="key">c1</span></span></div><div class="f"><label>캡션 문장</label><p class="help">외부 분석에 물어본 질문의 답이 처음에 채워집니다.</p><p class="ro">영상에서 **‘차량 충돌을 동반한 교통사고’** 이벤트가 **발생하지 않았습니다**.
+
+### 근거:
+1. **모든 차량이 정상적으로 주행**:  
+   영상 전체를 관찰하면, 모든 차량(승용차, 버스, 트럭 등)이 신호나 표시에 따라 안전하게 도로를 이용하고 있으며, 서로 간의 충돌이나 급제동, 추돌 등의 이상 행동은 전혀 없습니다.
+
+2. **교차로 및 인도 구간에서의 순서 있는 통과**:  
+   교차로 위에는 가로등 또는 신호등이 없지만, 차량들은 각자의 차선을 지키며 일정한 속도로 진행합니다. 특히, 보행자들이 횡단보도를 건너는 장면에서도 차량들이 멈춰주거나 천천히 통과하며 사고 유발 요소가 없습니다.
+
+3. **사고 후 대응 없음**:  
+   만약 사고가 있었다면, 해당 지역에서는 즉각적인 대처(예: 경찰출동, 응급조치, 차량 정체 등)가 나타났어야 합니다. 그러나 영상 내에서는 이러한 상황이 전혀 없습니다.
+
+4. **차량들의 위치 변화가 자연스럽고 예측 가능**:  
+   각 차량은 자신의 방향으로만 움직이며, 다른 차량과 충돌하거나 비정상적으로 변속/방향 전환하는 모습은 없습니다.
+
+---
+
+따라서, **영상 내용 기준으로 ‘차량 충돌을 동반한 교통사고’ 이벤트는 발생하지 않았으며**, 모든 차량이 정상적인 교통 흐름에 따르고 있습니다.</p><p class="mdnote">외부 분석 답을 받은 그대로 보여 줍니다 — 굵게·목록 기호(**, ###)를 어떻게 보일지는 사업자 회신 후 정합니다.</p></div><div class="f"><label>사고 단계</label><p class="help">이 문장에 이르기까지의 생각을 순서대로 적습니다.</p></div><div class="cot"><span>1단계</span><p class="ro">교통사고는 확인되지 않음. 모든 차량들이 정상적으로 신호 및 표지판을 따르며 도로를 운행하고 있으며, 차량 간 충돌, 사람 또는 구조물과의 충돌, 급격한 방향 변경 등 교통사고 특징이 전혀 관찰되지 않았습니다. 일부 차량이 브레이크를 밟아 정지하거나 느린 속도로 통과하긴 하지만, 이는 정상적인 교차로 통행 행위이며 사고 요소가 없습니다.</p><span>2단계</span><p class="ro empty">아직 채우지 않았습니다</p><span>3단계</span><p class="ro empty">아직 채우지 않았습니다</p></div></div><div class="sech"><div><h3>근거</h3><p class="help">판단의 근거가 된 프레임과 객체입니다.</p></div></div><div class="cand"><div class="ch"><span>근거 1<span class="key">c1</span></span></div><div class="f"><label>근거 문장</label><p class="help">이 프레임·객체가 판단의 근거인 이유입니다.</p><p class="ro empty">아직 채우지 않았습니다</p></div><div class="f"><label>프레임</label><p class="help">근거가 보이는 프레임 번호입니다. 누르면 그 프레임으로 이동하고 창은 잠시 접힙니다.</p><p><span class="framelink">3 ↗</span><span class="framelink">104 ↗</span><span class="framelink bad">999 · 이 영상에 없음</span></p></div><div class="f"><label>객체</label><p class="help">근거가 되는 객체(라벨)의 번호와 분류 이름입니다.</p><p class="ro">1374 · car</p></div><div class="f"><label>객체 박스</label><p class="help">객체를 감싸는 사각형의 왼쪽 위·오른쪽 아래 좌표입니다.</p><p class="ro">78, 419, 145, 477</p></div></div></div></section></div><span class="rsz" aria-hidden="true"></span></div>
+</body>
+</html>

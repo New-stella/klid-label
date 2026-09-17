@@ -34,6 +34,10 @@ import { Spinner } from '@/components/common/Spinner';
 // 동일한 구성(처음/이전/번호 입력/다음/마지막 + 슬라이더)을 요구하므로 복제하면 한쪽만 고쳐진다.
 // 검수 화면은 읽기 전용이라 미저장 가드가 없을 뿐, 컨트롤 계약은 동일하다.
 import { FrameNavigator } from '@/features/label/components/FrameNavigator';
+import { AnnotationWindow } from '@/features/label/components/AnnotationWindow';
+import { missingFrameNoticeText } from '@/features/label/components/annotationWording';
+import { useAnnotationWindow } from '@/features/label/hooks/useAnnotationWindow';
+import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { FrameTimeline } from '@/features/review/components/FrameTimeline';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { LabelCanvas } from '@/features/review/components/LabelCanvas';
@@ -51,6 +55,7 @@ import {
 } from '@/features/review/components/ReviewSidePanelTabs';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
+import { claimViewOf, numericUserId } from '@/features/review/reviewClaim';
 import {
   useApproveReview,
   useStartReview,
@@ -63,6 +68,7 @@ import {
 import { ISSUE_STATUS, ISSUE_TYPE } from '@/features/review/types';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 /**
@@ -137,6 +143,9 @@ export function ReviewPage() {
   const pendingIssues = useReviewSelectionStore((s) => s.pendingIssues);
 
   const pushToast = useUiStore((s) => s.pushToast);
+  // 점유 표시가 「내 것」인지 가르는 데만 쓴다 — 관제 토큰은 `sub` 가 문자열이라 숫자로 못 읽을
+  // 수 있고, 그때는 이름만 보인다(안전 성질은 이 값에 걸려 있지 않다 — `reviewClaim` 주석 참조).
+  const myUserId = numericUserId(useAuthStore((s) => s.claims?.sub));
   const { data: review, isLoading, error } = useReview(reviewId);
   const { data: frameList, isLoading: framesLoading } = useReviewFrames(
     review?.videoId,
@@ -191,8 +200,30 @@ export function ReviewPage() {
     [frameList],
   );
 
-  const { mutate: doStart } = useStartReview({
-    onSuccess: () => setDidStart(true),
+  /**
+   * 검수 시작이 거절된 사유 — **서버가 보낸 문장 그대로**. 헤더에 머무는 안내로 보인다.
+   * 성공하면 비운다(거절이 해소됐는데 안내가 남으면 거짓말이 된다).
+   */
+  const [claimConflict, setClaimConflict] = useState<string | null>(null);
+
+  const { mutate: doStart, isPending: starting } = useStartReview({
+    onSuccess: () => {
+      setDidStart(true);
+      setClaimConflict(null);
+    },
+    onError: (err) => {
+      // ★남이 점유 중이면 409 다(API-013). 그 사실을 알리지 않으면 검수자는 「왜 내 이름이 안
+      //   뜨지」를 알 길이 없고, 그대로 작업하다 일괄 검수완료 대상에도 담기지 않는다.
+      //
+      // ⚠ 같은 409 에 사유가 셋이다 — 남의 점유 / 동시 시작 경합 / 받아들일 수 없는 상태.
+      //   그래서 **서버가 보낸 문장을 그대로** 싣는다(남의 점유 문구에는 점유자 이름이 들어 있다).
+      //   사유 코드로 우리 문장을 지어내면 결론은 맞고 사유는 거짓인 안내가 된다.
+      //
+      // 재시도하지 않도록 `didStart` 를 세운다 — 세우지 않으면 아래 자동 호출 effect 가 응답이
+      // 올 때마다 다시 돌아 409 토스트가 되풀이된다.
+      setDidStart(true);
+      setClaimConflict(extractBeMessage(err, '검수를 시작하지 못했습니다.'));
+    },
   });
 
   const { mutate: doApprove, isPending: approving } = useApproveReview({
@@ -219,11 +250,36 @@ export function ReviewPage() {
   });
 
   // 검수 화면 진입 시 자동으로 startReview 호출 (REVIEW_PENDING → REVIEWING)
+  //
+  // ⚠ **재검수 건(승인 + 재검토 필요)은 여기에 들지 않는다** — 그 영상은 이 화면에 들어오는
+  //    것만으로 잡히지 않고 사람이 「검수 시작」을 눌러야 잡힌다(SCREEN-019). 자동으로 잡으면
+  //    승인 결과를 들여다보기만 하려던 사람이 그 영상을 묶어 버린다.
   useEffect(() => {
     if (review && review.status === 'REVIEW_PENDING' && !didStart) {
       doStart(review.id);
     }
   }, [review, didStart, doStart]);
+
+  /** 지금 이 영상을 누가 잡고 있는가 — 표시 전용(판정은 `reviewClaim` 단일 지점). */
+  const claimView = useMemo(
+    () => (review ? claimViewOf(review, myUserId) : undefined),
+    [review, myUserId],
+  );
+
+  /**
+   * 「검수 시작」 버튼을 보일 것인가.
+   *
+   * 재검수 건(승인 + 재검토 필요)에서 보인다 — 잡아야 검수 목록의 일괄 검수완료 대상에 담기는데,
+   * 그 길이 화면에 드러나지 않으면 쓸 수 없다. 검수대기는 진입 시 자동으로 잡히므로 두지 않는다.
+   *
+   * ★**이미 내가 잡고 있어도 감추지 않는다**(SCREEN-019) — 다시 누르면 거절되지 않고 잡은 시각만
+   *   뒤로 밀려, 오래 들여다보는 동안 유예로 풀리는 것을 막는다.
+   */
+  const canClaim = review?.status === 'COMPLETED' && review.needsRecheck === true;
+
+  const handleStartReviewClick = useCallback(() => {
+    if (review) doStart(review.id);
+  }, [doStart, review]);
 
   // Phase 5 — frames 로드 완료 시 currentFrameIdx 가 범위 밖이면 0 으로 reset.
   const frames = frameList?.frames;
@@ -254,6 +310,39 @@ export function ReviewPage() {
       setCurrentFrameIdx(Math.min(frameCount - 1, Math.max(0, index)));
     },
     [frameCount, setCurrentFrameIdx],
+  );
+
+  /**
+   * 「영상 분석 설명 · 이벤트 어노테이션」 창 — 메타 탭의 요약 카드가 연다(읽기 전용).
+   * [@design SCREEN-019] [@design UI-156] [@design UI-157]
+   */
+  const annotationWindow = useAnnotationWindow();
+  // 이벤트 분류 <b>이름</b> 조달 — 유형 이름을 주는 관리 조회 경로와 달리 영상 상세는 이 화면의
+  // 권한으로 부를 수 있다(API-043). 이름을 못 찾으면 코드만 보인다.
+  const { data: videoDetail } = useVideoDetail(review?.videoId ?? null);
+  /** 이 영상이 실제로 가진 프레임 번호 — 근거에 적힌 「없는 번호」 판정에 쓴다. */
+  const frameSrcSns = useMemo(
+    () => new Set((frames ?? []).map((f) => f.srcSn)),
+    [frames],
+  );
+
+  /**
+   * 근거에 적힌 프레임 번호로 이동한다. 이동했으면 true(그때만 창이 접힌다).
+   *
+   * ★없는 번호는 <b>이동하지 않고</b> 알림만 한다 — 근거는 사람이 적은 값이라 이 영상에 없는
+   * 번호가 들어 있을 수 있다. 그때 아무 프레임으로나 옮기면 검수자가 엉뚱한 화면을 근거로 본다.
+   */
+  const handleJumpToEvidenceFrame = useCallback(
+    (frameId: number): boolean => {
+      const index = (frames ?? []).findIndex((f) => f.srcSn === frameId);
+      if (index < 0) {
+        pushToast({ variant: 'warning', message: missingFrameNoticeText(frameId) });
+        return false;
+      }
+      handleGoToFrame(index);
+      return true;
+    },
+    [frames, handleGoToFrame, pushToast],
   );
 
   const handleClose = useCallback(() => {
@@ -343,6 +432,14 @@ export function ReviewPage() {
           submittedAt={review.submittedAt}
           status={review.status}
           needsRecheck={review.needsRecheck}
+          claim={claimView}
+          reviewStartedAt={review.reviewStartedAt}
+          claimConflictMessage={claimConflict}
+          lastApproverName={review.lastApproverName}
+          lastApproverRole={review.lastApproverRole}
+          lastApprovedAt={review.lastApprovedAt}
+          onStartReview={canClaim ? handleStartReviewClick : undefined}
+          isStarting={starting}
           isApproving={approving}
           onClose={handleClose}
           onApprove={handleApproveClick}
@@ -444,24 +541,36 @@ export function ReviewPage() {
             aria-labelledby={reviewTabId('objects')}
             data-testid="review-panel-objects"
           >
+            {/* ★구역 이름은 「카테고리」다 — 이 트리가 라벨을 <b>카테고리로 묶어</b> 보이기
+                때문이고, 건수는 옆의 배지가 말한다. 구 이름 「객체 목록」은 어느 사양에도 없다. */}
             <section
               className="border-b border-gray-200 p-3"
-              aria-label="객체 목록"
+              aria-label="카테고리"
               data-testid="review-aside-object-list"
             >
-              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-                객체 목록
-              </h2>
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-label font-semibold uppercase tracking-wide text-gray-500">
+                  카테고리
+                </h2>
+                {/* 숫자만 두지 않고 <b>무엇의 건수인지</b> 함께 적는다 — 「5」만 있으면 카테고리
+                    수인지 객체 수인지 알 수 없다(여기서는 현재 프레임의 객체 수다). */}
+                <span
+                  data-testid="review-object-count-badge"
+                  className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium text-gray-700"
+                >
+                  객체 {frameList?.frames?.[currentFrameIdx]?.labels?.length ?? 0}건
+                </span>
+              </div>
               <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
             </section>
 
             <section
               className="border-b border-gray-200 p-3"
-              aria-label="속성"
+              aria-label="선택 객체 속성"
               data-testid="review-aside-attributes"
             >
               <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-                속성
+                선택 객체 속성
               </h2>
               <ObjectAttributesPanel
                 labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
@@ -488,6 +597,9 @@ export function ReviewPage() {
             <ReviewMetaPanel
               rawSn={review.videoId}
               srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+              windowState={annotationWindow.state}
+              onOpenWindow={annotationWindow.openOrFocus}
+              allVrfcEvntTypes={videoDetail?.allVrfcEvntTypes}
             />
           </div>
         )}
@@ -502,12 +614,32 @@ export function ReviewPage() {
             aria-labelledby={reviewTabId('issues')}
             data-testid="review-panel-issues"
           >
-            <section aria-label="이슈 스레드" data-testid="review-issue-thread-section">
+            <section aria-label="문의 스레드" data-testid="review-issue-thread-section">
               <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
             </section>
           </div>
         )}
       </aside>
+
+      {/* 「영상 분석 설명 · 이벤트 어노테이션」 창(읽기 전용) — 비모달이라 창이 떠 있어도 캔버스·
+          프레임 이동·우측 탭을 그대로 조작한다. 근거의 프레임 번호를 누르면 뒤 화면이 그 프레임으로
+          이동하고 창은 접히며, 접힘 띠의 「펼치기」로 되돌린다. */}
+      {annotationWindow.mounted && (
+        <AnnotationWindow
+          mode="readOnly"
+          rawSn={review.videoId}
+          srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+          state={annotationWindow.state}
+          focusRequestedAt={annotationWindow.focusRequestedAt}
+          onClose={annotationWindow.close}
+          onFold={annotationWindow.fold}
+          onExpand={annotationWindow.expand}
+          onPickingChange={annotationWindow.setPicking}
+          eventTypes={videoDetail?.allVrfcEvntTypes}
+          availableFrameIds={frameSrcSns}
+          onJumpToFrame={handleJumpToEvidenceFrame}
+        />
+      )}
 
       <RejectModal
         reviewId={review.id}

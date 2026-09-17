@@ -16,10 +16,7 @@ import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { formatPortalDateTime } from '@/features/portal/formatDateTime';
-import type {
-  PortalAugmentDetail,
-  PortalAugmentSummary,
-} from '@/features/portal/augments/types';
+import type { PortalAugmentDetail, PortalAugmentSummary } from '@/features/portal/augments/types';
 
 import { PortalAugmentPage } from '../PortalAugmentPage';
 
@@ -93,7 +90,13 @@ function mockDetail(d: PortalAugmentDetail | undefined, over: Record<string, unk
   });
 }
 
-/** 목록의 「결과 확인」을 눌러 상세 구역을 연다. */
+/**
+ * 목록의 「결과 확인」을 눌러 결과를 연다.
+ *
+ * ⚠ 2026-09-16 — 열리는 것이 **목록 아래 구역에서 창(모달)으로** 바뀌었다. 구 짜임은 목록이 길면
+ *   펼친 내용이 화면 밖에 있어 무엇이 열렸는지 보이지 않았다. 후크(`portal-augment-result`)와
+ *   누르는 자리는 그대로라 이 도우미는 그대로 선다 — 아래 단언들도 담는 그릇만 바뀌었다.
+ */
 async function openResult(target: PortalAugmentSummary) {
   const user = userEvent.setup();
   await user.click(
@@ -141,9 +144,15 @@ describe('포털 증강 화면 — 요청 현황', () => {
 
     renderWithProviders(<PortalAugmentPage />);
 
-    expect(within(screen.getByTestId('portal-augment-row-1')).getByText('결과 대기 중')).toBeInTheDocument();
-    expect(within(screen.getByTestId('portal-augment-row-2')).getByText('결과 도착')).toBeInTheDocument();
-    expect(within(screen.getByTestId('portal-augment-row-3')).getByText('실패')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('portal-augment-row-1')).getByText('결과 대기 중'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('portal-augment-row-2')).getByText('결과 도착'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('portal-augment-row-3')).getByText('실패'),
+    ).toBeInTheDocument();
   });
 
   it('대기_구간을_숨기지_않는다_즉시_결과가_나오지_않는다는_안내가_있다', () => {

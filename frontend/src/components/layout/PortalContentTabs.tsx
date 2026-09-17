@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
+import { portalShellAlign, portalTabsTopPadding } from '@/lib/portalShellLayout';
 
 /**
  * 포털 채널 본문 상단 이동 탭 — 셸 사양의 `portal-content-tabs` 영역.
@@ -40,7 +41,9 @@ import { PORTAL_CONTENT_TABS, resolveActivePortalTab } from '@/lib/portalNav';
  *
  * 나머지 규격: 높이 48 고정 · 최소너비 64 · 좌우 패딩 4 · 15px · 비활성 slate-500 ·
  * hover 는 색만(slate-800) · 활성 글자 primary-600 · 활성 밑줄 primary-500 · 배경 항상 투명 ·
- * 최대폭 1200 + 좌우 거터 24(본문과 같은 정렬선).
+ * 가로 정렬선은 본문과 «같은 한 곳»(`@/lib/portalShellLayout`)에서 받는다 — 독립 앱은
+ * 최대폭 1200 + 좌우 거터 24, 임베드는 Host 슬롯 안쪽 폭을 그대로 채운다(그쪽이 이미 자기
+ * 여백을 갖고 있어 한 번 더 세우면 겹친다).
  *
  * ⚠ **높이 48 은 구 44 보다 크다** — 터치 표적이 넓어지는 방향이라 접근성 후퇴가 아니다.
  *   (반대 방향, 즉 44 아래로 내리는 축은 별도 판단 대상이다.)
@@ -64,38 +67,49 @@ export function PortalContentTabs() {
   if (!active) return null;
 
   return (
-    // ★바 전체에 구분선을 두지 않는다 — 이 채널의 line 탭은 **활성 항목의 밑줄만** 갖는다.
-    //   바 밑줄과 활성 밑줄이 겹치면 활성 표시가 바의 일부로 읽혀 어느 자리인지 흐려진다.
-    <nav aria-label="포털 이동 탭" className="mx-auto w-full max-w-wrap px-4 md:px-column">
-      {/* 항목 간격 8(=inline) · 좁은 폭에서는 가로로 흐른다 */}
-      <ul className="flex items-center gap-inline overflow-x-auto">
-        {PORTAL_CONTENT_TABS.map((tab) => {
-          const isActive = tab.key === active.key;
-          return (
-            <li key={tab.key}>
-              <Link
-                to={tab.path}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  // 높이 48 고정 · 최소너비 64 · 좌우 패딩 4 · 15px/600 · 배경 항상 투명.
-                  // ⚠ 높이를 내용에 맡기면(min-h + py) 라벨 길이에 따라 탭 줄이 흔들린다.
-                  'inline-flex h-12 min-w-16 items-center justify-center border-b-4 px-tight',
-                  'text-body-md font-semibold transition-colors duration-100',
-                  KRDS_FOCUS,
-                  isActive
-                    ? // 활성 = 밑줄 4px + 글자 primary-600. 굵기는 비활성과 같다 —
-                      // 이 시스템은 위계를 굵기가 아니라 색과 밑줄로 만든다.
-                      'border-primary-500 text-primary-600'
-                    : // 비활성 hover 는 **색만** 바뀐다 — hover 에 밑줄을 주면 활성과 구분이 흐려진다.
-                      'border-transparent text-gray-500 hover:text-gray-800',
-                )}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+    // ★윗 여백은 임베드에서만 붙는다 — Host 가 마운트 슬롯 여백을 0 으로 만들어(계약 전문은
+    //   `lib/portalShellLayout`) 탭이 카드 윗변에 그대로 붙는다. Host 자신의 저작도구 화면도
+    //   같은 자리에 24 를 둔다. 독립 앱에는 위에 머리 영역이 있어 주지 않는다.
+    <nav aria-label="포털 이동 탭" className={cn(portalShellAlign(), portalTabsTopPadding())}>
+      {/*
+        ★**KRDS 탭의 생김새를 그대로 쓴다** (2026-09-16 사용자 지적 — 「탭 컴포넌트가 좀 다른거
+          같지않니」). 종전에는 같은 모양을 Tailwind 로 손수 그렸는데, 밑줄 굵기·활성 글자색이
+          부모 포털과 갈려 있었다. 이제 킷 클래스를 입어 **토큰이 값을 정한다** — 우리 포털
+          테마가 `--krds-tab--line-button-color-text-active` 를 부모 포털과 같은 값으로 덮어
+          두었으므로 색·굵기가 저절로 맞는다(손으로 옮겨 적은 값은 테마가 바뀌어도 안 따라온다).
+
+        ★**부품(`Tab`/`TabTrigger`)을 쓰지 않고 «클래스»만 입는다 — 이것은 탭이 아니라 이동이다.**
+          킷 `TabTrigger` 는 `<button>` 이라 가운데 클릭 · 새 탭 · 주소 복사가 사라지고, ARIA 의
+          `tablist`/`tab` 은 **같은 문서 안의 tabpanel** 을 전제한다. 여기는 서로 다른 주소로
+          가는 길이라 그 역할을 쓰면 보조기술에 거짓말이 된다. 그래서 생김새는 킷, 의미는
+          내비게이션(`nav` + `aria-current`)이다.
+          ⚠ `role="tablist"`·`role="tab"` 을 붙이지 말 것.
+      */}
+      <div className="krds-tab-area">
+        <div className="tab line">
+          <ul>
+            {PORTAL_CONTENT_TABS.map((tab) => {
+              const isActive = tab.key === active.key;
+              return (
+                <li key={tab.key} className={cn('tab-item', isActive && 'active')}>
+                  <Link
+                    to={tab.path}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn('btn-tab', KRDS_FOCUS)}
+                  >
+                    {tab.label}
+                    {/* ★킷은 여기에 화면 밖 글(「선택됨」)을 두지만 **우리는 두지 않는다.**
+                        킷 탭은 `aria-selected` 로 말하는 «탭»이고, 이쪽은 `aria-current="page"`
+                        로 말하는 «이동»이다 — 보조기술이 이미 「현재 페이지」로 읽어 주므로 글을
+                        더하면 링크 이름이 「내 작업 선택됨」이 되어 같은 사실이 두 번 들린다
+                        (기존 가드가 이름이 바뀐 것을 잡았다). */}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
     </nav>
   );
 }

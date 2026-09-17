@@ -338,6 +338,7 @@
               "type": "String",
               "is_static": false,
               "visibility": "private",
+              "description": "요청종류. null=일반 배치 비식별 · REDEIDENT=검수 완료 재비식별 · EXCLUDED=비식별 제외 — 배포 설정 제외 목록에 든 출처유형 영상이라 외부 위탁 없이 원본을 비식별 영상 쓰기 위치에 복사해 완료한 행이다(성공 시 SUCCEEDED + 복사본 경로, 실패 시 FAILED). EXCLUDED 행은 POLL_STTS_CD 가 비어 폴링·수락 대기 유예 회수의 대상이 아니다. (REQ_KND_CD)",
               "is_readonly": false,
               "implementation": {
                 "status": "planned",
@@ -439,7 +440,7 @@
               }
             }
           ],
-          "description": "DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력. OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 선커밋한 뒤 생성을 비동기 디스패치하고, 결과는 주기 폴링이 회수한다 — 진행 결과 축과 수락 대기 유예 만료 미결 축 두 종류이며, 미결 회수는 재위탁하지 않고 실패 사유로 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다(코드 실측) — 미결 회수도 제출 확정 실패와 같은 종결 경로라 영상 비식별 여부를 실패로 내린다. 예외는 외부로 나간 것이 없는 취소 종결뿐이다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)",
+          "description": "DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력(출처유형 제외 행 포함). OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 선커밋한 뒤 생성을 비동기 디스패치하고, 결과는 주기 폴링이 회수한다 — 진행 결과 축과 수락 대기 유예 만료 미결 축 두 종류이며, 미결 회수는 재위탁하지 않고 실패 사유로 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다(코드 실측) — 미결 회수도 제출 확정 실패와 같은 종결 경로라 영상 비식별 여부를 실패로 내린다. 예외는 외부로 나간 것이 없는 취소 종결뿐이다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)",
           "enum_values": [],
           "stereotypes": []
         },
@@ -641,6 +642,27 @@
               "visibility": "public",
               "is_abstract": false,
               "return_type": "void"
+            },
+            {
+              "name": "lockRawForDeidentRetry",
+              "params": [
+                "rawSn: Long",
+                "ownerId: String"
+              ],
+              "is_static": true,
+              "visibility": "public",
+              "description": "선두 비식별 실패 영상의 배치 재시작 작업락 생성 — 영상 단위(TARGET_RAW)·lockId 에 재시작 접두·6시간 만료. 같은 영상의 활성 락 유일성으로 동시 선점은 1건만 성립한다.",
+              "is_abstract": false,
+              "return_type": "AuthWorkLock"
+            },
+            {
+              "name": "isDeidentRetryLock",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "선두 비식별 재시작이 잡은 락인가(lockId 접두 판정) — 해제 범위를 이 종류로 한정하는 판정.",
+              "is_abstract": false,
+              "return_type": "boolean"
             }
           ],
           "attributes": [
@@ -795,7 +817,7 @@
               }
             }
           ],
-          "description": "비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 수동 비식별 후 resolve 시 해제(LOCKED→RELEASED). (LS_AUTH_WORK_LOCK)",
+          "description": "비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 신고 해소가 성립하면 해제(LOCKED→RELEASED) — 자동 재비식별 큐는 없어 재비식별은 사람이 외부 비식별 솔루션으로 수행하지만, 그 수행이 해제의 전제 조건은 아니다. (LS_AUTH_WORK_LOCK) 선두 비식별 실패 영상의 배치 재시작도 같은 영상 단위 작업락을 잡으며, 스키마 변경 없이 lockId 접두로 그 종류를 가린다. 이 재시작 작업락은 선두 비식별의 성공·모든 실패 종결에서 해제되고, 해제는 그 종류의 락에만 한정돼 다른 기능이 잡은 락은 풀지 않는다.",
           "enum_values": [],
           "stereotypes": []
         },
@@ -826,7 +848,7 @@
           "stereotypes": []
         }
       ],
-      "description": "영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다. 그 회수는 두 종류다 — 진행 결과를 집는 축과, 수락 응답조차 관측하지 못한 건을 수락 대기 유예 만료로 집는 미결 축이다. 비식별 축에는 전용 미결 스위퍼가 없어 그 미결 회수도 같은 주기 폴링이 맡으며(시계열 위탁과 갈리는 지점은 제출이 아니라 회수다), 재위탁하지 않고 실패 사유를 남겨 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다 — 코드 실측으로 재정정. 미결 회수(KPST_ACK_MISSING)는 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 영상 상태를 그대로 두는 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)뿐이며, 외부로 아무것도 나가지 않았기 때문이다. 수락 대기 유예 만료 회수를 별도 사유로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 우리가 수락 응답을 관측하지 못했다는 뜻이라 외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있어, 사람이 외부 상태를 확인해야 하는 건을 코드로 식별하려는 분리다.",
+      "description": "영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. 단 출처유형(LS_DATA_RAW.SRC_TYPE)이 배포 설정 authoring.deidentify.excluded-src-types 의 제외 목록에 든 영상은 선두 비식별 단계가 외부 솔루션에 위탁하지 않고 원본을 비식별 영상 쓰기 위치에 원본 파일명 그대로 복사해 완료하며, 그 사실을 DeidentProcLog 에 요청종류 EXCLUDED 인 행으로 남긴다(ADR-066) — 복사 성공 시 SUCCEEDED 와 복사본 경로, 실패 시 FAILED 이고, 외부 진행 상태를 갖지 않아 아래 폴링·수락 대기 유예 회수의 대상이 아니다. 검수 완료 영상의 재비식별(REDEIDENT)은 이 제외를 타지 않고 항상 외부 솔루션에 위탁한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다. 그 회수는 두 종류다 — 진행 결과를 집는 축과, 수락 응답조차 관측하지 못한 건을 수락 대기 유예 만료로 집는 미결 축이다. 비식별 축에는 전용 미결 스위퍼가 없어 그 미결 회수도 같은 주기 폴링이 맡으며(시계열 위탁과 갈리는 지점은 제출이 아니라 회수다), 재위탁하지 않고 실패 사유를 남겨 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다 — 코드 실측으로 재정정. 미결 회수(KPST_ACK_MISSING)는 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 영상 상태를 그대로 두는 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)뿐이며, 외부로 아무것도 나가지 않았기 때문이다. 수락 대기 유예 만료 회수를 별도 사유로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 우리가 수락 응답을 관측하지 못했다는 뜻이라 외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있어, 사람이 외부 상태를 확인해야 하는 건을 코드로 식별하려는 분리다.",
       "module_name": "Deidentification",
       "relationships": [
         {
@@ -868,6 +890,14 @@
           "label": "stage",
           "to_multiplicity": "0..1",
           "from_multiplicity": "0..*"
+        },
+        {
+          "to": "AuthWorkLock",
+          "from": "DeidentProcLog",
+          "kind": "dependency",
+          "label": "선두 비식별 종결 시 재시작 작업락만 해제(동일 DATA_RAW_SN)",
+          "to_multiplicity": "0..*",
+          "from_multiplicity": "1"
         }
       ],
       "attached_files": [],
@@ -892,12 +922,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
-    "stale": true,
-    "stale_reason": "AC-1063의 2개 필드 변경이 depicts로 2-hop 전파",
-    "change_summary": "v12 가 넣은 「수락 대기 유예 만료 회수만 영상의 비식별 상태를 실패로 내리지 않는다」를 코드 실측으로 재정정한다. 그 회수는 제출 확정 실패와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 「같은 종료값, 다른 결과」 구조 자체는 실재하나 예외는 취소 종결(호출자 트랜잭션 롤백 — 외부로 나간 것이 없음) 쪽이다. 수락 대기 유예 만료 회수를 따로 두는 까닭은 영상 상태가 아니라 운영 조치다. 폴링 종료값의 원천 열거도 실제 축(외부가 돌려준 터미널 실패·폴링 경과 만료·불완전 산출물·수락 대기 유예 만료 회수)으로 바로잡았다. 같은 취지가 얹혀 있던 세 자리(폴링 상태값 뜻풀이·최상위 서술·원장 집합체 설명)를 함께 고쳤고 구 서술은 지우지 않고 폐기 표기로 남겼다. 값 목록 원소는 지우거나 새로 만들지 않았다.",
+    "current_version": 16,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "CO-20260916-선두비식별-실패-수동재시도 구현 후 대조. 작업락 엔티티(AuthWorkLock)에 선두 비식별 실패 영상 배치 재시작용 생성 메서드 lockRawForDeidentRetry 와 종류 판정 isDeidentRetryLock 을 추가하고(스키마 변경 없이 lockId 접두로 종류 구분), 클래스 설명 끝에 재시작 작업락의 존재·해제 범위를 순수 삽입했다. DeidentProcLog → AuthWorkLock 의존 관계(선두 비식별 종결 시 재시작 작업락만 해제)를 추가했다. 기존 클래스·속성·메서드·관계·서술은 바꾸지 않았다. 재시작 판정·선점 협력자는 이 다이어그램이 서비스 계층을 클래스로 그리지 않는 관례라 클래스로 넣지 않았고, 위탁 프로젝트 이름 규칙(첫 위탁 raw{n}, 재위탁 raw{n}r{이력번호})은 어느 엔티티에도 저장되지 않는 위탁 요청 조립 규칙이라 도메인 모델에 두지 않았다(정본 INT-004 · DFEAT-041). 쓰기 전 stale 사유: AC-1133 scenario 변경의 depicts 2-hop 전파(이번 CO 2차 라운드와 같은 축).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-03T08:18:22.739Z",
+    "last_updated_at": "2026-09-17T01:09:13.398Z",
     "created_at": "2026-06-02T08:48:21.895Z"
   }
 }

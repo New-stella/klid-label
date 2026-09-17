@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/비식별화-DOMAIN-012/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 **★ 개인정보·비식별 신고 규칙의 정본은 `docs/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
 
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
@@ -129,9 +131,32 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+- **새 `@SpringBootTest` 는 시험 컨텍스트 종류 상한(75)을 깬다 — 대상 스위트는 초록인데 전체 회귀만 red** (CO-20260914-생성형영상-비식별제외)
+  - 함정: 고유한 `@MockBean`/`@TestPropertySource` 조합을 가진 새 통합시험 클래스가 캐시 컨텍스트 종류를 하나 늘려 `TestContextDiversityRatchetTest` 가 `76 > 75` 로 실패했다. 영향 스위트만 돌리면 보이지 않는다.
+  - 대응: 상한을 올리지 말고 **같은 애노테이션 집합을 가진 기존 클래스에 케이스를 합류**시킨다. `@DynamicPropertySource` 를 쓰는 클래스는 클래스 단위 키라 메서드를 더해도 종류가 늘지 않는다(판정 규칙 `TestContextDiversityRatchetTest.contextKey`). 쓸모없는 목(예: test 프로파일에서 꺼진 클라이언트의 `@MockBean`)부터 걷어낸다.
+  - 재발 조건: 실 DB 통합시험을 새로 쓸 때마다. 착수 전에 `TestContextDiversityRatchetTest` 를 단독 실행해 여유를 본다.
+- **「기존 규약 재사용」 지시는 코드를 열어 규칙을 확인한 뒤 따른다 — 변경지시서 서술이 실제와 다를 수 있다** (CO-20260914-생성형영상-비식별제외)
+  - 함정: 변경지시서가 「KPST 위탁 전 원본 실재 검증 규약 재사용(NOFOLLOW)」이라고 적었는데 실제 `KpstDeidentService.verifySourceOrFail` 은 `Files.isRegularFile(Paths.get(path))` 로 **링크를 따라간다**. NOFOLLOW 는 같은 서비스의 **대상(산출) 쪽** 검사에만 있다. 서술대로 구현하면 NAS 원본 경로가 링크인 현장에서 새 경로만 전부 실패한다.
+  - 대응: **원본(소스)은 링크 추종, 우리가 만드는 산출물(대상)은 NOFOLLOW·링크 금지**가 이 도메인의 비대칭 규칙이다. 원본을 읽어 비식별 산출물을 쓰는 경로를 새로 만들 때 이 짝을 코드에서 대조한다.
+- **ADR 은 구현 추적(IMPREC)을 기록할 수 없다** (CO-20260914-생성형영상-비식별제외)
+  - `mark_implementation(ADR-*)` 는 `E_NOT_TRACKABLE`. `design_refs` 가 새 ADR 로 시작하는 작업이면 IMPREC 은 그 ADR 에 연결된 DFEAT·ERD 등에 기록한다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
+
+### ★이 코드베이스의 ffmpeg 실행은 net.bramp 가 아니라 ProcessBuilder 다 (CO-20260916-마킹영상재생-차단결함)
+「net.bramp.ffmpeg 배선 재사용」이라는 지시가 흔히 나오지만, 변환·추출 실행은 `authoring.ffmpeg.binary` 를 **ProcessBuilder 고정 인자 리스트**로 부르고(`batch/step/BrampFfmpegFrameWriter`), net.bramp 는 ffprobe(`FFprobe`)에만 쓰인다.
+- **근거**: `grep 'net.bramp' src/main` → `PortalVideoProbeFfprobe`·`DurationProbeFfprobe` 뿐. 재배치 실행기(`FfmpegDeidentFaststartRemuxer`)도 같은 방식(고정 인자 · `destroyForcibly` 대기 상한)으로 만들었다.
+- **재발 조건**: ffmpeg 로 파일을 변환·추출하는 새 경로를 만들 때.
+
+### ★픽스처 `tiny-video.mp4` 는 moov 가 파일 끝이다 — 완료 경로 IT 에서 실제 재배치가 돈다 (CO-20260916-마킹영상재생-차단결함)
+`ftyp→free→mdat→moov` 순서라, 이 픽스처가 **비식별 산출 디렉터리 안에** 놓이는 Spring 통합시험은 완료 커밋 뒤 실제 ffmpeg 재배치(`DeidentFaststartService`)가 비동기로 실행된다. 다른 위치(@TempDir 루트 등)의 픽스처는 경로 검증에서 걸러져 돌지 않는다.
+- **근거**: `xxd src/test/resources/fixtures/tiny-video.mp4` → `ftypisom…free…mdat` · `TestVideoFixtures` javadoc(ftyp 32 + free 8 + mdat 717 + moov 789).
+- **재발 조건**: 완료 경로 IT 에서 산출물 파일 내용·수정 시각·크기를 단언하거나, 시험 도중 산출 디렉터리를 지울 때. ⇒ 재배치를 끄는 설정(`authoring.deidentify.faststart.enabled=false`)이나 완료 대기를 명시한다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

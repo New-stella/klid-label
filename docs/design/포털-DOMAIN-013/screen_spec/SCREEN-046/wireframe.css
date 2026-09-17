@@ -1,0 +1,503 @@
+/*
+ * LogiCraft Wireframe CSS — SCREEN 정적 HTML 공통 스타일.
+ *
+ * 모든 SCREEN 정적 HTML 은 <link rel="stylesheet" href="/api/static/wireframe/wireframe.css">
+ * 로 이 파일을 참조. AI 가 wf-* 클래스만으로 일관된 와이어프레임/목업 생성.
+ * (NestJS /api 글로벌 prefix 라 /static 단독 경로는 404. nginx 단순화 전후 모두 /api 사용.)
+ *
+ * 디자인 톤:
+ *  - Low-fidelity wireframe 우선 (회색·흰색·점선 박스)
+ *  - 강조는 violet (primary) / red (destructive) / amber (warning) 정도만
+ *  - ★ 라이트 톤 한 가지로 고정 (다크 테마 비지원). OS 다크 모드여도 라이트로 렌더.
+ *
+ * 색 스케일은 Tailwind neutral / violet / red / amber 와 정렬.
+ */
+
+:root {
+  --wf-bg:        #ffffff;
+  --wf-bg-alt:    #f5f5f5;
+  --wf-fg:        #171717;
+  --wf-fg-muted:  #737373;
+  --wf-fg-faint:  #a3a3a3;
+  --wf-border:    #d4d4d4;
+  --wf-border-strong: #737373;
+  --wf-primary:   #7c3aed;
+  --wf-primary-bg: #ede9fe;
+  --wf-danger:    #dc2626;
+  --wf-danger-bg: #fee2e2;
+  --wf-warning:   #d97706;
+  --wf-warning-bg: #fef3c7;
+  --wf-success:   #059669;
+  --wf-success-bg: #d1fae5;
+  --wf-radius:    6px;
+  --wf-radius-lg: 10px;
+  --wf-shadow:    0 1px 2px rgba(0,0,0,0.04);
+  --wf-mono:      ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --wf-sans:      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html {
+  /* ★ 라이트 톤 강제 — OS 다크 모드여도 UA 기본값(흰 텍스트) 적용 차단 */
+  color-scheme: only light;
+}
+body {
+  font-family: var(--wf-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wf-fg);
+  background: var(--wf-bg);
+}
+
+/* 안전벨트 — 색 미지정 텍스트가 UA 기본값으로 흰색이 되지 않도록 고정 */
+h1, h2, h3, h4, h5, h6 { color: var(--wf-fg); }
+p, li, td, th, label, span, dt, dd { color: inherit; }
+
+/* ─── 스크롤바 — 사이트 톤 맞춤 ───────────────────────────────────── */
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wf-border) transparent;
+}
+/* WebKit (Chrome / Edge / Safari) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--wf-border);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--wf-border-strong); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ─── App Shell ──────────────────────────────────────────────────── */
+.wf-app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+}
+.wf-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--wf-border);
+  background: var(--wf-bg);
+}
+.wf-logo {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+  background: var(--wf-bg-alt);
+  padding: 4px 8px;
+  border-radius: var(--wf-radius);
+}
+.wf-search {
+  flex: 0 1 280px;
+  height: 30px;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  padding: 0 10px;
+  font-size: 12px;
+  background: var(--wf-bg);
+  color: var(--wf-fg);
+}
+.wf-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--wf-bg-alt);
+  border: 1px solid var(--wf-border);
+}
+.wf-spacer { flex: 1; }
+
+.wf-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 0;
+}
+.wf-sidenav {
+  border-right: 1px solid var(--wf-border);
+  background: var(--wf-bg-alt);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wf-nav-item {
+  padding: 6px 10px;
+  border-radius: var(--wf-radius);
+  font-size: 13px;
+  color: var(--wf-fg-muted);
+  cursor: default;
+}
+.wf-nav-item.active {
+  background: var(--wf-primary-bg);
+  color: var(--wf-primary);
+  font-weight: 600;
+}
+.wf-nav-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--wf-fg-faint);
+  margin: 12px 10px 4px;
+}
+
+.wf-content {
+  padding: 20px 24px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wf-footer {
+  border-top: 1px solid var(--wf-border);
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--wf-fg-faint);
+  display: flex;
+  justify-content: space-between;
+  background: var(--wf-bg);
+}
+
+/* 모바일 — wf-app[data-device="mobile"] 또는 .wf-app-mobile 클래스로 */
+.wf-app-mobile .wf-body { grid-template-columns: 1fr; }
+.wf-app-mobile .wf-sidenav { display: none; }
+
+/* ─── 페이지 헤딩 ─────────────────────────────────────────────────── */
+.wf-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wf-page-header h1 {
+  font-size: 22px;
+  margin: 0;
+  font-weight: 700;
+}
+.wf-breadcrumb {
+  font-size: 12px;
+  color: var(--wf-fg-faint);
+  margin-bottom: 8px;
+}
+.wf-breadcrumb a { color: inherit; text-decoration: none; }
+.wf-breadcrumb .sep { margin: 0 6px; color: var(--wf-border-strong); }
+
+/* ─── Card ───────────────────────────────────────────────────────── */
+.wf-card {
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius-lg);
+  background: var(--wf-bg);
+  padding: 16px;
+  box-shadow: var(--wf-shadow);
+  margin-bottom: 12px;
+}
+.wf-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.wf-card-desc {
+  font-size: 12px;
+  color: var(--wf-fg-muted);
+  margin: 0 0 12px;
+}
+
+/* ─── Grid Helpers ───────────────────────────────────────────────── */
+.wf-row { display: flex; gap: 12px; align-items: stretch; }
+.wf-col { display: flex; flex-direction: column; gap: 8px; }
+.wf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wf-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.wf-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.wf-stack { display: flex; flex-direction: column; gap: 8px; }
+.wf-cluster { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* ─── Form Fields ────────────────────────────────────────────────── */
+.wf-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.wf-label { font-size: 12px; color: var(--wf-fg-muted); font-weight: 500; }
+.wf-input, .wf-textarea, .wf-select {
+  width: 100%;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--wf-bg);
+  color: var(--wf-fg);
+  font-family: inherit;
+}
+.wf-textarea { resize: vertical; min-height: 60px; }
+.wf-select { cursor: pointer; }
+.wf-input::placeholder, .wf-textarea::placeholder { color: var(--wf-fg-faint); }
+.wf-help { font-size: 11px; color: var(--wf-fg-faint); }
+
+.wf-radio, .wf-checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: default; }
+.wf-radio input, .wf-checkbox input { margin: 0; }
+
+/* ─── Buttons ────────────────────────────────────────────────────── */
+.wf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--wf-radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  border: 1px solid var(--wf-border);
+  background: var(--wf-bg);
+  color: var(--wf-fg);
+  text-decoration: none;
+}
+.wf-btn-primary {
+  background: var(--wf-primary);
+  border-color: var(--wf-primary);
+  color: white;
+}
+.wf-btn-secondary {
+  background: var(--wf-bg-alt);
+  color: var(--wf-fg);
+}
+.wf-btn-destructive {
+  background: var(--wf-danger);
+  border-color: var(--wf-danger);
+  color: white;
+}
+.wf-btn-ghost { background: transparent; border-color: transparent; }
+.wf-btn-outline { background: transparent; }
+.wf-btn[disabled], .wf-btn.disabled { opacity: 0.5; }
+.wf-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.wf-icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  background: var(--wf-bg);
+  cursor: default;
+}
+
+/* ─── Badges ─────────────────────────────────────────────────────── */
+.wf-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--wf-bg-alt);
+  color: var(--wf-fg-muted);
+}
+.wf-badge-primary { background: var(--wf-primary-bg); color: var(--wf-primary); }
+.wf-badge-success { background: var(--wf-success-bg); color: var(--wf-success); }
+.wf-badge-danger { background: var(--wf-danger-bg); color: var(--wf-danger); }
+.wf-badge-warning { background: var(--wf-warning-bg); color: var(--wf-warning); }
+
+/* ─── Table ──────────────────────────────────────────────────────── */
+.wf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.wf-table th, .wf-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--wf-border);
+}
+.wf-table thead {
+  background: var(--wf-bg-alt);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wf-fg-muted);
+}
+.wf-table tbody tr:hover { background: var(--wf-bg-alt); }
+
+/* ─── Tabs ───────────────────────────────────────────────────────── */
+.wf-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--wf-border);
+  margin-bottom: 12px;
+}
+.wf-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--wf-fg-muted);
+  cursor: default;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.wf-tab.active {
+  color: var(--wf-primary);
+  border-bottom-color: var(--wf-primary);
+  font-weight: 600;
+}
+
+/* ─── Alert / Toast ──────────────────────────────────────────────── */
+.wf-alert {
+  padding: 10px 12px;
+  border-radius: var(--wf-radius);
+  font-size: 13px;
+  border: 1px solid var(--wf-border);
+  background: var(--wf-bg-alt);
+  margin-bottom: 12px;
+}
+.wf-alert-info { border-color: #93c5fd; background: #eff6ff; color: #1e40af; }
+.wf-alert-success { border-color: var(--wf-success); background: var(--wf-success-bg); color: var(--wf-success); }
+.wf-alert-warning { border-color: var(--wf-warning); background: var(--wf-warning-bg); color: var(--wf-warning); }
+.wf-alert-danger { border-color: var(--wf-danger); background: var(--wf-danger-bg); color: var(--wf-danger); }
+
+/* ─── Stat ──────────────────────────────────────────────────────── */
+.wf-stat {
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius-lg);
+  padding: 14px 16px;
+  background: var(--wf-bg);
+}
+.wf-stat-label { font-size: 12px; color: var(--wf-fg-muted); }
+.wf-stat-value { font-size: 24px; font-weight: 700; color: var(--wf-fg); margin-top: 2px; }
+.wf-stat-delta { font-size: 11px; color: var(--wf-fg-faint); margin-top: 2px; }
+
+/* ─── Chart placeholder ─────────────────────────────────────────── */
+.wf-chart {
+  height: 160px;
+  border: 1px dashed var(--wf-border);
+  border-radius: var(--wf-radius);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding: 12px;
+  background: var(--wf-bg-alt);
+}
+.wf-chart-bar { width: 14px; background: var(--wf-primary); opacity: 0.7; border-radius: 2px 2px 0 0; }
+
+/* ─── Section Detail (★ 표준 패턴 — 와이어프레임 섹션 메타 칩 + 모달) ──── */
+/*
+ * 와이어프레임의 각 wf-card 헤더에 role/layout/API 칩과 함께 '섹션 상세' 버튼을
+ * 두고, 클릭 시 같은 페이지에서 CSS-only :target 모달로 components/설명/API
+ * 매핑을 보여주는 표준 패턴. 사용 가이드는
+ * get_item_schema('screen_spec').workflow_notes 의 '★ 섹션 메타 칩 + 섹션 상세
+ * 모달' 섹션 참조.
+ *
+ * id 규약: 모달 anchor 충돌 방지를 위해 모달 id 는 반드시 wf-sec-{NNN} prefix.
+ *   <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+ *   <div id="wf-sec-1" class="wf-sec-detail-modal"> ... </div>
+ *
+ * 닫기 / 백드롭 링크는 항상 href="#_" — 존재하지 않는 anchor 라 모달이 닫히면서
+ * 스크롤 위치를 보존한다.
+ */
+.wf-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  margin-left: 8px;
+  background: var(--wf-primary-bg);
+  color: var(--wf-primary);
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.wf-detail-btn:hover { background: #e0e7ff; }
+
+.wf-sec-detail-modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.wf-sec-detail-modal:target { display: block; }
+.wf-sec-detail-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+.wf-sec-detail-modal-box {
+  position: relative;
+  z-index: 1;
+  background: var(--wf-bg);
+  max-width: 720px;
+  width: calc(100% - 40px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  margin: 60px auto 0;
+  border-radius: var(--wf-radius-lg);
+  padding: 24px 28px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+.wf-sec-detail-modal-close {
+  position: absolute;
+  top: 14px; right: 16px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  color: var(--wf-fg-muted);
+  text-decoration: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.wf-sec-detail-modal-close:hover { background: var(--wf-bg-alt); color: var(--wf-fg); }
+.wf-sec-detail-modal-title { font-size: 16px; font-weight: 600; margin: 0 0 12px; color: var(--wf-fg); }
+.wf-sec-detail-modal-section { margin-top: 14px; }
+.wf-sec-detail-modal-section h4 {
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--wf-fg-muted);
+  margin: 0 0 6px;
+}
+.wf-sec-detail-modal-section p { font-size: 13px; margin: 0; color: var(--wf-fg); }
+.wf-sec-detail-modal-section ul { font-size: 13px; margin: 0; padding-left: 18px; color: var(--wf-fg); }
+
+/* ─── Dialog / Drawer placeholder ───────────────────────────────── */
+.wf-dialog {
+  border: 2px dashed var(--wf-border-strong);
+  border-radius: var(--wf-radius-lg);
+  background: var(--wf-bg);
+  padding: 16px;
+  margin: 16px auto;
+  max-width: 500px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.wf-dialog-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+
+/* ─── List ───────────────────────────────────────────────────────── */
+.wf-list { list-style: none; padding: 0; margin: 0; }
+.wf-list li {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--wf-border);
+  font-size: 13px;
+}
+.wf-list li:last-child { border-bottom: none; }
+
+/* ─── Pagination ─────────────────────────────────────────────────── */
+.wf-pagination { display: inline-flex; gap: 4px; font-size: 12px; }
+.wf-page-btn {
+  min-width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  background: var(--wf-bg);
+  cursor: default;
+}
+.wf-page-btn.active { background: var(--wf-primary); color: white; border-color: var(--wf-primary); }
+
+/* ─── Stepper ────────────────────────────────────────────────────── */
+.wf-stepper { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.wf-step-num {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--wf-bg-alt);
+  color: var(--wf-fg-muted);
+  font-size: 11px; font-weight: 700;
+}
+.wf-step-num.active { background: var(--wf-primary); color: white; }
+
+/* ─── Utilities ──────────────────────────────────────────────────── */
+.wf-mono { font-family: var(--wf-mono); font-size: 12px; }
+.wf-muted { color: var(--wf-fg-muted); }
+.wf-faint { color: var(--wf-fg-faint); }
+.wf-bold { font-weight: 600; }
+.wf-mt { margin-top: 8px; }
+.wf-mb { margin-bottom: 8px; }
+.wf-divider { height: 1px; background: var(--wf-border); margin: 12px 0; }

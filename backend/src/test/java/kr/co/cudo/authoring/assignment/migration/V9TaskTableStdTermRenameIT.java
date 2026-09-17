@@ -130,9 +130,11 @@ class V9TaskTableStdTermRenameIT {
         assertThat(columnNames(NEW_ASGN))
                 .containsExactly("assignment_id", "user_no", "raw_data_id", "task_type_cd",
                         "reg_user_no", "reg_dt", "ver");
+        // ★ 뒤에 <더해진> 컬럼은 이 단언을 넓혀 받는다 — 개명이 아니므로 이 가드가 막을 대상이 아니다.
+        //   actor_role_cd 는 V38 이 더한 「행위 시점의 행위자 역할」이며 맨 끝에 붙는다(ADR-067).
         assertThat(columnNames(NEW_EVT))
                 .containsExactly("evnt_id", "raw_data_id", "evnt_type_cd", "actor_user_no",
-                        "subject_user_no", "prev_user_no", "rsn", "ocrn_dt");
+                        "subject_user_no", "prev_user_no", "rsn", "ocrn_dt", "actor_role_cd");
     }
 
     @Test

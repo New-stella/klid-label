@@ -1,0 +1,85 @@
+{
+  "item": {
+    "id": "UI-148",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "feedback: PortalProgress",
+    "slug": "feedback-portalprogress",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PortalProgress",
+      "tags": [
+        "portal",
+        "feedback",
+        "progress",
+        "upload"
+      ],
+      "category": "feedback",
+      "variants": [
+        {
+          "name": "default",
+          "description": "진행 중."
+        },
+        {
+          "name": "with-caption",
+          "description": "보난 용량을 병기한 형태. 5GB 급 영상에서는 이쪽을 쓴다."
+        },
+        {
+          "name": "failed",
+          "props_diff": {
+            "failed": true
+          },
+          "description": "전송이 끊긴 상태. 채움이 오류색이고 값은 멈춘 지점을 그대로 남긴다."
+        }
+      ],
+      "description": "포털 업로드 진행률 — 막대와 함께 보낸 용량을 병기한다. 백분율만 두지 않는 것은 영상이 최대 5GB 라 68퍼센트만으로는 얼마나 더 기다려야 하는지 가늠할 수 없기 때문이다. 막대 위에 보낸 양과 전체 양을 적고, 막대 아래에는 지금 무엇을 할 수 있고 없는지를 한 줄로 덧붙일 수 있다. 숫자는 고정폭으로 그린다 — 진행률은 계속 갱신되는데 비례폭 숫자를 쓰면 자릿수가 바뀔 때마다 옆 글자가 밀린다. 범위를 벗어난 값은 0과 100 사이로 자른다. 보조기술이 읽을 이름을 반드시 받는다. 실패·중단을 표시하면 채움이 오류색으로 바뀌되 값 자체는 남는다 — 어디까지 갔는지가 이어서 올리기의 근거이기 때문이다.",
+      "props_schema": [
+        {
+          "name": "percent",
+          "type": "number",
+          "required": true,
+          "description": "0에서 100. 범위 밖 값은 잘라 넣는다."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "description": "보조기술이 읽을 이름."
+        },
+        {
+          "name": "caption",
+          "type": "string",
+          "required": false,
+          "description": "막대 위 설명. 보난 양과 전체 양을 적는다."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "막대 아래 보조 안내. 멈추지 못하는 사실과 이어서 올라간다는 사실을 한 자리에 적는다."
+        },
+        {
+          "name": "failed",
+          "type": "boolean",
+          "default": false,
+          "required": false,
+          "description": "실패·중단 표시. 채움이 오류색으로 바뀜다."
+        }
+      ],
+      "usage_example": "포털 업로드 화면(SCREEN-033)의 영상 업로드 진행률. 조작 자리(업로드 버튼)에도 같은 백분율을 실어 스크롤로 막대가 가려져도 상태를 읽을 수 있게 한다.",
+      "attached_files": [],
+      "design_system_id": "DS-002",
+      "accessibility_notes": "진행률 역할과 이름·현재값·최소·최대를 함께 노출한다. 값 갱신이 잦으므로 숫자는 고정폭으로 그려 옆 글자가 밀리지 않게 한다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: feedback: PortalProgress",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-08T06:47:43.199Z",
+    "created_at": "2026-09-08T06:47:43.199Z"
+  }
+}

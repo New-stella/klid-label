@@ -7,6 +7,15 @@ import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 작업 배정 응답.
+ *
+ * <p><b>검수자 축이 없다</b> — 검수자를 영상에 배정하는 절차를 두지 않으므로(ADR-067) 구
+ * {@code reviewerId}/{@code reviewerName} 필드를 없앴다. 되살리지 말 것.
+ *
+ * @design API-070
+ * @design ADR-067
+ */
 public record AssignmentResponse(
         List<Item> items
 ) {
@@ -28,10 +37,6 @@ public record AssignmentResponse(
             Long regUserNo,
             LocalDateTime regDt,
             LocalDateTime assignedAt,
-            // FE TaskListPage — 영상별 REVIEWER 배정자 (없으면 null)
-            Long reviewerId,
-            // FE TaskListPage — 영상별 REVIEWER 실제 이름 (없으면 null)
-            String reviewerName,
             // FE LabelingPage — 해당 영상의 첫 프레임 SRC_SN. 프레임 미생성 시 null.
             // WORKER 가 "작업" 버튼 클릭 시 /label/{firstSrcSn} 으로 navigate 하는 데 사용.
             Long firstSrcSn,
@@ -54,58 +59,14 @@ public record AssignmentResponse(
             // 증강 종류(정규화 WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) — 원본/파싱실패 시 null.
             String augType
     ) {
-        /**
-         * 기본 변환 — REVIEWER 정보 없이 사용한다.
-         * 서비스 레이어에서 REVIEWER 배정 lookup 후 {@link #from(LsTaskAssignment, Long)} 사용 권장.
-         */
+        /** 기본 변환 — 영상 부가정보 없이 배정 행만으로 조립한다. */
         public static Item from(LsTaskAssignment e) {
-            return from(e, null, null, null, null, null, null, null, null);
-        }
-
-        /** REVIEWER 배정 lookup 결과를 함께 주입 (서비스에서 N+1 회피 후 호출). */
-        public static Item from(LsTaskAssignment e, Long reviewerId) {
-            return from(e, reviewerId, null, null, null, null, null, null, null);
+            return from(e, null, null, null, null, null, null);
         }
 
         /**
-         * Service 레이어에서 user 이름 일괄 조회 후 호출 (N+1 회피).
-         * workerName/reviewerName 이 null 이면 폴백("user #N") 적용.
-         */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName) {
-            return from(e, reviewerId, workerName, reviewerName, null, null, null, null, null);
-        }
-
-        /**
-         * firstSrcSn 까지 주입 (cctvName 미주입 호환 오버로드).
-         */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn) {
-            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, null, null, null, null);
-        }
-
-        /**
-         * cctvName 까지 주입 (eventName/eventTypeCd 미주입 호환 오버로드).
-         */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn,
-                                String cctvName) {
-            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, null, null, null);
-        }
-
-        /**
-         * eventName/eventTypeCd 까지 주입 (status 미주입 호환 오버로드).
-         * status 는 null → fallback 'PENDING' 매핑.
-         */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn,
-                                String cctvName, String eventName, String eventTypeCd) {
-            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName,
-                    eventName, eventTypeCd, null);
-        }
-
-        /**
-         * 전체 인자 변환 — 영상의 cctvName / eventName / eventTypeCd / status 까지 한 번에 주입한다.
+         * 영상의 cctvName / eventName / eventTypeCd / status 까지 한 번에 주입한다
+         * (증강 파생 정보 미주입 호환 오버로드).
          * 호출 측에서 {@code VideoRepository#findCctvNamesByRawSns},
          * {@code VideoRepository#findEventInfoByRawSns},
          * {@code LsRawDataStatusRepository.findAllById} 결과를 lookup 한 뒤 전달한다.
@@ -115,40 +76,29 @@ public record AssignmentResponse(
          * dataSttsCd 는 FE AssignmentStatus 코드로 매핑되어 직렬화되며,
          * row 가 없거나 알 수 없는 코드면 'PENDING' 으로 폴백.
          */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn,
+        public static Item from(LsTaskAssignment e,
+                                String workerName, Long firstSrcSn,
                                 String cctvName, String eventName, String eventTypeCd,
                                 String dataSttsCd) {
-            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName,
-                    eventName, eventTypeCd, dataSttsCd, false, null);
+            return from(e, workerName, firstSrcSn, cctvName,
+                    eventName, eventTypeCd, dataSttsCd, false, null, false);
         }
 
         /**
-         * 전체 인자 변환 + 증강 파생 정보(augmented/augType) 주입 (R3).
-         * 호출 측에서 영상(LS_DATA_RAW)을 batch lookup 해 ORGNL_RAW_SN != null 여부와
-         * <b>AUG_TYPE_CD 컬럼값</b>을 전달한다. 원본이면 augmented=false, augType=null.
+         * 전체 인자 변환 — 증강 파생 정보(augmented/augType) + <b>라벨 저장 이력 존재 여부</b>(R5/R8).
          *
-         * <p>구 구현은 augType 을 {@code VMS_CLIP_ID} 마커 역파싱으로 도출했으나, 판별 단일 원천을
-         * 컬럼으로 옮기면서 파서를 제거했다 — 문자열 마커를 다시 읽는 경로를 되살리지 않는다.
-         */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn,
-                                String cctvName, String eventName, String eventTypeCd,
-                                String dataSttsCd, boolean augmented, String augType) {
-            return from(e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName,
-                    eventName, eventTypeCd, dataSttsCd, augmented, augType, false);
-        }
-
-        /**
-         * 전체 인자 변환 + <b>라벨 저장 이력 존재 여부</b> 주입 (R5/R8).
+         * <p>파생 여부·증강 종류는 호출 측에서 영상(LS_DATA_RAW)을 batch lookup 해
+         * ORGNL_RAW_SN != null 여부와 <b>AUG_TYPE_CD 컬럼값</b>을 전달한다. 원본이면
+         * augmented=false, augType=null. 구 구현은 augType 을 {@code VMS_CLIP_ID} 마커 역파싱으로
+         * 도출했으나 판별 단일 원천을 컬럼으로 옮기면서 파서를 제거했다 — 되살리지 않는다.
          *
          * <p>{@code hasSaveHistory} 는 목록 쿼리가 {@code workStatus} 필터에 쓴 것과 <b>같은 표현식</b>의
          * 프로젝션 결과다 — 여기서 다시 조회하면 필터와 표시가 갈라진다(HIGH-3). 그 값을 모르는
-         * 경로(단건 응답 등)는 {@code false} 로 위임하는 오버로드를 쓰며, 이때 표시 상태는 변경 전과
-         * 동일하다(ASSIGNED → PENDING).
+         * 경로(단건 응답 등)는 {@code false} 를 넘기며, 이때 표시 상태는 변경 전과 동일하다
+         * (ASSIGNED → PENDING).
          */
-        public static Item from(LsTaskAssignment e, Long reviewerId,
-                                String workerName, String reviewerName, Long firstSrcSn,
+        public static Item from(LsTaskAssignment e,
+                                String workerName, Long firstSrcSn,
                                 String cctvName, String eventName, String eventTypeCd,
                                 String dataSttsCd, boolean augmented, String augType,
                                 boolean hasSaveHistory) {
@@ -170,8 +120,6 @@ public record AssignmentResponse(
                     e.getRegUserNo(),
                     e.getRegDt(),
                     e.getRegDt(),
-                    reviewerId,
-                    reviewerName,
                     firstSrcSn,
                     eventName,
                     eventTypeCd,

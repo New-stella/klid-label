@@ -122,7 +122,7 @@ class CctvDisplayNameFallbackTest {
     void 배정목록_영상명이_없으면_영상명과_영상제목이_모두_영상번호_표기가_된다() {
         // given / when — WORKER 작업목록이 읽는 두 필드는 같은 판정기를 거친다.
         AssignmentResponse.Item item = AssignmentResponse.Item.from(
-                labeler(501L), null, null, null, null, null, null, null, null);
+                labeler(501L), null, null, null, null, null, null);
 
         // then — FE 가 cctvName 을 그리므로 이 필드가 비면 행 전체가 빈칸이 된다.
         assertThat(item.cctvName()).isEqualTo("영상 #501");
@@ -135,7 +135,7 @@ class CctvDisplayNameFallbackTest {
     void 배정목록_영상명이_있으면_영상명과_영상제목이_모두_그_이름이다() {
         // given / when — 회귀 가드.
         AssignmentResponse.Item item = AssignmentResponse.Item.from(
-                labeler(501L), null, null, null, null, "유성구 어은동 사거리", null, null, null);
+                labeler(501L), null, null, "유성구 어은동 사거리", null, null, null);
 
         // then
         assertThat(item.cctvName()).isEqualTo("유성구 어은동 사거리");

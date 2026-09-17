@@ -54,12 +54,13 @@ describe('AdminEndpointsPage', () => {
     useAdminSessionStore.getState().clear();
   });
 
-  it('주소_칸_세_종과_대상_밖_안내가_함께_보인다', async () => {
+  it('주소_칸과_대상_밖_안내가_함께_보인다', async () => {
     renderWithProviders(<AdminEndpointsPage />, { initialEntries: ['/admin/endpoints'] });
 
     await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
     expect(screen.getByLabelText('외부 증강 벤더')).toBeInTheDocument();
     expect(screen.getByLabelText('관제 통지 수신처')).toBeInTheDocument();
+    expect(screen.getByLabelText('관제 계정 창구')).toBeInTheDocument();
     // 여기서 찾다가 없다고 판단하는 일이 없도록 화면이 대상 밖임을 밝힌다.
     expect(
       screen.getByText('데이터베이스 접속정보는 이 화면에서 다루지 않습니다.'),
@@ -91,7 +92,7 @@ describe('AdminEndpointsPage', () => {
     await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
     const subtitle = screen.getByText(/주소 칸 —/);
     expect(subtitle).toHaveTextContent(
-      '주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 / 장비 목록 — 추론 · 외부 시계열 분석',
+      '주소 칸 — 비식별 서버 · 외부 증강 벤더 · 관제 통지 수신처 · 관제 계정 창구 / 장비 목록 — 추론 · 외부 시계열 분석',
     );
   });
 

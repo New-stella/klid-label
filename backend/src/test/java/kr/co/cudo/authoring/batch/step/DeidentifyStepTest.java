@@ -209,6 +209,131 @@ class DeidentifyStepTest {
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // ⓪ 출처유형 제외 (ADR-066) — KPST 검사보다 앞
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    private DeidentifyStep newExclusionStep(boolean kpstEnabled, KpstDeidentService kpstService,
+                                            String excludedSrcTypes,
+                                            kr.co.cudo.authoring.batch.service.DeidentExclusionService exclusion) {
+        DeidentifyStep s = new DeidentifyStep(kpstService, null,
+                new kr.co.cudo.authoring.batch.service.DeidentExclusionPolicy(excludedSrcTypes), exclusion);
+        setField(s, "kpstEnabled", kpstEnabled);
+        return s;
+    }
+
+    private LsDataRaw newRawWithSrcType(String srcType) {
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-x", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/clip.mp4", null, 60, srcType);
+        setField(raw, "rawSn", 9001L);
+        return raw;
+    }
+
+    @Test
+    @DisplayName("★제외_출처유형_GENERATED_는_KPST에_위탁하지_않고_복사로_동기_완료한다")
+    void excludedSrcTypeCompletesByCopyWithoutKpst() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        when(exclusion.complete(any())).thenReturn("/nas/videos/9001/deid/clip.mp4");
+        DeidentifyStep step = newExclusionStep(true, kpst, "GENERATED", exclusion);
+        LsDataRaw raw = newRawWithSrcType(LsDataRaw.SRC_TYPE_GENERATED);
+
+        DeidentResult result = step.run(raw);
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.deidFilePath()).isEqualTo("/nas/videos/9001/deid/clip.mp4");
+        verify(exclusion).complete(raw);
+        org.mockito.Mockito.verifyNoInteractions(kpst);
+    }
+
+    @Test
+    @DisplayName("★execute_경유도_제외_출처유형이면_컨텍스트에_동기완료가_실린다")
+    void executeMarksCompletedForExcluded() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        when(exclusion.complete(any())).thenReturn("/nas/videos/9001/deid/clip.mp4");
+        DeidentifyStep step = newExclusionStep(true, kpst, "GENERATED", exclusion);
+        LsDataRaw raw = newRawWithSrcType(LsDataRaw.SRC_TYPE_GENERATED);
+        var ctx = new kr.co.cudo.authoring.batch.pipeline.BatchContext(raw.getRawSn(), raw);
+
+        step.execute(ctx);
+
+        assertThat(ctx.isDeidentCompleted()).isTrue();
+        org.mockito.Mockito.verifyNoInteractions(kpst);
+    }
+
+    @Test
+    @DisplayName("목록_밖_출처유형_ORIGINAL_은_종전대로_KPST_위탁_deferred")
+    void originalSrcTypeStillSubmitsToKpst() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        DeidentifyStep step = newExclusionStep(true, kpst, "GENERATED", exclusion);
+        LsDataRaw raw = newRawWithSrcType("ORIGINAL");
+
+        DeidentResult result = step.run(raw);
+
+        assertThat(result.completed()).isFalse();
+        verify(kpst).submit(raw);
+        org.mockito.Mockito.verifyNoInteractions(exclusion);
+    }
+
+    @Test
+    @DisplayName("설정을_비우면_GENERATED_영상도_KPST에_위탁한다")
+    void emptyConfigSubmitsGeneratedToKpst() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        DeidentifyStep step = newExclusionStep(true, kpst, "", exclusion);
+        LsDataRaw raw = newRawWithSrcType(LsDataRaw.SRC_TYPE_GENERATED);
+
+        DeidentResult result = step.run(raw);
+
+        assertThat(result.completed()).isFalse();
+        verify(kpst).submit(raw);
+        org.mockito.Mockito.verifyNoInteractions(exclusion);
+    }
+
+    @Test
+    @DisplayName("출처유형이_null_인_영상은_KPST에_위탁한다")
+    void nullSrcTypeSubmitsToKpst() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        DeidentifyStep step = newExclusionStep(true, kpst, "GENERATED", exclusion);
+        LsDataRaw raw = newRawWithSrcType(null);
+
+        step.run(raw);
+
+        verify(kpst).submit(raw);
+        org.mockito.Mockito.verifyNoInteractions(exclusion);
+    }
+
+    @Test
+    @DisplayName("★KPST가_꺼져_있어도_제외_출처유형은_복사로_완료한다_설정오류로_거부하지_않는다")
+    void kpstDisabledStillCompletesExcluded() {
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        when(exclusion.complete(any())).thenReturn("/nas/videos/9001/deid/clip.mp4");
+        DeidentifyStep step = newExclusionStep(false, null, "GENERATED", exclusion);
+
+        DeidentResult result = step.run(newRawWithSrcType(LsDataRaw.SRC_TYPE_GENERATED));
+
+        assertThat(result.completed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("제외_처리_실패는_예외로_전파되고_KPST로_폴백하지_않는다")
+    void exclusionFailurePropagatesWithoutKpstFallback() {
+        KpstDeidentService kpst = mock(KpstDeidentService.class);
+        var exclusion = mock(kr.co.cudo.authoring.batch.service.DeidentExclusionService.class);
+        when(exclusion.complete(any())).thenThrow(new CustomException(
+                kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT, "비식별 원본 영상이 존재하지 않습니다."));
+        DeidentifyStep step = newExclusionStep(true, kpst, "GENERATED", exclusion);
+
+        assertThatThrownBy(() -> step.run(newRawWithSrcType(LsDataRaw.SRC_TYPE_GENERATED)))
+                .isInstanceOf(CustomException.class);
+        org.mockito.Mockito.verifyNoInteractions(kpst);
+    }
+
     private static void setField(Object target, String name, Object value) {
         try {
             Field f = findField(target.getClass(), name);

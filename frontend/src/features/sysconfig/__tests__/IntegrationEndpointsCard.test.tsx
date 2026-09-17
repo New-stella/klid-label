@@ -79,26 +79,109 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
     vi.useRealTimers();
   });
 
-  it('연동_대상_3종이_렌더된다 — 저장한_값이_곧_진실원인_축만', () => {
+  it('연동_대상_주소_칸이_렌더된다 — 저장한_값이_곧_진실원인_축만', () => {
     renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
 
     expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument();
     expect(screen.getByLabelText('외부 증강 벤더')).toBeInTheDocument();
     expect(screen.getByLabelText('관제 통지 수신처')).toBeInTheDocument();
+    expect(screen.getByLabelText('관제 계정 창구')).toBeInTheDocument();
+  });
+
+  /*
+   * [@design SCREEN-042] 관제 계정 창구 — 관제 통지 수신처와 별개 값.
+   * ★ 위치: 관제 통지 수신처 **바로 아래**. 두 관제 창구가 떨어져 있으면 어느 것이 통지용이고
+   *   어느 것이 세션 중계용인지 한눈에 갈리지 않는다.
+   * ★ 빈 칸 안내: 이 칸은 배포 기본값이 비어 있어 «배포 기본값» 문구가 거짓이 된다 — 문구 축을 값으로 고정한다.
+   */
+  it('★관제_계정_창구_칸은_관제_통지_수신처_바로_아래에_있고_빈_값_안내는_세션_연장_불가다', () => {
+    renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
+
+    const inputs = screen
+      .getAllByRole('textbox')
+      .filter((el) => el.id.startsWith('endpoint-'))
+      .map((el) => el.id);
+    const notifyIdx = inputs.indexOf('endpoint-controlNotify');
+    expect(notifyIdx).toBeGreaterThanOrEqual(0);
+    expect(inputs[notifyIdx + 1]).toBe('endpoint-controlAccount');
+
+    const account = screen.getByLabelText('관제 계정 창구') as HTMLInputElement;
+    expect(account.value).toBe('');
+    expect(account.placeholder).toBe('미설정 — 세션 연장 불가');
+    expect(account.placeholder).not.toContain('배포 기본값');
+    expect(screen.getByText(/비어 있으면 세션 연장이 동작하지 않습니다/)).toBeInTheDocument();
+  });
+
+  it('★관제_계정_창구에_저장값이_있으면_그_값이_칸에_채워진다 (읽는 자리 가드)', () => {
+    renderWithProviders(
+      <IntegrationEndpointsCard
+        configs={{
+          ...storedConfigs,
+          [ConfigKey.CONTROL_NOTIFY_URL]: 'https://notify.example-vendor.net',
+          [ConfigKey.CONTROL_ACCOUNT_URL]: 'https://account.example-vendor.net',
+        }}
+      />,
+    );
+
+    // 두 관제 칸이 서로의 키를 읽지 않는다 — 값이 다른 상태에서만 이 축이 드러난다.
+    expect(screen.getByLabelText('관제 계정 창구')).toHaveValue('https://account.example-vendor.net');
+    expect(screen.getByLabelText('관제 통지 수신처')).toHaveValue('https://notify.example-vendor.net');
+  });
+
+  it('★관제_계정_창구만_바꾸면_그_키_한_건만_전송된다 — 다른_칸_값은_나가지_않는다', async () => {
+    const puts = wireHappyPath(mock);
+    renderWithProviders(
+      <IntegrationEndpointsCard
+        configs={{
+          ...storedConfigs,
+          [ConfigKey.CONTROL_NOTIFY_URL]: 'https://notify.example-vendor.net',
+        }}
+      />,
+    );
+    await authenticate();
+    await screen.findByTestId('admin-session-remaining');
+
+    fireEvent.change(screen.getByLabelText('관제 계정 창구'), {
+      target: { value: 'https://account.example-vendor.net' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0].key).toBe(ConfigKey.CONTROL_ACCOUNT_URL);
+    expect(puts[0].value).toBe('https://account.example-vendor.net');
+    expect(puts[0].adminHeader).toBe(DUMMY_SESSION);
+    // 통지 수신처 키로 새지 않는다 — 두 관제 창구는 별개 값이다.
+    expect(puts.map((p) => p.key)).not.toContain(ConfigKey.CONTROL_NOTIFY_URL);
+  });
+
+  it('★관제_계정_창구의_형식_위반은_화면에서_먼저_걸러_서버까지_가지_않는다', async () => {
+    const puts = wireHappyPath(mock);
+    renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
+    await authenticate();
+    await screen.findByTestId('admin-session-remaining');
+
+    fireEvent.change(screen.getByLabelText('관제 계정 창구'), {
+      target: { value: 'account.example-vendor.net' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(await screen.findByText(/http:\/\/ 또는 https:\/\/ 로 시작/)).toBeInTheDocument();
+    expect(screen.getByLabelText('관제 계정 창구')).toHaveAttribute('aria-invalid', 'true');
+    expect(puts).toHaveLength(0);
   });
 
   /*
    * ★ 「없다」만 단언하면 그 자리에 서야 할 것이 함께 사라져도 통과한다 — 남아야 할 세 칸의
    *   존재 단언과 **짝으로** 둔다. 제거 축과 존치 축은 서로를 대체하지 않는다.
    */
-  it('★죽은_칸_두_개가_사라졌다 — 남아야_할_세_칸은_그대로다 (회귀 가드)', () => {
+  it('★죽은_칸_두_개가_사라졌다 — 남아야_할_칸은_그대로다 (회귀 가드)', () => {
     renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
 
     for (const label of REMOVED_FIELD_LABELS) {
       expect(screen.queryByLabelText(label)).toBeNull();
     }
     // 존치 축 — 함께 증발하지 않았는지 본다.
-    for (const label of ['비식별 서버', '외부 증강 벤더', '관제 통지 수신처']) {
+    for (const label of ['비식별 서버', '외부 증강 벤더', '관제 통지 수신처', '관제 계정 창구']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
   });
@@ -119,10 +202,13 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
     fireEvent.change(screen.getByLabelText('관제 통지 수신처'), {
       target: { value: 'https://control.example-vendor.net' },
     });
+    fireEvent.change(screen.getByLabelText('관제 계정 창구'), {
+      target: { value: 'https://control-account.example-vendor.net' },
+    });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     // 대기는 «지키려는 축»이 아니라 건수로 건다 — 주소로 기다리면 변이가 대기에서 먼저 죽는다.
-    await waitFor(() => expect(puts).toHaveLength(3));
+    await waitFor(() => expect(puts).toHaveLength(4));
     for (const key of REMOVED_CONFIG_KEYS) {
       expect(puts.map((p) => p.key)).not.toContain(key);
     }
@@ -131,6 +217,7 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
         ConfigKey.KPST_DEID_BASE_URL,
         ConfigKey.AUGMENT_EXTERNAL_BASE_URL,
         ConfigKey.CONTROL_NOTIFY_URL,
+        ConfigKey.CONTROL_ACCOUNT_URL,
       ].sort(),
     );
   });
@@ -139,7 +226,7 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
     renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
 
     expect(screen.getByText('읽기 전용')).toBeInTheDocument();
-    for (const label of ['비식별 서버', '외부 증강 벤더', '관제 통지 수신처']) {
+    for (const label of ['비식별 서버', '외부 증강 벤더', '관제 통지 수신처', '관제 계정 창구']) {
       expect(screen.getByLabelText(label)).toHaveAttribute('readonly');
     }
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();

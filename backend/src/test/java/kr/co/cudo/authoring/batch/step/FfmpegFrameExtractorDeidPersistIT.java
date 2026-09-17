@@ -211,6 +211,46 @@ class FfmpegFrameExtractorDeidPersistIT {
         assertThat(reloaded).allMatch(f -> f.getDeIdntfSrcFilePathNm().replace('\\', '/').contains("/frames/deid/"));
     }
 
+    @Autowired
+    private kr.co.cudo.authoring.batch.service.DeidentExclusionService deidentExclusionService;
+
+    /**
+     * ADR-066 — 출처유형 제외로 원본을 복사해 완료한 영상도 프레임 추출이 <b>최신 성공 이력(EXCLUDED)의
+     * 복사본 경로</b>를 읽어 비식별 벌까지 만든다(추출기 코드 무변경). 스프링 테스트 컨텍스트 종류를 늘리지
+     * 않으려고 프레임 기록기 목을 이미 가진 이 클래스의 컨텍스트를 재사용한다.
+     *
+     * @design ADR-066
+     */
+    @Test
+    @DisplayName("★출처유형_제외_복사본_이력으로도_원본_비식별_두_벌_프레임이_추출된다")
+    void excludedCopyHistory_extractsBothFrameSets() throws IOException {
+        stubFrameWriter();
+        Path rawVideo = STORAGE_BASE.resolve("src").resolve("gen-" + System.nanoTime() + ".mp4");
+        Files.createDirectories(rawVideo.getParent());
+        Files.write(rawVideo, new byte[]{1, 2, 3});
+        rawSn = txTemplate.execute(s -> videoRepository.save(LsDataRaw.createFromIngest(
+                "CLIP-EXCL-" + System.nanoTime(), "CCTV-001", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_PRVC, rawVideo.toString(), null, 60, LsDataRaw.SRC_TYPE_GENERATED)).getRawSn());
+        LsDataRaw seeded = txTemplate.execute(s -> videoRepository.findById(rawSn).orElseThrow());
+
+        String copied = deidentExclusionService.complete(seeded);
+        LsDeidentProcLog latest = txTemplate.execute(s ->
+                deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn).orElseThrow());
+        assertThat(latest.getReqKindCd()).isEqualTo(LsDeidentProcLog.REQ_KIND_EXCLUDED);
+        assertThat(latest.getDeIdntfFilePathNm()).isEqualTo(copied);
+
+        seedMarking(rawSn, rawVideo);
+        extractor.execute(buildCtx(rawSn));
+
+        List<LsDataSrc> frames = txTemplate.execute(s -> srcRepository.findByRawSnOrderByFrameNoAsc(rawSn));
+        assertThat(frames).hasSize(2);
+        assertThat(frames).allMatch(f -> f.getSrcFilePathNm().replace('\\', '/').contains("/frames/raw/"));
+        assertThat(frames)
+                .as("최신 성공 이력(EXCLUDED 복사본)을 읽어 비식별 벌도 만들어야 한다")
+                .allMatch(f -> f.getDeIdntfSrcFilePathNm() != null
+                        && f.getDeIdntfSrcFilePathNm().replace('\\', '/').contains("/frames/deid/"));
+    }
+
     /**
      * ★★ DEV_FIX 3라운드 — <b>재사용 분기의 비식별 경로 백필이 실제로 DB 에 커밋되는지</b> 고정한다 (@req R1).
      *

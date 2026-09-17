@@ -7,6 +7,21 @@
  * 그 지점으로 추출이 시작되고, 추출이 끝나면 자산이 준비 완료가 되어 라벨링으로 넘어간다.
  * 마킹을 거치지 않은 자산은 프레임을 갖지 않는다.
  *
+ * <h3>모양 — 부모 포털의 저작도구 화면을 그대로 입혔다 (2026-09-16)</h3>
+ * 부모 포털(KLID_Portal)이 이 화면을 <b>자기 부품으로 다시 그려</b> 「저작도구 쪽에 넘기는 기준」으로
+ * 삼았고(`pages/workspace/authoring/AuthoringMarkingView`), 그 짜임을 여기에 옮겼다.
+ *   · 판·기둥 짜임 = `klid-marking*` · `klid-authoring-block`
+ *     (styles/portal/marking-view.css · authoring-layout.css). ⚠ 화면이 그 CSS 를 스스로 import
+ *     하지 않는다 — 포털 채널 스타일 로드의 단일 지점은 `styles/portalLook.ts` 이고, 화면마다
+ *     import 를 흩으면 채널별로 스타일이 갈린다(회귀 가드 bootstrapSingleSource).
+ *   · 부품 = 포털 킷(`components/portal/kit`) + 저작 부품(`components/portal/authoring`) + KRDS 킷
+ *   · <b>안내 띠가 콘텐츠 맨 위로 올라왔다</b> — 제목 바로 아래, 재생기·설정 기둥보다 먼저 읽힌다
+ *     (구 동작: 잠긴 사유가 설정 기둥 안에 있어 오른쪽 기둥을 다 읽어야 나왔다)
+ *   · 지점 목록이 <b>제 카드</b>로 떨어져 나왔다(구 동작: 설정과 한 판)
+ * ⚠ 관제 공통 부품(`components/common/*`)을 쓰지 않는다 — 관제 화면 여럿이 함께 쓰므로 포털 모양을
+ *   넣으면 관제 화면이 같이 바뀐다(사용자 확정 구속: <b>관제향 화면·컴포넌트 불변</b>).
+ * ⚠ <b>데이터 흐름·창구·판정은 하나도 바꾸지 않았다.</b> 바뀐 것은 무엇으로 그리느냐뿐이다.
+ *
  * <h3>관제 채널 마킹에서 가져오지 않은 것</h3>
  * 가려진 사본 재생 · 마스킹 누락 신고 · 검증 질문 선택 · 외부 위탁 기동 · 작업 배정·검수 연계.
  * 이 경로의 자산에는 비식별 단계가 없어 <b>사용자가 올린 원본</b>을 그대로 재생하고, 관제 인입
@@ -24,21 +39,12 @@
  * 요청이 나가는 자리는 <b>그 확인 창의 확인 버튼 하나뿐</b>이다(회귀 가드가 이 지점을 고정한다).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useHref, useNavigate, useParams } from 'react-router-dom';
-import { Button, Link } from 'krds-react';
+import { Link, useParams } from 'react-router-dom';
+import { Button } from 'krds-react';
 import { ChevronLeft, Scissors } from 'lucide-react';
 
-import {
-  Alert,
-  EmptyState,
-  ResultCount,
-  StepHeading,
-  Toaster,
-  useToasts,
-} from '@portal/components/custom';
-import { MarkPointList } from '@portal/pages/workspace/authoring/MarkPointList';
-import { VideoStage } from '@portal/pages/workspace/authoring/VideoStage';
-import '@portal/pages/workspace/authoring/AuthoringMarkingView.css';
+import { MarkPointList, VideoStage } from '@/components/portal/authoring';
+import { Alert, EmptyState, ResultCount, StepHeading } from '@/components/portal/kit';
 import { markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { markingFrameIndex, resolveMarkingFps } from '@/features/marking/markingFps';
 import { useStreamPlaybackRetry } from '@/features/marking/hooks/useStreamPlaybackRetry';
@@ -75,6 +81,8 @@ import { PortalUploadStatus, PortalUploadType } from '@/features/portal/uploads/
 import { toDeployedApiUrl } from '@/lib/api/deployBasePath';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
+import { useUiStore } from '@/stores/useUiStore';
+
 
 /**
  * 추출 장수 상한 — <b>화면은 모른다.</b>
@@ -89,16 +97,20 @@ import { extractBeMessage } from '@/lib/api/extractBeMessage';
  */
 const EXTRACT_FRAME_CAP: number | null = null;
 
+/** 돌아갈 자리 — 이 화면으로 들어오는 유일한 문이다. */
+const UPLOADS_PATH = '/portal/uploads';
+
 /**
  * 차단 안내 — 세 축이 같은 자리·같은 형태로 사유를 보여 준다(판정과 문구는 축마다 따로다).
  *
  * ★<b>막다른 길로 두지 않는다.</b> 이 자리에 닿은 사람은 마킹을 하러 왔다가 못 하게 된 것이라,
  *   사유만 알리고 세워 두면 스스로 돌아갈 길을 찾아야 한다. 목록으로 가는 문을 함께 둔다.
+ * ★ 그 문은 <b>링크다</b> — 킷 버튼은 다형 부품이라 라우터 링크를 끼우면 생김새와 링크의 성질을
+ *   둘 다 갖는다. `role` 을 되돌리는 것은 킷 기본값이 `button` 이라서다(보조기술이 「링크」로 읽어야
+ *   가운데 클릭·새 탭·주소 복사가 있는 자리임이 전달된다).
  */
 function MarkingBlockedNotice({ reason, testId }: { reason: string; testId: string }) {
-  const navigate = useNavigate();
   return (
-    // 머리 줄·편집기 없이 안내 하나만 선다(포털 화면 「마킹할 수 없음」과 같은 짜임).
     <section className="klid-authoring-block" aria-label="업로드 영상 마킹">
       <EmptyState
         icon={Scissors}
@@ -109,7 +121,7 @@ function MarkingBlockedNotice({ reason, testId }: { reason: string; testId: stri
           </span>
         }
         action={
-          <Button variant="secondary" size="medium" onClick={() => navigate(UPLOADS_PATH)}>
+          <Button as={Link} to={UPLOADS_PATH} role="link" size="medium" variant="secondary">
             내 업로드로 돌아가기
           </Button>
         }
@@ -117,9 +129,6 @@ function MarkingBlockedNotice({ reason, testId }: { reason: string; testId: stri
     </section>
   );
 }
-
-/** 돌아갈 자리 — 이 화면으로 들어오는 유일한 문이다. */
-const UPLOADS_PATH = '/portal/uploads';
 
 /** 오류가 「재생할 파일이 아직 없다」인가 — 업로드 완료 축의 유일한 신호다. */
 function isFileNotReady(error: unknown): boolean {
@@ -130,14 +139,7 @@ export function PortalUploadMarkingPage() {
   const { uldSn: uldSnParam } = useParams<{ uldSn: string }>();
   const parsed = uldSnParam ? Number(uldSnParam) : NaN;
   const uldSn = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  const navigate = useNavigate();
-  const uploadsHref = useHref(UPLOADS_PATH);
-  /*
-   * 잠깐 뜨는 알림 — 포털 알림(`Toaster`)으로 이 화면이 직접 띄운다. 앱 전역 알림 자리는 관제 모양이라
-   * 포털 채널에서는 쓰지 않는다(포털 화면 「저장 완료 알림」 등과 같은 자리 · 같은 모양).
-   */
-  const toasts = useToasts();
-  const pushToast = toasts.push;
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const playerRef = useRef<PortalMarkingStageHandle>(null);
   const [mode, setMode] = useState<PortalMarkingMode>(PortalMarkingMode.AUTO);
@@ -203,12 +205,12 @@ export function PortalUploadMarkingPage() {
       setManualMarks([]);
       setSelectedIndex(null);
       pushToast({
-        tone: 'success',
+        variant: 'success',
         message: `마킹을 저장했습니다. 프레임 ${result.markCount}장을 뽑기 시작합니다.`,
       });
       if (result.truncated) {
         pushToast({
-          tone: 'warning',
+          variant: 'warning',
           message: `고른 지점 ${result.requestedMarkCount}건 가운데 ${result.markCount}건만 쓰였습니다(추출 장수 상한).`,
         });
       }
@@ -216,7 +218,7 @@ export function PortalUploadMarkingPage() {
     onError: (err) => {
       setConfirmOpen(false);
       pushToast({
-        tone: 'danger',
+        variant: 'error',
         message: extractBeMessage(err, '마킹을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
       });
     },
@@ -279,14 +281,14 @@ export function PortalUploadMarkingPage() {
     if (locked || saveMutation.isPending) return;
     if (!isAuto && manualMarks.length === 0) {
       pushToast({
-        tone: 'warning',
+        variant: 'warning',
         message: '재생하며 지점을 1건 이상 찍어 주세요.',
       });
       return;
     }
     if (isAuto && totalFrames <= 0) {
       pushToast({
-        tone: 'warning',
+        variant: 'warning',
         message:
           '영상 길이를 아직 확인하지 못해 자동 마킹을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.',
       });
@@ -337,6 +339,27 @@ export function PortalUploadMarkingPage() {
     setSelectedIndex(null);
   }, [mode]);
 
+  /*
+   * 지점 목록 부품은 지점을 <b>프레임 번호</b>로 주고받는다(자리 번호가 아니다). 그 환산을 여기서
+   * 한 번만 해 두고 아래 세 자리(고르기 · 지우기 · 이름표)가 같은 표를 본다 — 자리마다 따로
+   * 훑으면 정렬이 바뀔 때 한 자리만 어긋난다.
+   */
+  const markByFrame = useMemo(() => {
+    const map = new Map<number, { index: number; mark: MarkItem }>();
+    displayMarks.forEach((mark, index) => map.set(mark.frameIndex, { index, mark }));
+    return map;
+  }, [displayMarks]);
+  const markFrames = useMemo(() => displayMarks.map((m) => m.frameIndex), [displayMarks]);
+  const selectedFrame =
+    selectedIndex !== null ? (displayMarks[selectedIndex]?.frameIndex ?? null) : null;
+  const pointLabel = useCallback(
+    (frame: number) => {
+      const ts = markByFrame.get(frame)?.mark.timestamp;
+      return ts ? `F${frame} (${ts})` : `F${frame}`;
+    },
+    [markByFrame],
+  );
+
   if (uldSn === undefined) {
     return (
       <MarkingBlockedNotice reason="잘못된 자산 주소입니다." testId="marking-blocked-invalid" />
@@ -378,37 +401,42 @@ export function PortalUploadMarkingPage() {
   const videoSrc = streamExhausted ? '' : toDeployedApiUrl(streamQuery.data?.url);
   const streamFailed =
     streamExhausted || (streamQuery.isError && !isFileNotReady(streamQuery.error));
-
-  /*
-   * 목록 조각은 지점을 프레임 번호로 받는다 — 번호 ↔ 목록 순번 · 표시 시각을 여기서 잇는다.
-   * 순번으로 다루는 흐름(고르기 · 지우기)은 그대로 두고 번호에서 순번을 되찾아 넘긴다.
-   */
-  const markFrames = displayMarks.map((m) => m.frameIndex);
-  const markOf = (frame: number) => displayMarks.find((m) => m.frameIndex === frame);
-  const selectedFrame = selectedIndex !== null ? (displayMarks[selectedIndex]?.frameIndex ?? null) : null;
+  const canRemove = !locked && !isAuto;
 
   return (
     // [@design SCREEN-045]
-    // 짜임은 포털 화면(KLID_Portal `AuthoringMarkingView`)과 같다 — 제목 → (잠김·일부만 쓰임 안내 띠) →
-    // 왼쪽 넓은 재생기 · 오른쪽 좁은 설정 기둥(설정 카드 · 지점 목록 카드). 간격·폭은 포털 짜임 CSS 가 갖는다.
-    <section className="klid-authoring-block" aria-labelledby="marking-title">
-      {/* 머리 — 이름 옆에 무엇에 대한 마킹인지(파일명 — 텍스트 노드로만 렌더), 오른쪽 끝에 돌아가는 길.
-          이 화면은 목록의 한 행에서 들어오는 자리라 나가는 문이 없으면 뒤로가기 말고는 방법이 없다 */}
+    // ★<b>한 화면에 담는 것을 기준으로 짠다.</b> 넓은 폭에서는 두 기둥으로 나누어 왼쪽에 재생 무대,
+    //   오른쪽에 설정·완료·지점 목록을 두고, 좁은 폭에서는 같은 차례로 한 기둥에 쌓인다(격자가
+    //   그 전환을 갖는다 — marking-view.css).
+    //   ⚠ 세로로만 쌓으면 무대(영상+눈금+조작)만으로 화면이 차서 <b>완료 명령이 화면 밖으로
+    //     밀려난다</b> — 되돌릴 수 없는 조작을 눈으로 확인하며 누를 수 없게 된다.
+    //   ★<b>영상 높이 상한(구 `max-h-[65vh]`)은 두지 않아도 그 걱정이 성립하지 않는다 — 실측했다.</b>
+    //     격자가 두 기둥을 <b>위로 맞춰</b> 세우므로(`align-items: start`) 왼쪽 영상이 아무리 커져도
+    //     오른쪽 기둥은 제자리에 남는다. 1440·1920·2560 폭에서 「마킹 완료」 버튼 아랫변이
+    //     <b>전부 457px</b> 로 같았다(폭과 무관). 그래서 시안대로 16:9 에 맡긴다.
+    //     ⚠ 되돌리기 전에 이 실측부터 다시 할 것 — 상한을 다시 씌우면 넓은 화면에서 영상만 작아진다.
+    <section className="klid-authoring-block" aria-labelledby="portal-marking-head">
+      {/* 머리 — 이름 옆에 무엇에 대한 마킹인지(파일명), 오른쪽 끝에 돌아가는 길.
+          돌아가는 길은 글자 걸음이다 — 이 면의 걸음(마킹 완료)과 무게를 다투지 않는다.
+          ★제목 줄 오른쪽에 얹는다: 위에 따로 한 줄을 두면 그 줄만큼 영상이 작아진다.
+          이 화면에서 세로 한 줄은 영상 높이와 맞바꾸는 자원이다.
+          ⚠ 사용자 파일명은 텍스트 노드로만 렌더한다(자동 escape). */}
       <StepHeading
         size="md"
-        id="marking-title"
+        id="portal-marking-head"
         title="업로드 영상 마킹"
         note={detail?.orgnlFileNm ?? undefined}
         desc="프레임을 어느 지점에서 뽑을지 정합니다. 완료하면 그 지점으로 추출이 시작됩니다."
         aside={
-          <Button size="small" variant="text" onClick={() => navigate(UPLOADS_PATH)}>
+          <Button as={Link} to={UPLOADS_PATH} role="link" size="small" variant="text">
             <ChevronLeft aria-hidden />내 업로드
           </Button>
         }
       />
 
-      {/* 완료가 잠긴 자산 — 사유와 회복 경로를 함께 알린다. 기다린다고 풀리는 것이 아니다.
-          제목 바로 아래, 재생기·설정 기둥보다 먼저 읽힌다(포털 화면의 자리) */}
+      {/* 잠긴 자산 — 사유와 회복 경로를 함께 알린다. 기다린다고 풀리는 것이 아니다.
+          ★안내 띠는 콘텐츠 맨 위다 — 재생기·설정 기둥보다 먼저 읽힌다.
+          코발트(primary)인 것은 지나가는 규칙이 아니라 <b>지금 이 면의 사정</b>이라서다. */}
       {lock !== null && (
         <div data-testid="marking-locked-notice">
           <Alert
@@ -416,23 +444,18 @@ export function PortalUploadMarkingPage() {
             live="none"
             title="다시 마킹하려면 이 자산을 지우고 다시 올려야 합니다."
           >
-            {lock === 'SAVED' ? (
+            {lock === 'EXTRACTING' ? (
+              '이미 마킹을 저장해 지금 프레임을 뽑고 있습니다. 추출이 진행 중인 동안에는 이 자산을 지울 수 없으니, 추출이 끝난 뒤에 지우고 다시 올려 주세요.'
+            ) : (
               <>
                 이미 마킹을 저장한 영상입니다.{' '}
-                <Link
-                  href={uploadsHref}
-                  size="small"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(UPLOADS_PATH);
-                  }}
-                >
-                  내 업로드
+                {/* 킷 링크의 생김새만 빌린다 — 실체는 라우터 링크라야 주소가 살아 있고
+                    보조기술이 「링크」로 읽는다(킷 버튼은 `role` 이 button 으로 고정된다). */}
+                <Link to={UPLOADS_PATH} className="krds-btn link small">
+                  <span className="underline">내 업로드</span>
                 </Link>
                 에서 이 자산을 지우고 다시 올리면 새로 마킹할 수 있습니다.
               </>
-            ) : (
-              '이미 마킹을 저장해 지금 프레임을 뽑고 있습니다. 추출이 진행 중인 동안에는 이 자산을 지울 수 없으니, 추출이 끝난 뒤에 지우고 다시 올려 주세요.'
             )}
           </Alert>
         </div>
@@ -450,7 +473,7 @@ export function PortalUploadMarkingPage() {
       )}
 
       <div className="klid-marking">
-        {/* ── 재생기 ── 주소를 받기 전 · 재생할 수 없을 때는 영상 자리 판만 선다(눈금 · 재생 조작은 누를 대상이 없다) */}
+        {/* ── 재생기 ── */}
         {videoSrc ? (
           <PortalMarkingStage
             ref={playerRef}
@@ -465,6 +488,9 @@ export function PortalUploadMarkingPage() {
             onDurationChange={setPlayerDurationSec}
           />
         ) : (
+          /* 영상이 아직 없거나 끝내 오지 않은 두 상태 — 같은 자리에 같은 판으로 선다.
+             눈금도 재생 조작도 세우지 않는다(누를 대상이 없다). 안내는 판 스스로
+             `role="status"` 로 알린다. */
           <section className="klid-section-card klid-marking-player" aria-label="영상 재생">
             <VideoStage
               status={streamFailed ? 'unavailable' : 'loading'}
@@ -506,31 +532,28 @@ export function PortalUploadMarkingPage() {
               }
               aside={<ResultCount total={displayMarks.length} />}
             />
-            {/* 알약을 누르면 그 지점으로 옮긴다. 개별 삭제(×)는 수동 방식에서만 — 자동 지점은 간격이 정하고,
-                저장된 마킹은 확인용이라 손댈 수 없다. 목록은 제 자리 안에서만 굴러 아래 완료 명령을 밀어내지 않는다 */}
+            {/* 알약을 누르면 그 지점으로 옮긴다. 개별 삭제는 수동 방식에서만 — 자동 지점은 간격이
+                정하고, 저장된 마킹은 확인용이라 손댈 수 없다. */}
             <MarkPointList
               label={locked ? '저장된 마킹 지점' : '현재 마킹 지점'}
               points={markFrames}
-              pointLabel={(f) => {
-                const stamp = markOf(f)?.timestamp;
-                return `F${f}${stamp ? ` (${stamp})` : ''}`;
-              }}
+              pointLabel={pointLabel}
               selected={selectedFrame}
-              onSelect={(f) => {
-                const index = markFrames.indexOf(f);
-                if (index >= 0) selectMark(index);
+              onSelect={(frame) => {
+                const hit = markByFrame.get(frame);
+                if (hit) selectMark(hit.index);
               }}
               onRemove={
-                !locked && !isAuto
-                  ? (f) => {
-                      const index = markFrames.indexOf(f);
-                      if (index >= 0) removeMarkAt(index);
+                canRemove
+                  ? (frame) => {
+                      const hit = markByFrame.get(frame);
+                      if (hit) removeMarkAt(hit.index);
                     }
                   : undefined
               }
-              removeLabel={(f) => {
-                const mark = markOf(f);
-                return `마킹 삭제 ${mark ? markAriaLabel(mark) : `F${f}`}`;
+              removeLabel={(frame) => {
+                const mark = markByFrame.get(frame)?.mark;
+                return `마킹 삭제 ${mark ? markAriaLabel(mark) : `F${frame}`}`;
               }}
               empty={
                 <EmptyState
@@ -559,8 +582,6 @@ export function PortalUploadMarkingPage() {
         onConfirm={handleConfirmedSave}
         onCancel={() => setConfirmOpen(false)}
       />
-
-      <Toaster items={toasts.items} onDismiss={toasts.dismiss} />
     </section>
   );
 }

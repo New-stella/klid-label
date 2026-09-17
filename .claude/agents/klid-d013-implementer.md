@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/포털-DOMAIN-013/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -348,6 +350,33 @@ SQL 조립을 피하려 `CASE WHEN :field = '...'` 로 바꾸면, 대상 표가 
 - ⚠ 반대로 **두 축이 갈려야 하는 경우**도 있다 — 표시·정렬축과 보존 입력축이 그렇다.
   그때는 **「다른 값이 될 수 있다」를 고정하는 시험**으로 바꿔야 다음 사람이 도로 합치지 못한다.
 - 근거: 업로드축 `max(l.reg_dt)` ↔ `findLastLabelSavedAt`. 보존 입력은 **원소유자에서 받는다**.
+
+### 등록 키와 취소 키를 다른 클래스가 만들면 한쪽만 바뀌어도 조용히 무동작 (2026-09-15 · CO-20260915-포털-라벨링-AI보조-제공)
+
+**실측**: 취소 등록소 소유자 키를 채널 포함(`{CHANNEL}:{sub}`)으로 넓히며 인터셉터(등록)만 바꾸면, 창구(취소)는 `200 cancelled=false`
+를 돌려 **실패가 드러나지 않는다**. 기존 `AiCancelApiTest` 는 「모르는 식별자 → false」만 봐서 green 이었다.
+⇒ 키 조립은 **한 함수**(`AiCallCancellationRegistry.ownerKey`)로 모으고, 「인터셉터가 등록한 요청을 창구가 실제로 끊는다」를
+**배선째** 단언한다(`AiCallCancellationOwnerKeyTest` — 창구를 `actor.sub()` 로 되돌리는 변이에서 red).
+
+### @Value 필드를 가진 서비스의 판정부 공유는 같은 서비스의 public 메서드로 추출한다 (2026-09-15)
+
+**실측**: 포털 서빙 해석부를 AI 경로와 공유하려고 새 빈으로 빼면 수동 생성자 호출 시험(`new PortalLabelService(...)` 7파일)이
+컴파일부터 깨지고, `ReflectionTestUtils.setField(service, "storageDeidentifiedPath")` 주입이 새 빈에 닿지 않아 base 가 null 로 **조용히** 달라진다.
+⇒ `PortalLabelService.resolveDatamartFrameFile` · `PortalUploadService.resolveUploadFrameFile` 처럼 **같은 서비스의 public 메서드**로 추출하면 기존 시험 무수정 green.
+
+### 목이 필요한 새 @SpringBootTest 는 컨텍스트 래칫을 넘긴다 — 검증 범위에 architecture 포함 (2026-09-15)
+
+**실측**: `PortalAiAssistApiIT` 가 `@MockBean AiServerClient` + 클래스 고유 `@DynamicPropertySource` 로 새 컨텍스트 키를 만들어
+`TestContextDiversityRatchetTest` 가 76 > 75 로 매번 실패했다. 기존 `AiServerClient` 목 IT 6개가 **전부 각자 동적 프로퍼티를 선언**해
+재사용할 형제가 없었다. 구현 검증 범위(`portal.*`+`label`)에 `architecture` 가 없어 QA 전체 회귀에서야 드러났다.
+⇒ 가장 흔한 구성(`@SpringBootTest`+`@AutoConfigureMockMvc`+`local`, 목 빈·동적 프로퍼티 없음)으로 맞추고, 외부 클라이언트는 대상 서비스의
+필드를 `@BeforeEach` 교체·`@AfterEach` 원복(원본 먼저 기록). 저장소 픽스처는 기본 경로 아래 **고유 이름**으로 만들고, 이미 있던 디렉터리는 정리 대상에서 뺀다.
+⚠ 래칫 상한을 올리지 말 것. 새 IT 를 만들면 `--tests` 에 `architecture.TestContextDiversityRatchetTest` 를 **항상** 포함한다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

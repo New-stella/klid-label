@@ -602,6 +602,41 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* 글자 수는 줄바꿈되지 않게 고정폭으로 둔다 — 도움말과 겹쳐 읽히던 것을 실렌더에서 발견 */
 .char-count { color: var(--n-6); font-variant-numeric: tabular-nums; flex: 0 0 auto; white-space: nowrap; }
 
+/* ── 16-c. 선두 비식별 실패 · 재요청 진행 중 (섹션③ 컴포넌트[6] 재기동) ──
+ *  선두 비식별 단계 실패도 배치 실패로 보아 같은 패널·같은 재기동 버튼을 쓴다.
+ *  다시 요청한 비식별이 진행 중이면 '배치 처리 중'(info 축) + 재기동 비활성.
+ */
+.failure-panel[data-tone="info"] { border-color: var(--i-2); border-left-color: var(--i-5); }
+.fp-processing { color: var(--n-7); }
+.ref-variant > .ref-note { color: var(--n-6); }
+
+/* 토스트 (UI-023 Toast) — 정적 미리보기. 실제로는 화면 우상단 스택에 쌓인다 */
+.toast-stack { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.toast-stack .ref-caption { margin-top: 0; text-align: left; }
+.toast {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: 12px var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-page);
+  box-shadow: var(--shadow-md);
+  max-width: 420px;
+}
+.toast .toast-icon { flex: 0 0 auto; margin-top: 2px; }
+.toast .toast-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.toast .toast-title { font-weight: 600; color: var(--n-9); }
+.toast .toast-sub { color: var(--n-6); }
+.toast-success { border-color: var(--su-2); }
+.toast-success .toast-icon { color: var(--su-5); }
+.toast-error { border-color: var(--e-2); }
+.toast-error .toast-icon { color: var(--e-5); }
+
+/* 보조기술 전용 라벨 (토스트 variant 접두 '성공: ' · '오류: ') */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* ── 17. 아이콘 (인라인 SVG stroke 참조용 유틸) ──────────────────── */
 .icon { width: 20px; height: 20px; flex: 0 0 auto; }
 .icon-lg { width: 32px; height: 32px; }

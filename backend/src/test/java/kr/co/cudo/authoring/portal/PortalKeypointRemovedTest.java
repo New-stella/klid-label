@@ -77,7 +77,8 @@ class PortalKeypointRemovedTest {
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
                 new ObjectMapper(), null,
-                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class));
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.portal.repository.PortalUserWorkRepository.class),
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(rawDataStatusRepository, videoRepository));
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/f.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(frame));
@@ -85,7 +86,8 @@ class PortalKeypointRemovedTest {
 
         LsRawDataStatus approved = mock(LsRawDataStatus.class);
         when(approved.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findById(RAW_SN)).thenReturn(Optional.of(approved));
+        when(approved.getRawDataId()).thenReturn(RAW_SN);
+        when(rawDataStatusRepository.findAllById(java.util.List.of(RAW_SN))).thenReturn(java.util.List.of(approved));
 
         when(userLabelRepository.findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc(USER, SRC_SN))
                 .thenReturn(List.of());
@@ -203,7 +205,7 @@ class PortalKeypointRemovedTest {
     @DisplayName("포털_비APPROVED_영상_사용자라벨_저장_거부_403")
     void saveUserLabelNotApprovedForbidden() {
         Long pendingRaw = 999L;
-        when(rawDataStatusRepository.findById(pendingRaw)).thenReturn(Optional.empty());
+        when(rawDataStatusRepository.findAllById(java.util.List.of(pendingRaw))).thenReturn(java.util.List.of());
         PortalUserLabelRequest req = new PortalUserLabelRequest(
                 pendingRaw, SRC_SN, LsDataLbl.TYPE_BBOX, "car", "[[0,0],[10,10]]", null, null);
 

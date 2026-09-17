@@ -98,7 +98,7 @@ public class PortalUserWorkService {
         //   업로드 행은 소유자만 보므로(그 판정기 기준) 이 목록의 모든 업로드 행이 진입 가능하다.
         Set<Long> enterableDatamart = datamartRawSns.isEmpty()
                 ? Set.of()
-                : targetResolver.exposedToDatamart(datamartRawSns);
+                : targetResolver.workableVideos(datamartRawSns);
         // 업로드 축 상태·등록일·상태변경일 — 조립식과 소유자 스코프를 그대로 재사용한다.
         Map<Long, PortalUploadAsset> assets = uploadRawSns.isEmpty()
                 ? Map.of()

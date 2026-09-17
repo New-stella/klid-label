@@ -1,0 +1,144 @@
+@charset "utf-8";
+/* 편집 화면 틀. 칸 사이 머리카락 선 gray-20 · 캔버스 바닥 gray-10 · 줄 좌우 12 · 칸 안 여백 12(도구)·16(속성) */
+
+/* 폭을 재는 그릇 — 안쪽 격자가 이 폭을 보고 도구 줄 자리를 바꾼다.
+   이름을 `.klid-editor` 로 두지 않는다 — 글쓰기 편집기(RichTextEditor)와 겹쳐 그쪽 테두리가 붙는다 (2026-09-15) */
+.klid-editor-layout {
+  container-type: inline-size;
+  height: 100%;
+  min-width: 0;
+  background-color: var(--krds-color-light-gray-0);
+}
+.klid-editor-grid {
+  display: grid;
+  /* 도구 칸 200 · 속성 칸 290 고정 — 도구 이름 + 단축키, 막대 이름 + 값이 한 줄에 서는 가장 좁은 폭 */
+  grid-template-columns: 20rem minmax(0, 1fr) 29rem;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'header header header'
+    'rail toolbar panel'
+    'rail stage panel'
+    'strip strip strip'
+    'footer footer footer';
+  height: 100%;
+}
+/* 틀이 1200 보다 좁으면 도구 줄이 가로를 다 쓴다 — 캔버스 칸 위에서는 세 무리가 한 줄에 못 선다 */
+@container (max-width: 120rem) {
+  .klid-editor-grid {
+    grid-template-areas:
+      'header header header'
+      'toolbar toolbar toolbar'
+      'rail stage panel'
+      'strip strip strip'
+      'footer footer footer';
+  }
+}
+
+.klid-editor-header {
+  grid-area: header;
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.klid-editor-toolbar {
+  grid-area: toolbar;
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+}
+/* 양옆 칸은 제 내용으로 틀을 늘리지 않는다 — 가운데 줄 높이는 캔버스가 정하고, 넘치는 내용은 칸 안에서 스크롤한다 */
+.klid-editor-rail,
+.klid-editor-panel {
+  contain: size;
+  min-width: 0;
+  min-height: 0;
+}
+.klid-editor-rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-4);
+  padding: var(--krds-padding-5);
+  overflow-y: auto;
+  border-right: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.klid-editor-stage {
+  grid-area: stage;
+  position: relative; /* 캔버스 그림을 칸 크기에 맞춰 얹는다 */
+  min-width: 0;
+  /* 가운데 줄 높이 — 양옆 칸이 틀을 늘리지 않으니 이 값이 곧 편집기 높이다.
+     척도 밖 실측값: 속성 칸 객체 탭이 스크롤 없이 다 들어가는 높이(실측 약 720) + 글꼴 차이 여유 */
+  min-height: 74rem;
+  overflow: hidden;
+  background-color: var(--krds-color-light-gray-10);
+}
+.klid-editor-panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  border-left: 0.1rem solid var(--krds-color-light-gray-20);
+}
+/* 속성 칸 머리 (탭 등) — 몸통이 스크롤해도 제자리에 남는다 */
+.klid-editor-panel-head {
+  flex: none;
+  margin-bottom: var(--krds-gap-6);
+  padding: var(--krds-padding-6) var(--krds-padding-6) 0;
+}
+.klid-editor-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+  min-height: 0;
+  padding: var(--krds-padding-6);
+  overflow-y: auto;
+}
+.klid-editor-panel-head + .klid-editor-panel-body {
+  padding-top: 0;
+}
+.klid-editor-strip {
+  grid-area: strip;
+  min-width: 0;
+  padding-inline: var(--krds-padding-5);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+.klid-editor-footer {
+  grid-area: footer;
+  min-width: 0;
+  padding: var(--krds-padding-3) var(--krds-padding-5);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+
+/* ── 한 줄 (머리 줄 · 도구 줄) ──
+   양끝을 1fr 로 같이 두어 가운데 자리가 양끝 폭과 상관없이 줄 한가운데 선다 */
+.klid-editor-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--krds-gap-4);
+  min-height: var(--krds-size-height-6);
+  padding: var(--krds-padding-3) var(--krds-padding-5);
+  font-size: var(--krds-pc-font-size-body-small);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-60);
+}
+.klid-editor-bar-start,
+.klid-editor-bar-center,
+.klid-editor-bar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  min-width: 0;
+}
+.klid-editor-bar-end {
+  justify-content: flex-end;
+}
+/* 이름은 닫기 버튼과 한 덩어리지만 버튼끼리(4)보다는 떨어진다 */
+.klid-editor-bar-title {
+  min-width: 0;
+  margin: 0 0 0 var(--krds-gap-2);
+  overflow: hidden;
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--krds-color-light-gray-90);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -80,7 +80,12 @@ class AugmentNotifyIntegrationTest {
                 mock(kr.co.cudo.authoring.label.service.LabelAccessGuard.class),
                 // Phase 7a-2b — 재승인 폴백 판정용 디바운스 스토어. 본 테스트는 재승인(isReapproval)
                 // 경로를 타지 않으므로(항상 최초 승인) 실제로 호출되지 않는다.
-                mock(kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore.class));
+                mock(kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore.class),
+                // ADR-067 — 검수 점유 조회 단일 창구. 위 이벤트 로그 목이 빈 결과를 돌려주므로
+                // 「아무도 점유하지 않음」 상태다(이 시험의 관심사는 점유가 아니다).
+                new kr.co.cudo.authoring.assignment.service.ReviewClaimSupport(taskEventLogRepository, 30),
+                // 일괄 승인 건수 상한 — 단건 경로를 쓰는 이 시험에서는 읽히지 않는다.
+                new kr.co.cudo.authoring.review.service.ReviewBatchApprovePolicy(20));
 
         // enrichOne lookup stubs — 빈 결과
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());

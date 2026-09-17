@@ -33,16 +33,21 @@
           "파일 미도착은 PENDING 유지·PRCS_DT 앵커·NXTM_RTRY_DT backoff·상한 초과 시 종결",
           "중복 VMS_CLIP_ID는 UK_LS_DATA_INGEST_CLIP로 차단된다",
           "비식별 실패는 실패 표시·원본 보존·재처리 대상으로 둔다",
-          "재큐는 PRCS_STTS_CD=PENDING·PRCS_DT/NXTM_RTRY_DT 비움으로 대기 예산을 리셋한다"
+          "재큐는 PRCS_STTS_CD=PENDING·PRCS_DT/NXTM_RTRY_DT 비움으로 대기 예산을 리셋한다",
+          "비식별 제외 대상 영상의 원본이 없거나 경로 위반·입출력 오류로 복사하지 못하면 비식별여부 'F', 비식별 처리 이력 PROC_STTS_CD=FAILED·REQ_KND_CD=EXCLUDED 행이 남고 마킹 대기(MARKING_READY)로 전이하지 않는다",
+          "그 실패에서 원본 영상은 삭제되거나 수정되지 않고(원본 바이트 불변), 반쯤 쓴 임시 파일은 남지 않는다",
+          "REQ_KND_CD=EXCLUDED 인 비식별 처리 이력 행은 외부 진행 상태 폴링과 수락 대기(ACK) 유예 만료 회수의 대상에 오르지 않는다"
         ],
         "when": [
-          "폴링 배치가 그 행을 처리하거나 관제가 재송신하거나 운영자가 재큐한다"
+          "폴링 배치가 그 행을 처리하거나 관제가 재송신하거나 운영자가 재큐한다",
+          "또는 선두 비식별 단계가 제외 처리를 시도하거나, 외부 진행 상태 폴링·수락 대기(ACK) 유예 만료 회수가 대상을 고른다"
         ],
         "given": [
-          "파일 미도착·중복 INSERT·비식별 실패·재큐 중 하나의 상황이다"
+          "파일 미도착·중복 INSERT·비식별 실패·재큐 중 하나의 상황이다",
+          "또는 출처유형이 비식별 제외 목록(authoring.deidentify.excluded-src-types)에 든 영상의 원본 복사가 실패하거나(원본 부재·경로 위반·입출력 오류), REQ_KND_CD=EXCLUDED 인 비식별 처리 이력 행이 있는 상황이다"
         ]
       },
-      "statement": "인입 행은 있으나 NAS에 파일이 아직 없으면 실패로 처리하지 않고 PENDING으로 두되, 최초 관측 시각을 PRCS_DT에 기록해 대기 예산 앵커로 삼고(관제가 준 RCPTN_DT는 과거일 수 있어 미사용) NXTM_RTRY_DT를 backoff로 밀어 고착 행이 FIFO 앞자리를 잠식하지 못하게 하며 상한 초과 시 종결·로그를 남긴다. 같은 VMS_CLIP_ID 재송신은 UK_LS_DATA_INGEST_CLIP 유니크로 차단한다(영상 1건당 인입 1행). 비식별 실패는 영상 상태를 실패로 표시하고 원본을 보존해 재처리 대상으로 둔다. 운영자 재큐는 PRCS_STTS_CD를 PENDING으로 되돌리고 PRCS_DT·NXTM_RTRY_DT를 비워 대기 예산을 리셋한다.",
+      "statement": "인입 행은 있으나 NAS에 파일이 아직 없으면 실패로 처리하지 않고 PENDING으로 두되, 최초 관측 시각을 PRCS_DT에 기록해 대기 예산 앵커로 삼고(관제가 준 RCPTN_DT는 과거일 수 있어 미사용) NXTM_RTRY_DT를 backoff로 밀어 고착 행이 FIFO 앞자리를 잠식하지 못하게 하며 상한 초과 시 종결·로그를 남긴다. 같은 VMS_CLIP_ID 재송신은 UK_LS_DATA_INGEST_CLIP 유니크로 차단한다(영상 1건당 인입 1행). 비식별 실패는 영상 상태를 실패로 표시하고 원본을 보존해 재처리 대상으로 둔다. 운영자 재큐는 PRCS_STTS_CD를 PENDING으로 되돌리고 PRCS_DT·NXTM_RTRY_DT를 비워 대기 예산을 리셋한다. 출처유형이 배포 설정 비식별 제외 목록(authoring.deidentify.excluded-src-types)에 든 영상의 원본 복사가 실패하면(원본 부재·경로 위반·입출력 오류) 영상 비식별여부를 'F' 로 두고 비식별 처리 이력(LS_DEIDENT_PROC_LOG)에 PROC_STTS_CD=FAILED·REQ_KND_CD=EXCLUDED 행을 남기며, 마킹 대기(MARKING_READY)로 전이하지 않고 원본은 삭제하거나 수정하지 않는다. REQ_KND_CD=EXCLUDED 인 이력 행은 외부 진행 상태를 갖지 않으므로 외부 진행 상태 폴링과 수락 대기(ACK) 유예 만료 회수의 대상에 오르지 않는다(ADR-066).",
       "brownfield": {
         "status": "new"
       },
@@ -68,12 +73,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "change_summary": "UC-018 대체 흐름 「비식별 제외 복사 실패」(ADR-066)를 적재 예외 수용기준에 더한다. 기존 네 가지 예외(파일 미도착·중복 INSERT·비식별 실패·재큐) 단언은 그대로 두고, 전제·행위에 「또는」 원소를 더해 제외 복사 실패와 제외 이력 행 상황을 포함시켰다. 추가 단언: 원본 부재·경로 위반·입출력 오류 시 비식별여부 'F'·이력 FAILED+REQ_KND_CD=EXCLUDED·MARKING_READY 미전이, 원본 바이트 불변·임시 파일 미잔존, EXCLUDED 이력 행은 외부 진행 상태 폴링·수락 대기 유예 만료 회수 대상이 아님. statement 끝에 같은 내용을 덧붙였다. 쓰기 전 stale=true(사유: UC-018 필드 변경 전파 — 이번 반영 축과 같다).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:44.903Z",
+    "last_updated_at": "2026-09-14T03:53:46.640Z",
     "created_at": "2026-08-31T02:12:04.929Z"
   }
 }

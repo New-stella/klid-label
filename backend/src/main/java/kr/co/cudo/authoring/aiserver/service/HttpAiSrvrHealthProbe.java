@@ -133,7 +133,8 @@ public class HttpAiSrvrHealthProbe implements AiSrvrHealthProbe {
     private boolean pingTimeseries(LsAiSrvr server) {
         VlmServerStatus status;
         try {
-            status = vlmClient.fetchStatus(server.getSrvrAddr()).timeout(PING_TIMEOUT).block();
+            // 주기 점검 표식 — 성공 호출 로그는 DEBUG 로 낮아진다(실패는 평소 레벨). [@design NFR-038]
+            status = vlmClient.fetchStatus(server.getSrvrAddr(), true).timeout(PING_TIMEOUT).block();
         } catch (NonRetryableExternalException unpinnable) {
             // ★거짓이지만 <벤더 상태가 아니다> — 주소로 목적지를 만들 수 없다는 <우리 원장>의 결손이다.
             //   그래도 「닿지 않는다」는 사실은 같으므로 거짓으로 둔다(고를 때도 같은 술어가 이 행을

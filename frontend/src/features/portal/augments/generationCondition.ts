@@ -89,7 +89,14 @@ export function formatGenerationCondition(condition: unknown): GenerationConditi
   const knownKeys = new Set<string>(PORTAL_AUGMENT_CONDITION_KEYS);
   const unknown = Object.keys(source)
     .filter((key) => !knownKeys.has(key))
-    .sort((a, b) => a.localeCompare(b))
+    /*
+     * ★코드포인트 순으로 세운다 — `localeCompare` 를 쓰지 않는다.
+     *   이 정렬의 목적은 「보기 좋은 차례」가 아니라 **응답의 키 순서와 무관하게 늘 같은 줄**이다.
+     *   그런데 `localeCompare` 는 실행 환경의 문자 정렬 자료에 따라 결과가 갈린다 — 한글이 라틴
+     *   문자보다 앞에 서기도 뒤에 서기도 한다(실측). 그러면 같은 값이 기계마다 다른 차례로 서서
+     *   목적 자체가 깨진다.
+     */
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .map((key) => toEntry(key, source[key]));
   return [...known, ...unknown];
 }

@@ -1,14 +1,14 @@
 ---
 logicraft_item: TEST-002
 type: test_scenario
-version: 18
+version: 19
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:22:49.393Z
+synced_at: 2026-09-15T13:21:55.913Z
 status: CHANGED
-prev_version: 17
-content_hash: aed67332bf67b89866dd1c45e3fc3c8379c4fe587ef068fd8ab2722d1efa321e
-stale: false
+prev_version: 18
+content_hash: e06de902142776285d9569ca7ff2cb4578c5fa5884f8d16bf269baff015a776f
+stale: true
 raw: ./_raw/TEST-002.json
 links:
   references: ["[[DOMAIN-005]]", "[[DOMAIN-010]]", "[[DOMAIN-011]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[UC-022]]"]
@@ -59,9 +59,9 @@ integration
 ### [4]
 
 - **seq**: 4
-- **note**: TC-005 | 메타 검토는 라벨링 캔버스(SC-005) 시계열 메타 패널에서 수행
+- **note**: TC-005 | 메타 검토는 라벨링 캔버스(SC-005) 메타 탭 요약 카드로 여는 창의 왼쪽 칸에서 수행
 - **action**: 검수 대기 진입
-- **expected**: 시계열 메타가 검수 대기 상태로 검수큐에 등록된다. 【검증】DB: SELECT META_TYPE_CD, SRC_SYS_CD, RVW_STTS_CD FROM LS_DATA_META_REVIEW WHERE DATA_META_SN=:metaSn AND DATA_RAW_SN=:rawSn → META_TYPE_CD='VLM'·SRC_SYS_CD='AI_SERVER'·RVW_STTS_CD='PENDING' 1행 · 화면(SC-005): 우측 시계열 메타 패널에 검수 대기 메타 표시
+- **expected**: 시계열 메타가 검수 대기 상태로 검수큐에 등록된다. 【검증】DB: SELECT META_TYPE_CD, SRC_SYS_CD, RVW_STTS_CD FROM LS_DATA_META_REVIEW WHERE DATA_META_SN=:metaSn AND DATA_RAW_SN=:rawSn → META_TYPE_CD='VLM'·SRC_SYS_CD='AI_SERVER'·RVW_STTS_CD='PENDING' 1행 · 화면(SC-005): 메타 탭 요약 카드에 검수 대기 메타 표시
 - **test_item**: 적재 메타가 VLM 메타 검수 대기로 진입하는지 확인
 - **input_data**: 【영상 식별자】"1001" 【메타 유형 코드】"VLM" 【검수 상태 코드】"PENDING"
 - **screen_ref**: SCREEN-005
@@ -72,7 +72,7 @@ integration
 - **seq**: 5
 - **note**: 묘사 축 — 시계열 서술 전문 적재(순번3)와 같은 콜백에서 함께 일어난다
 - **action**: 묘사 결과의 사고 단계 자동채움
-- **expected**: 캡션 후보 c1 의 사고 단계 1단계가 「상황」 줄의 값으로 채워진다. 【검증】DB: SELECT ANNO_CN FROM LS_EVNT_ANNO WHERE RAW_SN=:rawSn → caption.c1.cot 의 '1단계' 키가 '차량에서 화재가 발생해 연기가 번진다' — 그 줄의 줄바꿈까지만 값으로 쓰고 다음 라벨 줄을 이어붙이지 않는다. 선행 공백과 콜론 앞뒤 공백은 관용 처리하고, 「상황」이 여러 번 나오면 첫 번째를 쓴다. 「상황」 줄이 없으면 1단계 키를 아예 만들지 않는다 — 빈 값을 넣지 않는다. 사고 단계는 1단계 키만 만들고 2단계 이후 키는 만들지 않는다. 화면(SC-005): 우측 '메타' 탭 이벤트 어노테이션 패널에 표시
+- **expected**: 캡션 후보 c1 의 사고 단계 1단계가 「상황」 줄의 값으로 채워진다. 【검증】DB: SELECT ANNO_CN FROM LS_EVNT_ANNO WHERE RAW_SN=:rawSn → caption.c1.cot 의 '1단계' 키가 '차량에서 화재가 발생해 연기가 번진다' — 그 줄의 줄바꿈까지만 값으로 쓰고 다음 라벨 줄을 이어붙이지 않는다. 선행 공백과 콜론 앞뒤 공백은 관용 처리하고, 「상황」이 여러 번 나오면 첫 번째를 쓴다. 「상황」 줄이 없으면 1단계 키를 아예 만들지 않는다 — 빈 값을 넣지 않는다. 사고 단계는 1단계 키만 만들고 2단계 이후 키는 만들지 않는다. 화면(SC-005): 메타 탭 요약 카드로 여는 창의 오른쪽 칸에 표시
 - **test_item**: 묘사(describe) 콜백 수신 시 시계열 서술 전문이 적재되면서 그 전문의 「상황」 라벨 줄만 캡션 후보 c1 의 사고 단계 1단계로 들어가는지 확인
 - **input_data**: 【묘사 전문】"- 장소: 야간 주차장\n- 날씨: 맑음\n- 상황: 차량에서 화재가 발생해 연기가 번진다"(- 라벨: 값 줄 단위로 오는 서술) 【파싱 대상 라벨】"상황"(라벨 목록 전체·순서·필수 여부에 의존하지 않고 이 한 줄만 찾는다) 【영상 식별자】"1001"
 - **screen_ref**: SCREEN-005

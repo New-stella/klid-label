@@ -5,50 +5,78 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-09-07T15:22:12.008Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 180 |
+| Last sync | 2026-09-17T01:18:28.788Z (session 21) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 211 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-1040]] | acceptance | UC-023 검수 승인·반려 — 제출→검토→승인(APPROVED/COMPLETED)+스냅샷+export+통지 / 반려 (happy) | 6 | true | UNCHANGED |
+| [[AC-1040]] | acceptance | UC-023 검수 승인·반려 — 제출→검토→승인(APPROVED/COMPLETED)+스냅샷+export+통지 / 반려 (happy) | 7 | true | UNCHANGED |
 | [[AC-1041]] | acceptance | UC-023 비식별 미완료 승인 거부 — 전이·스냅샷·재생성·통지 전부 미발생 (negative) | 6 | true | UNCHANGED |
-| [[AC-1042]] | acceptance | UC-023 재제출 반복·검수완료 후 수정 → 재검토 표시·재승인 시 새 버전·TASK_MODIFIED (edge) | 6 | true | UNCHANGED |
+| [[AC-1042]] | acceptance | UC-023 재제출 반복·검수완료 후 수정 → 재검토 표시·재승인 시 새 버전·TASK_MODIFIED (edge) | 7 | true | UNCHANGED |
 | [[AC-1058]] | acceptance | UC-021 라벨 편집 예외 — 타인 403·APPROVED 수정 재검토·신고 구간 412·값 검증·저장 충돌 409 (negative) | 10 | true | UNCHANGED |
-| [[API-008]] | api_endpoint | GET /v1/reviews | 12 | true | UNCHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | true | UNCHANGED |
-| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | true | UNCHANGED |
-| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | true | UNCHANGED |
-| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | true | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | true | UNCHANGED |
-| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | true | UNCHANGED |
+| [[AC-1077]] | acceptance | UC-009 검수 완료·수정 통지 — TASK_COMPLETED/TASK_MODIFIED 평면 페이로드 비동기 push·조회 UPSERT (happy) | 6 | true | UNCHANGED |
+| [[AC-1078]] | acceptance | UC-009 통지 신뢰성 — 전송 실패 dead-letter·재등록 큐·다수 변경 재승인 1건=통지 1건 (edge) | 8 | true | UNCHANGED |
+| [[AC-1095]] | acceptance | 관제 통지 x-access-token 은 발송 시점에 관제 규칙으로 발급된다 | 1 | true | UNCHANGED |
+| [[AC-1096]] | acceptance | 정적 토큰 override 가 설정되면 동적 발급보다 우선한다 | 1 | true | UNCHANGED |
+| [[AC-1097]] | acceptance | 시크릿·토큰 미설정 시 x-access-token 미부착 fail-safe | 1 | true | UNCHANGED |
+| [[AC-1108]] | acceptance | 포털 라벨링 AI 보조 — AI 탐지·AI 분할·AI 자동 추적 노출·작업 대상 인가·요청량 한도·비식별 판정 미적용·채널 격리·관제향 화면 무변경 (happy·negative) | 3 | false | UNCHANGED |
+| [[AC-1109]] | acceptance | UC-023 검수 시작 — 점유 성립·상태 전이는 한 갈래뿐·승인/반려 기록으로 자동 해제 (happy) | 4 | false | UNCHANGED |
+| [[AC-1110]] | acceptance | UC-023 검수 시작 본인 재진입 — 멱등 성공·점유 시각 갱신·최초 시작 시각 보존 (edge) | 1 | true | UNCHANGED |
+| [[AC-1111]] | acceptance | UC-023 점유 유예 만료 — 저절로 풀리고 다른 검수자가 이어받는다 (edge) | 1 | true | UNCHANGED |
+| [[AC-1112]] | acceptance | UC-023 검수 시작 충돌 — 타인 점유는 점유자 이름과 함께 거절, 동시 경합의 결말은 갈래마다 다르다 (negative) | 3 | false | UNCHANGED |
+| [[AC-1113]] | acceptance | UC-023 검수 일괄 승인 — 부분 실패 허용·성공분은 단건 승인과 같은 결과 (edge) | 1 | true | UNCHANGED |
+| [[AC-1114]] | acceptance | UC-023 검수 일괄 승인 요청 거부 — 빈 목록·건수 상한 초과는 한 건도 처리하지 않는다 (negative) | 1 | true | UNCHANGED |
+| [[AC-1115]] | acceptance | UC-023 관리자 검수 — 검수 시작·승인·반려를 그대로 수행하고 이력에 관리자로 남는다 (happy) | 1 | true | UNCHANGED |
+| [[AC-1116]] | acceptance | UC-023 검수 목록 전체 열람 — 배정과 무관하게 전체가 보이고 점유는 표시이지 필터가 아니다 (happy) | 1 | true | UNCHANGED |
+| [[AC-1117]] | acceptance | UC-023 일괄 승인 건수 상한 — 응답 한 번에 하나 실리고 화면이 그 값으로 선택을 미리 제한한다 (happy) | 1 | true | UNCHANGED |
+| [[AC-1121]] | acceptance | 영상 제외의 경계 — 화면 목록에서만 빠지고 배치·관제 통지·데이터마트 조회 뷰·학습데이터 산출물·통계·포털은 그대로다 (happy) | 4 | true | UNCHANGED |
+| [[AC-1124]] | acceptance | 영상 제외·복원 — 화면 목록 세 곳에서 빠지고 건수·집계가 함께 줄며 되돌리면 다시 보인다 (happy) | 8 | true | UNCHANGED |
+| [[AC-1125]] | acceptance | 영상 제외·복원 멱등 — 같은 값을 다시 보내면 아무것도 바뀌지 않고 이력도 남지 않으며 오류가 아니다 (edge) | 3 | true | UNCHANGED |
+| [[AC-1126]] | acceptance | 영상 제외·복원 인가 — 작업자는 수행할 수 없고 검수자 이상만 수행하며 작업자 화면에는 그 동작이 없다 (negative) | 5 | true | UNCHANGED |
+| [[AC-1127]] | acceptance | ADR-069 배정과 제외의 충돌 — 배정된 영상은 제외 거부·안내가 해제 창구로 이어진다·제외분에는 배정이 없다 (negative) | 8 | false | UNCHANGED |
+| [[API-008]] | api_endpoint | GET /v1/reviews | 20 | false | UNCHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 10 | false | UNCHANGED |
+| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
+| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
+| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 11 | false | UNCHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 13 | false | UNCHANGED |
+| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 9 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 28 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 15 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | UNCHANGED |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 15 | false | UNCHANGED |
-| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 16 | false | UNCHANGED |
+| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 8 | false | UNCHANGED |
 | [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
 | [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 7 | false | UNCHANGED |
-| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
+| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 6 | false | UNCHANGED |
 | [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
 | [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | UNCHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
+| [[API-250]] | api_endpoint | POST /v1/reviews/batch/approve | 4 | true | UNCHANGED |
+| [[API-254]] | api_endpoint | POST /v1/portal/frames/{srcSn}/yolo-track | 5 | false | UNCHANGED |
+| [[API-255]] | api_endpoint | POST /v1/portal/frames/{srcSn}/autolabel | 4 | false | UNCHANGED |
+| [[API-256]] | api_endpoint | GET /v1/portal/ai-defaults | 2 | true | UNCHANGED |
+| [[API-257]] | api_endpoint | POST /v1/portal/frames/{srcSn}/sam2-segment | 4 | false | UNCHANGED |
+| [[API-258]] | api_endpoint | POST /v1/portal/ai-requests/{requestId}/cancel | 3 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 14 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 14 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 5 | true | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | true | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 43 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 16 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 10 | true | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 17 | false | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 6 | false | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 38 | true | UNCHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 56 | true | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
-| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 7 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 12 | true | UNCHANGED |
-| [[UC-009]] | use_case | 검수 완료·수정 통지 | 25 | false | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 30 | false | UNCHANGED |
+| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 11 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 19 | true | UNCHANGED |
+| [[UC-009]] | use_case | 검수 완료·수정 통지 | 26 | false | UNCHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 37 | true | UNCHANGED |
+| [[UC-043]] | use_case | 잘못 들어온 영상을 화면 목록에서 제외하고 되돌리기 | 4 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -90,7 +118,7 @@
 | [[UI-039]] | ui_component | data: SimplePieChart | 3 | false | UNCHANGED |
 | [[UI-040]] | ui_component | data: SimpleBarChart | 6 | false | UNCHANGED |
 | [[UI-041]] | ui_component | display: AuthImage | 3 | false | UNCHANGED |
-| [[UI-042]] | ui_component | display: VideoPlayer | 4 | false | UNCHANGED |
+| [[UI-042]] | ui_component | display: VideoPlayer | 5 | false | UNCHANGED |
 | [[UI-043]] | ui_component | action: MarkingToolbar | 5 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
@@ -104,7 +132,7 @@
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
 | [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
-| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 8 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
 | [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
 | [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |
@@ -131,8 +159,8 @@
 | [[UI-080]] | ui_component | data: WorkerStatsTable | 5 | false | UNCHANGED |
 | [[UI-081]] | ui_component | data: DailyCompletionChart | 4 | false | UNCHANGED |
 | [[UI-082]] | ui_component | data: EventTypePieChart | 4 | false | UNCHANGED |
-| [[UI-083]] | ui_component | overlay: AssignModal | 5 | false | UNCHANGED |
-| [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
+| [[UI-083]] | ui_component | overlay: AssignModal | 6 | false | UNCHANGED |
+| [[UI-084]] | ui_component | overlay: HistoryDrawer | 6 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
@@ -145,7 +173,7 @@
 | [[UI-094]] | ui_component | action: VideoActions | 5 | false | UNCHANGED |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | UNCHANGED |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 6 | false | UNCHANGED |
-| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | UNCHANGED |
+| [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 6 | false | UNCHANGED |
 | [[UI-098]] | ui_component | input: FileInput | 2 | false | UNCHANGED |
 | [[UI-099]] | ui_component | input: Field | 2 | false | UNCHANGED |
 | [[UI-100]] | ui_component | input: DeidentConfigCard | 2 | false | UNCHANGED |
@@ -155,8 +183,8 @@
 | [[UI-104]] | ui_component | display: CountChip | 1 | false | UNCHANGED |
 | [[UI-105]] | ui_component | display: DerivativeBadge | 3 | false | UNCHANGED |
 | [[UI-106]] | ui_component | data: KeyValueGrid | 1 | false | UNCHANGED |
-| [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
-| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
+| [[UI-107]] | ui_component | input: EventAnnotationPanel | 7 | false | UNCHANGED |
+| [[UI-108]] | ui_component | input: PrivacyMetaPanel | 3 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
@@ -193,3 +221,6 @@
 | [[UI-142]] | ui_component | display: WorkerNameSub | 1 | false | UNCHANGED |
 | [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |
 | [[UI-144]] | ui_component | display: ProcessingStackBar | 1 | false | UNCHANGED |
+| [[UI-156]] | ui_component | overlay: FloatingWindow | 2 | false | UNCHANGED |
+| [[UI-157]] | ui_component | display: TimeseriesAnnotationSummaryCard | 3 | false | UNCHANGED |
+| [[UI-158]] | ui_component | action: AnnotationWindowStrip | 3 | false | UNCHANGED |

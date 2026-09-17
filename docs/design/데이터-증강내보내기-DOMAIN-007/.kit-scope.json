@@ -3,7 +3,7 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-007",
   "decided_by": "llm",
-  "decided_at": "2026-09-05T00:44:58Z",
+  "decided_at": "2026-09-15T22:22:42.022504+09:00",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 판정: INTSPEC-005/006 승격(INT-006·008 참조) / REQ-023·RFP-005 기각(제외 타입) | 2026-08-26 승격: ADR-029 — ADR-029(외부 HTTP 위탁 트랜잭션 무보유)는 이 도메인의 증강 위탁 서비스에서 실측된 결함으로 결정된 제약이라 소유 축에 가장 가깝다 (⚠ 병렬 워크트리 머지가 이 pin 을 승격 이전 판으로 덮어 한 번 유실됐다 — 재복구분) | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-1044",
@@ -28,6 +28,7 @@
     "ADR-059",
     "ADR-061",
     "ADR-062",
+    "ADR-066",
     "API-042",
     "API-059",
     "API-060",
@@ -118,6 +119,7 @@
     "UC-010"
   ],
   "pending": [
+    "ADR-072",
     "SHELL-001",
     "MOD-013",
     "MOD-018",
@@ -139,17 +141,10 @@
     "REQ-004",
     "REQ-020",
     "REQ-023",
-    "RFP-005"
+    "RFP-005",
+    "SETT-001"
   ],
-  "last_sync_at": "2026-09-08T12:01:32.037Z",
-  "note_pruned": "2026-09-05 판정: NFR 신규 26건(NFR-023~048) 전역타입 승격 — 요구사항정의서(비기능) 담당=공통 미등재분 등재분. 잔여 pending 판정: 승격 2(핵심타입) / 기각 0(제외타입) / 보류 0(미분류·배포형상) | 2026-09-05 2차 판정: 승격 3(핵심타입 — CDIAG·DFEAT·API·INT·SEQ·ADR·EVT·ERD) / 기각 22(제외타입) / 보류 0 | 2026-09-08 판정: 승격 0 / 기각 22 / 보류 0. 기각은 제외 타입(MOD·LEGACY·SHELL·NAV·REQ·RFP·CTX·IMPREC)과 소속 도메인이 다른 ITEM. 매 SYNC 마다 다시 pending 으로 올라오며 그것이 정상이다",
-  "note_promoted": [
-    {
-      "at": "2026-09-02",
-      "ids": [
-        "ADR-059"
-      ],
-      "reason": "증강 종류 단일화 + 이벤트 유형 화면 제거 결정 — 소속 도메인(belongs_to_domain)"
-    }
-  ]
+  "last_sync_at": "2026-09-17T01:15:50.474Z",
+  "note_pruned": "제외 타입 22건 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP) — 제외 판정을 기록할 필드가 스키마에 없어 매 SYNC 마다 다시 올라오며 그것이 정상이다. 미분류 타입 1건 보류(OSS·SETT — Tier 표에도 제외 목록에도 없어 선례대로 판정을 미룬다): SETT-001 | 2026-09-17 선두 비식별 실패 수동 재시도 라운드(CO-20260916-선두비식별-실패-수동재시도) 머지 후 회수. 제외 타입 기각(IMPREC·MOD·LEGACY·REQ·RFP·NAV·SHELL·CTX·DEP — 매 SYNC 마다 다시 올라오는 것이 정상); ADR-072 기각 — 이 도메인 ADR 을 앞방향으로 인용할 뿐 이 도메인 ITEM 이 참조하지 않는다(소속 D012); SETT-001 은 선례대로 보류.",
+  "note_promoted": "2026-09-15 검수 축 라운드(CO-20260915-검수배정폐지-검수중표시-일괄승인) 머지 후 회수. 그래프로 이 도메인에 닿는 핵심 타입 0건 승격: 없음."
 }

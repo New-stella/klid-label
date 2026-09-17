@@ -46,7 +46,8 @@ class PortalWorkTargetResolverTest {
         srcRepository = mock(LsDataSrcRepository.class);
         videoRepository = mock(VideoRepository.class);
         statusRepository = mock(LsRawDataStatusRepository.class);
-        resolver = new PortalWorkTargetResolver(srcRepository, videoRepository, statusRepository);
+        resolver = new PortalWorkTargetResolver(srcRepository, videoRepository,
+                new kr.co.cudo.authoring.portal.service.PortalWorkableVideoPolicy(statusRepository, videoRepository));
     }
 
     // ---------------- fixtures ----------------
@@ -125,6 +126,30 @@ class PortalWorkTargetResolverTest {
         assertThat(target.isUpload()).isTrue();
     }
 
+    /**
+     * ★ 포털 AI 보조 창구(탐지·분할·자동 추적)가 진입 인가로 <b>이 판정</b>을 쓴다 — 데이터셋 등록
+     * 영상은 검수 상태 행이 아예 없으므로, 승인만 보던 옛 판정이 남아 있으면 그 창구가 403 이 된다.
+     * 판정이 돌려주는 프레임 행까지 확인한다(AI 본체가 그 행으로 이미지 경로를 해석한다).
+     * @design ADR-068, AC-1120, API-254, API-255, API-257
+     */
+    @Test
+    @DisplayName("★데이터셋_등록_영상은_검수_상태_행이_없어도_데이터마트_출처로_판정된다_AI_보조_진입_포함")
+    void portalDatasetVideoResolvesToDatamartWithoutApproval() {
+        LsDataRaw raw = LsDataRaw.createPortalDataset(
+                LsDataRaw.portalDatasetClipId(4711L, "cam-1"), "/materials/4711/cam-1");
+        setRawSn(raw, RAW_SN);
+        givenFrame(raw);
+        // 검수 상태 행을 세우지 않는다 — 데이터셋 등록 영상에는 그 행이 생기지 않는다(ADR-068).
+        when(statusRepository.findAllById(any())).thenReturn(List.of());
+        when(videoRepository.findAllById(any())).thenReturn(List.of(raw));
+
+        PortalWorkTargetResolver.FrameTarget judged = resolver.resolveFrame(SRC_SN, ALICE);
+
+        assertThat(judged.target().origin()).isEqualTo(Origin.DATAMART);
+        assertThat(judged.target().isUpload()).isFalse();
+        assertThat(judged.frame().getRawSn()).isEqualTo(RAW_SN);
+    }
+
     @Test
     @DisplayName("업로드_출처_판정에는_검수_승인_상태를_보지_않는다")
     void uploadOriginDoesNotConsultApproval() {
@@ -200,9 +225,9 @@ class PortalWorkTargetResolverTest {
     void batchExposureAnswersOnlyForRequestedIds() {
         givenApproved(true);   // RAW_SN 만 승인 상태다
 
-        assertThat(resolver.exposedToDatamart(List.of(RAW_SN)))
+        assertThat(resolver.workableVideos(List.of(RAW_SN)))
                 .as("요청한 것은 그대로 답한다").containsExactly(RAW_SN);
-        assertThat(resolver.exposedToDatamart(List.of(RAW_SN + 1)))
+        assertThat(resolver.workableVideos(List.of(RAW_SN + 1)))
                 .as("★요청하지 않은 식별자는 결과에 없다").isEmpty();
     }
 
@@ -210,8 +235,8 @@ class PortalWorkTargetResolverTest {
     @Test
     @DisplayName("빈_요청은_빈_집합이다")
     void emptyRequestYieldsEmptySet() {
-        assertThat(resolver.exposedToDatamart(List.of())).isEmpty();
-        assertThat(resolver.exposedToDatamart(null)).isEmpty();
+        assertThat(resolver.workableVideos(List.of())).isEmpty();
+        assertThat(resolver.workableVideos(null)).isEmpty();
     }
 
     // ---------------- 404 축 ----------------
@@ -249,6 +274,17 @@ class PortalWorkTargetResolverTest {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw));
 
         assertThat(resolver.resolveByVideo(RAW_SN, ALICE).srcSn()).isNull();
+    }
+
+    /** 식별자는 적재 시점에 DB 가 매긴다 — 판정기가 보는 값만 세운다(형제 시험과 같은 방식). */
+    private static void setRawSn(LsDataRaw raw, long rawSn) {
+        try {
+            java.lang.reflect.Field f = LsDataRaw.class.getDeclaredField("rawSn");
+            f.setAccessible(true);
+            f.set(raw, rawSn);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private String catchMessage(Runnable action) {

@@ -35,14 +35,6 @@ const proxyTarget = {
   changeOrigin: true,
 };
 
-// ★ 포털 부품 연결 — 포털 채널 화면은 포털 저장소(KLID_Portal)의 부품·토큰을 **그대로 끌어다** 쓴다.
-//   복사본을 두면 포털에서 부품을 고칠 때 이쪽만 옛 모양으로 남는다. 한 벌만 둔다.
-//   · `@portal/*`   → 포털 저장소 `src/*` (부품 · 저작도구 화면 조각 · 토큰 CSS)
-//   · `krds-react`  → 포털 저장소가 설치한 KRDS 킷 (이 저장소에는 설치하지 않는다)
-//   · react / react-dom 은 이 저장소 것 하나로 모은다 — 두 벌이 섞이면 훅이 깨진다
-//   ⚠ 지금은 두 저장소가 나란히 받아진 로컬 작업판 전용이다. 실제 배포에서 부품을 넘겨받는 방법은 따로 정한다.
-const portalRepoDir = process.env.KLID_PORTAL_DIR || path.resolve(__dirname, '../../KLID_Portal');
-
 // 포털이 저작도구를 iframe 으로 띄우는 출처 — 이 출처에만 액자 안에 들어가는 것을 허락한다.
 const portalFrameAncestors = process.env.PORTAL_FRAME_ANCESTORS || 'http://localhost:5174 http://127.0.0.1:5174';
 
@@ -170,10 +162,7 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@portal': path.join(portalRepoDir, 'src'),
-      'krds-react': path.join(portalRepoDir, 'node_modules/krds-react'),
     },
-    dedupe: ['react', 'react-dom'],
   },
   // lazy 라우트에서만 import 되는 무거운 의존성을 dev 서버 기동 시 미리 prebundle 해
   // 런타임 재최적화(optimized-deps 재생성 → `?v=` 해시 교체)를 줄인다. 재최적화 순간
@@ -207,7 +196,6 @@ export default defineConfig(({ command }) => ({
     allowedHosts: ['localhost', '192.168.102.246'],
     // HMR 클라이언트가 외부 매핑 포트로 붙도록 (env 미설정 시 Vite 기본 동작 유지)
     ...(hmrClientPort ? { hmr: { clientPort: hmrClientPort } } : {}),
-    fs: { allow: [path.resolve(__dirname, '..'), portalRepoDir] },
     headers: {
       'X-Content-Type-Options': 'nosniff',
       // 포털 채널은 포털 iframe 안에 들어가야 하므로 액자 막기를 풀고 아래 frame-ancestors 로 출처를 좁힌다

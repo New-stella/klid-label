@@ -1,6 +1,9 @@
 // LabelingPage 메타 탭 — 이관 원문 정보 섹션 + 편집 가능 회귀 가드 [design: SCREEN-005]
 //
-// ① 이관 원문 정보는 <b>여섯 패널 뒤</b> 참고 정보 자리에 온다. 여섯의 나열 순서는 바꾸지 않는다.
+// ① 이관 원문 정보는 <b>앞선 패널들 뒤</b> 참고 정보 자리에 온다. 앞의 나열 순서는 바꾸지 않는다.
+//    ⚠ 2026-09-14 — 영상 분석 설명·이벤트 어노테이션 두 패널이 <b>요약 카드 하나</b>로 바뀌었다.
+//      접이식 섹션은 넷이고 그 뒤에 요약 카드, 다시 그 뒤가 이관 원문 정보다. 개수를 세는 대신
+//      «앞의 순서 + 요약 카드 다음»이라는 관계로 적는다(항목이 늘 때마다 숫자가 틀리기 때문).
 // ② 이관으로 들어오지 않은 영상(대다수)에서는 목록이 빈 배열이라 섹션 자체를 노출하지 않는다.
 // ③ ★작업자 화면의 <b>편집 동작이 그대로</b>다 — 4개 패널에 읽기 전용 모드를 추가하면서
 //    기본값이 읽기 전용으로 새면 작업자가 메타를 입력하지 못한다. 이 라운드의 가장 큰 위험이라
@@ -138,7 +141,7 @@ describe('LabelingPage 메타 탭 — 이관 원문 정보', () => {
     vi.restoreAllMocks();
   });
 
-  it('이관_원문_섹션은_여섯_패널_뒤에_온다', async () => {
+  it('이관_원문_섹션은_앞선_패널들_뒤에_온다', async () => {
     // given
     mockCommon(IMPORTED_META);
 
@@ -150,17 +153,26 @@ describe('LabelingPage 메타 탭 — 이관 원문 정보', () => {
     expect(imported).toHaveTextContent('카메라 설치 높이');
     expect(imported).toHaveTextContent('데이터 출처');
 
-    // then — 여섯 패널의 순서는 그대로이고 이관 원문은 그 뒤다.
+    // then — 앞선 네 패널의 순서는 그대로이고 이관 원문은 그 뒤다.
     const titles = sectionTitles();
-    expect(titles.slice(0, 6)).toEqual([
+    expect(titles.slice(0, 4)).toEqual([
       '촬영환경',
       '개인정보(영상)',
       '프레임 설명',
       '개인정보(프레임)',
-      '시계열 메타',
-      '이벤트 어노테이션',
     ]);
-    expect(titles.indexOf('이관 원문 정보')).toBe(6);
+    expect(titles.indexOf('이관 원문 정보')).toBe(4);
+
+    // then — 요약 카드는 그 네 패널과 이관 원문 <b>사이</b>에 온다(접이식 섹션이 아니라 카드라
+    //   위 제목 목록에는 나타나지 않는다 — 자리는 DOM 순서로 고정한다).
+    const card = screen.getByTestId('annotation-summary-card');
+    const framePrivacySection = screen.getAllByTestId('meta-section')[3];
+    expect(
+      framePrivacySection.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeGreaterThan(0);
+    expect(card.compareDocumentPosition(imported) & Node.DOCUMENT_POSITION_FOLLOWING).toBeGreaterThan(
+      0,
+    );
   });
 
   it('이관으로_들어오지_않은_영상에서는_섹션이_뜨지_않는다', async () => {
@@ -185,18 +197,20 @@ describe('LabelingPage 메타 탭 — 이관 원문 정보', () => {
     // when
     await openMetaTab();
 
-    // then — 촬영환경(선택)·개인정보(체크박스)·프레임 설명/시계열(입력칸)·저장 버튼이 모두 살아 있다.
+    // then — 촬영환경(선택)·개인정보(체크박스)·프레임 설명(입력칸)·저장 버튼이 모두 살아 있다.
+    //   ⚠ 영상 분석 설명은 이제 이 탭이 아니라 창의 칸이다 — 그 편집 가능 여부는 창 시험이 본다.
     const metaPanel = await screen.findByTestId('label-meta-panel');
     await waitFor(() =>
       expect(screen.getByLabelText('프레임 설명 입력')).toBeInTheDocument(),
     );
-    expect(screen.getByLabelText('시계열 서술 입력')).toBeInTheDocument();
     expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('radio').length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole('button', { name: '저장' }).length,
-    ).toBeGreaterThanOrEqual(4);
+    ).toBeGreaterThanOrEqual(3);
+    // then — 요약 카드의 버튼은 <b>여는 동작</b>이지 편집이 아니다(작성까지 이어지는 입구다).
+    expect(screen.getByTestId('annotation-summary-open')).toHaveTextContent('크게 보기 · 작성');
     // then — 이관 원문 섹션에는 편집 동선이 없다(읽기 전용 참고 정보다).
     const imported = screen.getByTestId('imported-meta-panel');
     expect(imported.querySelectorAll('input, textarea, select, button').length).toBe(0);

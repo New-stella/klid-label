@@ -1,6 +1,6 @@
 // ISSUE-2 — ToolBar SAM2 분할/추적 도구 버튼 노출 + 선택 동작 검증.
 
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -64,10 +64,16 @@ describe('ToolBar — 키포인트 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  it('포털_사용자는_AI분할_도구를_사용할_수_없다', () => {
-    // ADR-013 — 포털은 SAM2·오토라벨 미제공. 서버 엔드포인트도 제거됐다(PortalSam2RemovedTest).
+  it('포털_사용자도_AI분할_도구를_AI_보조_묶음에서_쓴다', () => {
+    // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「포털_사용자는_AI분할_도구를_사용할_수_없다」.
+    //   포털도 AI 분할을 포털 전용 창구로 쓴다. 그리기 묶음이 아니라 「AI 보조」 묶음에 선다.
+    // ⚠ 포털 줄은 킷 도구 목록이라 **라디오**로 읽힌다(하나만 켜지는 도구의 올바른 의미).
+    //   관제 줄은 그대로 버튼이다 — 두 채널의 역할이 갈리는 것이 확정 사양이다.
     renderWithProviders(<ToolBar portalMode />);
-    expect(screen.queryByRole('button', { name: 'AI 분할' })).not.toBeInTheDocument();
+    const aiGroup = screen.getByTestId('label-toolbar-ai-group');
+    const btn = within(aiGroup).getByRole('radio', { name: 'AI 분할' });
+    fireEvent.click(btn);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
   });
 
   it('포털_사용자는_AI추적_도구를_사용할_수_없다', () => {
@@ -76,20 +82,23 @@ describe('ToolBar — 키포인트 도구', () => {
     //   포털 미제공(ADR-013)은 도구바 구성과 **다른 축**이라, 도구바에 되살아나더라도 포털에서는
     //   반드시 빠져 있어야 한다는 계약을 이 케이스가 계속 고정한다.
     renderWithProviders(<ToolBar portalMode />);
+    // 역할을 가리지 않고 본다 — 어떤 모양으로 되살아나도 잡히게.
+    expect(screen.queryByRole('radio', { name: 'AI 추적' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI 추적' })).not.toBeInTheDocument();
   });
 
   it('포털_사용자는_스켈레톤_도구를_사용할_수_없다', () => {
     renderWithProviders(<ToolBar portalMode />);
+    expect(screen.queryByRole('radio', { name: '스켈레톤' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '스켈레톤' })).not.toBeInTheDocument();
   });
 
   it('포털_모드에서도_수동_라벨링_도구는_그대로_노출된다', () => {
     // 포털 사용자는 BBOX/POLYGON 수동 라벨링을 계속 제공받는다(ADR-013 예외) — 과잉 차단 회귀 가드.
     renderWithProviders(<ToolBar portalMode />);
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '선택' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '폴리곤' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '선택' })).toBeInTheDocument();
   });
 
   it('내부_라벨링_화면의_SAM2_도구는_기존과_동일하게_노출된다', () => {
@@ -130,8 +139,105 @@ describe('ToolBar — YOLO 오토라벨', () => {
     expect(onAutolabel).not.toHaveBeenCalled();
   });
 
-  it('portalMode에서_YOLO_오토라벨_버튼_숨김_ADR_013', () => {
-    renderWithProviders(<ToolBar onAutolabel={vi.fn()} portalMode />);
-    expect(screen.queryByRole('button', { name: 'AI 탐지' })).not.toBeInTheDocument();
+  it('portalMode에서도_AI_탐지_버튼이_AI_보조_묶음에_서고_팝업_핸들러를_부른다', () => {
+    // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「portalMode에서_YOLO_오토라벨_버튼_숨김_ADR_013」.
+    const onAutolabel = vi.fn();
+    renderWithProviders(<ToolBar onAutolabel={onAutolabel} portalMode />);
+    const aiGroup = screen.getByTestId('label-toolbar-ai-group');
+    fireEvent.click(within(aiGroup).getByRole('button', { name: 'AI 탐지' }));
+    expect(onAutolabel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ToolBar — 포털 채널 묶음 구성 (SCREEN-029)', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  /**
+   * 묶음 제목 — **층을 가리지 않는다.**
+   * 관제 레일은 h2, 포털 레일은 킷 도구 판이라 h3 다. 이 가드가 지키는 것은 「어떤 묶음이
+   * 어떤 차례로 서는가」이지 제목 층이 아니다.
+   */
+  const cardTitles = () =>
+    screen
+      .getAllByRole('heading')
+      .filter((h) => h.className.includes('klid-tool-panel-title') || h.tagName === 'H2')
+      .map((h) => h.textContent);
+  /**
+   * 묶음 안 줄 이름 — **역할을 가리지 않는다.**
+   * 관제 레일은 전부 버튼이고, 포털 레일은 고르는 도구가 라디오(하나만 켜지는 도구의 올바른
+   * 의미)라 둘이 섞인다. 이 가드가 지키는 것은 「어떤 줄이 어떤 차례로 서는가」다.
+   */
+  const namesIn = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('button')).map((b) => {
+      const explicit = b.getAttribute('aria-label');
+      if (explicit !== null) return explicit;
+      // 킷 줄은 이름 옆에 키 이름표(`G`)·상태 글자(`Off`)를 함께 담는다 — 이름 칸만 읽는다.
+      return (b.querySelector('.label') ?? b).textContent?.trim() ?? '';
+    });
+
+  it('포털은_그리기_AI보조_보기_세_묶음이고_AI보조에_세_버튼이_순서대로_선다', () => {
+    renderWithProviders(
+      <ToolBar portalMode onAutolabel={vi.fn()} onFocusAutoTrack={vi.fn()} onToggleGrid={vi.fn()} />,
+    );
+    expect(cardTitles()).toEqual(['그리기 도구', 'AI 보조', '보기']);
+    expect(namesIn(screen.getByTestId('label-toolbar-ai-group'))).toEqual([
+      'AI 탐지',
+      'AI 분할',
+      // 접근성 이름은 패널의 실행 버튼(「AI 자동 추적」)과 구별된다 — 보이는 이름을 포함한다.
+      'AI 자동 추적 패널로 이동',
+    ]);
+    // 그리기 묶음에는 AI 기능이 섞이지 않는다.
+    const drawCard = screen
+      .getByRole('heading', { name: '그리기 도구' })
+      .closest('section') as HTMLElement;
+    expect(namesIn(drawCard)).toEqual(['선택', '바운딩 박스', '폴리곤']);
+    // 스켈레톤·선택 객체 AI 추적은 계속 없다.
+    expect(screen.queryByRole('button', { name: '스켈레톤' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'AI 추적' })).toBeNull();
+  });
+
+  it('내부_채널은_종전_두_묶음_그대로이고_AI보조_묶음과_자동추적_버튼이_없다', () => {
+    // 관제향 무변경 가드 — onFocusAutoTrack 이 새어 들어와도 내부 채널은 그 버튼을 두지 않는다.
+    renderWithProviders(<ToolBar onAutolabel={vi.fn()} onFocusAutoTrack={vi.fn()} />);
+    expect(cardTitles()).toEqual(['그리기 도구', '보기']);
+    expect(screen.queryByTestId('label-toolbar-ai-group')).toBeNull();
+    expect(screen.queryByRole('button', { name: /AI 자동 추적/ })).toBeNull();
+    const drawCard = screen
+      .getByRole('heading', { name: '그리기 도구' })
+      .closest('section') as HTMLElement;
+    expect(namesIn(drawCard)).toEqual(['선택', '바운딩 박스', '폴리곤', 'AI 분할', '스켈레톤', 'AI 탐지']);
+  });
+
+  it('포털_AI자동추적_버튼은_실행이_아니라_이동_핸들러만_부른다', () => {
+    const onFocusAutoTrack = vi.fn();
+    renderWithProviders(<ToolBar portalMode onFocusAutoTrack={onFocusAutoTrack} />);
+    fireEvent.click(screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' }));
+    expect(onFocusAutoTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('포털_AI자동추적_사용불가_사유가_있으면_비활성이고_사유를_툴팁과_보조문으로_보인다', () => {
+    const onFocusAutoTrack = vi.fn();
+    const reason = '뒤따르는 프레임이 없어 AI 자동 추적을 쓸 수 없습니다.';
+    renderWithProviders(
+      <ToolBar portalMode onFocusAutoTrack={onFocusAutoTrack} autoTrackUnavailableReason={reason} />,
+    );
+    const btn = screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', `AI 자동 추적 (${reason})`);
+    // 보조문이 화면에 보이고, 비활성 버튼이 그 문장을 설명으로 가리킨다(보조기술 전달).
+    const caption = screen.getByText(reason);
+    expect(btn).toHaveAttribute('aria-describedby', caption.id);
+    fireEvent.click(btn);
+    expect(onFocusAutoTrack).not.toHaveBeenCalled();
+  });
+
+  it('포털_AI자동추적_사유가_없으면_보조문을_두지_않는다', () => {
+    renderWithProviders(<ToolBar portalMode onFocusAutoTrack={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' });
+    expect(btn).toBeEnabled();
+    expect(btn).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText(/AI 자동 추적을 쓸 수 없습니다/)).toBeNull();
   });
 });

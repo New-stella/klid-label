@@ -13,13 +13,21 @@
 // 검토 승인·반려(검수 축)와 자동 생성값 프리필. 프리필의 원천(외부 시계열 위탁 응답)이 이 채널에
 // 없다 — 값은 Load 해 온 것과 사람이 쓴 것뿐이다.
 //
+// <h3>모습은 포털 부품으로 짠다 (2026-09-16)</h3>
+// 구획은 접이식 조건판({@code FilterPanel.Disclosure}), 적는 칸은 KRDS 입력칸, 후보 묶음의 이름 줄은
+// 도구 줄({@code ToolRow}), 거부 안내는 포털 띠다.
+// ⚠ 후보 <b>카드 자체</b>({@code CaptionCandidateRow}·{@code EvidenceCandidateRow})는 관제 축 부품이라
+//   이 라운드에서 손대지 않았다 — 관제 화면(`features/label/**`)이 함께 쓰는 부품이고 이 채널은
+//   그 코드를 고치지 않는다. 시안의 후보 카드(도구 판 + 삭제 아이콘 걸음)는 별건이다.
+//
 // 보안(저장형 XSS 방어): 값은 input/textarea value 로만 바인딩 — React 기본 escape.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { Button, TextInput, Textarea } from 'krds-react';
 
-import { Button } from '@/components/common/Button';
-import { Textarea } from '@/components/common/Textarea';
-import { MetaSection } from '@/features/label/components/MetaSection';
+import { Alert, FilterPanel } from '@/components/portal/kit';
+import { ToolRow } from '@/components/portal/authoring';
 import { CaptionCandidateRow } from '@/features/label/components/CaptionCandidateRow';
 import { EvidenceCandidateRow } from '@/features/label/components/EvidenceCandidateRow';
 import {
@@ -28,7 +36,6 @@ import {
 } from '@/features/label/components/eventAnnotationForm';
 import {
   COT_STEPS,
-  INPUT_CLASS,
   MAX_EVENT_CLASS,
   MAX_TEXT,
   type CaptionRow,
@@ -52,8 +59,6 @@ export interface PortalEventAnnotationPanelProps {
   /** 영상 PK. 없으면 조회하지 않는다. */
   rawSn: number | undefined;
 }
-
-const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
 
 export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanelProps) {
   const pushToast = useUiStore((s) => s.pushToast);
@@ -113,63 +118,61 @@ export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanel
 
   if (isError) {
     return (
-      <MetaSection title="이벤트 어노테이션">
-        {/* ★「없다」와 「남의 것이다」를 가르지 않는다 — 판정은 workError 한 곳이 한다. */}
-        <p className="text-caption text-danger" role="alert" data-testid="portal-annotation-error">
-          {portalWorkErrorMessage(error)}
-        </p>
-      </MetaSection>
+      // ★「없다」와 「남의 것이다」를 가르지 않는다 — 판정은 workError 한 곳이 한다.
+      //   띠가 성격(danger)에서 role="alert" 를 스스로 정한다.
+      <div data-testid="portal-annotation-error">
+        <Alert tone="danger">{portalWorkErrorMessage(error)}</Alert>
+      </div>
     );
   }
 
   return (
-    <MetaSection title="이벤트 어노테이션">
-      <div data-testid="portal-annotation-panel" className="space-y-2">
-        <div>
-          <label htmlFor="portal-ea-event-class" className={FIELD_LABEL_CLASS}>
-            이벤트 분류
-          </label>
-          <input
-            id="portal-ea-event-class"
-            type="text"
-            value={eventClass}
-            onChange={(e) => setEventClass(e.target.value)}
-            maxLength={MAX_EVENT_CLASS}
-            className={INPUT_CLASS}
-          />
-        </div>
+    <div data-testid="portal-annotation-panel" className="klid-labeling-panel-group">
+      <FilterPanel surface="bare" layout="stack" aria-label="이벤트 어노테이션">
+        <FilterPanel.Disclosure label="이벤트 어노테이션" defaultOpen>
+          {/* ★이름표는 조건판 칸(`FilterPanel.Field`)이 그린다. 그 이름표는 `<label>` 이 아니므로
+              보조기술이 읽을 이름은 컨트롤의 `aria-label` 이 잇는다 — 둘은 같은 말이어야 한다. */}
+          <FilterPanel.Field label="이벤트 분류">
+            <TextInput
+              size="small"
+              id="portal-ea-event-class"
+              aria-label="이벤트 분류"
+              value={eventClass}
+              onChange={setEventClass}
+              maxLength={MAX_EVENT_CLASS}
+            />
+          </FilterPanel.Field>
 
-        <div>
-          <label htmlFor="portal-ea-question" className={FIELD_LABEL_CLASS}>
-            질문
-          </label>
-          <Textarea
-            id="portal-ea-question"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            maxLength={MAX_TEXT}
-            className="min-h-[64px] resize-y text-body-md"
-          />
-        </div>
+          <FilterPanel.Field label="질문">
+            <Textarea
+              id="portal-ea-question"
+              aria-label="질문"
+              value={question}
+              onChange={setQuestion}
+              maxLength={MAX_TEXT}
+              // 글자수는 상한과 <b>같은 값</b>으로 센다(킷 기본값 100 을 두면 상한을 거짓으로 알린다).
+              showCount
+              countTotal={MAX_TEXT}
+            />
+          </FilterPanel.Field>
 
-        <div>
-          <label htmlFor="portal-ea-answer" className={FIELD_LABEL_CLASS}>
-            답변
-          </label>
-          <Textarea
-            id="portal-ea-answer"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            maxLength={MAX_TEXT}
-            className="min-h-[64px] resize-y text-body-md"
-          />
-        </div>
+          <FilterPanel.Field label="답변">
+            <Textarea
+              id="portal-ea-answer"
+              aria-label="답변"
+              value={answer}
+              onChange={setAnswer}
+              maxLength={MAX_TEXT}
+              showCount
+              countTotal={MAX_TEXT}
+            />
+          </FilterPanel.Field>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <span className={FIELD_LABEL_CLASS}>캡션 후보</span>
-            <button
-              type="button"
+          {/* 후보 둘은 여러 개를 쌓는 목록이라 이름 줄 끝에 더하는 걸음이 선다. */}
+          <ToolRow label="캡션 후보">
+            <Button
+              size="small"
+              variant="text"
               data-testid="portal-ea-add-caption"
               onClick={() =>
                 setCaptions((prev) => [
@@ -177,11 +180,11 @@ export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanel
                   { key: nextKey(prev), captionText: '', cot: Array(COT_STEPS).fill('') },
                 ])
               }
-              className="text-[11px] text-primary-600 hover:text-primary-700"
             >
-              + 추가
-            </button>
-          </div>
+              <Plus aria-hidden />
+              추가
+            </Button>
+          </ToolRow>
           {captions.map((row) => (
             <CaptionCandidateRow
               key={row.key}
@@ -199,13 +202,11 @@ export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanel
               }
             />
           ))}
-        </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <span className={FIELD_LABEL_CLASS}>근거 후보</span>
-            <button
-              type="button"
+          <ToolRow label="근거 후보">
+            <Button
+              size="small"
+              variant="text"
               data-testid="portal-ea-add-evidence"
               onClick={() =>
                 setEvidences((prev) => [
@@ -220,11 +221,11 @@ export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanel
                   },
                 ])
               }
-              className="text-[11px] text-primary-600 hover:text-primary-700"
             >
-              + 추가
-            </button>
-          </div>
+              <Plus aria-hidden />
+              추가
+            </Button>
+          </ToolRow>
           {evidences.map((row) => (
             /*
              * 캔버스 선택과 이어지는 보조 버튼(현재 프레임 추가·선택 객체 추가)은 넘기지 않는다 —
@@ -238,27 +239,36 @@ export function PortalEventAnnotationPanel({ rawSn }: PortalEventAnnotationPanel
               onFieldChange={(key, field, value) => updateEvidence(key, { [field]: value })}
             />
           ))}
-        </div>
+        </FilterPanel.Disclosure>
+      </FilterPanel>
 
+      <div className="klid-labeling-meta-save">
         {/*
           ⚠ 무변경 저장 안내 — 문구는 <b>확정된 것이 없다</b>(사양에도 요건만 있다). 사실만 평이하게
-            적는다. 「저장됨」이라고만 알리면 사용자는 자기 확정이 남았다고 믿는다.
+            적는다. 「저장됨」이라고만 알리면 사용자는 자기 확정이 남았다고 믿는다. 누르기 전에
+            읽혀야 하므로 걸음 <b>위</b>에 둔다.
         */}
-        <p className="text-[11px] leading-snug text-gray-500">
+        <p className="klid-tool-panel-note">
           원본과 같은 내용으로 저장하면 내 작업물로 남지 않습니다. 저장한 값은 이 화면에서만 쓰이며
           원본과 데이터마트에는 반영되지 않습니다.
         </p>
-
+        {/*
+          ★킷 버튼에는 기다림 상태가 없다 — 포털이 쓰는 대로 도는 고리를 클래스로 얹는다
+            (`krds-theme.css` 의 `.krds-btn.klid-btn-busy`).
+          ★여기서는 `disabled` 를 쓴다 — 못 누르는 사유를 따로 알릴 것이 없는 자리다(고친 것이
+            없거나 이벤트 분류가 비면 저장할 것이 없다).
+        */}
         <Button
-          size="sm"
-          fullWidth
+          size="small"
+          variant="secondary"
+          className={save.isPending ? 'klid-btn-busy' : undefined}
+          aria-busy={save.isPending || undefined}
           onClick={() => canSave && save.mutate(payload)}
           disabled={!canSave}
-          loading={save.isPending}
         >
           이벤트 어노테이션 저장
         </Button>
       </div>
-    </MetaSection>
+    </div>
   );
 }

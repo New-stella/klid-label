@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-019
 type: class_diagram
-version: 1
+version: 4
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:45:17.825Z
-status: NEW
-prev_version: null
-content_hash: efd48049d0a9b247f318b625f2a35534a3301e0610d5fb0ac0c4485a92a678ef
+synced_at: 2026-09-15T13:21:55.591Z
+status: CHANGED
+prev_version: 1
+content_hash: 16ed10f71671584178ecf4eb0775fa143ef8a89160f6a0c169e1231a9c919fd5
 stale: false
 raw: ./_raw/CDIAG-019.json
 links:
@@ -45,7 +45,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수 대상 목록을 쪽 단위로 조회한다
+- **description**: 검수 대상 목록을 쪽 단위로 조회한다. 각 항목에 지금 그 영상을 점유한 사람과 마지막으로 승인한 사람·그 행위 시점의 역할, 그리고 요청자가 그 건을 일괄 승인에 담을 수 있는지를 함께 싣는다. 세 축 모두 표시 전용이며 걸러내기·정렬 항목으로 올리지 않는다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 
@@ -72,7 +72,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수 대상 한 건의 상세를 조회한다
+- **description**: 검수 대상 한 건의 상세를 조회한다. 지금 그 영상을 점유한 사람과 마지막으로 승인한 사람·그 행위 시점의 역할을 함께 싣는다. 점유는 표시이지 조회 자격이 아니라, 남이 점유 중이어도 상세는 열린다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 
@@ -137,7 +137,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수자가 그 영상의 검수를 시작한다
+- **description**: 검수자가 그 영상의 검수를 시작한다. 시작하면 그 사람이 그 영상을 점유하며, 점유는 작업 이력 원장에 「검수 시작」을 남기는 것으로 표현하고 전용 컬럼이나 표를 두지 않는다. 상태를 전이하는 갈래는 검수 대기에서 집어가는 하나뿐이고, 그 밖의 갈래는 모두 상태 전이 없이 점유만 세운다 — 예컨대 같은 사람의 재진입, 유예가 지나 풀린 검수 진행 영상을 이어받는 경우, 재검토 필요 표시가 선 승인 영상이 그렇다. 검수 시작 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남는다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 
@@ -151,7 +151,20 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수를 승인해 학습데이터로 확정하고 버전 스냅샷·산출물 재생성·관제 통지를 잇는다
+- **description**: 검수를 승인해 학습데이터로 확정하고 버전 스냅샷·산출물 재생성·관제 통지를 잇는다. 승인 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남는다
+- **is_abstract**: false
+- **return_type**: 응답 래퍼
+
+#### batchApprove
+
+**params**:
+
+- 일괄 승인 대상 목록
+- 사용자 정보
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 검수 목록에서 고른 여러 영상을 한 번에 승인한다. 승인만 두고 반려는 두지 않는다 — 반려는 건마다 사유가 달라 묶을 수 없다. 자격은 유효 점유의 주인이 요청자 본인이고 단건 승인이 허용하는 상태인 건이며, 부분 실패를 허용해 건별 결과를 돌려준다. 성공한 건의 결과는 단건 승인과 완전히 같다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 
@@ -165,7 +178,7 @@ neutral
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수를 반려해 작업자에게 되돌린다
+- **description**: 검수를 반려해 작업자에게 되돌린다. 반려 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남는다
 - **is_abstract**: false
 - **return_type**: 응답 래퍼
 

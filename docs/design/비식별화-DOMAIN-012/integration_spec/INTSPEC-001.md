@@ -1,18 +1,18 @@
 ---
 logicraft_item: INTSPEC-001
 type: integration_spec
-version: 11
+version: 13
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T00:43:42.719Z
+synced_at: 2026-09-17T01:12:41.915Z
 status: CHANGED
-prev_version: 10
-content_hash: 921fc176760e7e16159f3383f7e80e1d2f1d6bb28fbff9e11d030478488dcdf5
+prev_version: 11
+content_hash: ba16e87fd39eb6f6aad714075d1f58388d5a6b8099032f4d95eebbfe28df71ea
 stale: false
 raw: ./_raw/INTSPEC-001.json
 links:
-  references: ["[[INT-004]]"]
-  references_backward: ["[[INT-004]]", "[[INT-005]]"]
+  references: ["[[ADR-072]]", "[[INT-004]]"]
+  references_backward: ["[[ADR-072]]", "[[INT-004]]", "[[INT-005]]"]
 ---
 
 # KPST 비식별 솔루션 API 규격 (실측 보정본)
@@ -50,6 +50,7 @@ _(empty)_
 - POST `/project` — 프로젝트 생성(body: project_name·creator·export_path·input_path·files[]·masking_type·db_save 등. 응답 `{result, prj_id}`. 내부 proc_di_make_project_and_join)
 - GET `/retrieve_progress` — 진행조회(⚠ GET이나 JSON 바디 필수: reqUserId+prjId)
 - POST `/delete_project_id` — 삭제(body: project_id·user_id. 내부 proc_di_drop_project)
+  - ⚠ **[정정] 저작도구는 이 삭제를 호출하지 않는다** — 위 「핵심 4종만 사용」 중 이 항목은 벤더 제공 사실일 뿐 저작도구의 호출 대상이 아니다. 재위탁 전에 이전 프로젝트를 지우지 않고, 대신 **회차마다 다른 프로젝트 이름**으로 보낸다(아래 「소비 규약 — 프로젝트 이름」).
 
 입력 = `input_path`(원본 부모 디렉터리, 공유마운트 READ) + `files[]` 직접 참조 → **업로드 없음**. 출력 = KPST가 `export_path`(`{STORAGE_DEIDENTIFIED_PATH}/videos/{rawSn}/`)에 직접 산출 → **다운로드 없음(no-copy)**. 완료 응답 `dsStatus.fileName`을 경로정화(CWE-22) 후 `DE_IDNTF_FILE_PATH_NM` 기록.
 
@@ -61,6 +62,12 @@ _(empty)_
 - 완료 판정: **procState=`2`**(progressRate 100·endTime 세팅). 미시작=null. ⚠ 벤더 문서 표(3=완료)와 불일치 — **벤더 확인·정정 필요**. 코드 PROC_STATE_COMPLETED=2.
 - `/retrieve_progress`: 쿼리 전용 3종 모두 400, **JSON 바디만 200**. 일반적인 HTTP 클라이언트는 GET 요청에 바디를 싣지 않으므로, 바디를 실을 수 있는 저수준 HTTP 클라이언트로 Content-Length 를 명시해 전송한다.
 - 처리 예: 1.mp4(totalFrame 1543) 약 13초 완료.
+
+## 실측 보정 — 결과 영상의 재생 인덱스 위치
+- 솔루션이 `export_path` 에 산출하는 결과 영상은 **재생 인덱스(moov)가 파일 끝에 배치**된다. 브라우저 스트리밍용 앞 배치가 아니다.
+- 파일 자체는 온전하다 — 파일을 통째로 읽는 재생기에서는 끝까지 정상 재생된다. 그러나 부분 요청으로 나눠 읽는 브라우저 재생에서는 재생을 시작하기 전에 파일 끝의 인덱스를 받아와야 하고 버퍼링·구간 이동마다 그 왕복이 반복돼, **재생 시작이 늦고 재생 중 끊긴다**. 인덱스 위치는 파일 구조라 서빙 측의 부분 응답으로는 고칠 수 없다.
+- **연동 측 보정** — 소비 측(저작도구)은 완료가 확정돼 결과 경로가 기록된 직후, 재생 인덱스가 앞에 있지 않은 결과 영상에 대해 영상·음성 스트림을 다시 인코딩하지 않고 인덱스만 앞으로 옮기는 무손실 재배치를 수행한다([[ADR-072]]). **결과 파일의 경로·파일명은 바꾸지 않는다** — 기록된 결과 경로가 그대로 유효하다. 재배치에 실패해도 원래 결과 파일과 완료 상태는 그대로 둔다.
+- **벤더 측 정정 요청** — 결과 영상을 재생 인덱스가 앞에 오도록 산출해 달라고 솔루션 측에 요청 중이다. 수정되면 연동 측 재배치는 인덱스 판정에서 건너뛰어 **자동으로 무동작**이 된다.
 
 ## 전송·인증
 base-url 스키마로 **http(내부망 IP 평문)/https(자체 CA TLS)** 자동 분기. https만 ca-cert 필수(fail-closed, CWE-295 hostname 검증). 클라이언트 토큰/API키 없음. 운영은 내부망 http://IP:port 유력.
@@ -100,6 +107,9 @@ base-url 스키마로 **http(내부망 IP 평문)/https(자체 CA TLS)** 자동 
 
 - **취소 종결만 영상 상태를 건드리지 않는 이유** — 외부로 아무것도 나가지 않았으므로, 거기서 실패를 찍으면 나간 적이 없는 요청이 그 영상을 신고 게이트(조회 차단 · 스트리밍 차단 · 산출 보류)에 밀어 넣는다.
 - **★수락 응답 미관측 회수를 따로 두는 이유는 영상 상태가 아니라 운영 조치다** — 영상은 다른 실패와 똑같이 `'F'` 가 되지만, 이 종결은 「우리가 수락 응답을 관측하지 못했다」는 뜻이지 「외부에서 실패했다」가 아니다. 즉 **외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있다.** 사람이 외부 상태를 확인해야 하는 건을 식별하려는 분리다.
+
+## 소비 규약 — 프로젝트 이름은 회차마다 겹치지 않는다
+`POST /project` 는 **같은 `project_name` 의 프로젝트가 이미 있으면 409 로 거부**한다. 저작도구는 그 영상의 첫 위탁은 `raw{영상번호}`, 다시 위탁할 때(선두 비식별 재시작·검수 완료 재비식별)는 이번 회차 비식별 이력 번호를 붙인 이름(예 `raw44r57`, 영문·숫자만)을 보내 **같은 이름을 두 번 보내지 않는다**. 이름 규칙의 정본은 [[INT-004]] 인라인 규격 「프로젝트 이름」이다(여기에 판정 규칙을 복제하지 않는다).
 
 
 ## effective_date

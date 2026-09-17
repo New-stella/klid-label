@@ -16,11 +16,12 @@
           "id": "main",
           "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-033/main.html",
           "label": "파일 업로드 — 고충실 디자인",
+          "stack": "single_html",
           "width": 1440,
           "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-033/main.css",
           "surface": "page",
           "platform": "web",
-          "uploaded_at": "2026-09-01T08:07:20.842Z",
+          "uploaded_at": "2026-09-14T04:28:57.242Z",
           "uploaded_by": "claude-screen-design"
         }
       ],
@@ -35,12 +36,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "사양 v49 가 「폴더에서 일괄 올리기」·「일괄 적재 진행」을 이 화면에서 걷어내 산출물 가져오기로 옮긴 것을 시안에 반영한다. 그 두 섹션과 딸린 참고 패널·전용 스타일을 지웠고 지운 것은 버린 것이 아니라 SCREEN-039 시안으로 그대로 옮겨갔다. 함께 제목을 실제 화면 이름인 파일 업로드로 맞췄다 — 렌더 이름표는 이미 파일 업로드였는데 문서 제목만 옛 이름인 영상 업로드로 남아 한 문서 안에서 두 이름이 갈려 있었다. 시안 머리의 빵부스러기 그룹·라우트 표기·접근 권한 배지도 사양과 어긋나 있어 관리자 그룹·관리자 전용·관리자 페이지 주소로 정정하고, 관리자 패스워드로 여는 단기 유효창이 필요하다는 사실을 안내 띠에 더했다.",
+    "change_summary": "디자인 화면 업로드 (main, page) +css",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:08:49.452Z",
+    "last_updated_at": "2026-09-14T04:28:57.243Z",
     "created_at": "2026-08-14T01:57:48.990Z"
   }
 }

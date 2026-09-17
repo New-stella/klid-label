@@ -1,0 +1,200 @@
+@charset "utf-8";
+/* =============================================================================
+   KLID 연출 유틸 — 메인·소개 페이지의 그라데이션·텍스처·소프트 섀도
+
+   krds-theme.css 가 import 한다. 단독 로드하지 않는다.
+   목업 klid_2nd/src/mockup/styles/index.css 의 @layer utilities 이식본.
+   클래스명은 목업과 동일하게 유지한다 (페이지 마크업 이식 시 그대로 대응.
+   KRDS 제네릭 클래스와 충돌 없음 확인 완료).
+
+   팔레트에 있는 색은 전부 토큰 참조로 바꿨다 (알파는 color-mix 로 파생 —
+   하드코딩 hex 금지 규칙). 팔레트 밖 글로우 톤(#6e96eb·#a0befa·아이시 베이스
+   #f2f6fb 계열)은 히어로 한정 연출색이라 리터럴로 남긴다.
+
+   컴포넌트 종속 애니메이션(thumb-scan·radar-pulse·orb-drift·marquee·bob·
+   region-bubble-float)은 여기 두지 않는다 — 해당 컴포넌트 이식 때 같이 가져온다.
+   ============================================================================= */
+
+/* 히어로 배경 — 아주 밝은 아이시 블루, 큐브 뒤에만 은은한 코발트 글로우.
+   코어(네온 톤은 히어로 한정 허용)로 포컬 앵커를 만들고 바깥으로 풀린다.
+   --hero-focal-x / --hero-focal-y: 캐릭터 화면 위치(캔버스 resize 에서 주입). 기본 68% · 45%.
+   세로는 캐릭터 캔버스가 히어로 전면이 아닐 때만 들어온다(모바일: 검색창 아래 칸).
+   --hero-glow-core / --hero-glow-halo: 글로우 크기. 기본은 히어로 면 비율(가로형 기준)이고,
+   면이 세로로 길어지는 자리(모바일)에서는 화면이 rem 두 값으로 바꿔 원형으로 세운다. */
+.hero-gradient {
+  background:
+    radial-gradient(
+      var(--hero-glow-core, 28% 34%) at var(--hero-focal-x, 68%) var(--hero-focal-y, 45%),
+      color-mix(in srgb, var(--krds-color-light-primary-45) 38%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      var(--hero-glow-halo, 50% 58%) at var(--hero-focal-x, 68%) var(--hero-focal-y, 46%),
+      rgb(110 150 235 / 0.3),
+      transparent 70%
+    ),
+    radial-gradient(42% 50% at 10% 10%, rgb(255 255 255 / 0.85), transparent 60%),
+    linear-gradient(160deg, #f2f6fb 0%, #e4ecf7 52%, #edf2fa 100%);
+}
+
+/* 중앙 정렬 히어로(큐브 없는 인트로 등) — 글로우를 텍스트 중앙에 맞춤 */
+.hero-gradient-center {
+  background:
+    radial-gradient(
+      30% 42% at 50% 44%,
+      color-mix(in srgb, var(--krds-color-light-primary-45) 21%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(56% 64% at 50% 46%, rgb(110 150 235 / 0.19), transparent 72%),
+    linear-gradient(160deg, #f2f6fb 0%, #e4ecf7 52%, #edf2fa 100%);
+}
+
+/* 히어로 장식 — 은은한 코발트 글로우 블롭 (느린 드리프트) */
+.hero-blob-a {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--krds-color-light-primary-40) 22%, transparent),
+    transparent 70%
+  );
+}
+.hero-blob-b {
+  background: radial-gradient(circle, rgb(160 190 250 / 0.3), transparent 70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-blob-a {
+    animation: hero-drift-a 16s ease-in-out infinite alternate;
+  }
+  .hero-blob-b {
+    animation: hero-drift-b 22s ease-in-out infinite alternate;
+  }
+}
+@keyframes hero-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4.4rem, -3rem, 0) scale(1.12);
+  }
+}
+@keyframes hero-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-5rem, 2.6rem, 0) scale(1);
+  }
+}
+
+/* 히어로 장식 — 숨쉬는 가운데 글로우. 제자리에서 천천히 부풀었다 잦아든다.
+   배경 이미지는 부드럽게 못 키우므로 글로우를 한 장으로 따로 두고 크기를 움직인다.
+   자리 잡는 쪽(가운데 이동)은 transform 이 아니라 translate 로 두어야 한다 —
+   같은 속성을 쓰면 숨쉬기가 그 이동을 덮어써 글로우가 오른쪽 아래로 튄다 */
+.hero-glow-breathe {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--krds-color-light-primary-45) 18%, transparent),
+    transparent 72%
+  );
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-glow-breathe {
+    animation: hero-breathe 7s ease-in-out infinite alternate;
+  }
+}
+@keyframes hero-breathe {
+  from {
+    transform: scale(0.88);
+    opacity: 0.65;
+  }
+  to {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+/* 히어로 장식 — 미세 도트 그리드 (데이터 그리드 메타포, 큐브 주변만 보이게 마스크) */
+.hero-dots {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--krds-color-light-primary-50) 9%, transparent) 0.1rem,
+    transparent 0.1rem
+  );
+  background-size: 2.2rem 2.2rem;
+  -webkit-mask-image: radial-gradient(
+    var(--hero-dots-mask, 55% 65%) at var(--hero-focal-x, 68%) var(--hero-focal-y, 45%),
+    black,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    var(--hero-dots-mask, 55% 65%) at var(--hero-focal-x, 68%) var(--hero-focal-y, 45%),
+    black,
+    transparent 78%
+  );
+}
+
+/* 코발트 그라데이션 텍스트 (빅 넘버·키워드 강조) */
+.text-gradient-cobalt {
+  background: linear-gradient(
+    120deg,
+    var(--krds-color-light-primary-50) 10%,
+    var(--krds-color-light-primary-45) 55%,
+    var(--krds-color-light-primary-60) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 딥 코발트 섹션 배경 (Wow·CTA 밴드) */
+.band-cobalt {
+  background:
+    radial-gradient(
+      60% 90% at 80% 10%,
+      color-mix(in srgb, var(--krds-color-light-primary-40) 35%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      50% 80% at 8% 90%,
+      color-mix(in srgb, var(--krds-color-light-primary-60) 55%, transparent),
+      transparent 65%
+    ),
+    linear-gradient(
+      135deg,
+      var(--krds-color-light-primary-80) 0%,
+      var(--krds-color-light-primary-70) 45%,
+      var(--krds-color-light-primary-90) 100%
+    );
+}
+
+/* 딥 코발트의 **한 단계 더 어두운 짝** — 서브페이지 머리 밴드용.
+   band-cobalt(70~90)는 CTA 처럼 한 화면에 한 번 서는 자리라 밝아도 되지만, 머리 밴드는
+   화면 맨 위에서 흰 카드·흰 버튼을 받치는 면이라 더 가라앉아야 얹힌 것들이 산다.
+   ★ 코발트 바닥(primary-95)에 중립 바닥(gray-95)을 섞어 **거의 검은 남색**으로 내렸다
+   (2026-08-08). primary-95 단독이 코발트 계열의 마지막 단계이고, 그보다 어두우려면 중립을
+   섞는 수밖에 없다 — 절반쯤만 섞어 남색기를 남긴다. 면을 이만큼 낮추는 이유는 위에 얹는
+   빛과 흰 카드가 살려면 바탕이 가라앉아야 하기 때문이다.
+   그라데이션을 두지 않는다: 면은 고르게 깔고, 밝기의 기복은 빛이 만든다.
+
+   ★ band-cobalt 과 달리 **자기 빛을 품지 않는다.** 이 면은 위에 초점(글로우 원)을 얹는
+   것을 전제로 하는 바탕이라, 유틸이 라디얼을 갖고 있으면 화면이 원을 어디에 두든 그쪽이
+   먼저 밝아 초점이 둘로 갈린다. 빛은 쓰는 화면이 얹는다. */
+.band-cobalt-deep {
+  background-color: color-mix(
+    in srgb,
+    var(--krds-color-light-primary-95) 55%,
+    var(--krds-color-light-gray-95)
+  );
+}
+
+/* 다크 밴드 위 미세 도트 텍스처 (미디어/다크밴드 오버레이 — opacity 허용 예외) */
+.band-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.12) 0.1rem, transparent 0.1rem);
+  background-size: 2.2rem 2.2rem;
+}
+
+/* 카드 소프트 표면 — 정적 elevation (호버 반응 없음, 코발트 틴트 섀도).
+   링크형·강조 카드에만 쓴다 (기본 카드는 그림자 없음 — design.md §5) */
+.card-soft {
+  box-shadow:
+    0 0.1rem 0.2rem color-mix(in srgb, var(--krds-color-light-gray-90) 5%, transparent),
+    0 1rem 3rem -1.2rem color-mix(in srgb, var(--krds-color-light-primary-80) 16%, transparent);
+}

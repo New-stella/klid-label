@@ -26,6 +26,7 @@ vi.mock('../../hooks/useVideoPrivacyMeta', () => ({
   useUpdateVideoPrivacyMeta: mockUseUpdateVideoPrivacyMeta,
 }));
 
+import { MetaHelpProvider } from '../metaHelp';
 import { VideoPrivacyMetaPanel } from '../VideoPrivacyMetaPanel';
 
 /** BE 기본상수 프리필(익명 Y / 가명 N / 개인정보포함 N) — 전부 DERIVED. */
@@ -143,9 +144,20 @@ describe('VideoPrivacyMetaPanel', () => {
     expect(screen.getByLabelText('익명여부')).not.toBeChecked();
   });
 
-  it('반영범위_안내문구_표시', () => {
-    // given / when
-    renderWithProviders(<VideoPrivacyMetaPanel rawSn={7} />);
+  it('반영범위_안내문구는_도움말을_켜야_보인다', () => {
+    // ⚠ 2026-09-15 전제 변경 — 이 안내는 <b>구역 설명문</b>이 되어 메타 탭 도움말 뒤로 들어갔다
+    //   (기본 감춤). 좁은 탭에서 설명이 값을 아래로 밀어낸다는 사용자 지적의 반영이며 회귀가 아니다.
+    //   ★문구 자체는 그대로다 — 「지웠다」와 「도움말 뒤로 옮겼다」를 구분하려고 두 상태를 다 센다.
+    const { unmount } = renderWithProviders(<VideoPrivacyMetaPanel rawSn={7} />);
+    expect(screen.queryByText(/비식별 학습데이터에 반영/)).toBeNull();
+    unmount();
+
+    // when — 도움말을 켠 상태
+    renderWithProviders(
+      <MetaHelpProvider visible>
+        <VideoPrivacyMetaPanel rawSn={7} />
+      </MetaHelpProvider>,
+    );
 
     // then — 영상 단위 판정 + 비식별만 반영 + 원천은 판정 안 함
     expect(screen.getByText(/영상 전체 기준/)).toBeInTheDocument();

@@ -15,6 +15,9 @@ import {
 } from '@/components/common/Select';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 빈 자리 안내. 관제 렌더 경로는 거치지 않는다.
+import { EmptyState } from '@/components/portal/kit';
+
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
 import { normalizeBox } from '../canvas/utils/canvasGeometry';
@@ -129,6 +132,11 @@ export interface ObjectAttributePanelProps {
     label?: string;
   };
   /**
+   * 포털 채널에서 렌더되는가 — 호출부가 `portalMode` 에서 그대로 넘긴다(패널은 채널을 판정하지 않는다).
+   * 속성 입력(라디오)을 포털 부품으로 그리는 데만 쓴다. 기본값 false — 관제 렌더 무변경.
+   */
+  portalMode?: boolean;
+  /**
    * (Phase 2 FE) AI 분할(SAM_SEGMENT) 조절 컨텍스트 — 도구 활성 시 "AI 분할 정밀도" 섹션 노출.
    * 인식 민감도는 분할에 무의미하므로 노출하지 않는다(경계 세밀함만).
    * - defaultTolerance      : 프리필 값(시스템 설정 POLYGON_SIMPLIFY_TOLERANCE). 미지정 시 코드 상수 폴백.
@@ -159,6 +167,7 @@ export function ObjectAttributePanel({
   imageHeight,
   track,
   segment,
+  portalMode = false,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 라벨 수정·정밀도 조절·즉시 그리기 토글을 막는다.
@@ -213,9 +222,26 @@ export function ObjectAttributePanel({
 
   if (!target) {
     return (
-      <aside className={`${PANEL_LAYOUT_CLASS} gap-2`} aria-label="객체 속성">
-        <h3 className="text-sub font-semibold text-gray-900">객체 속성</h3>
-        <p className="text-sub text-gray-500">선택된 객체가 없습니다</p>
+      <aside
+        className={`${PANEL_LAYOUT_CLASS} gap-2${portalMode ? ' klid-tool-panel' : ''}`}
+        data-level={portalMode ? '4' : undefined}
+        aria-label="객체 속성"
+      >
+        {portalMode ? (
+          <>
+            {/* ★킷 판 머리 줄(층 4 · 13) — 좌측 도구 칸·이미지 조절과 같은 층으로 선다. */}
+            <div className="klid-tool-panel-head">
+              <h3 className="klid-tool-panel-title">객체 속성</h3>
+            </div>
+            {/* 시안과 같은 치수·같은 문장(마침표까지)이다. */}
+            <EmptyState size="xs" title="선택된 객체가 없습니다." />
+          </>
+        ) : (
+          <>
+            <h3 className="text-sub font-semibold text-gray-900">객체 속성</h3>
+            <p className="text-sub text-gray-500">선택된 객체가 없습니다</p>
+          </>
+        )}
         {segmentControl}
       </aside>
     );
@@ -271,13 +297,29 @@ export function ObjectAttributePanel({
   }
 
   return (
-    <aside className={`${PANEL_LAYOUT_CLASS} gap-3`} aria-label="객체 속성">
-      <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-900">
-        <span>객체 속성</span>
-        <span className="text-gray-500 text-caption" data-testid="object-attribute-id">
-          #{objectNumber}
-        </span>
-      </h3>
+    <aside
+      className={`${PANEL_LAYOUT_CLASS} gap-3${portalMode ? ' klid-tool-panel' : ''}`}
+      data-level={portalMode ? '4' : undefined}
+      aria-label="객체 속성"
+    >
+      {/* ★머리 줄 꼴이 채널마다 갈린다 — 포털은 킷 판 머리(이름 왼쪽 · 식별자 오른쪽 끝)이고
+          관제는 종전 그대로 이름 옆에 붙는다. <b>보여 주는 값도 제목 층도 같다.</b>
+          ⚠ 관제 쪽 `h3` 짜임을 건드리지 않는다 — 관제향 화면 불변 구속이다. */}
+      {portalMode ? (
+        <div className="klid-tool-panel-head">
+          <h3 className="klid-tool-panel-title">객체 속성</h3>
+          <span className="klid-tool-panel-aside" data-testid="object-attribute-id">
+            #{objectNumber}
+          </span>
+        </div>
+      ) : (
+        <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-900">
+          <span>객체 속성</span>
+          <span className="text-gray-500 text-caption" data-testid="object-attribute-id">
+            #{objectNumber}
+          </span>
+        </h3>
+      )}
 
       {/* 라벨 드롭다운 — Phase 8: useLabelMasters 응답을 자동 사용 */}
       {resolvedAvailable.length > 0 ? (
@@ -389,6 +431,7 @@ export function ObjectAttributePanel({
           serverId={target.serverId}
           // 속성값 커밋은 즉시 서버 쓰기다 — 좌표 편집(CoordsEditor)과 같은 축으로 차단한다.
           editBlocked={editBlocked}
+          portalMode={portalMode}
         />
       )}
 

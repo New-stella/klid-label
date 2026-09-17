@@ -1,11 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EVENT_TYPE_ADMIN_KEY } from '@/features/eventType/adminHooks';
 import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
+import { LABEL_IDS_MAX_COUNT } from '@/features/preset/schemas';
 import type { Preset } from '@/features/preset/types';
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -659,5 +660,132 @@ describe('PresetEditModal — 진입 모드별 초기 상태 (CO-20260908)', () 
     // 라벨을 하나도 고르지 않았지만 저장 수단은 활성이다 — 라벨 개수는 이 조건에 들어가지 않는다.
     await waitFor(() => expect(save().disabled).toBe(false));
     expect((screen.getByRole('checkbox', { name: /사람/ }) as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+/**
+ * CO-20260916 — 라벨을 상한보다 많이 고른 채 저장을 눌러도 <b>저장되지도 않고 아무 반응이 없던</b>
+ * 발주처 오류 증적.
+ *
+ * <h3>고친 자리는 검증이 아니라 「도달」이다</h3>
+ * 상한 판정은 원래부터 스키마에 있었고(`labelIds.max`) 라벨 목록 쪽에는 개수 표기와 오류 문구까지
+ * 떠 있었다. 그런데 <b>저장 가능 조건에 개수가 없어</b> 버튼은 눌리고, 검증은 실패하고, 그 실패가
+ * 사용자 눈에 닿지 않았다. 그래서 이 가드는 「판정이 있다」가 아니라 <b>도달</b>을 결박한다.
+ *
+ * ⚠ 그래서 「안내가 화면 어딘가에 있다」로는 부족하다 — 그 상태는 증적 당시에도 참이었다.
+ *   <b>저장 수단 바로 곁</b>에 있는지를 구조로 단언한다.
+ *
+ * @design SCREEN-026, UC-032, AC-1128
+ */
+describe('PresetEditModal — 라벨 선택 개수 상한 (CO-20260916)', () => {
+  let mock: MockAdapter;
+
+  /** 상한을 넘겨 고를 수 있어야 하므로 상한보다 넉넉히 많은 활성 마스터를 둔다. */
+  const MANY_MASTERS = Array.from({ length: LABEL_IDS_MAX_COUNT + 2 }, (_, i) => ({
+    labelId: 100 + i,
+    name: `라벨${String(i + 1).padStart(2, '0')}`,
+    color: '#3B82F6',
+    type: 'BBOX',
+    sortNo: i + 1,
+    useYn: 'Y',
+    // 전부 매핑해 둔다 — 「전부 미매핑」 경고가 함께 뜨면 이 가드가 보는 축이 흐려진다.
+    dtctTypeCd: 'person',
+  }));
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    mock.onGet('/manage/event-types').reply(200, ok(ADMIN_EVENT_TYPES));
+    mock.onGet('/manage/labels').reply(200, ok(MANY_MASTERS));
+  });
+
+  afterEach(() => mock.restore());
+
+  const boxes = () => screen.getAllByRole('checkbox') as HTMLInputElement[];
+  const save = () => screen.getByRole('button', { name: '만들기' }) as HTMLButtonElement;
+  const countText = () => screen.getByTestId('preset-labels-count');
+
+  /** 앞에서부터 `n` 개를 고른다. 실제로 그만큼 골라졌는지 개수 표기로 확인한다. */
+  const selectFirstLabels = (n: number) => {
+    const all = boxes();
+    for (let i = 0; i < n; i += 1) fireEvent.click(all[i]!);
+    expect(countText()).toHaveTextContent(`${n} / ${LABEL_IDS_MAX_COUNT}개 선택`);
+  };
+
+  /** 이벤트유형까지 골라 「개수만 남은」 상태로 만든다 — 저장이 막히는 사유를 개수 하나로 좁힌다. */
+  const openWithEventType = async (onSubmit = vi.fn()) => {
+    const user = userEvent.setup();
+    renderWithProviders(<PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />);
+    await screen.findByRole('checkbox', { name: /라벨01/ });
+    await selectRadixOption(user, screen.getByLabelText(/이벤트유형/), '화재 (EV02000101)');
+    await waitFor(() => expect(save().disabled).toBe(false));
+    return onSubmit;
+  };
+
+  it('★상한을_넘겨_고르면_저장이_막히고_사유가_저장_수단_곁에서_보인다', async () => {
+    await openWithEventType();
+
+    selectFirstLabels(LABEL_IDS_MAX_COUNT + 1);
+
+    // ① 막힌다
+    expect(save().disabled).toBe(true);
+
+    // ② 사유와 지금 고른 개수가 함께 드러난다
+    const notice = screen.getByTestId('preset-label-limit-notice');
+    expect(notice).toHaveTextContent(`최대 ${LABEL_IDS_MAX_COUNT}개까지 선택할 수 있습니다`);
+    expect(notice).toHaveTextContent(`지금 ${LABEL_IDS_MAX_COUNT + 1}개를 골랐습니다`);
+
+    // ③ ★그 사유가 <b>저장 수단 바로 곁</b>에 있다.
+    //   「화면 어딘가에 안내가 있다」로는 부족하다 — 라벨 목록 쪽 표기는 증적 당시에도 이미 있었고
+    //   그래도 「아무 반응이 없다」가 됐다. 안내를 목록 쪽으로 되돌리면 이 단언이 깨진다.
+    expect(within(save().parentElement!).getByTestId('preset-label-limit-notice')).toBe(notice);
+  });
+
+  it('★상한을_넘겨도_라벨_선택_자체는_막지_않는다', async () => {
+    // 넘긴 상태에서 <b>무엇을 뺄지</b> 고르려면 그 상태에 머무를 수 있어야 한다.
+    await openWithEventType();
+
+    selectFirstLabels(LABEL_IDS_MAX_COUNT + 1);
+
+    // 넘긴 그 선택이 실제로 반영돼 있고(표시만 되고 버려지는 것이 아니다)
+    expect(boxes()[LABEL_IDS_MAX_COUNT]!.checked).toBe(true);
+    // 어느 체크박스도 잠기지 않으며
+    expect(boxes().every((b) => !b.disabled)).toBe(true);
+    // 한 개 더 고르는 것도 막히지 않는다.
+    fireEvent.click(boxes()[LABEL_IDS_MAX_COUNT + 1]!);
+    expect(countText()).toHaveTextContent(`${LABEL_IDS_MAX_COUNT + 2} / ${LABEL_IDS_MAX_COUNT}개 선택`);
+  });
+
+  it('★상한_이하로_줄이면_안내가_사라지고_다시_저장할_수_있다', async () => {
+    const onSubmit = await openWithEventType();
+    selectFirstLabels(LABEL_IDS_MAX_COUNT + 1);
+    expect(screen.getByTestId('preset-label-limit-notice')).toBeInTheDocument();
+
+    // when: 하나를 해제해 상한 이하로 되돌린다
+    fireEvent.click(boxes()[LABEL_IDS_MAX_COUNT]!);
+
+    // then: 막힘이 영구 상태로 남지 않는다
+    await waitFor(() => expect(screen.queryByTestId('preset-label-limit-notice')).toBeNull());
+    expect(save().disabled).toBe(false);
+
+    fireEvent.click(save());
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0]![0] as { labelIds: number[] };
+    expect(payload.labelIds).toHaveLength(LABEL_IDS_MAX_COUNT);
+  });
+
+  it('★상한_이하에서는_안내가_없고_종전과_똑같이_저장된다', async () => {
+    // ★「걸리는 쪽」의 짝 — 이것이 없으면 경계를 한 칸 좁게 막아 정당한 선택까지 막아도 통과한다.
+    const onSubmit = await openWithEventType();
+
+    selectFirstLabels(LABEL_IDS_MAX_COUNT);
+
+    expect(screen.queryByTestId('preset-label-limit-notice')).toBeNull();
+    expect(save().disabled).toBe(false);
+
+    fireEvent.click(save());
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect((onSubmit.mock.calls[0]![0] as { labelIds: number[] }).labelIds).toHaveLength(
+      LABEL_IDS_MAX_COUNT,
+    );
   });
 });

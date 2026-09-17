@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head><body><div class="work-shell">
+<html lang="ko"><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head><body><div class="work-shell">
 
   
   <header class="work-header">
@@ -560,111 +560,26 @@
 
           
           <section class="panel-section">
-            <h3 class="panel-section-title t-title-sm mb-sm">시계열 메타</h3>
-
-            <div class="field mb-md">
-              <label class="t-label" for="vlm-desc">서술 전문</label>
-              <textarea class="textarea textarea-tall" id="vlm-desc">0~8초 구간, 보행자가 걸어오다 중심을 잃고 바닥에 쓰러진다. 이후 움직임이 거의 없다.</textarea>
-              <span class="char-count t-caption num">54 / 2000</span>
+            <h3 class="panel-section-title t-title-sm mb-sm">영상 분석 설명 · 이벤트 어노테이션</h3>
+            <p class="field-help t-caption mb-xs">외부 분석이 적은 영상 설명과, 학습데이터에 함께 저장되는 사건 판단 정보입니다.</p>
+            <p class="field-help t-caption mb-sm">좁은 탭에서 읽기 어려워 여기에는 간추린 값만 둡니다. 전문은 「크게 보기 · 작성」으로 여는 창에서 보고 고칩니다.</p>
+            <div class="tsum-card">
+              <dl class="tsum-row"><dt class="t-caption">이벤트 분류</dt><dd><span class="tsum-name">교통사고</span> <span class="tsum-code">car_accident</span></dd></dl>
+              <dl class="tsum-row"><dt class="t-caption">영상 분석 설명</dt><dd class="tsum-clamp">장소: 서울특별시 중구 남대문로 1가 (두정역 인근)</dd></dl>
+              <dl class="tsum-row"><dt class="t-caption">아직 채우지 않은 항목</dt><dd class="tsum-empty">답변 · 사고 2·3단계 · 근거</dd></dl>
+              <dl class="tsum-row"><dt class="t-caption">검토 상태</dt><dd><span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>대기</span></dd></dl>
+              <button type="button" class="btn btn-primary btn-sm tsum-open">크게 보기 · 작성</button>
             </div>
-
-            <button type="button" class="btn btn-primary btn-sm">시계열 메타 저장</button>
 
             <div class="readonly-box mt-md">
-              <span class="field-label t-label">영상 기술 정보 · 읽기전용</span>
+              <span class="field-label t-label">영상 기술 정보 (읽기 전용)</span>
               <dl class="tech-kv">
-                <div class="kv-item"><dt class="t-caption">해상도</dt><dd class="num">1920×1080</dd></div>
+                <div class="kv-item"><dt class="t-caption">해상도</dt><dd class="num">640×480</dd></div>
                 <div class="kv-item"><dt class="t-caption">코덱</dt><dd>H.264</dd></div>
-                <div class="kv-item"><dt class="t-caption">FPS</dt><dd class="num">30</dd></div>
-                <div class="kv-item"><dt class="t-caption">비트레이트</dt><dd class="num">8.0 Mbps</dd></div>
+                <div class="kv-item"><dt class="t-caption">프레임률</dt><dd class="num">30.00 fps</dd></div>
+                <div class="kv-item"><dt class="t-caption">길이</dt><dd class="num">2분 24.6초</dd></div>
               </dl>
               <p class="field-help t-caption">영상에서 읽어 들인 기술 메타입니다(편집 불가).</p>
-            </div>
-          </section>
-
-          
-          <section class="panel-section">
-            <div class="panel-section-head">
-              <h3 class="panel-section-title t-title-sm">이벤트 어노테이션(VQA/CoT)</h3>
-              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>대기</span>
-            </div>
-
-            <div class="panel-stack">
-              <div class="field">
-                <label class="t-label" for="evt-class">이벤트 분류 <span class="text-muted">· 필수</span></label>
-                <input class="input input-sm" id="evt-class" value="쓰러짐" />
-              </div>
-              <div class="field">
-                <label class="t-label" for="evt-q">질의</label>
-                <textarea class="textarea textarea-short" id="evt-q">이 영상에서 어떤 안전 이벤트가 발생했는가?</textarea>
-              </div>
-              <div class="field">
-                <label class="t-label" for="evt-a">답변</label>
-                <textarea class="textarea textarea-short" id="evt-a">보행자가 넘어져 쓰러지는 낙상 이벤트가 발생했다.</textarea>
-              </div>
-
-              <div>
-                <p class="t-label mb-sm">캡션 후보</p>
-                <div class="candidate-row">
-                  <div class="candidate-head">
-                    <span class="t-label">c1</span>
-                    <button type="button" class="icon-btn" aria-label="캡션 후보 c1 삭제">
-                      <svg class="icon-sm stroke-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
-                    </button>
-                  </div>
-                  <label class="visually-hidden" for="cap-1">캡션 c1 본문</label>
-                  <textarea class="textarea textarea-short" id="cap-1">보행자가 걷다가 균형을 잃고 쓰러진다.</textarea>
-                  <div class="cot-step t-caption"><span class="cot-num">1</span><span>보행자가 통로 중앙을 걷고 있다.</span></div>
-                  <div class="cot-step t-caption"><span class="cot-num">2</span><span>발을 헛디디며 무게중심이 앞으로 쏠린다.</span></div>
-                  <div class="cot-step t-caption"><span class="cot-num">3</span><span>바닥에 쓰러지고 이후 움직임이 없다.</span></div>
-                </div>
-                <button type="button" class="add-row-btn mt-sm">
-                  <svg class="icon-sm cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
-                  캡션 후보 추가
-                </button>
-              </div>
-
-              <div>
-                <p class="t-label mb-sm">근거 후보</p>
-                <div class="candidate-row">
-                  <div class="candidate-head">
-                    <span class="t-label">1번째</span>
-                    <button type="button" class="icon-btn" aria-label="근거 후보 1번째 삭제">
-                      <svg class="icon-sm stroke-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
-                    </button>
-                  </div>
-                  <label class="visually-hidden" for="evd-1">근거 1번째 본문</label>
-                  <textarea class="textarea textarea-short" id="evd-1">프레임 0138~0145 에서 사람 #1 객체의 y좌표가 급격히 증가한다.</textarea>
-                  <div class="field">
-                    <label class="t-caption text-muted" for="evd-1-frames">프레임 식별자</label>
-                    <input class="input input-sm t-mono" id="evd-1-frames" value="0138, 0142, 0145" />
-                  </div>
-                  <div class="field">
-                    <label class="t-caption text-muted" for="evd-1-objects">객체 식별자 / 라벨 / 좌표</label>
-                    <input class="input input-sm t-mono" id="evd-1-objects" value="obj-2188 / 사람 / 212,340,96,188" />
-                  </div>
-                  <div class="attr-row">
-                    <button type="button" class="btn btn-outline btn-sm">현재 프레임 추가</button>
-                    <button type="button" class="btn btn-outline btn-sm">선택 객체 추가</button>
-                  </div>
-                </div>
-                <button type="button" class="add-row-btn mt-sm">
-                  <svg class="icon-sm cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
-                  근거 후보 추가
-                </button>
-              </div>
-
-              <button type="button" class="btn btn-primary btn-block">어노테이션 저장</button>
-
-              <div class="field">
-                <label class="t-label" for="evt-reject">반려 사유 <span class="text-muted">· 반려 시 필수</span></label>
-                <textarea class="textarea textarea-short" id="evt-reject" placeholder="반려 사유를 입력하세요"></textarea>
-                <p class="field-help t-caption">승인·반려는 검수자만 수행합니다.</p>
-              </div>
-              <div class="attr-row">
-                <button type="button" class="btn btn-primary btn-sm">승인</button>
-                <button type="button" class="btn btn-danger btn-sm">반려</button>
-              </div>
             </div>
           </section>
         </div>
@@ -674,7 +589,7 @@
           <section class="panel-section">
             <div class="panel-section-head">
               <h3 class="panel-section-title t-title-sm">이슈 스레드</h3>
-              <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>미해결 2건</span>
+              <span class="tab-count">2</span><span class="visually-hidden">미해결 문의 2건</span>
             </div>
 
             <button type="button" class="btn btn-secondary btn-sm btn-block mb-md">
@@ -685,7 +600,7 @@
             <div class="issue-thread">
               <div class="issue-head">
                 <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>반려</span>
-                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>해결됨</span>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>해결</span>
               </div>
               <p class="issue-body t-body-sm">BBOX 좌표가 이미지 경계를 벗어나 있습니다. 프레임 0140~0145 재확인 부탁드립니다.</p>
               <p class="issue-meta t-caption">김민준 (검수자) · 2026-08-10 14:22</p>

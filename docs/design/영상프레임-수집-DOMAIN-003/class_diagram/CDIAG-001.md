@@ -1,19 +1,20 @@
 ---
 logicraft_item: CDIAG-001
 type: class_diagram
-version: 6
+version: 7
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.133Z
-status: NEW
-prev_version: null
-content_hash: fd5bd97929f0ed706ea27460c0e3bd513fb6a8fb34d1f68cd4aa65a1fb4bda95
-stale: false
+synced_at: 2026-09-15T15:34:12.048Z
+status: CHANGED
+prev_version: 6
+content_hash: 0339a8a479c16eabf99c90a30832880a221600af9af38c99e322dfb7dcfde632
+stale: true
 raw: ./_raw/CDIAG-001.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
   depicts: ["[[DFEAT-007]]", "[[DFEAT-008]]", "[[DFEAT-009]]", "[[DFEAT-010]]", "[[DFEAT-011]]"]
-  references: ["[[DFEAT-008]]", "[[DFEAT-009]]"]
+  references: ["[[ADR-069]]", "[[DFEAT-008]]", "[[DFEAT-009]]"]
+  references_backward: ["[[ADR-069]]"]
 ---
 
 # 영상·프레임 수집 도메인 모델
@@ -78,6 +79,30 @@ _(empty)_
 - **is_abstract**: false
 - **return_type**: boolean
 
+#### exclude
+
+**params**:
+
+- exclRsn: String
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 화면 목록에서 제외한다 — 사유 필수. 행을 지우지 않고 표시만 바꾸므로 언제든 되돌릴 수 있다. 값이 실제로 바뀐 경우에만 이력을 남긴다 — 이미 제외된 영상에 같은 값을 다시 보내면 아무것도 바꾸지 않는 무변경 성공이다.
+- **is_abstract**: false
+- **return_type**: void
+
+#### restore
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 제외를 되돌려 다시 표시한다 — 사유를 받지 않는다(감추는 쪽만 사유를 남긴다). 값이 실제로 바뀐 경우에만 이력을 남기며 같은 값 재요청은 아무것도 바꾸지 않는다.
+- **is_abstract**: false
+- **return_type**: void
+
 **attributes**:
 
 #### rawSn
@@ -106,6 +131,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -138,6 +167,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### vmsCctvId
 
 - **type**: String
@@ -164,6 +197,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -196,6 +233,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lclgvCd
 
 - **type**: String
@@ -222,6 +263,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -254,6 +299,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### prvcYn
 
 - **type**: String
@@ -280,6 +329,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -312,6 +365,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawFilePathNm
 
 - **type**: String
@@ -338,6 +395,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -370,6 +431,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### durationSec
 
 - **type**: Integer
@@ -396,6 +461,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -428,6 +497,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataSttsCd
 
 - **type**: DataStatus
@@ -454,6 +527,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -486,6 +563,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -512,6 +593,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -544,6 +629,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### psdoInclYn
 
 - **type**: String
@@ -573,6 +662,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### prvcInclYn
 
 - **type**: String
@@ -599,6 +692,44 @@ _(empty)_
 100
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### exclYn
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 제외 여부 — 이 영상을 저작도구 화면 목록에서 뺄지에 대한 사람의 판정. 빈 값을 둘 수 없고 기본은 「표시」다. 물리 정의(자료형·길이·값역·기본값)는 영상 원장 ERD 가 소유하며 여기에 다시 적지 않는다. ★경계 — 이 값은 화면 목록 조회에만 쓰인다. 배치·관제 통지·데이터마트 조회 뷰·학습데이터 산출물은 이 값을 보지 않으며 산출물 콘텐츠 해시의 입력도 아니다(넣으면 제외를 켰다 끄는 것만으로 산출물이 다시 만들어진다). ⚠ 개인정보 성질 축(prvcTypeCd·anonyInclYn·psdoInclYn·prvcInclYn·deIdntfYn)과 다른 축이다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -660,6 +791,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawSn
 
 - **type**: Long
@@ -686,6 +821,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -718,6 +857,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcFilePathNm
 
 - **type**: String
@@ -744,6 +887,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -776,6 +923,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### shtDt
 
 - **type**: LocalDateTime
@@ -802,6 +953,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -834,6 +989,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### updDt
 
 - **type**: LocalDateTime
@@ -860,6 +1019,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -912,6 +1075,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcSn
 
 - **type**: Long
@@ -938,6 +1105,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -970,6 +1141,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### chgUserNo
 
 - **type**: Long
@@ -999,6 +1174,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### chgDt
 
 - **type**: LocalDateTime
@@ -1025,6 +1204,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1109,6 +1292,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### jobId
 
 - **type**: String
@@ -1135,6 +1322,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1167,6 +1358,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataSrcSn
 
 - **type**: Long
@@ -1193,6 +1388,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1225,6 +1424,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### procSttsCd
 
 - **type**: ProcStatus
@@ -1251,6 +1454,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1283,6 +1490,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### endDt
 
 - **type**: LocalDateTime
@@ -1309,6 +1520,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1341,6 +1556,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### errorCd
 
 - **type**: String
@@ -1367,6 +1586,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1399,6 +1622,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### reqPayloadCn
 
 - **type**: String
@@ -1425,6 +1652,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1457,6 +1688,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -1483,6 +1718,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1555,6 +1794,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockTargetCd
 
 - **type**: LockTarget
@@ -1581,6 +1824,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1613,6 +1860,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataSrcSn
 
 - **type**: Long
@@ -1639,6 +1890,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1671,6 +1926,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockId
 
 - **type**: String
@@ -1697,6 +1956,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1729,6 +1992,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockDt
 
 - **type**: LocalDateTime
@@ -1755,6 +2022,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1787,6 +2058,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### releaseDt
 
 - **type**: LocalDateTime
@@ -1816,6 +2091,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### releaseRsn
 
 - **type**: String
@@ -1842,6 +2121,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2115,6 +2398,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### cctvNm
 
 - **type**: String
@@ -2141,6 +2428,10 @@ _(empty)_
 100
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2173,6 +2464,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### evntNm
 
 - **type**: String
@@ -2199,6 +2494,10 @@ _(empty)_
 100
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2231,6 +2530,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### fileFmt
 
 - **type**: String
@@ -2257,6 +2560,10 @@ _(empty)_
 100
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2289,6 +2596,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### psdoInclYn
 
 - **type**: String
@@ -2315,6 +2626,10 @@ _(empty)_
 100
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2347,7 +2662,43 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 - **description**: ★관제가 직접 INSERT 하는 평면 수신 테이블(ADR-042). 저작도구 폴링 배치가 미처리 행을 원자 클레임해 LS_DATA_RAW 로 적재하며, 이름값(CCTV명·지자체명·이벤트명·파일포맷·좌표)은 조회 시점에 이 테이블을 LEFT JOIN 해 얻는다(RAW 로 복사하지 않는다). 행을 삭제하는 코드가 없어 영구 보존된다. 파생영상은 자기 인입 행이 없어 COALESCE(ORGNL_RAW_SN, RAW_SN) 1단계 폴백으로 부모 행을 참조한다. 전체 컬럼은 ERD-012 참조(여기엔 대표 컬럼만 등재). (LS_DATA_INGEST)
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### VideoExclusionPolicy
+
+- **kind**: service
+
+**methods**:
+
+#### isExcluded
+
+**params**:
+
+- raw: DataRaw
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 제외 표시 판정. 화면 목록 조회 경로가 이 판정만 쓰고 자기 자리에서 다시 만들지 않는다.
+- **is_abstract**: false
+- **return_type**: boolean
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 제외 판정을 단독으로 소유한다 — 화면 목록 조회 경로 전부가 이 한 곳의 판정을 공유한다. 경로마다 따로 판정하면 한 곳만 빠져도 제외한 영상이 화면에 샌다. ⚠ 배치·관제 통지·데이터마트 조회 뷰·학습데이터 산출물 경로는 이 판정을 부르지 않는다 — 「일관성」을 이유로 그쪽에 붙이지 말 것.
 
 **enum_values**:
 
@@ -2359,7 +2710,7 @@ _(empty)_
 
 ## description
 
-관제 인입(LS_DATA_INGEST 평면 수신)부터 영상 적재(RAW_SN), FFmpeg 프레임 추출(SRC_SN), 영상/프레임 변경이력, 파생영상 자기참조(ORGNL_RAW_SN), Quartz 배치 단계별 처리이력·작업잠금까지를 한 다이어그램에 표현한 도메인 클래스 모델이다. ★ADR-042 이후 관제 공유 마스터(MNG_*) 참조는 전면 제거되고 영상 관련 정보는 전부 인입 테이블에서 평면으로 받는다.
+관제 인입(LS_DATA_INGEST 평면 수신)부터 영상 적재(RAW_SN), FFmpeg 프레임 추출(SRC_SN), 영상/프레임 변경이력, 파생영상 자기참조(ORGNL_RAW_SN), Quartz 배치 단계별 처리이력·작업잠금까지를 한 다이어그램에 표현한 도메인 클래스 모델이다. ★ADR-042 이후 관제 공유 마스터(MNG_*) 참조는 전면 제거되고 영상 관련 정보는 전부 인입 테이블에서 평면으로 받는다. ★가시성(제외) 축이 더해졌다 — 영상을 지우지 않고 저작도구 화면 목록에서만 빼는 표시(exclYn)와 그 되돌리기이며, 판정은 VideoExclusionPolicy 한 곳이 소유하고 화면 목록 조회 경로만 그것을 공유한다. 배치·관제 통지·데이터마트 조회 뷰·학습데이터 산출물은 이 값을 보지 않는다.
 
 ## module_name
 
@@ -2439,6 +2790,19 @@ VideoFrameCollection
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..1
 
+### [9]
+
+- **to**: DataRaw
+- **from**: VideoExclusionPolicy
+- **kind**: dependency
+- **label**: 제외 판정 소유 — 화면 목록 조회가 공유
+- **to_multiplicity**: 0..*
+- **from_multiplicity**: 1
+
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-008
@@ -2447,9 +2811,35 @@ VideoFrameCollection
 - DFEAT-011
 - DFEAT-007
 
-## referenced_items
+## implementation
+
+### status
+
+planned
+
+### modules
 
 _(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
+
+## referenced_items
+
+- ADR-069
 
 ## realizes_features
 

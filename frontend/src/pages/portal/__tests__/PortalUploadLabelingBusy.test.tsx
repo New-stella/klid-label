@@ -142,7 +142,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     expect(shell.getAttribute('data-edit-blocked')).toBe('true');
     expect(shell.getAttribute('data-read-only')).toBe('true');
     // then: 그리기 도구와 저장이 함께 잠긴다 — 버튼만 남으면 차단이 그대로 우회된다.
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).toBeDisabled();
     expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
   });
 
@@ -168,7 +168,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     await waitFor(() =>
       expect(screen.getByTestId('canvas-shell').getAttribute('data-edit-blocked')).toBe('false'),
     );
-    expect(screen.getByRole('button', { name: '바운딩 박스' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: '바운딩 박스' })).not.toBeDisabled();
     // 취소는 "저장됨" 이 아니다 — 미저장 표시가 남아야 사용자가 다시 저장할 수 있다.
     expect(useLabelStore.getState().dirtyLabels.size).toBeGreaterThan(0);
   });
@@ -197,8 +197,11 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
     expect(screen.queryByTestId('busy-overlay')).not.toBeInTheDocument();
   });
 
-  it('포털업로드에는_AI_작업이_없어_AI_busy가_발생하지_않는다', async () => {
-    // ADR-013 — 이 경로에는 오토라벨·분할·추적이 없다. busy 축에 오르는 종류는 SAVE 뿐이다.
+  it('포털업로드_저장은_AI_busy를_일으키지_않는다', async () => {
+    // 저장이 오르는 busy 축은 SAVE 뿐이다 — 저장 흐름이 AI 작업 종류를 끌어오지 않는다.
+    // ★반전(2026-09-15 · SCREEN-029) — 구 케이스 「포털업로드에는_AI_작업이_없어_AI_busy가_발생하지_않는다」
+    //   는 AI 진입점이 없다는 전제였다. 이제 업로드 자산에도 AI 보조 세 기능이 서므로 진입점 부재
+    //   단언만 뒤집고(진행 중에는 비활성), 저장이 SAVE 만 올린다는 단언은 그대로 둔다.
     const seen: BusyKind[] = [];
     const unsubscribe = useLabelStore.subscribe((s) => {
       const kind = s.busy?.kind;
@@ -209,10 +212,12 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레�
       act(() => ageBusyPastOverlayDelay());
       const overlay = await screen.findByTestId('busy-overlay');
 
-      // AI 도구 진입점 자체가 없다(툴바·모달 어디에도).
-      expect(screen.queryByRole('button', { name: /AI/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /추적|분할|키포인트/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /AI 탐지/ })).not.toBeInTheDocument();
+      // AI 보조 진입점은 서지만, 다른 작업(저장)이 진행 중이라 새 AI 작업을 시작할 수 없다.
+      expect(screen.getByRole('button', { name: 'AI 탐지' })).toBeDisabled();
+      expect(screen.getByRole('radio', { name: 'AI 분할' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'AI 자동 추적 패널로 이동' })).toBeDisabled();
+      // 선택 객체 AI 추적·키포인트 진입점은 계속 없다.
+      expect(screen.queryByRole('button', { name: /^AI 추적$|키포인트|스켈레톤/ })).not.toBeInTheDocument();
       // 오버레이 문구도 AI 작업이 아니다.
       expect(overlay).toHaveTextContent('저장 중');
       expect(seen).toEqual(['SAVE']);

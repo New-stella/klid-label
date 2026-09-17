@@ -226,12 +226,26 @@ public class VlmClient {
      *                 (장비를 고르지 못한 구성 — 이 기능이 없던 때와 같은 동작)
      */
     public Mono<VlmServerStatus> fetchStatus(String srvrAddr) {
+        return fetchStatus(srvrAddr, false);
+    }
+
+    /**
+     * {@link #fetchStatus(String)} 와 같되 <b>주기 점검인지</b>를 호출 로그에 알린다. [@design NFR-038]
+     *
+     * <p>상태점검·헬스처럼 주기적으로 반복되는 호출은 {@code periodicProbe=true} 로 부른다 — 성공했을 때
+     * 호출 로그가 DEBUG 로 낮아져 실제 위탁 기록을 덮지 않는다(실패는 평소 레벨). 위탁 직전 관측은
+     * 위탁 흐름의 일부라 표식 없이 부른다({@link #fetchStatus()}).
+     */
+    public Mono<VlmServerStatus> fetchStatus(String srvrAddr, boolean periodicProbe) {
         URI target = absoluteTarget(srvrAddr, STATUS_PATH);
         return webClient.get()
                 .uri(uriBuilder -> target == null ? uriBuilder.path(STATUS_PATH).build() : target)
                 .attributes(attrs -> {
                     if (target != null) {
                         attrs.put(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE, Boolean.TRUE);
+                    }
+                    if (periodicProbe) {
+                        attrs.put(ExternalCallLoggingFilter.PERIODIC_PROBE_ATTRIBUTE, Boolean.TRUE);
                     }
                 })
                 .retrieve()

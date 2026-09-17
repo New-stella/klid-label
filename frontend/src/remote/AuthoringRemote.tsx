@@ -46,6 +46,7 @@ import {
   registerHostTokenHandoff,
   type TokenHandoffGateway,
 } from '@/features/auth/tokenHandoff';
+import { PORTAL_EMBED_ANCHOR_CLASS } from '@/lib/portalEmbedAnchor';
 
 /**
  * Host 가 넘기는 props — **지금은 인계 창구 하나뿐**이다.
@@ -77,12 +78,16 @@ export default function AuthoringRemote({ authBridge }: AuthoringRemoteProps) {
   //
   //   ⚠ Host 가 만든 요소(`.klid-authoring-slot`)에 기대지 않는다 — 상대가 이름을 바꾸면
   //     «조용히» 깨지고, 우리 시험으로는 잡히지 않는다. 우리가 소유한 요소여야 한다.
+  //   ★ 2026-09-15 — 이 앵커의 쓰임이 «간격 기준 고정» 하나에서 «전역 리셋의 적용 범위»로
+  //     넓어졌다. 포털 채널 산출물에서는 Tailwind Preflight 와 우리 base 선언이 전부 이
+  //     클래스 하위로 좁혀져 나간다(`postcss/scope-portal-base-layer.js`). 즉 이 요소가
+  //     빠지면 우리 화면이 리셋을 통째로 잃는다 — 「있으면 좋은 것」이 아니라 필수다.
   //   ⚠ `<div>` 를 하나 더 두는 것이 레이아웃을 바꾸지 않도록 `contents` 로 두지 «않는다» —
   //     `display: contents` 는 이 요소를 상자에서 지워 커스텀 프로퍼티 상속은 남기지만,
   //     Host 슬롯이 자식에 거는 레이아웃(flex/grid)이 손자로 내려가 어긋날 수 있다.
   //     높이를 그대로 물려주는 편이 안전하다.
   return (
-    <div className="klid-portal-embed h-full">
+    <div className={`${PORTAL_EMBED_ANCHOR_CLASS} h-full`}>
       <AuthoringApp />
     </div>
   );

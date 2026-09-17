@@ -4,15 +4,21 @@
 // - axios가 path/body 파라미터 자동 URL 인코딩 (XSS/Injection 방어).
 // - IDOR/권한 검증은 BE 책임 (REVIEWER 역할 + 본인 배정 검증).
 // - 반려 사유는 zod 검증 후 전달 (max 1000자, 필수).
+//
+// ★일괄 승인은 별도 sub-resource(`POST /v1/reviews/batch/approve`)다 — 같은 URL 에 쿼리
+// 파라미터로 행위를 분기하지 않는다(`rules/api-design.md`).
+//
+// [@design ADR-067] [@design API-008] [@design API-013] [@design API-014] [@design API-250]
 
 import { apiClient } from '@/lib/api/client';
-import type { PageResponse } from '@/lib/api/types';
 import { compactParams } from '@/lib/compactParams';
 
 import type {
   AddIssueCommentRequest,
   AddIssueRequest,
   ApproveRequest,
+  BatchApproveRequest,
+  BatchApproveResponse,
   CreateInquiryRequest,
   FrameList,
   IssueComment,
@@ -21,6 +27,7 @@ import type {
   Review,
   ReviewIssue,
   ReviewListParams,
+  ReviewListResponse,
   ReviewStatus,
   ReviewStatusParam,
   ReviewSummary,
@@ -59,7 +66,29 @@ export function listReviews(params: ReviewListParams) {
     status: status ? REVIEW_STATUS_TO_BE[status] : undefined,
   });
   return apiClient
-    .get<PageResponse<Review>>('/reviews', { params: query })
+    .get<ReviewListResponse>('/reviews', { params: query })
+    .then((r) => r.data);
+}
+
+/**
+ * 검수 일괄 승인 (REVIEWER — 관리자는 계층으로 함께 통과).
+ * BE: POST /api/v1/reviews/batch/approve
+ *
+ * ★단건 승인 주소에 질의 항목을 붙여 행위를 가르지 않는다 — **별도 자원**이다
+ * (`rules/api-design.md` 「같은 URL 에 쿼리 파라미터로 행위 분기 금지」, 선례 `/videos/batch/retry`).
+ *
+ * ★**한 건도 승인되지 못해도 200** 이다. 판정은 응답의 건별 결과로 하고, 전체 실패를 통신 오류로
+ * 다루지 말 것. 요청 전체가 거부되는 경우(빈 목록·건수 상한 초과)만 400(`INVALID_INPUT`)이며
+ * 그때는 한 건도 처리되지 않는다.
+ *
+ * <p>응답은 각 건의 승인이 **받아들여졌다**는 뜻이지 산출물 재생성·관제 통지가 끝났다는 뜻이
+ * 아니다 — 그 연쇄는 뒤에서 비동기로 이어진다.
+ */
+export function approveReviewsBatch(
+  body: BatchApproveRequest,
+): Promise<BatchApproveResponse> {
+  return apiClient
+    .post<BatchApproveResponse>('/reviews/batch/approve', body)
     .then((r) => r.data);
 }
 

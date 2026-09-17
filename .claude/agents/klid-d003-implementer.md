@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/영상프레임-수집-DOMAIN-003/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -193,6 +195,47 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
   교체본은 per-id 루프 되돌림(N+1 유발)에서 **정확히 1건만** FAILED 로 잡았다.
 - **재발 조건**: N+1·재시도·디바운스처럼 횟수가 계약인 시험.
   ⇒ `verify(times(n))` 또는 Answer 카운터를 쓴다.
+
+### ★★엔티티 기본값은 **필드 선언**에 둔다 — 빌더 생성자에만 두면 생성 경로 절반이 빈다 (CO-20260915-제외숨김)
+`NOT NULL` 컬럼을 기존 엔티티에 추가할 때 기본값을 생성자·빌더에만 넣으면, **`new Entity()`(보호 생성자) + 필드 대입**으로 만드는 경로가 통째로 비어 INSERT 가 전멸한다.
+- **근거**: `LsDataRaw` 는 증강·해상도 파생을 보호 생성자 + 필드 대입으로 만든다(같은 파일 451·497행). 생성자에만 `exclYn = EXCL_NO` 를 두고 전체 회귀를 돌리자 `null value in column "excl_yn" … violates not-null` 이 **113건 / 22개 클래스 130 FAILED**. 필드 초기화로 옮기자 0건.
+- **회귀 가드**: `LsDataRawExclusionDefaultTest(★★보호_생성자로_만들어도_제외여부_기본값이_선다)`.
+- **재발 조건**: `NOT NULL` 컬럼을 기존 엔티티에 더하는 모든 작업. 특히 **파생·복사 생성 경로가 있는 원장**(팩토리가 여럿이고 그중 일부가 빌더를 우회한다).
+
+### ★★인가 시험은 `LS_USER_ROLE` 에 역할을 **실제로 심어야** 의미가 생긴다 (CO-20260915-제외숨김)
+이 저장소에서 **JWT 의 `role` 클레임은 인가에 쓰이지 않는다 — `LS_USER_ROLE` 이 진실원**이고 토큰의 값은 표기일 뿐이다.
+- **근거**: `JwtTestSupport.token(secret, "2", "ADMIN", …)` 로 만든 관리자 토큰이 `hasRole('REVIEWER')` 창구에서 **403**. `LS_USER_ROLE` 에 심고 `userRoleResolver.evict(userNo)` 한 뒤 200. `AdminRoleAuthorizationTest` 가 그 사실을 주석으로 못박아 두고 있었다.
+- **★더 위험한 쪽**: 역할을 **안 심은** 작업자 토큰의 403 은 「작업자라서」가 아니라 **「무권한이라서」** 난다 — 인가 시험이 이름만 남고 아무것도 검증하지 않는다. 작업자도 실제로 심어라(`AfterEach` 로 정리).
+- **재발 조건**: 역할 기반 인가를 다루는 모든 신규 IT. 특히 「관리자가 계층으로 통과한다」를 검증할 때 — **관리자에게 검수자 역할을 미리 주면 계층이 끊겨도 통과한다**는 함정과 겹친다.
+
+### ★적대검증의 변이는 「삭제」가 아니라 「결과만 뒤집는 최소 변형」이다 (CO-20260915-제외숨김)
+named parameter 를 쓰는 절을 **통째로 지우면** 그 파라미터가 미바인딩이 되어 컨텍스트 기동이 실패하고 **무관한 시험까지 전부 FAILED** 한다. 폭발 반경이 부풀려져 「이 시험이 그 술어를 지킨다」는 판정 자체가 불가능해진다.
+- **근거**: `markExcluded` 의 `AND NOT EXISTS (… a.taskTypeCd = :labelerTaskTypeCd)` 를 삭제하자 `VideoExclusionIT` 15건 중 **10건** FAILED(대부분 술어와 무관). 절을 남기고 `AND 1 = 0` 을 덧붙여 **조건만 무력화**하자 **정확히 2건**(배정 충돌)만 FAILED — 그제야 신호가 읽혔다.
+- **재발 조건**: JPQL·SQL 술어의 mutation testing 전부. ⇒ 폭발 반경이 예상보다 넓으면 **먼저 부트스트랩 실패를 의심**하라.
+
+### ★리포지토리에 오버로드를 더하면 Mockito 스텁이 **컴파일은 통과한 채** 깨진다 (CO-20260915-제외숨김)
+인자 하나 더 많은 오버로드를 만들고 서비스가 그쪽을 부르게 하면, 옛 시그니처를 스텁하던 시험이 **런타임 NPE** 로 죽는다(mock 은 default 메서드도 가로채 null 을 돌려준다). 컴파일러가 알려주지 않는다.
+- **근거**: `searchOriginals(…, boolean excludedOnly, Pageable)` 추가 후 `VideoListAssignmentBatchLookupTest`·`VideoQueryServiceDeidentStatusTest` 의 `given(…any(), any(Pageable.class))` 가 여전히 12인자 오버로드에 바인딩돼 컴파일 성공. `anyBoolean()` 을 끼워 13인자로 옮겨야 했다.
+- **재발 조건**: 하위호환을 위해 default 오버로드를 쌓는 Spring Data 리포지토리를 확장할 때. ⇒ 오버로드를 더하면 **그 메서드를 스텁하는 시험을 전수로 세어** 어느 시그니처에 바인딩되는지 확인한다.
+
+### ★가시성 플래그를 바꾸면서 `MDFCN_DT` 를 함께 밀지 마라 (CO-20260915-제외숨김)
+「갱신했으니 갱신시각도 올린다」가 자연스러워 보이지만, 이 저장소에서 그 컬럼은 **고착 회수 스윕의 1차 필터**라 밀면 고착된 영상이 「방금 선점된 것」으로 보여 **회수 후보에서 조용히 빠진다**(오류 없음).
+- **근거**: `VideoRepository.findStaleProcessingRawSns` 가 `r.mdfcnDt < :cutoff` 로 후보를 고른다. 그래서 `markExcluded`·`markRestored` 는 `EXCL_YN` 만 쓰고 갱신시각을 건드리지 않으며, `VideoExclusionBoundaryIT(★★경계_배치_…후보집합이_그대로다)` 가 before/after 로 고정한다.
+- **재발 조건**: 기존 원장에 플래그성 컬럼을 더하고 관례대로 갱신시각을 함께 올릴 때. ⇒ **그 컬럼을 누가 필터로 읽는지 먼저 세라.**
+### ★`@Lazy self` 로 자기 `@Cacheable` 을 부르는 서비스는 단위 시험에서 캐시가 **항상 비어** 있다 (CO-20260916-마킹영상재생-차단결함)
+생성자로 만든 서비스는 `self=null` 이라 캐시 메서드가 매번 새로 계산된다. 그래서 「캐시된 값을 쓰면 안 되는 자리에 캐시 값을 쓰는」 결함(예: 파일 크기가 바뀐 뒤의 Range 경계)이 **모든 시험을 통과**한다.
+- **근거**: `VideoStreamService.stream` 이 Range 경계를 캐시된 `meta.contentLength()` 로 계산하고 있었다(QA 코드 추적). `self` 슬롯에 옛 크기를 돌려주는 목을 넣은 시험 5건을 만든 뒤, 캐시 길이로 되돌리는 변이를 주자 정확히 그 5건만 실패했다.
+- **재발 조건**: 자기 자신의 캐시 메서드를 프록시로 부르는 서비스의 동작을 시험할 때. ⇒ `self` 에 **낡은 값을 돌려주는 목**을 넣은 시험을 따로 둔다.
+
+### ★주입 필드의 시험 기본값이 정답과 같으면 주입 결함이 초록으로 숨는다 (CO-20260916-마킹영상재생-차단결함)
+`@Autowired(required=false) private X x = X.ofDefault();` 꼴에서 기본값(`/api/v1`)이 기대 출력과 같으면, 잘못된 주입 값을 쓰는 결함을 되살려도 생성자 기반 시험은 통과한다.
+- **근거**: 재생 주소에 `PublicApiPath` 를 다시 쓰는 변이에서 `issueSignedUrl_startsWithApiBasePath` 는 통과했고, **실제 빈에 `/label-studio/api/v1` 을 넣은 `ApplicationContextRunner` 시험만** 실패했다(56건 중 1건).
+- **재발 조건**: 선택 주입 필드로 받는 값을 가드할 때. ⇒ 기본값과 **다른** 값을 실제 빈으로 넣는 시험을 하나 둔다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

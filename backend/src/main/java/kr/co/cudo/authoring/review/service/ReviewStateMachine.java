@@ -62,4 +62,40 @@ public class ReviewStateMachine {
                     "허용되지 않은 상태 전이입니다 (" + from + " → " + to + ").");
         }
     }
+
+    /**
+     * <b>재검수 재승인 갈래인가</b> — 승인된 영상에 재검토 표시가 서 있으면 상태 전이 없이 다시 승인한다.
+     *
+     * <p>이 갈래에서 상태를 내리지 않는 이유는 관제 조회 뷰가 <b>라이브 승인 상태</b>로 행을 거르기
+     * 때문이다. 상태를 되돌리면 이미 완료로 통지한 영상이 관제에서 예고 없이 사라진다. 같은 이유로
+     * 이 갈래 전용 상태값을 새로 만들지도 않는다.
+     *
+     * @design ADR-067
+     * @design API-013
+     */
+    public boolean isReapproval(String from, boolean needsRecheck) {
+        return LsRawDataStatus.STTS_APPROVED.equals(from) && needsRecheck;
+    }
+
+    /**
+     * <b>단건 승인이 이 상태를 받아들이는가</b> — 승인 자격의 상태 축 <b>단일 판정</b>.
+     *
+     * <p>일괄 승인 자격과 목록의 자격 표시가 이 메서드를 그대로 쓴다. 두 곳에 규칙을 두면 한쪽만
+     * 고쳐질 때 같은 영상이 창구에 따라 다르게 판정된다.
+     *
+     * <p>★<b>「검수 진행 중인 것만」으로 좁히면 안 된다.</b> 수정 뒤 재검수를 기다리는 영상은 승인
+     * 상태에 머무르므로(위 {@link #isReapproval}) 그 축으로 좁히는 순간 재검수 건이 영영 일괄 승인에
+     * 담기지 않는다.
+     *
+     * @design ADR-067
+     * @design API-250
+     * @design API-008
+     */
+    public boolean allowsApproval(String from, boolean needsRecheck) {
+        if (isReapproval(from, needsRecheck)) {
+            return true;
+        }
+        Set<String> allowed = ALLOWED.get(from);
+        return allowed != null && allowed.contains(LsRawDataStatus.STTS_APPROVED);
+    }
 }

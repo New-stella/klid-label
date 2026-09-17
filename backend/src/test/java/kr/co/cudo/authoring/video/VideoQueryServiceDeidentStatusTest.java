@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -115,7 +116,7 @@ class VideoQueryServiceDeidentStatusTest {
     /** list(null,null) 경로에서 항상 호출되는 enrich 콜래보레이터를 빈 결과로 스텁한다. */
     private void stubEmptyEnrich(Page<LsDataRaw> page, Pageable pageable) {
         given(videoRepository.searchOriginals(any(), any(), any(), any(), anyInt(), anyCollection(),
-                any(), any(), any(), any(), any(), any(), any(Pageable.class))).willReturn(page);
+                any(), any(), any(), any(), any(), any(), anyBoolean(), any(Pageable.class))).willReturn(page);
         given(videoRepository.findLatestExportsByRawSns(anyCollection())).willReturn(List.of());
         given(rawDataStatusRepository.findByRawDataIdIn(anyCollection())).willReturn(List.of());
         given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(anyString(), anyCollection()))
@@ -258,6 +259,79 @@ class VideoQueryServiceDeidentStatusTest {
         Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
 
         // then
+        assertThat(result.getContent().get(0).deidentStatus())
+                .isEqualTo(VideoSummaryResponse.DeidentStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("★재시작으로_다시_위탁중인_실패영상_deIdntfYn_F는_IN_PROGRESS로_내려온다")
+    void retryInFlightShowsInProgress() {
+        // AC-1133 — 재시작은 'F' 를 'N' 으로 되돌리지 않는다. 최신 회차가 진행 중이면 진행 중이 앞선다.
+        Pageable pageable = PageRequest.of(0, 20);
+        LsDataRaw waiting = video(31L, "F");
+        LsDataRaw polling = video(32L, "F");
+        LsDataRaw requested = video(33L, "F");
+        Page<LsDataRaw> page = new PageImpl<>(List.of(waiting, polling, requested), pageable, 3);
+        stubEmptyEnrich(page, pageable);
+        given(deidentProcLogRepository.findLatestByDataRawSnIn(anyCollection()))
+                .willReturn(List.of(waitingLog(31L), pollingLog(32L), requestedLog(33L)));
+
+        Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
+
+        assertThat(result.getContent()).extracting(VideoSummaryResponse::deidentStatus)
+                .containsOnly(VideoSummaryResponse.DeidentStatus.IN_PROGRESS);
+        // 응답의 비식별 여부 값은 원장 그대로다(값역 불변).
+        assertThat(result.getContent()).extracting(VideoSummaryResponse::deIdntfYn).containsOnly("F");
+    }
+
+    @Test
+    @DisplayName("★재시작_위탁이_실패로_종결되면_deIdntfYn_F는_다시_FAILED로_내려온다")
+    void retryTerminatedShowsFailedAgain() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LsDataRaw v = video(34L, "F");
+        Page<LsDataRaw> page = new PageImpl<>(List.of(v), pageable, 1);
+        stubEmptyEnrich(page, pageable);
+        LsDeidentProcLog terminated = waitingLog(34L);
+        terminated.fail("KPST_SUBMIT_FAILED", "x"); // PROC=FAILED, POLL=FAILED
+        given(deidentProcLogRepository.findLatestByDataRawSnIn(anyCollection()))
+                .willReturn(List.of(terminated));
+
+        Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
+
+        assertThat(result.getContent().get(0).deidentStatus())
+                .isEqualTo(VideoSummaryResponse.DeidentStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("신고표식_F는_최신회차가_성공이라_FAILED로_내려온다")
+    void reportMarkerStaysFailed() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LsDataRaw v = video(35L, "F");
+        Page<LsDataRaw> page = new PageImpl<>(List.of(v), pageable, 1);
+        stubEmptyEnrich(page, pageable);
+        LsDeidentProcLog done = requestedLog(35L);
+        done.succeed("/var/deid/c35.mp4");
+        given(deidentProcLogRepository.findLatestByDataRawSnIn(anyCollection())).willReturn(List.of(done));
+
+        Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
+
+        assertThat(result.getContent().get(0).deidentStatus())
+                .isEqualTo(VideoSummaryResponse.DeidentStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("신고표식_F라도_최신회차가_재비식별_위탁중이면_IN_PROGRESS")
+    void reportMarkerWithRedeidentInFlightShowsInProgress() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LsDataRaw v = video(36L, "F");
+        Page<LsDataRaw> page = new PageImpl<>(List.of(v), pageable, 1);
+        stubEmptyEnrich(page, pageable);
+        LsDeidentProcLog redeident = waitingLog(36L);
+        redeident.markRedeident();
+        given(deidentProcLogRepository.findLatestByDataRawSnIn(anyCollection())).willReturn(List.of(redeident));
+
+        Page<VideoSummaryResponse> result = videoQueryService.list(pageable, null, null);
+
         assertThat(result.getContent().get(0).deidentStatus())
                 .isEqualTo(VideoSummaryResponse.DeidentStatus.IN_PROGRESS);
     }

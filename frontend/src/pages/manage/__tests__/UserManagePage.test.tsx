@@ -309,8 +309,11 @@ describe('UserManagePage', () => {
 
     // then: 저장은 잠기고 **왜 잠겼는지** 화면이 말한다(이유 없이 잠긴 버튼은 고장으로 읽힌다)
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+    // ⚠ 문구를 **통째로** 못박는다. 「변경된 내용이 없습니다」까지만 보면 뒤따르는 안내가 어느
+    //   축을 말하든 통과해, 저장을 여는 축이 늘었는데 문구가 그대로인 상태(구 문구는 역할만
+    //   말했다)를 이 시험이 놓친다. 느슨하게 풀지 말 것 — 다음에 축이 또 빠져도 안 잡힌다.
     expect(screen.getByTestId('edit-user-unchanged-notice')).toHaveTextContent(
-      '변경된 내용이 없습니다',
+      '변경된 내용이 없습니다. 역할이나 표시 이름을 고치면 저장할 수 있습니다.',
     );
   });
 

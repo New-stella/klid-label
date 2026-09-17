@@ -29,7 +29,13 @@ import java.util.Set;
  * ({@link #withEventTypeGroup}) 리포지토리는 {@link #eventTypeMatchCodes()} 만 본다. 확장이 채워지지
  * 않은 조건(리포지토리 직접 호출 등)은 종전과 같이 <b>입력 코드 1건</b>으로 매칭된다.
  *
+ * <p><b>{@code excludedOnly} — 가시 범위 축이지 필터가 아니다 (ADR-069)</b>: 다른 항목이 「무엇을
+ * 걸러낼까」인 것과 달리 이 값은 <b>어느 쪽 목록을 보는가</b>를 가른다. 값역은 <b>표시분만</b>(기본)과
+ * <b>제외분만</b> 두 갈래뿐이며 섞어 보는 갈래를 두지 않는다 — 섞이면 어느 것이 제외분인지 행마다
+ * 구분해야 한다. 선택 항목이라 보내지 않던 기존 호출의 결과는 달라지지 않는다.
+ *
  * @param eventTypeCds 확장된 그룹 코드 집합. 비어 있으면 확장 없음(= 입력 코드 단건 매칭)
+ * @param excludedOnly 제외분만 보기. {@code null}·{@code false} 면 제외 표시가 붙지 않은 영상만
  */
 public record TaskBoardSearchCondition(
         String status,
@@ -37,7 +43,8 @@ public record TaskBoardSearchCondition(
         String q,
         String eventTypeCd,
         Long workerId,
-        Set<String> eventTypeCds
+        Set<String> eventTypeCds,
+        Boolean excludedOnly
 ) {
 
     /**
@@ -69,10 +76,21 @@ public record TaskBoardSearchCondition(
                 ? Set.of() : Set.copyOf(eventTypeCds);
     }
 
-    /** 그룹 확장 없이 만드는 조건 — 컨트롤러/테스트가 쓰는 기존 시그니처(하위호환). */
+    /**
+     * 그룹 확장·제외분 보기 없이 만드는 조건 — 컨트롤러/테스트가 쓰는 기존 시그니처(하위호환).
+     *
+     * <p>이 시그니처를 남겨 두는 것이 <b>하위호환의 실체</b>다 — 기존 호출부 전부가 그대로 컴파일되고
+     * {@code excludedOnly} 가 {@code null}(= 표시분만)로 떨어져 종전과 같은 결과를 낸다.
+     */
     public TaskBoardSearchCondition(String status, String workStatus, String q, String eventTypeCd,
                                     Long workerId) {
-        this(status, workStatus, q, eventTypeCd, workerId, Set.of());
+        this(status, workStatus, q, eventTypeCd, workerId, null);
+    }
+
+    /** 제외분 보기 갈래를 실은 조건 — 컨트롤러가 쓰는 시그니처. */
+    public TaskBoardSearchCondition(String status, String workStatus, String q, String eventTypeCd,
+                                    Long workerId, Boolean excludedOnly) {
+        this(status, workStatus, q, eventTypeCd, workerId, Set.of(), excludedOnly);
     }
 
     /** 필터 없는 기본 조건(배치 상태 COMPLETED). */
@@ -87,7 +105,19 @@ public record TaskBoardSearchCondition(
      * 빈 집합이면 확장 없음(= 입력 코드 단건 매칭)이다.
      */
     public TaskBoardSearchCondition withEventTypeGroup(Set<String> codes) {
-        return new TaskBoardSearchCondition(status, workStatus, q, eventTypeCd, workerId, codes);
+        // ★excludedOnly 를 반드시 함께 실어 나른다 — 서비스의 조건 정규화(effective)가 모든 조회 경로의
+        //   길목이라, 여기서 빠뜨리면 「제외분만 보기」가 목록에 닿기도 전에 조용히 사라진다.
+        return new TaskBoardSearchCondition(status, workStatus, q, eventTypeCd, workerId, codes, excludedOnly);
+    }
+
+    /**
+     * 「제외분만 보기」인가 — 리포지토리가 보는 <b>단일 판정</b>.
+     *
+     * <p>{@code null} 과 {@code false} 를 같게 다룬다(둘 다 표시분만) — 보내지 않은 것과 거짓으로 보낸
+     * 것이 달라지면 하위호환이 깨진다. 영상 목록의 {@code VideoListFilter.excludedOnlyOn} 과 같은 규약이다.
+     */
+    public boolean excludedOnlyOn() {
+        return Boolean.TRUE.equals(excludedOnly);
     }
 
     /**
@@ -136,7 +166,11 @@ public record TaskBoardSearchCondition(
      * 애초에 도달하지 못해 <b>어떤 구현에서도 통과</b>하므로 이 방어의 근거가 될 수 없다.
      */
     public TaskBoardSearchCondition statusOnly() {
-        return new TaskBoardSearchCondition(status, null, null, null, null);
+        // ★excludedOnly 는 「거르는 값」이 아니라 <가시 범위>라 여기서 지우지 않는다. 지우면 제외분을
+        //   보는 중에도 옵션이 표시분의 코드를 내놓아, 고른 값으로 0건이 되는 선택지가 생긴다.
+        //   (지금은 옵션 창구가 이 파라미터를 선언하지 않아 실제로는 늘 표시분이다 — 이 보존은 그
+        //    파라미터가 생기는 날 저절로 맞게 동작하기 위한 것이며, 위 「왜 남겨 두는가」와 같은 취지다.)
+        return new TaskBoardSearchCondition(status, null, null, null, null, excludedOnly);
     }
 
     private static String normalize(String raw) {

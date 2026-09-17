@@ -362,9 +362,9 @@ const DANGER_CASES: Case[] = [
     anchor: 'issueType === ISSUE_TYPE.REJECTION',
   },
   {
-    label: 'IssueThreadPanel 미해소 문의 카운트 뱃지',
+    label: 'IssueThreadPanel 미해결 문의 카운트 뱃지',
     file: 'src/features/review/components/IssueThreadPanel.tsx',
-    anchor: '미해소 문의',
+    anchor: 'unresolved-inquiry-count',
   },
   {
     label: 'IssueThreadPanel 반려 유형 뱃지',
@@ -568,6 +568,131 @@ function describeColorGuard(
 describeColorGuard('warning', WARNING_CASES, warningScale, bgWarning10OnWhite);
 describeColorGuard('danger', DANGER_CASES, dangerScale, bgDanger10OnWhite);
 describeColorGuard('success', SUCCESS_CASES, successScale, bgSuccess10OnWhite);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-15 — **배경을 명시하는** 열거 가드.
+//
+// 위 세 축은 배경이 「같은 계열의 /10 틴트(흰 바탕 위)」임을 전제한다. 그 전제가 맞지 않는
+// 표면 — 다른 계열의 solid 표면 위 의미색, 회색 표면 위 보조 회색 — 은 그 가드들이 **구조적으로
+// 못 본다**. 전수 스캔 쪽도 사각이 있다: 글자 축이 `text-gray-NNN`·`text-primary` 열거라
+// `text-danger` 를 아예 보지 않고, 회색 축은 본문 단계(500 이상)만 봐서 `gray-400` 을 제외한다.
+//
+// ⚠ 그래서 이 라운드의 두 지점이 **전건 green 인 채로** AA 미달이었다(4.06 · 2.82).
+//    새 표면을 만들면 여기에 (파일, 앵커, 전경 계열, 배경 토큰)을 등재한다.
+// ─────────────────────────────────────────────────────────────────────────────
+interface SurfaceCase extends Case {
+  /** 전경 토큰 계열 — 소스에서 실제 클래스를 읽어 이 스케일로 해석한다. */
+  fg: string;
+  /** 배경 토큰(`secondary-50` · `gray-50` · `white`) — **그 자리의 실제 배경**이어야 한다. */
+  bg: string;
+  /** 되돌리면 안 되는 구 토큰 — 그 값이 실제로 미달임을 함께 못박는다(회귀 원인 문서화). */
+  regressedFrom: string;
+}
+
+const SURFACE_CASES: SurfaceCase[] = [
+  {
+    // 일괄 검수완료 실행줄의 상한 초과 안내. `text-danger`(DEFAULT)는 **흰 배경에서는 4.56 으로
+    // 통과**해서 눈으로도 가드로도 안전해 보였다 — 값을 회색 표면에 얹는 순간 4.06 이 된다.
+    label: 'BulkApproveBar 상한 초과 안내 — 실행줄(secondary-50) 위 danger',
+    file: 'src/features/review/components/BulkApproveBar.tsx',
+    anchor: 'bulk-approve-limit-alert',
+    fg: 'danger',
+    bg: 'secondary-50',
+    regressedFrom: 'text-danger',
+  },
+  {
+    // 일괄 검수완료 확인 창의 영상 번호. 장식이 아니라 **잘못 고른 것을 확인하는 식별 정보**라
+    // 「보조 텍스트는 원래 흐리다」가 이 자리의 근거가 되지 못한다.
+    label: 'BulkApproveConfirmModal 영상 번호 — 목록 표면(gray-50) 위 보조 회색',
+    file: 'src/features/review/components/BulkApproveConfirmModal.tsx',
+    anchor: 'videoCode(t.videoId)',
+    fg: 'gray',
+    bg: 'gray-50',
+    regressedFrom: 'text-gray-400',
+  },
+];
+
+describe('배경을 명시한 대비 가드 — 틴트 전제가 깨지는 표면', () => {
+  const SURFACE_SCALES: Record<string, Record<string, string>> = {
+    info: infoScale,
+    warning: warningScale,
+    danger: dangerScale,
+    success: successScale,
+    gray: asObj(colors.gray),
+    secondary: asObj(colors.secondary),
+    primary: asObj(colors.primary),
+  };
+
+  /** `text-{family}(-NNN)?` 를 앵커 인근에서 찾아 그 토큰 문자열을 돌려준다. */
+  function textTokenNear(content: string, anchor: string, family: string): string {
+    const idx = content.indexOf(anchor);
+    if (idx === -1) throw new Error(`anchor 를 찾을 수 없음: "${anchor}"`);
+    const start = Math.max(0, idx - 400);
+    const window = content.slice(start, Math.min(content.length, idx + anchor.length + 400));
+    const offset = idx - start;
+    const matches = [...window.matchAll(new RegExp(`text-${family}(-\\d+)?\\b`, 'g'))];
+    if (matches.length === 0) {
+      throw new Error(`anchor "${anchor}" 주변에서 text-${family} 토큰을 찾을 수 없음`);
+    }
+    return matches.reduce((best, m) =>
+      Math.abs((m.index ?? 0) - offset) < Math.abs((best.index ?? 0) - offset) ? m : best,
+    )[0];
+  }
+
+  /** `text-gray-600` 같은 토큰 문자열 → hex. */
+  function fgHex(family: string, token: string): string {
+    const scale = SURFACE_SCALES[family];
+    if (!scale) throw new Error(`알 수 없는 전경 계열: ${family}`);
+    const hex = token === `text-${family}` ? scale.DEFAULT : scale[token.replace(`text-${family}-`, '')];
+    if (!hex) throw new Error(`정의되지 않은 ${family} 단계: ${token}`);
+    return hex;
+  }
+
+  /** `secondary-50` · `gray-50` · `white` → hex. */
+  function bgHexOfToken(token: string): string {
+    if (token === 'white') return '#FFFFFF';
+    const [family, step] = token.split('-');
+    const scale = SURFACE_SCALES[family];
+    if (!scale) throw new Error(`알 수 없는 배경 계열: ${family}`);
+    const hex = scale[step];
+    if (!hex) throw new Error(`정의되지 않은 배경 토큰: bg-${token}`);
+    return hex;
+  }
+
+  it.each(SURFACE_CASES)(
+    '$label — 소스의 실제 클래스로 계산해도 AA를 만족한다',
+    ({ file, anchor, fg, bg }) => {
+      const token = textTokenNear(readSrc(file), anchor, fg);
+      const ratio = contrastRatio(fgHex(fg, token), bgHexOfToken(bg));
+      expect(
+        ratio,
+        `${file} 의 "${anchor}" 인근 클래스(${token})가 bg-${bg} 위에서 AA 미달`,
+      ).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    },
+  );
+
+  it.each(SURFACE_CASES)('$label — 구 토큰은 그 배경에서 실제로 미달이다(회귀 원인)', ({
+    fg,
+    bg,
+    regressedFrom,
+  }) => {
+    // 이 단언이 없으면 위 케이스가 "아무 토큰이나 통과시키는" 가드인지 구분되지 않는다.
+    expect(contrastRatio(fgHex(fg, regressedFrom), bgHexOfToken(bg))).toBeLessThan(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+
+  it('★같은_토큰이_흰_배경에서는_통과한다_이_가드가_존재하는_이유', () => {
+    // `text-danger` 는 흰 배경에서 4.56 으로 **통과**한다 — 그래서 실행줄 배경으로 옮긴
+    // 순간의 미달(4.06)이 눈에도 기존 가드에도 잡히지 않았다. 배경을 명시해야만 갈린다.
+    expect(contrastRatio(dangerScale.DEFAULT, '#FFFFFF')).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    expect(contrastRatio(dangerScale.DEFAULT, asObj(colors.secondary)['50'])).toBeLessThan(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2026-08-09 — 중립색을 DS-001 tokens.colors.neutral(KRDS 11단)로 교체하며

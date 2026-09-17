@@ -1,0 +1,14 @@
+@charset "utf-8";
+/* 결과 건수 줄 */
+
+.klid-result-count {
+  margin-block: var(--krds-gap-6) var(--krds-gap-4); /* 위 필터와 20 · 아래 목록과 12 (design.md §6) */
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-variant-numeric: tabular-nums; /* 숫자는 항상 자리폭 고정 (design.md §2) */
+  color: var(--krds-color-light-gray-70);
+}
+.klid-result-count strong {
+  font-weight: 600;
+  color: var(--krds-color-light-gray-90);
+}
+

@@ -72,7 +72,6 @@ function renderTable(overrides: Partial<TaskBoardTableProps> = {}) {
     onToggleRow: vi.fn(),
     onToggleAllPaged: vi.fn(),
     actionsDisabled: false,
-    reviewerMap: {},
     onAssign: vi.fn(),
     onHistory: vi.fn(),
     onOpenLabel: vi.fn(),

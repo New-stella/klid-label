@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
+import kr.co.cudo.authoring.support.VlmKlidLiveFixtures;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -214,6 +215,29 @@ class VlmResultRequestMetaItemTest {
         // 확정 계약이므로 신·구 양쪽을 받아주지 않는다 — 관대한 파싱은 벤더 버그를 숨긴다.
         assertThatThrownBy(() -> MAPPER.readValue(json, VlmResultRequest.class))
                 .isInstanceOf(com.fasterxml.jackson.databind.exc.MismatchedInputException.class);
+    }
+
+    /**
+     * 사업자 실서버가 돌려준 콜백 본문 원문 4건(2026-09-14)을 그대로 역직렬화·검증한다.
+     * 출처·보존 규칙은 {@code fixtures/vlm-klid-live-20260914/README.md}. [design: INTSPEC-002]
+     *
+     * <p>사업자가 필드 이름·상태값·서술 길이를 바꾸면 여기서 먼저 깨진다. 서술은 역직렬화를 거쳐도
+     * 원문 JSON 트리의 문자열과 <b>정확히 같아야</b> 한다(마크다운 기호·줄끝 공백 포함).
+     */
+    @Test
+    @DisplayName("실응답_콜백_본문_4건은_역직렬화와_검증을_통과하고_서술이_원문과_같다")
+    void liveCallbackBodiesAreAccepted() throws Exception {
+        for (String file : VlmKlidLiveFixtures.ALL) {
+            VlmResultRequest req = MAPPER.readValue(VlmKlidLiveFixtures.body(file), VlmResultRequest.class);
+
+            assertThat(req.status()).as(file).isEqualTo("completed");
+            assertThat(req.requestId()).as(file).startsWith("LIVE-");
+            assertThat(req.error()).as(file).isNull();
+            assertThat(req.results().description()).as(file)
+                    .isEqualTo(VlmKlidLiveFixtures.description(file))
+                    .hasSizeLessThanOrEqualTo(VlmResultRequest.Results.MAX_DESCRIPTION_LENGTH);
+            assertThat(validator.validate(req)).as(file).isEmpty();
+        }
     }
 
     @Test

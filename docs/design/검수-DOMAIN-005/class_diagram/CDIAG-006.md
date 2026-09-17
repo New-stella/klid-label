@@ -1,19 +1,19 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 16
+version: 19
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T12:01:38.473Z
+synced_at: 2026-09-15T13:21:55.591Z
 status: CHANGED
-prev_version: 15
-content_hash: 0b980bb7140b00340bba7a53e5d0fd4150148d485adbdb556695809a900f7ddf
+prev_version: 16
+content_hash: f50e664f41cb896d07aa58d6d16c61f6a70f231e026fc89c135e939bcf5a73b8
 stale: false
 raw: ./_raw/CDIAG-006.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
   depicts: ["[[DFEAT-021]]", "[[DFEAT-023]]", "[[DFEAT-024]]", "[[DFEAT-025]]", "[[DFEAT-049]]"]
-  references: ["[[ADR-060]]"]
+  references: ["[[ADR-060]]", "[[ADR-067]]"]
 ---
 
 # 검수 도메인 모델
@@ -1169,6 +1169,526 @@ _(empty)_
 
 _(empty)_
 
+### ReviewOccupancy
+
+- **kind**: value_object
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### rawDataId
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### occupantUserNo
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 점유 중인 검수자의 사용자 번호. 점유가 없으면 이 파생값 자체가 만들어지지 않는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### occupantName
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 검수 목록·상세가 보여주는 점유자의 표시 이름.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### startedAt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **description**: 판정 근거가 된 검수 시작 기록의 발생시각. 같은 사람이 다시 열어 기록이 새로 남아도 최초 시작 시각은 이력에 그대로 남는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### expiresAt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **description**: 발생시각에 유예를 더한 만료 시각. 이 시각이 지나면 점유가 저절로 풀린다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 검수 점유 — 지금 누가 그 영상을 검수 중인가. 저장되는 값이 아니라 조회 시점 파생 판정이라 전용 컬럼도 전용 표도 두지 않는다. 판정 입력은 작업 이력 원장(작업 배정 도메인 모델 소유)의 검수 시작 기록이며, 그 영상의 최신 검수 시작 기록이 있고 그보다 뒤에 승인·반려 같은 종결 기록이 없으며 발생시각에 유예를 더한 시각이 아직 지나지 않았으면 그 기록의 행위자가 점유 중이다. 유예는 배포 설정값이고 기본값은 30분이다. 점유를 푸는 동작은 두지 않는다 — 승인·반려가 자기 기록을 남겨 저절로 풀린다. 점유는 잠금이 아니다 — 만료가 있어 영구 잠금이 되지 않고 승인 시점의 동시성 보호가 실제 방어로 그대로 남는다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<derived>>
+
+### LastApproval
+
+- **kind**: value_object
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### approverUserNo
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 승인한 사람의 사용자 번호.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### approverName
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 화면에 보이는 승인자 표시 이름.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### actorRoleCd
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 그 승인을 한 시점의 행위자 역할. 비어 있을 수 있으며 지어내 채우지 않는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### approvedAt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **description**: 승인 기록의 발생시각.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 최근 승인 표시 — 검수 목록·상세가 보여주는 「가장 최근에 승인한 사람」. 점유와 마찬가지로 저장값이 아니라 작업 이력 원장을 읽어 만드는 조회 시점 파생값이다. 역할은 조회 시점의 현재 역할이 아니라 그 행위를 한 시점의 값이라, 그 사람의 역할이 나중에 바뀌어도 과거 승인의 역할은 그대로다 — 관리자가 승인한 건은 관리자로 남는다. 역할 기록이 생기기 전에 쌓인 이력은 역할을 복원할 수 없어 비어 있을 수 있고, 그때 화면은 역할을 비워 보인다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<derived>>
+
+### BulkApprovalRequest
+
+- **kind**: value_object
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### rawDataIds
+
+- **type**: List<Long>
+- **is_static**: false
+- **visibility**: private
+- **description**: 한 번에 승인할 영상 식별자 목록. 건수 상한을 넘으면 요청 자체가 거부된다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 여러 건을 한 번에 승인하는 요청. 일괄 창구는 승인에만 둔다 — 반려는 건마다 사유가 달라 한 번에 묶을 수 없다. 자격은 두 조건을 함께 만족하는 건으로 한정한다 — 유효 점유의 주인이 요청자 본인이고, 단건 승인이 허용하는 상태다. 상태 판정은 단건 승인의 판정을 그대로 쓰며 따로 두지 않는다 — 일괄 자격을 검수 진행 상태로 좁히면, 승인 상태로 남는 재검수 건이 영영 일괄에 담기지 않는다. 건수 상한을 둔다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### BulkApprovalItemResult
+
+- **kind**: value_object
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### rawDataId
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### succeeded
+
+- **type**: boolean
+- **is_static**: false
+- **visibility**: private
+- **description**: 그 건의 승인이 이뤄졌는가.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### failureReason
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 실패한 건의 사유. 성공한 건은 비어 있다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 일괄 승인의 건별 결과. 부분 실패를 허용하므로 요청이 통째로 성공하거나 실패하지 않고 건마다 성패가 갈린다. 성공한 건의 결과는 단건 승인과 완전히 같다 — 라벨 스냅샷 동결·메타 동결·학습데이터 산출 폴더 재생성·관제 통지·재검토 필요 표시 해제 가운데 하나도 빠지지 않는다. 승인 한 건이 산출 전량 재생성과 외부 통지를 연쇄로 일으키므로 여러 건의 연쇄가 한꺼번에 몰리지 않도록 뒤에서 줄 세운다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
 ## description
 
 영상 단위(RAW_SN)로 적재 등록·배치/검수 진행 상태(DATA_STTS_CD)를 추적하고, REVIEWER 의 승인/반려 워크플로우·계층형 반려 사유(자기참조 재반려)·검수 이력을 관리하는 검수 도메인 모델. 낙관적 잠금(VERSION)으로 동시 승인 경합을 방어한다. ERD-015 기반.
@@ -1180,6 +1700,18 @@ _(empty)_
 [상태 소유권] LS_RAW_DATA_STATUS.DATA_STTS_CD 를 검수 종결값 APPROVED 로 전이시키는 유일한 지점이 검수 승인이다 — 배치 완료는 ASSIGNED 로 복귀시킬 뿐 이 상태로 점프하지 않는다. 이 축에서 COMPLETED 로 전이하는 경로는 없다 — 같은 이름의 COMPLETED 는 LS_DATA_RAW 의 배치 단계 완료값이거나 검수 응답 status 의 표시 매핑값이라 축이 다르다.
 
 [승인 전제조건] 검수 워크플로 상태에는 비식별화완료여부(DE_IDNTF_CMPTN_YN, 한 자리 Y/N, 기본 Y)가 함께 놓인다. 값이 N 인 동안 그 영상의 검수 승인은 거부되며, 이 판정은 상태 전이보다 먼저 이뤄지므로 거부될 때 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 하나도 생기지 않는다. N 으로 시작하는 것은 외부에서 이미 라벨링이 끝난 산출물을 가져오는 경로로 원본이라고 지정해 들어온 영상뿐이며, 그 경로와 무관한 기존 영상은 기본값 Y 라 이 전제조건 때문에 막히지 않는다. 이 값이 막는 것은 검수 승인뿐이다 — 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터 산출물 생성은 이 값으로 닫지 않으며, 그 통로들을 함께 닫는 것은 비식별 누락 신고 상태로서 이 값과는 별개 축이다.
+
+[★검수 자격 — 배정이 아니라 역할과 점유] 검수는 배정 없이 전체 대기열에서 집어간다. 검수 목록은 검수 권한을 가진 누구에게나 검수 대기 전체를 보여주고 검수 시작·승인·반려의 자격은 역할이 정하며, 검수자를 영상에 배정하는 절차를 두지 않는다 — 배정의 대상은 작업자뿐이다. 단일 검수라는 결론은 그대로이고 바뀐 것은 그 하나에 누가 들어가는지를 정하는 방식이다.
+
+[★점유는 파생 판정이다] 검수를 시작하면 그 사람이 그 영상을 점유한다. 점유는 작업 이력 원장에 「검수 시작」을 남기는 것으로 표현하며 전용 컬럼도 전용 표도 두지 않는다 — 이 모델에 점유를 담는 저장 속성이나 엔티티가 없는 것은 결손이 아니라 설계다. 판정은 조회 시점 파생이며 그 결과를 ReviewOccupancy 로 그린다. 유예는 배포 설정값이고 기본값은 30분이며 점유를 푸는 별도 동작은 두지 않는다 — 승인·반려가 자기 기록을 남겨 저절로 풀린다. ⚠ 점유는 잠금이 아니다 — 만료가 있어 영구 잠금이 되지 않고 승인 시점의 동시성 보호가 실제 방어로 그대로 남으므로, 점유가 생겼다는 이유로 승인 시점 보호를 걷어내지 말 것. ⚠ 목록 조회가 행마다 이 판정을 되짚으면 성능이 나빠지므로 영상별 최신 기록을 한 번의 조회로 합친다.
+
+[★검수 시작이 상태를 전이하는 갈래는 하나뿐이다] 상태를 전이하는 갈래는 검수 대기에서 집어가는 하나뿐이다 — 그 영상만 상태를 검수 진행으로 전이하며 점유한다. 그 밖의 갈래는 모두 상태 전이 없이 점유만 세운다 — 예컨대 같은 사람이 다시 들어오는 경우, 유예가 지나 풀린 검수 진행 영상을 다른 사람이 이어받는 경우, 수정 뒤 재검토 필요 표시가 선 승인 영상이 그렇다. 즉 검수 시작이 늘 상태 전이를 부르는 것은 아니며, 갈래가 늘어도 상태를 전이하는 것은 검수 대기에서 집어가는 갈래뿐이다. 재검수 건의 상태를 내리지 않는 이유는 승인 영상이 관제 조회용 데이터마트 뷰에 승인 상태를 조건으로 노출되기 때문이다 — 상태를 내리면 이미 완료로 통지한 영상의 행이 관제에서 예고 없이 사라진다. 같은 이유로 이 경우를 위한 상태값을 새로 만들지도 않는다.
+
+[★행위 시점 역할] 검수 시작·승인·반려 이력에는 행위자와 함께 그 행위를 한 시점의 역할이 남는다. 조회 시점에 현재 역할을 다시 읽지 않으므로 그 사람의 역할이 나중에 바뀌어도 과거 행위의 역할은 그대로이며, 관리자가 승인한 건은 관리자로 남는다. 역할 기록이 생기기 전에 쌓인 이력은 비어 있을 수 있고 지어내 채우지 않는다. 검수 목록·상세는 이 값을 LastApproval 로 보여준다.
+
+[★일괄 승인] 여러 건을 한 번에 처리하는 창구는 승인에만 둔다 — 반려는 건마다 사유가 달라 묶을 수 없다. 요청과 건별 결과는 BulkApprovalRequest·BulkApprovalItemResult 로 그린다. 자격은 유효 점유의 주인이 요청자 본인이고 단건 승인이 허용하는 상태인 건으로 한정하며, 건수 상한을 두고 부분 실패를 허용한다. 성공한 건의 결과는 단건 승인과 완전히 같다. 승인 한 건이 산출 전량 재생성과 외부 통지를 연쇄로 일으키므로 여러 건의 연쇄를 뒤에서 줄 세운다.
+
+근거는 ADR-067.
 
 ## module_name
 
@@ -1223,6 +1755,42 @@ Review
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..*
 
+### [5]
+
+- **to**: RawDataStatus
+- **from**: ReviewOccupancy
+- **kind**: dependency
+- **label**: 점유 판정 대상 영상 — 점유는 이 상태에 저장되지 않고 작업 이력 원장을 읽어 조회 시점에 만든다
+- **to_multiplicity**: 1
+- **from_multiplicity**: 0..1
+
+### [6]
+
+- **to**: RawDataStatus
+- **from**: LastApproval
+- **kind**: dependency
+- **label**: 최근 승인 표시 대상 영상 — 행위 시점 역할과 함께 작업 이력 원장에서 파생
+- **to_multiplicity**: 1
+- **from_multiplicity**: 0..1
+
+### [7]
+
+- **to**: BulkApprovalItemResult
+- **from**: BulkApprovalRequest
+- **kind**: association
+- **label**: 건별 결과 — 부분 실패 허용
+- **to_multiplicity**: 1..*
+- **from_multiplicity**: 1
+
+### [8]
+
+- **to**: ReviewOccupancy
+- **from**: BulkApprovalRequest
+- **kind**: dependency
+- **label**: 자격 판정 — 유효 점유의 주인이 요청자 본인인 건만 담는다
+- **to_multiplicity**: 0..*
+- **from_multiplicity**: 1
+
 ## attached_files
 
 _(empty)_
@@ -1264,6 +1832,7 @@ _(empty)_
 ## referenced_items
 
 - ADR-060
+- ADR-067
 
 ## realizes_features
 

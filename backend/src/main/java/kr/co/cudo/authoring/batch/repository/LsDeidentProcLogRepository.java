@@ -55,6 +55,18 @@ public interface LsDeidentProcLogRepository extends JpaRepository<LsDeidentProcL
     List<LsDeidentProcLog> findByPollSttsCdIn(List<String> pollSttsCds, org.springframework.data.domain.Pageable pageable);
 
     /**
+     * 영상에 진행 중인 외부 위탁(폴링 상태가 주어진 값 중 하나)이 있는가 — 선두 비식별 재시작의 거부 판정.
+     * 호출자는 재폴링 대상 두 값(WAITING·POLLING)만 넘긴다(종결값 포함 금지). [@design AC-1134]
+     */
+    boolean existsByDataRawSnAndPollSttsCdIn(Long dataRawSn, Collection<String> pollSttsCds);
+
+    /**
+     * 영상에 주어진 원장 행보다 앞선(번호가 작은) 비식별 이력이 있는가 — KPST 위탁 프로젝트 이름의
+     * 첫 위탁/다시 위탁 판정. 요청 종류와 무관하게 모든 행을 센다. [@design INT-004]
+     */
+    boolean existsByDataRawSnAndProcLogSnLessThan(Long dataRawSn, Long procLogSn);
+
+    /**
      * B-ISSUE-82 — 폴링 대상 <b>원자 클레임</b>(리스 방식). 이 UPDATE 로 1행을 얻은 노드만 폴링한다.
      *
      * <p><b>왜 필요한가</b>: 배포는 2노드 Active-Active 인데 Quartz 클러스터링({@code isClustered})이

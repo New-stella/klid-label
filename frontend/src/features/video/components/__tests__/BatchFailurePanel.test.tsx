@@ -1601,4 +1601,155 @@ describe('BatchFailurePanel', () => {
       expect(rerun.className, '구 secondary 로 되돌리지 말 것').not.toContain('border-gray-400');
     });
   });
+
+  // [@design SCREEN-009] [@design API-167] [@design AC-1133] [@design AC-1134]
+  // ★ 선두 비식별이 실패한 영상 — 배치 진행 로그를 남기지 않아 `stages` 는 빈 배열, 실패 사유는 비고
+  //   배치 상태는 대기(PENDING)다. 비식별 여부만 `'F'` 로 실패를 말한다(서버 실측 응답 모양).
+  //   이 축이 빠지면 조치 영역과 재기동 버튼이 통째로 사라져 「다시 할 수단이 없다」는 신고가 재발한다.
+  describe('★선두 비식별이 실패한 영상', () => {
+    const leadDeidentFailed = (partial: Partial<VideoDetail> = {}) =>
+      videoOf({
+        status: 'PENDING',
+        deIdntfYn: 'F',
+        stages: [],
+        batchFailureReason: null,
+        skippedStages: [],
+        clearedStages: [],
+        failedStages: [],
+        deidentHistory: [{ procLogSn: 1, procSttsCd: 'FAILED', reqKndCd: null }],
+        ...partial,
+      });
+
+    it('조치_영역과_재기동_버튼을_보이고_지금_실패로_말한다', () => {
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed()} />);
+
+      expect(screen.getByTestId('batch-failure-panel')).toHaveAttribute('data-mode', 'failure');
+      // 상태는 색이 아니라 제목 문구가 말한다 — 「직전」이 아니라 지금 실패다.
+      expect(screen.getByRole('heading', { name: '배치 처리 실패' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /배치 재실행/ })).toBeEnabled();
+      // 실패 단계는 비식별로 세우고, 단계를 특정할 수 없다고 말하지 않는다.
+      expect(screen.getByTestId('batch-failure-stage')).toHaveTextContent('비식별');
+      expect(screen.getByTestId('batch-failure-stage')).not.toHaveTextContent('확인 불가');
+    });
+
+    it('사유를_지어내지_않고_확인할_곳을_알리며_서버_문구_표식을_붙이지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed()} />);
+
+      const reason = screen.getByTestId('batch-failure-reason');
+      expect(reason).toHaveTextContent('비식별 처리가 완료되지 않아 마킹을 시작할 수 없습니다.');
+      expect(reason).toHaveTextContent('비식별 이력');
+      expect(reason).not.toHaveTextContent('기록된 사유가 없습니다');
+      // 이 문장은 화면 문구다 — 「서버가 보낸 그대로」라고 말하면 거짓이 된다.
+      expect(screen.queryByTestId('batch-failure-verbatim')).not.toBeInTheDocument();
+    });
+
+    it('서버가_사유를_내려주면_그_문구를_그대로_쓴다', () => {
+      renderWithProviders(
+        <BatchFailurePanel
+          video={leadDeidentFailed({ batchFailureReason: '외부 비식별 서버가 응답하지 않았습니다.' })}
+        />,
+      );
+
+      expect(screen.getByTestId('batch-failure-reason')).toHaveTextContent(
+        '외부 비식별 서버가 응답하지 않았습니다.',
+      );
+    });
+
+    it('재기동_안내는_비식별_단계를_처음부터_다시_수행한다고_말한다_마킹_이후만_다시_돈다고_말하지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed()} />);
+
+      const hint = screen.getByTestId('batch-retry-hint');
+      expect(hint).toHaveTextContent('적재 직후와 같은 비식별 단계를 처음부터 다시 수행합니다.');
+      expect(hint).toHaveTextContent('마킹을 시작할 수 있는 상태');
+      expect(hint).not.toHaveTextContent('실패한 단계부터 이어서');
+      // 비활성 사유·안내가 보조기술에도 전달된다.
+      expect(screen.getByRole('button', { name: /배치 재실행/ })).toHaveAttribute(
+        'aria-describedby',
+        'batch-retry-hint',
+      );
+    });
+
+    it('접수_응답의_단계가_대기여도_오류가_아니라_정상_접수로_안내한다', async () => {
+      mock.onPost('/videos/7/batch/retry').reply(200, {
+        success: true,
+        data: { rawSn: 7, stage: 'PENDING' },
+        message: null,
+        errorCode: null,
+      });
+      useUiStore.setState({ toasts: [] });
+      const user = userEvent.setup();
+
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed()} />);
+      await user.click(screen.getByRole('button', { name: /배치 재실행/ }));
+
+      await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
+      const toast = useUiStore.getState().toasts[0]!;
+      expect(mock.history.post.map((h) => h.url)).toEqual(['/videos/7/batch/retry']);
+      expect(toast.variant).toBe('success');
+      expect(toast.message).toContain('접수');
+      expect(toast.message).toContain('비식별 이력');
+      expect(toast.message).not.toMatch(/시작했|완료/);
+    });
+
+    it('거부되면_서버가_내려준_사유_문구를_그대로_보인다', async () => {
+      const serverMessage = '열린 비식별 누락 신고가 있어 재시작할 수 없습니다. 신고 해소 경로를 이용하세요.';
+      mock.onPost('/videos/7/batch/retry').reply(409, {
+        success: false,
+        data: null,
+        message: serverMessage,
+        errorCode: 'CONFLICT',
+      });
+      useUiStore.setState({ toasts: [] });
+      const user = userEvent.setup();
+
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed()} />);
+      await user.click(screen.getByRole('button', { name: /배치 재실행/ }));
+
+      await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
+      const toast = useUiStore.getState().toasts[0]!;
+      expect(toast.variant).toBe('error');
+      expect(toast.message).toBe(serverMessage);
+    });
+
+    it('파생영상에는_재기동_버튼을_두지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={leadDeidentFailed({ derivative: true })} />);
+
+      expect(screen.queryByRole('button', { name: /배치 재실행/ })).not.toBeInTheDocument();
+    });
+
+    it('다시_요청한_비식별이_진행_중이면_처리_중으로_말하고_버튼을_막는다', () => {
+      renderWithProviders(
+        <BatchFailurePanel
+          video={leadDeidentFailed({
+            // 서버 정렬 — 최신 회차가 맨 앞이다.
+            deidentHistory: [
+              { procLogSn: 2, procSttsCd: 'REQUESTED', reqKndCd: null },
+              { procLogSn: 1, procSttsCd: 'FAILED', reqKndCd: null },
+            ],
+          })}
+        />,
+      );
+
+      expect(screen.getByTestId('batch-failure-panel')).toHaveAttribute('data-mode', 'processing');
+      expect(screen.getByRole('heading', { name: '배치 처리 중' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /배치 재실행/ })).toBeDisabled();
+      expect(screen.getByTestId('batch-retry-hint')).toHaveTextContent('이미 처리 중');
+    });
+
+    it('판정은_비식별_실패와_배치_대기가_함께일_때만이다', () => {
+      const empty = {
+        stages: [] as BatchStageItem[],
+        batchFailureReason: null,
+        skippedStages: [] as StageBundle[],
+        clearedStages: [] as StageBundle[],
+        failedStages: [] as StageBundle[],
+      };
+      expect(needsBatchAttention({ ...empty, status: 'PENDING', deIdntfYn: 'F' })).toBe(true);
+      // 마킹 준비 이후의 'F'(비식별 누락 신고 표식)는 선두 비식별 실패가 아니다.
+      expect(needsBatchAttention({ ...empty, status: 'MARKING_READY', deIdntfYn: 'F' })).toBe(false);
+      // 아직 비식별 중인 영상(대기 + 'N')은 실패가 아니다.
+      expect(needsBatchAttention({ ...empty, status: 'PENDING', deIdntfYn: 'N' })).toBe(false);
+      expect(batchPanelMode({ ...empty, status: 'PENDING', deIdntfYn: 'F' })).toBe('failure');
+    });
+  });
 });

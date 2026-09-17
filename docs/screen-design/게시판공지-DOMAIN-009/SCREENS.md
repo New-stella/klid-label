@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-09-07T15:22:13.141Z (session 17) |
+| last sync | 2026-09-17T01:18:29.506Z (session 21) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |

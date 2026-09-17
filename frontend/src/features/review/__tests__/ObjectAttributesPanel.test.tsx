@@ -72,10 +72,10 @@ describe('ObjectAttributesPanel', () => {
     expect(screen.getByTestId('attr-type')).toHaveTextContent('BBOX');
     // points [[10,20],[110,220]] → x=10 y=20 w=100 h=200
     const coords = screen.getByTestId('attr-bbox-coords');
-    expect(coords).toHaveTextContent('x:10');
-    expect(coords).toHaveTextContent('y:20');
-    expect(coords).toHaveTextContent('w:100');
-    expect(coords).toHaveTextContent('h:200');
+    // ★표기는 「x 412 · y 268 · w 96 · h 214」 꼴이다 — 이름과 값을 띄어 쓰고 항목 사이를
+    //   가운뎃점으로 나눈다. 전문(全文)으로 고정해야 구 표기(`x:10 y:20 …`)로 되돌아가는
+    //   변이가 잡힌다 — 부분일치로 두면 `x:10` 도 `x 10` 도 아닌 값까지 통과한다.
+    expect(coords.textContent).toBe('x 10 · y 20 · w 100 · h 200');
   });
 
   it('ObjectAttributesPanel_POLYGON_점_개수_표시', () => {

@@ -22,8 +22,8 @@
 브라우저 → http://192.168.102.246:8088/label-studio/
                          │  (apache 컨테이너, :8088)
                          ├─ /label-studio/         → AliasMatch → 정적 FE (label-studio-web)
-                         └─ /label-studio/api/**   → ProxyPass  → klid-authoring-jboss:18080/label-studio/**
-                                                                    (JBoss EAP 8, context=/label-studio)
+                         └─ /label-studio/api/**   → ProxyPass  → klid-authoring-jboss:18080/label-studio/api/**
+                                                                    (JBoss EAP 8, context=/label-studio/api)
                                                                          │
                                                                          └─ DB: postgis-klid:5432/klid (user cudo, schema klid_at)
 ```
@@ -40,19 +40,21 @@
 
 ## 2. 경로 매핑 규칙 (빌드/설정에 직접 반영됨)
 
-- Apache 가 **`/label-studio/api/` 를 벗겨** JBoss `/label-studio/` 로 전달한다.
-  즉 `/label-studio/api/v1/me` → JBoss `/label-studio/v1/me`.
-- JBoss WAR context 는 **`/label-studio`** 다 → 빌드 시 `-PklidWebContext=/label-studio`.
+- Apache 는 **`/label-studio/api/` 를 벗기지 않고** JBoss `/label-studio/api/` 로 그대로 전달한다.
+  즉 `/label-studio/api/v1/me` → JBoss `/label-studio/api/v1/me`. (246 `klid.conf` 의 `RewriteRule … [P,L]`·`ProxyPass` 가 이 향이다.)
+- JBoss WAR context 는 **`/label-studio/api`** 다 — **현장(반입 산출물) WAR 와 같은 향**이고 빌드 기본값이다 → 빌드 시 `-PklidWebContext` 를 **주지 않는다**.
+- ⚠ **구 서술 폐기(2026-09-14 실측)** — *"Apache 가 `/label-studio/api/` 를 벗겨 JBoss `/label-studio/` 로 전달 · 빌드 시 `-PklidWebContext=/label-studio`"* 는 **옛 strip 향**이다. 246 `klid.conf` 는 이미 현장 향(`/label-studio/api`)으로 바뀌었고 백업 WAR 의 context-root 도 `/label-studio/api` 였다. 옛 지시대로 `/label-studio` 로 빌드해 올리면 JBoss 가 `Registered web context: '/label-studio'` 로 뜨고 **apache 경유 API 가 전부 401(없는 경로)** 이 된다 — 실제로 그렇게 됐다.
 - FE 번들에 API base 를 **`/label-studio/api/v1`** 로 굽는다(`VITE_API_BASE_URL`).
 - FE 자산 base 는 **`/label-studio/`** (`VITE_BASE_PATH`).
 
 ## 3. 백엔드(JBoss) 배포
 
 ```bash
-# 3-1. 로컬(또는 246 /data/klid)에서 WAR 빌드 — context=/label-studio
+# 3-1. 로컬(또는 246 /data/klid)에서 WAR 빌드 — context=/label-studio/api (기본값 — 플래그 없음)
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17   # (로컬 macOS 기준. 새 셸에서 필수)
-cd <repo>/backend && ./gradlew bootWar -PklidWebContext=/label-studio
+cd <repo>/backend && ./gradlew bootWar
 #   산출: backend/build/libs/*.war
+#   ⚠ -PklidWebContext=/label-studio 를 주지 말 것(위 §2 폐기 서술 참조)
 
 # 3-2. WAR 를 246 JBoss deployments 로 전송(핫디플로이)
 nt sftp cudo_246 put backend/build/libs/api.war \
@@ -61,7 +63,8 @@ nt sftp cudo_246 put backend/build/libs/api.war \
 # 3-3. JBoss 재기동(또는 핫디플로이 대기) 후 상태 확인
 nt ssh cudo_246 "docker restart klid-authoring-jboss; sleep 20; \
   docker exec klid-authoring-jboss curl -s -o /dev/null -w '%{http_code}\n' \
-  http://localhost:18080/label-studio/actuator/health"   # → 200
+  http://localhost:18080/label-studio/api/actuator/health"   # → 200
+#   기동 로그에서 context 확인: Registered web context: '/label-studio/api'
 ```
 
 > ⚠⚠ **`docker restart` 로는 `app.env` 변경이 반영되지 않는다** (2026-09-07 실측).
@@ -126,9 +129,17 @@ docker run -d --name klid-authoring-jboss --restart no --network klidnet \
   -v /data/klid/closed-net/klid-authoring/jboss-eap-8:/opt/jboss-eap-8 \
   -v /data/klid/storage:/app/storage \
   -p 38090:18080 --entrypoint /__cacert_entrypoint.sh \
-  eclipse-temurin:17-jdk /opt/jboss-eap-8/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
+  klid-jboss-runtime:latest /opt/jboss-eap-8/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
 docker network connect klid-net klid-authoring-jboss   # 2번째 네트워크
 ```
+
+⚠ **이미지는 `klid-jboss-runtime:latest` 다 — `eclipse-temurin:17-jdk` 로 되돌리지 말 것 (2026-09-15).**
+그 이미지는 `eclipse-temurin:17-jdk` 에 **`ffmpeg`·`curl` 만 얹은 것**이며 정의는 서버의
+`/data/klid/closed-net/klid-authoring/runtime-image/Dockerfile` 에 있다(도커 `klid-backend` 의
+`backend/Dockerfile` 런타임 스테이지와 같은 방식).
+**맨 `eclipse-temurin` 으로 재생성하면 `ffmpeg` 이 사라져** 시계열 위탁·콜백까지는 성공하고
+**프레임 추출에서 `Cannot run program "ffmpeg"` 로 멈춘다**(실측). 그 앞 단계가 다 성공해
+원인이 늦게 드러나는 형태다.
 
 ## 4. 프론트엔드(정적) 배포
 
@@ -160,7 +171,7 @@ EOF"
 
 - **빌드 플래그 의미**:
   - `VITE_BASE_PATH=/label-studio/` — 자산·라우터 basename.
-  - `VITE_API_BASE_URL=/label-studio/api/v1` — axios base (apache 가 /api 벗겨 JBoss 로).
+  - `VITE_API_BASE_URL=/label-studio/api/v1` — axios base (apache 가 경로를 벗기지 않고 JBoss `/label-studio/api` context 로 그대로 넘긴다).
   - `VITE_DEV_LOGIN_ENABLED=true` — `/label-studio/dev/login` 노출(개발 진입 편의). 켜면
     토큰 없이 접근 시 관제 로그인 대신 dev-login 으로 간다(코드상 dev-login 우선).
   - `VITE_BUILD_CHANNEL=control` — **관제향 빌드**. 안내 문구가 "관제서버"로 단일화된다
@@ -177,9 +188,14 @@ vhost `*:80`(ServerName klid-server-dev-01, DocumentRoot /local-storage/web/plat
 AliasMatch "^/label-studio(?!/api/)(.*)$" "/local-storage/web/label-studio/$1"
 
 # API — /label-studio/api/ 를 JBoss 로 (전역 ProxyPass 블록에)
-ProxyPass        /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/
-ProxyPassReverse /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/
+ProxyPass        /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/api/
+ProxyPassReverse /label-studio/api/ http://klid-authoring-jboss:18080/label-studio/api/
+# vhost 안 RewriteRule 도 같은 향이어야 한다
+RewriteRule ^/label-studio/api/(.*)$ http://klid-authoring-jboss:18080/label-studio/api/$1 [P,L]
 ```
+
+- ⚠ **구 설정 폐기(2026-09-14 실측)** — 뒤쪽을 `…:18080/label-studio/` 로 두던 strip 향은 옛 형상이다.
+  246 `klid.conf` 는 현장 WAR 컨텍스트에 맞춰 `/label-studio/api/` 를 그대로 넘긴다.
 
 - SPA 폴백 RewriteRule 은 `!^/label-studio` 로 이미 label-studio 를 제외한다(정적 Directory 에
   `FallbackResource /label-studio/index.html` 존재).
@@ -240,8 +256,47 @@ nt ssh cudo_246 "curl -s -o /dev/null -w 'API=%{http_code}\n' http://localhost:8
 
 - **채널 인계 키는 `localStorage['klid-jwt-token']` 고정**(관제가 같은 키로 저장 — 확인됨).
   FE 는 channel 클레임 부재를 INTERNAL 로 수용한다(관제 토큰엔 channel 없음).
-- **공유 DB**: postgis-klid/klid 는 도커 klid-backend 와 공유. dev-seed(`@Profile(local)`)는
-  246 JBoss(dev)에서 안 돌지만, 도커 klid-backend 재시드가 9001 의 `user_nm` 을 되돌릴 수 있다
-  (`ON CONFLICT DO UPDATE`는 user_nm 갱신, user_id 는 미변경). 영구 고정하려면 `dev-seed.sql`
-  반영본으로 klid-backend 도 재빌드.
+- ⚠ **구 서술 폐기(2026-09-15)** — *"**공유 DB**: postgis-klid/klid 는 도커 klid-backend 와 공유"* 는
+  더 이상 사실이 아니다. **DB 를 갈랐다**(아래 §9). 도커 재시드가 JBoss 쪽 사용자 이름을 되돌리던
+  문제도 함께 사라졌다.
+- **통지(control-notify)는 기본 off** — 관제로 완료/수정 통지하려면 §3 env 설정 필요.
+
+## 9. 도커 백엔드 DB 분리 (2026-09-15)
+
+```
+JBoss  ──►  postgis-klid / klid          (사용자가 보는 화면의 백엔드)
+도커   ──►  postgis-klid / klid_docker   (구 개발 UI 스택 · 포털 소재 조달 시험용)
+```
+
+### 왜 갈랐나
+같은 DB·같은 스키마를 쓰면서 **둘 다 Quartz 클러스터 모드가 꺼져 있었다.** 그러면 Quartz 가
+두 앱을 구분하지 못한다(`qrtz_fired_triggers.instance_name` 이 양쪽 다 리터럴 `NON_CLUSTERED`).
+25분 실측에서 **관제 인입 폴링의 95%(18/19)가 8일 전 도커 코드에서** 돌고 있었다. 추가 질문
+위탁 창구도 도커는 구 규격(`describe-sub`), JBoss 는 현행(`custom`)이라 **같은 원장에 다른 계약의
+결과가 섞였다.** 분리 후 두 DB 가 각자 트리거를 갖고 각자 발화하는 것을 확인했다.
+
+### 무엇을 했나
+- `klid` 의 **`klid_at` 스키마만** `klid_docker` 로 복제(표 82 · 뷰 4 · 시퀀스 55 · 행수 전건 일치).
+  `public` 은 관제 소유이고 앱이 `currentSchema=klid_at` 로 접속해 도달 경로가 없다(42GB 중 11MB).
+- 도커 백엔드의 JDBC URL 을 `klid_docker` 로 변경 — **`/data/klid/docker-compose.override.yml`**(서버 로컬, git 미추적).
+- ⚠ **같은 파일에서 image 를 다이제스트로 고정했다.** 태그 `klid-backend:latest` 가 그 사이 더 새
+  빌드로 옮겨가 있어, 고정하지 않으면 **DB 만 가르려던 재생성이 코드까지 바꾼다.**
+  **도커 쪽 코드를 올릴 때는 그 고정을 먼저 지울 것.**
+  - ✅ **2026-09-15 12:19 에 그 고정을 풀었다** — 최신 main(`ebedaf2a5`) 을 도커 스택에 올리기
+    위해서다. 지우지 않고 **주석 처리**했고(같은 파일 32행 부근, 해제 사유를 한 줄 덧붙였다)
+    원본은 `/data/klid/backup/deploy-20260915/docker-compose.override.yml.bak` 에 있다.
+    되살리려면 그 주석 두 줄에서 `# image:` 의 `# ` 만 지운다.
+    ⚠ **DB 분리 설정(`klid_docker`)은 건드리지 않았다** — 핀과 DB 는 같은 파일에 있을 뿐 별개다.
+- JBoss 설정은 **건드리지 않았다.**
+
+### 되돌리는 법 · 상세 기록
+서버의 **`/data/klid/backup/db-split-20260915/`** — `README.md`(경위·되돌리는 절차) ·
+override 원본 · env 전량 · 덤프 · 행수 대조 2종.
+
+### 남은 것
+- Flyway 는 설정을 건드리지 않았다. ~~도커 jar 는 V33 까지인데 사본 이력은 V37 이라 **future** 로
+  잡히고, 기본값이 경고만 내고 통과시킨다(2026-09-12 기동 로그에 같은 상황 실측).~~
+  ✅ **2026-09-15 최신 main 반영으로 해소됐다** — 도커 jar 도 V37 이라 `future` 경고 없이
+  *"Successfully validated 37 migrations · Schema klid_at is up to date"* 로 지나간다(기동 로그 실측).
+- ⚠ 두 DB 는 **분리 시점 이후로 갈라진다.** 한쪽에 넣은 자료는 다른 쪽에 없다.
 - **통지(control-notify)는 기본 off** — 관제로 완료/수정 통지하려면 §3 env 설정 필요.

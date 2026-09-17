@@ -6,6 +6,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { ToastProvider } from '@/components/common/ToastProvider';
 import { apiClient } from '@/lib/api/client';
 import { PORTAL_MOUNT_BASENAME } from '@/lib/remoteMount';
+import { PORTAL_EMBED_ANCHOR_CLASS } from '@/lib/portalEmbedAnchor';
 import type { TokenClaims } from '@/lib/api/types';
 import { routes } from '@/router';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -88,12 +89,15 @@ function StoryScreen({ path, api }: { path: string; api?: ApiMocks }) {
 
   useEffect(() => () => setup.mock.restore(), [setup]);
 
+  // 포털 스킨·리셋은 이 감싸개 안에서만 먹는다 — 앱 진입점(main.tsx)·Remote 진입점과 같은 감싸개다. 빠지면 맨 화면이 뜬다.
   return (
-    <QueryClientProvider client={setup.queryClient}>
-      <ToastProvider>
-        <RouterProvider router={setup.router} />
-      </ToastProvider>
-    </QueryClientProvider>
+    <div className={`${PORTAL_EMBED_ANCHOR_CLASS} h-full`}>
+      <QueryClientProvider client={setup.queryClient}>
+        <ToastProvider>
+          <RouterProvider router={setup.router} />
+        </ToastProvider>
+      </QueryClientProvider>
+    </div>
   );
 }
 

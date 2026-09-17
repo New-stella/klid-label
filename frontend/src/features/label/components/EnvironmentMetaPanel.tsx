@@ -38,7 +38,14 @@ import {
   WEATHER_OPTIONS,
 } from '../utils/shootingEnvironmentOptions';
 
-import { MetaReadonlyField, MetaSection } from './MetaSection';
+import { MetaReadonlyField, MetaSection, NOT_ENTERED_TEXT } from './MetaSection';
+
+/**
+ * 구역 제목 아래 설명 한 줄 — 화면정의서 SCREEN-019 의 「촬영환경 검토」 note 원문이다.
+ * 도움말을 켰을 때만 보인다(기본 감춤 — {@code metaHelpPreference} 참조).
+ */
+const READONLY_DESCRIPTION =
+  '작업자가 라벨링 화면에서 입력한 영상 단위 값입니다. 학습데이터 산출물의 촬영환경 조달원입니다.';
 
 export interface EnvironmentMetaPanelProps {
   rawSn: number | undefined;
@@ -54,7 +61,9 @@ export interface EnvironmentMetaPanelProps {
 const WEATHER_ID = 'env-weather-select';
 const SEASON_ID = 'env-season-select';
 
-const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
+// 시안 `.meta-label` — `.t-label` 14px/600 + `var(--n-8)` #33363D + 아래 4px.
+// 구 값은 caption(14px/400) + gray-500 이라 라벨이 값보다 흐렸다(읽기 전용 행과 같은 축).
+const FIELD_LABEL_CLASS = 'mb-1 block text-label text-gray-800';
 
 /** BE 값(null 포함)을 select value(빈 문자열=미선택)로 정규화. */
 function toValue(v: string | null): string {
@@ -130,15 +139,28 @@ export function EnvironmentMetaPanel({
 
   // 읽기 전용(검수 화면) — 값만 보여준다. 비활성 컨트롤을 두지 않고 렌더 자체를 하지 않는다.
   if (readOnly) {
+    // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+    //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="촬영환경">
-        <div className="space-y-1.5" data-testid="environment-meta-readonly">
-          <MetaReadonlyField label="날씨" value={displayOf(weather, WEATHER_OPTIONS)} />
+      <MetaSection title="촬영환경 검토" description={READONLY_DESCRIPTION}>
+        {/* 빈 값은 표식이 아니라 「미입력」이다 — 사양 SCREEN-019 의 촬영환경 note 가 이 구역에만
+            따로 정한 문구다(다른 구역의 빈 값은 「아직 채우지 않았습니다」). */}
+        <div className="space-y-4" data-testid="environment-meta-readonly">
+          <MetaReadonlyField
+            label="날씨"
+            value={displayOf(weather, WEATHER_OPTIONS)}
+            emptyText={NOT_ENTERED_TEXT}
+          />
           <MetaReadonlyField
             label="시간대"
             value={displayOf(timeOfDay, TIME_OF_DAY_OPTIONS)}
+            emptyText={NOT_ENTERED_TEXT}
           />
-          <MetaReadonlyField label="계절" value={displayOf(season, SEASON_OPTIONS)} />
+          <MetaReadonlyField
+            label="계절"
+            value={displayOf(season, SEASON_OPTIONS)}
+            emptyText={NOT_ENTERED_TEXT}
+          />
         </div>
       </MetaSection>
     );

@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
+import { getPortalOverlayRoot } from '@/lib/portalOverlayRoot';
 
 export interface ModalProps {
   open: boolean;
@@ -169,7 +170,7 @@ export function Modal({
           // 모서리는 시안 `.lightbox-box` 의 `--radius-lg`(8px) = borderRadius 토큰 `lg`.
           // 토큰은 sm/md/lg/full 4단뿐이라 그 위 단은 Tailwind 기본값(12px)으로 폴백한다 —
           // 음영과 같은 성질의 조용한 이탈이라 함께 토큰 안으로 되돌렸다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
+          'relative flex max-h-[calc(100vh-32px)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
           className,
         )}
@@ -204,5 +205,7 @@ export function Modal({
     </div>
   );
 
-  return createPortal(node, document.body);
+  // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리 범위
+  // 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+  return createPortal(node, getPortalOverlayRoot());
 }

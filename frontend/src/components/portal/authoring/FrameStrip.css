@@ -1,0 +1,54 @@
+@charset "utf-8";
+/* 프레임 줄. 낱장 76 · 16:9 · 라운드 4 · 사이 8 · 번호 13 */
+
+.klid-frame-strip {
+  display: flex;
+  gap: var(--krds-gap-3);
+  margin: 0;
+  padding: var(--krds-padding-3) var(--krds-padding-2);
+  list-style: none;
+  overflow-x: auto;
+}
+.klid-frame-strip > li {
+  flex: none;
+}
+
+.klid-frame-strip-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--krds-gap-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.klid-frame-strip-item .thumb {
+  display: block;
+  box-sizing: border-box;
+  width: 7.6rem; /* 낱장 폭 76 고정 — 장수가 늘면 줄이 밀린다 (폭을 줄이면 그림을 못 알아본다) */
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  /* 테 자리를 늘 비워 둔다 — 고를 때만 테를 그리면 낱장이 2 씩 밀려 줄이 흔들린다 */
+  border: 0.2rem solid transparent;
+  border-radius: var(--krds-radius-small1);
+  background-color: var(--krds-color-light-gray-10);
+}
+.klid-frame-strip-item:hover .thumb {
+  border-color: var(--krds-color-light-gray-30);
+}
+.klid-frame-strip-item .index {
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 고른 장 — 코발트 테 + 번호 굵게 */
+.klid-frame-strip-item[aria-current='true'] .thumb {
+  border-color: var(--krds-color-light-primary-50);
+}
+.klid-frame-strip-item[aria-current='true'] .index {
+  font-weight: 600;
+  color: var(--krds-color-light-primary-60);
+}

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.assignment.service;
 
+import kr.co.cudo.authoring.assignment.domain.AssignmentWorkStatus;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
@@ -41,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -81,9 +81,6 @@ public class AssignmentService {
         if (userRepository.findByUserNo(req.workerId()).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 작업자입니다.");
         }
-        if (req.reviewerId() != null && userRepository.findByUserNo(req.reviewerId()).isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "존재하지 않는 검수자입니다.");
-        }
 
         rejectApprovedTargets(req.rawDataIds());
         rejectUnenrolledDerivatives(req.rawDataIds());
@@ -117,18 +114,12 @@ public class AssignmentService {
                     "다른 사용자가 먼저 해당 영상의 상태를 변경했습니다. 새로고침 후 다시 시도해주세요.");
         }
 
-        // 옵셔널 — REVIEWER 동시 등록. worker 배정과 동일 트랜잭션 내에서 수행하되,
-        // UK 충돌(이미 동일 reviewer 가 동일 영상에 등록되어 있음) 은 정상 흐름으로 간주하여 skip.
-        if (req.reviewerId() != null) {
-            assignReviewers(req.rawDataIds(), req.reviewerId(), actorNo);
-        }
-
-        log.info("[Assignment] created actor={} workerId={} count={} reviewerAttached={}",
-                actorNo, req.workerId(), created.size(), req.reviewerId() != null);
-        // 요청에 reviewerId 가 포함되면 응답 Item 에도 그대로 반영 (요청-응답 정합).
-        // 단일-인자 Item.from 은 reviewerId 를 항상 null 로 채우므로, reviewerId 주입 오버로드를 사용한다.
+        // 검수자 배정은 만들지 않는다 — 검수는 배정 없이 전체 대기열에서 집어가므로 배정의 대상은
+        // 작업자뿐이다(ADR-067). 구 assignReviewers 호출과 응답의 검수자 반영은 함께 제거됐다.
+        log.info("[Assignment] created actor={} workerId={} count={}",
+                actorNo, req.workerId(), created.size());
         List<AssignmentResponse.Item> items = created.stream()
-                .map(e -> AssignmentResponse.Item.from(e, req.reviewerId()))
+                .map(AssignmentResponse.Item::from)
                 .toList();
         return new AssignmentResponse(items);
     }
@@ -187,40 +178,6 @@ public class AssignmentService {
                     ineligible.size());
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "검수 승인 전인 파생 영상은 배정할 수 없습니다.");
-        }
-    }
-
-    /**
-     * REVIEWER 배정 — 각 rawDataId 에 대해 (RAW_DATA_ID, USER_NO=reviewerId, TASK_TYPE_CD='REVIEWER')
-     * row 가 이미 존재하는지 확인 후 없을 때만 INSERT.
-     * UK 충돌이 발생해도 worker 배정 결과는 보존되어야 하므로 별도 try-catch 로 격리하고
-     * 충돌은 WARN 로깅 후 무시 (이미 등록된 상태이므로 결과적으로 동일).
-     * 이벤트 로그는 별도 이벤트 타입 도입 전까지 기록하지 않는다 (V1.x 정책).
-     */
-    private void assignReviewers(List<Long> rawDataIds, Long reviewerId, Long actorNo) {
-        // 페이지 단위로 기존 REVIEWER 배정을 한 번에 batch 조회 (N+1 회피)
-        List<LsTaskAssignment> existing = rawDataIds.isEmpty()
-                ? List.of()
-                : authrtRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
-                        LsTaskAssignment.TASK_REVIEWER, rawDataIds);
-        Set<Long> alreadyAssignedRawIds = existing.stream()
-                .filter(r -> r.getUserNo() != null && r.getUserNo().equals(reviewerId))
-                .map(LsTaskAssignment::getRawDataId)
-                .collect(Collectors.toSet());
-
-        for (Long rawDataId : rawDataIds) {
-            if (alreadyAssignedRawIds.contains(rawDataId)) {
-                continue;
-            }
-            try {
-                authrtRepository.save(
-                        LsTaskAssignment.createReviewer(rawDataId, reviewerId, actorNo)
-                );
-                authrtRepository.flush();
-            } catch (DataIntegrityViolationException e) {
-                // 동시성 등으로 인한 UK 충돌은 worker 배정에 영향 주지 않도록 격리.
-                log.warn("[Assignment] reviewer assign skipped (already exists) rawDataId={}", rawDataId);
-            }
         }
     }
 
@@ -307,6 +264,86 @@ public class AssignmentService {
     }
 
     /**
+     * <b>배정 해제</b> — 그 배정을 풀어 영상을 미배정 상태로 되돌린다.
+     * [@design ADR-069] [@design API-259] [@design DFEAT-006] [@design AC-1122] [@design AC-1123]
+     *
+     * <h3>왜 이 창구가 생겼나</h3>
+     * <p>배정을 푸는 수단이 지금까지 <b>없었다</b>. 쓰기 창구는 {@link #assign} 과 {@link #reassign}
+     * 둘뿐이고 배정 원장에는 상태 칸도 활성 칸도 없어, 잘못 배정했을 때 되돌릴 길이 <b>다른 사람에게
+     * 다시 넘기는 것</b>뿐이었다. 그 구멍은 영상 제외(ADR-069)에서 드러났다 — 배정이 있는 영상은 제외가
+     * 거부되는데 「먼저 배정을 푸세요」를 따를 수단이 없으면 그 안내가 <b>막다른 길</b>이 된다.
+     *
+     * <h3>★배정만 푼다 — 작업 결과는 건드리지 않는다</h3>
+     * <p>배정 행만 사라지고 <b>그 영상의 라벨과 라벨 이력은 한 건도 지우지 않는다</b>. 그것이 「해제」의
+     * 뜻이며, 되돌리려면({@link #assign} 으로) 다시 배정하면 작업자가 남아 있던 작업 위에서 이어서 한다.
+     * 해제를 <b>취소</b>하는 창구는 따로 두지 않는다.
+     *
+     * <h3>★거부 — 검수 단계에 들어간 배정</h3>
+     * <p>검수 대기·검수 중·승인은 409({@link ErrorCode#ASSIGNMENT_SUBMITTED})다 — 배정이 그 워크플로의
+     * 전제라 풀면 검수 흐름이 주인 없는 상태가 된다. <b>반려는 거부 대상이 아니다</b>(워크플로가
+     * 작업자에게 되돌아온 상태라 그 작업 자체를 접을 수 있어야 한다). 거부 집합의 소유자는
+     * {@link AssignmentWorkStatus#unassignBlockingCodes()} 이며 여기에 코드를 옮겨 적지 않는다.
+     *
+     * <p>상태 row 를 {@code FOR SHARE} 로 읽는 이유는 {@link #reassign} 과 같다 — 단순 read 면
+     * 「가드 통과 → 다른 tx 가 제출·승인 커밋 → 해제 커밋」 순서로 검수에 들어간 배정이 풀린다(CWE-362).
+     *
+     * <h3>⚠ 상태 row 가 없으면 잠금이 걸리지 않는다 — 인지·수용한 창</h3>
+     * <p>상태 row 가 <b>없는</b> 영상은 검수 단계가 아니므로 통과하는데, 이때는 <b>잠글 행 자체가 없어</b>
+     * 판정과 삭제 사이가 열려 있다. 그 사이에 다른 트랜잭션이 상태 row 를 만들며 검수 단계로 들어가면
+     * 이 해제가 그대로 커밋된다. 도달성은 낮다 — {@link #assign} 이 배정 시점에 항상 상태 row 를 만들어
+     * 두므로 배정이 있는 영상에는 그 row 가 이미 있다.
+     *
+     * <p>★<b>여기서 고칠 문제가 아니다.</b> {@link #reassign} 이 <b>같은 한계</b>를 갖고(같은
+     * {@code ifPresent} 형태) 두 경로가 같은 자리에서 같은 방식으로 판정하므로, 닫으려면 두 경로를 함께
+     * 봐야 한다(상태 row 를 먼저 만들어 잠글지, 배정 행 쪽에 조건을 걸지는 별건 판단이다). 한쪽만 고치면
+     * 두 경로의 동시성 성질이 갈려 다음 사람이 어느 쪽이 정본인지 알 수 없게 된다.
+     */
+    @Transactional("controlTransactionManager")
+    public void unassign(Long assignmentId, TokenClaims actor) {
+        requireReviewer(actor);
+        Long actorNo = parseUserNo(actor.sub());
+
+        LsTaskAssignment target = authrtRepository.findById(assignmentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
+
+        dataSttsRepository.findByRawDataIdForShare(target.getRawDataId()).ifPresent(stts -> {
+            if (AssignmentWorkStatus.unassignBlockingCodes().contains(stts.getDataSttsCd())) {
+                throw new CustomException(ErrorCode.ASSIGNMENT_SUBMITTED,
+                        "검수에 들어간 배정은 해제할 수 없습니다.");
+            }
+        });
+
+        Long unassignedWorkerNo = target.getUserNo();
+        // 이력이 먼저다 — 배정 행이 사라지면 「누구의 배정이었는가」를 되짚을 근거가 이 이벤트뿐이다.
+        taskEventLogRepository.save(
+                LsTaskEventLog.unassign(target.getRawDataId(), actorNo, actor.role(), unassignedWorkerNo));
+        authrtRepository.delete(target);
+        try {
+            // DELETE 를 커밋 전에 강제 실행한다 — 낙관적 잠금 충돌은 flush 시점에 표면화되므로
+            // 명시 flush 없이는 커밋 단계까지 미뤄져 아래 catch 를 벗어난다(reassign 과 같은 이유).
+            authrtRepository.flush();
+        } catch (OptimisticLockingFailureException e) {
+            // ★동시 이중 해제 — 배정 행에 @Version 이 있어 진 쪽의 DELETE 가 0행이 되고 Hibernate 가
+            //   이 예외를 던진다. 전역 핸들러에 매핑이 없어 그대로 두면 500 이 나간다.
+            //
+            // 404 를 고른 근거 — 이 창구의 404 계약이 「그 배정이 없다. <이미 해제됐거나> 애초에 없던
+            //   식별자다」이고, 진 쪽이 마주한 사실이 정확히 그것이다(이긴 트랜잭션이 이미 지웠다).
+            //   409 로 두면 <같은 실제 상황>이 타이밍에 따라 갈린다 — 순차로 두 번 누르면 404,
+            //   동시에 누르면 409. 404 면 타이밍과 무관하게 한 답이라 호출자가 분기를 하나만 갖는다.
+            //   assign·reassign 이 409 인 것과 다른 이유는 <결말이 다르기> 때문이다: 그쪽은 요청이
+            //   이루지 못한 것이 남아 재시도가 뜻을 갖지만, 해제는 원하던 끝 상태가 이미 이뤄져 있다.
+            log.warn("[Assignment] optimistic lock conflict on unassign assignmentId={} actor={}",
+                    assignmentId, actorNo);
+            throw new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다.");
+        }
+
+        // 작업 상태(LS_RAW_DATA_STATUS)는 건드리지 않는다 — 해제는 배정 축이고 그 축은 별개다
+        // (ADR-069: 재배정이 상태값을 바꾸지 않는 것과 같은 이유).
+        log.info("[Assignment] unassigned actor={} assignmentId={} rawSn={}",
+                actorNo, assignmentId, target.getRawDataId());
+    }
+
+    /**
      * 영상 단위 통합 이벤트 이력 조회 — SCR-TASK-003 작업 이력 화면용.
      *
      * <p>배정/재배정/검수 제출/승인/반려를 시간순으로 통합 반환한다.
@@ -355,6 +392,9 @@ public class AssignmentService {
                     e.getEventTypeCd(),
                     e.getActorUserNo(),
                     names.nameOf(e.getActorUserNo()),
+                    // 행위 시점에 적재된 값을 그대로 싣는다 — 조회 시점에 그 사람의 현재 역할을 다시
+                    // 읽으면 역할이 바뀔 때 과거 행위의 역할까지 따라 바뀐다. 옛 행은 null 이 정상이다.
+                    e.getActorRoleCd(),
                     e.getSubjectUserNo(),
                     names.nameOf(e.getSubjectUserNo()),
                     e.getPrevUserNo(),
@@ -389,7 +429,6 @@ public class AssignmentService {
                 .map(AssignmentQueryRepository.AssignmentRow::assignment)
                 .toList();
 
-        Map<Long, Long> reviewerByVideo = lookupReviewerByVideo(rows);
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rows);
         Map<Long, String> cctvNameByVideo = lookupCctvNameByVideo(rows);
         Map<Long, String[]> eventInfoByVideo = lookupEventInfoByVideo(rows);
@@ -398,20 +437,16 @@ public class AssignmentService {
         // R3 — 파생 영상 여부/증강 종류 파생을 위한 LS_DATA_RAW batch lookup (N+1 회피).
         Map<Long, LsDataRaw> videoByRaw = lookupVideoByRaw(rows);
 
-        // worker + reviewer userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
+        // 작업자 userNo 를 한 Set 에 모아 1회 batch 조회 (N+1 회피).
         Set<Long> userNos = new HashSet<>();
         for (LsTaskAssignment e : rows) {
             if (e.getUserNo() != null) userNos.add(e.getUserNo());
-            Long reviewerNo = reviewerByVideo.get(e.getRawDataId());
-            if (reviewerNo != null) userNos.add(reviewerNo);
         }
         UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         return page.map(row -> {
             LsTaskAssignment e = row.assignment();
-            Long reviewerId = reviewerByVideo.get(e.getRawDataId());
             String workerName = names.nameOf(e.getUserNo());
-            String reviewerName = names.nameOf(reviewerId);
             Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
             String cctvName = cctvNameByVideo.get(e.getRawDataId());
             String[] eventInfo = eventInfoByVideo.get(e.getRawDataId());
@@ -425,7 +460,7 @@ public class AssignmentService {
             String augType = (augmented && LsDataAug.isContractAugType(video.getAugTypeCd()))
                     ? video.getAugTypeCd() : null;
             return AssignmentResponse.Item.from(
-                    e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, eventName, eventTypeCd,
+                    e, workerName, firstSrcSn, cctvName, eventName, eventTypeCd,
                     dataSttsCd, augmented, augType, row.hasSaveHistory());
         });
     }
@@ -609,32 +644,8 @@ public class AssignmentService {
         return map;
     }
 
-    /**
-     * 페이지 단위로 REVIEWER 배정 (TASK_TYPE_CD='REVIEWER') 을 한 번에 조회해
-     * rawDataId → reviewer userNo 매핑을 만든다 (N+1 회피).
-     * 동일 영상에 여러 REVIEWER 배정이 있으면 REG_DT DESC 첫 1건만 사용.
-     */
-    private Map<Long, Long> lookupReviewerByVideo(List<LsTaskAssignment> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<Long> rawDataIds = rows.stream()
-                .map(LsTaskAssignment::getRawDataId)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .toList();
-        if (rawDataIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<LsTaskAssignment> reviewers = authrtRepository
-                .findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(LsTaskAssignment.TASK_REVIEWER, rawDataIds);
-        Map<Long, Long> map = new HashMap<>();
-        for (LsTaskAssignment r : reviewers) {
-            // REG_DT DESC 정렬되어 있으므로 첫 매핑(가장 최근)만 유지.
-            map.putIfAbsent(r.getRawDataId(), r.getUserNo());
-        }
-        return map;
-    }
+    // 구 lookupReviewerByVideo(검수자 배정 표시 조회)는 제거됐다 — 배정의 대상은 작업자뿐이고
+    // 응답에 검수자 축이 없다(ADR-067). 되살리지 말 것.
 
     /**
      * 페이지 단위로 영상별 첫 프레임 SRC_SN 을 한 번에 조회하여 매핑한다 (N+1 회피).

@@ -30,6 +30,7 @@ import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntTypeRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
+import kr.co.cudo.authoring.video.dto.VideoListPage;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
@@ -40,6 +41,7 @@ import kr.co.cudo.authoring.video.repository.VideoExportProjection;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -204,7 +206,7 @@ public class VideoQueryService {
      * 이 오버로드를 쓰면 안 된다 — 컨트롤러는 {@link #listForActor(Pageable, VideoListFilter, TokenClaims)} 로만
      * 들어온다. [@design API-042]
      */
-    public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
+    public VideoListPage list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
         return list(pageable, VideoListFilter.ofStatus(dataSttsCd, reviewStatusCd));
     }
 
@@ -214,7 +216,7 @@ public class VideoQueryService {
      * <p>필터는 <b>전부 DB 조건</b>으로 내려간다(페이징 후 Java 필터 금지) — 그래야 {@code totalElements}
      * 와 페이지 수가 필터 적용 후 전체 기준이 된다.
      */
-    public Page<VideoSummaryResponse> list(Pageable pageable, VideoListFilter filter) {
+    public VideoListPage list(Pageable pageable, VideoListFilter filter) {
         return listScoped(pageable, filter, null);
     }
 
@@ -229,7 +231,7 @@ public class VideoQueryService {
      * 영상이 나오는데 그 영상을 열면 403 인 비대칭이 있었다(CWE-639 IDOR — 촬영지·이벤트·비식별 상태가
      * 그대로 노출됐다). 단건의 403 은 그대로 둔다 — 직접 URL 입력·외부 클라이언트를 막는 별개 방어선이다.
      */
-    public Page<VideoSummaryResponse> listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
+    public VideoListPage listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
         return listScoped(pageable, filter, scopeUserNoFor(actor));
     }
 
@@ -294,7 +296,7 @@ public class VideoQueryService {
         }
     }
 
-    private Page<VideoSummaryResponse> listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
+    private VideoListPage listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
         VideoListFilter cond = filter != null ? filter : VideoListFilter.ofStatus(null, null);
         String normalizedDataStts = trimToNull(cond.dataSttsCd());
         String normalizedReviewStts = normalizeReviewStatusCd(cond.reviewStatusCd());
@@ -325,28 +327,70 @@ public class VideoQueryService {
         // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임한다(기본 regDt DESC) —
         // 조인 alias 를 통한 검수 완료 시각(reviewCompletedAt → s.updDt) 정렬은 usesReviewStatusJoin 이
         // 참인 호출에서만 allowlist 를 통과한다.
+        // [design: ADR-069] 기본은 「제외되지 않은 영상만」이고, 제외분만 보기는 선택 파라미터다.
+        //   배제 술어의 소유자는 VideoExclusionScope 이며 목록 쿼리와 count 쿼리에 <b>같은 문자열</b>이
+        //   붙는다 — 한쪽에만 붙으면 화면의 건수와 그 건수를 눌러 얻는 목록이 어긋난다.
+        boolean excludedOnly = cond.excludedOnlyOn();
         Page<LsDataRaw> page = videoRepository.searchOriginals(
                 normalizedDataStts, normalizedReviewStts,
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
                 from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
-                assignedToUserNo, pageable);
+                assignedToUserNo, excludedOnly, pageable);
+        // 「제외됨 N건」 — 현재 페이지가 아니라 <b>지금 걸린 필터 범위 전체</b>다(0건이어도 싣는다).
+        //   같은 조건을 「제외분만」으로 한 번 더 세며, 그 값은 이 숫자를 눌러 제외분 목록으로 전환했을
+        //   때의 전체 건수와 정확히 같아야 한다.
+        long excludedCount = excludedOnly ? page.getTotalElements() : countExcluded(
+                normalizedDataStts, normalizedReviewStts, keywordPattern, keywordRawSn,
+                eventFilterOn, eventCodes, from, to, skippedBundle,
+                failedBundleStages, vlmFailureReasons, assignedToUserNo);
         Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
         Map<Long, VideoSummaryResponse.AssignmentInfo> assignmentMap = lookupCurrentAssignments(page.getContent());
         Map<Long, VideoSummaryResponse.DeidentInfo> deidentMap = lookupDeidentInfos(page.getContent());
-        return page.map(e -> VideoSummaryResponse.from(
-                e,
-                cctvNameMap.get(e.getRawSn()),
-                null,
-                frameCountMap.getOrDefault(e.getRawSn(), 0L),
-                exportInfoMap.get(e.getRawSn()),
-                reviewCompletedAtMap.get(e.getRawSn()),
-                assignmentMap.get(e.getRawSn()),
-                deidentMap.get(e.getRawSn())
-        ));
+        List<VideoSummaryResponse> content = page.getContent().stream()
+                .map(e -> VideoSummaryResponse.from(
+                        e,
+                        cctvNameMap.get(e.getRawSn()),
+                        null,
+                        frameCountMap.getOrDefault(e.getRawSn(), 0L),
+                        exportInfoMap.get(e.getRawSn()),
+                        reviewCompletedAtMap.get(e.getRawSn()),
+                        assignmentMap.get(e.getRawSn()),
+                        deidentMap.get(e.getRawSn())))
+                .toList();
+        return new VideoListPage(content, page.getPageable(), page.getTotalElements(), excludedCount);
+    }
+
+    /**
+     * 「제외됨 N건」 — <b>같은 필터 조건</b>을 제외분만 보기로 한 번 더 세어 얻는다.
+     * [@design API-042] [@design ADR-069] [@design AC-1124]
+     *
+     * <p>★<b>세 번째 WHERE 절을 만들지 않는다.</b> 목록 쿼리와 count 쿼리가 이미 같은 술어 상수를
+     * 공유하는데 전용 집계 쿼리를 새로 적으면 <b>세 번째 드리프트 면</b>이 생겨, 필터가 하나 늘 때 한
+     * 곳만 빠뜨리면 건수가 조용히 어긋난다. 그래서 <b>같은 메서드</b>를 「제외분만」으로 호출하고 전체
+     * 건수만 읽는다 — 조건이 늘어도 자동으로 따라온다.
+     *
+     * <p>한 행만 요청하는 이유는 건수만 필요하기 때문이다. 결과가 0건이면 Spring Data 가 count 쿼리를
+     * 생략하고 0 을 돌려주며, 그 밖에는 같은 count 쿼리가 돌아 <b>어느 경우에도 값이 정확하다</b>.
+     *
+     * <p>정렬은 주지 않는다 — 건수는 순서에 좌우되지 않고, 조인 별칭을 참조하는 정렬 키가 이 경로로
+     * 흘러가면 불필요한 제약이 생긴다({@code withDefaultRegDtDesc} 가 기본 정렬을 채운다).
+     */
+    private long countExcluded(String dataSttsCd, String reviewStatusCd,
+                               String keywordPattern, Long keywordRawSn,
+                               int eventFilterOn, Collection<String> eventCodes,
+                               LocalDateTime from, LocalDateTime to, String skippedBundle,
+                               Collection<String> failedBundleStages,
+                               Collection<String> vlmFailureReasons,
+                               Long assignedToUserNo) {
+        return videoRepository.searchOriginals(
+                dataSttsCd, reviewStatusCd, keywordPattern, keywordRawSn,
+                eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
+                from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
+                assignedToUserNo, true, PageRequest.of(0, 1)).getTotalElements();
     }
 
     /**
@@ -432,10 +476,16 @@ public class VideoQueryService {
      * 영상 1건의 비식별 상태 파생 (우선순위 — 'Y' 최우선):
      * <ol>
      *   <li>deIdntfYn=='Y' → DONE (완료, 마킹 진입 가능)</li>
+     *   <li>최신 procLog 진행중(REQUESTED / POLL WAITING|POLLING, 처리상태 FAILED 아님) → IN_PROGRESS</li>
      *   <li>deIdntfYn=='F' 또는 최신 procLog FAILED → FAILED</li>
-     *   <li>최신 procLog 진행중(REQUESTED / POLL WAITING|POLLING) → IN_PROGRESS</li>
      *   <li>그 외(procLog 없음 & deIdntfYn=='N') → NONE</li>
      * </ol>
+     *
+     * <p><b>진행 중이 'F' 보다 앞이다</b> [@design AC-1133] — 선두 비식별 실패 영상을 배치 재시작으로 다시
+     * 태우는 동안 영상 비식별 여부는 'F' 그대로다(재시작은 'N' 으로 되돌리지 않는다). 'F' 를 먼저 보면
+     * 재수행 중인 영상이 목록에서 계속 「실패」로 보인다. 최신 회차가 진행 중이면 그 회차가 현재 상태다.
+     * 신고 표식 'F' 는 최신 회차가 성공 행이라 여기에 걸리지 않고 그대로 FAILED 다. 재시작 접수 직후
+     * 위탁 원장이 생기기 전의 짧은 창에는 직전 실패 회차가 최신이라 FAILED 로 보인다(인지·수용).
      *
      * <p>SUCCEEDED/DOWNLOADED procLog + deIdntfYn='N' 비정상 상태도 NONE 에 해당하나, 정상
      * 트랜잭션(markDeidentified('Y')+procLog.succeed() 동일 커밋)에서는 발생하지 않는다.
@@ -445,17 +495,21 @@ public class VideoQueryService {
         if ("Y".equals(yn)) {
             return VideoSummaryResponse.DeidentStatus.DONE;
         }
-        if ("F".equals(yn) || (latestLog != null && LsDeidentProcLog.FAILED.equals(latestLog.getProcSttsCd()))) {
-            return VideoSummaryResponse.DeidentStatus.FAILED;
-        }
         if (latestLog != null && isDeidentInProgress(latestLog)) {
             return VideoSummaryResponse.DeidentStatus.IN_PROGRESS;
+        }
+        if ("F".equals(yn) || (latestLog != null && LsDeidentProcLog.FAILED.equals(latestLog.getProcSttsCd()))) {
+            return VideoSummaryResponse.DeidentStatus.FAILED;
         }
         return VideoSummaryResponse.DeidentStatus.NONE;
     }
 
     /** 최신 procLog 가 진행 중인지: PROC_STTS=REQUESTED 또는 POLL_STTS=WAITING/POLLING. */
     private boolean isDeidentInProgress(LsDeidentProcLog log) {
+        // 종결된 회차는 폴링 값이 무엇이든 진행 중이 아니다 — 진행 중이 'F' 보다 앞서므로 방어적으로 끊는다.
+        if (LsDeidentProcLog.FAILED.equals(log.getProcSttsCd())) {
+            return false;
+        }
         if (LsDeidentProcLog.REQUESTED.equals(log.getProcSttsCd())) {
             return true;
         }
@@ -759,12 +813,22 @@ public class VideoQueryService {
                 sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
         List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
                 verificationEventQuestions(vrfcEvntTypeCd);
+        // [@design API-043] 검증 이벤트 유형 카탈로그 — <영상 1건당 1회>만 읽고 아래 두 목록이 공유한다.
+        //   ★ 전체 목록(allVrfcEvntTypes)이 관제 수신 여부와 무관하게 늘 필요하므로 조회는 매번 1회 일어난다.
+        //     고를 수 있는 목록이 같은 표를 따로 다시 읽으면 한 응답에 같은 쿼리가 두 번 나간다.
+        List<LsVrfcEvntType> vrfcEvntTypeCatalog = vrfcEvntTypeRepository.findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
         // [@design API-043] [@design SCREEN-006] [@design AC-1013] [@design UC-019]
         //   관제가 유형을 보내지 않은 영상에서 작업자가 <고를 수 있는> 유형 목록 + 유형별 질문.
-        //   ★ 관제 값이 있으면 <빈 배열>이고 조회도 하지 않는다 — 화면은 이 목록이 비었는지만 보고
+        //   ★ 관제 값이 있으면 <빈 배열>이고 질문 조회도 하지 않는다 — 화면은 이 목록이 비었는지만 보고
         //     유형 선택 노출을 정한다(판정 원천을 두 벌로 만들지 않는다).
         List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVrfcEvntTypes =
-                selectableVerificationEventTypes(vrfcEvntTypeCd);
+                selectableVerificationEventTypes(vrfcEvntTypeCd, vrfcEvntTypeCatalog);
+        // [@design API-043] 검증 이벤트 유형 <전체> 목록(코드·이름) — 화면이 이벤트 분류의 이름을 찾는 데 쓴다.
+        //   ★ selectableVrfcEvntTypes 와 서로 대신하지 않는다: 그 목록은 비었는지가 계약이라 늘 채울 수 없다.
+        //   ★ 정렬은 저장소 메서드 이름이 갖는다 — 여기서 다시 정렬하지 않는다.
+        List<VideoDetailResponse.VrfcEvntTypeDto> allVrfcEvntTypes = vrfcEvntTypeCatalog.stream()
+                .map(t -> new VideoDetailResponse.VrfcEvntTypeDto(t.getVrfcEvntTypeCd(), t.getVrfcEvntTypeNm()))
+                .toList();
         // [@design API-043] [@design SCREEN-009] 영상 해상도 — LS_DATA_META 의 video.resolution.
         //   ★ LS_DATA_RAW 에는 해상도 컬럼이 없어 메타 테이블이 유일한 조달원이다. 미상이면 null 이며
         //     서버가 대체 문자를 지어내지 않는다(표시는 화면의 몫 — fps 와 달리 계산 입력이 아니다).
@@ -773,7 +837,7 @@ public class VideoQueryService {
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
                 skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
-                resolution, selectableVrfcEvntTypes);
+                resolution, selectableVrfcEvntTypes, allVrfcEvntTypes);
     }
 
     /**
@@ -836,7 +900,9 @@ public class VideoQueryService {
      * <h3>★ 관제 값이 있으면 빈 목록이고 <b>질문 조회도 하지 않는다</b></h3>
      * <p>관제 인입에서 유형을 받은 영상은 마킹 화면이 유형 선택을 <b>아예 노출하지 않는다</b>(확정
      * 정책 — 「표시하되 잠근다」가 아니다). 화면은 이 목록이 비었는지만 보고 판정하므로 여기서
-     * 빈 목록을 돌려주는 것이 곧 그 신호다. 대부분의 조회가 이 경로라 <b>추가 질의가 0회</b>여야 한다.
+     * 빈 목록을 돌려주는 것이 곧 그 신호다. 대부분의 조회가 이 경로라 이 메서드가 <b>추가로 내는
+     * 질의는 0회</b>여야 한다. 유형 카탈로그는 호출부가 영상 1건당 1회 읽어 넘긴다 — 유형 전체
+     * 목록({@code allVrfcEvntTypes})이 관제 수신 여부와 무관하게 늘 그 카탈로그를 필요로 하기 때문이다.
      *
      * <h3>★ 왜 질문을 항목 <b>안</b>에 담나</h3>
      * <p>유형을 고르는 시점과 질문을 고르는 시점 사이에 <b>서버 왕복을 두지 않기 위해서</b>다. 왕복을
@@ -859,14 +925,14 @@ public class VideoQueryService {
      *
      * @param normalizedTypeCd 관제 인입에서 받은 유형 코드({@code LsDataIngest.normalizeVrfcEvntType}
      *                         통과값). {@code null}(미수신)일 때만 목록을 채운다
+     * @param types            유형 카탈로그(정렬순서 오름차순, 같으면 코드 오름차순) — 호출부가 1회 읽은 것
      */
     private List<VideoDetailResponse.SelectableVrfcEvntTypeDto> selectableVerificationEventTypes(
-            String normalizedTypeCd) {
+            String normalizedTypeCd, List<LsVrfcEvntType> types) {
         if (normalizedTypeCd != null) {
-            // 관제 값이 있는 영상 — 선택을 노출하지 않으므로 카탈로그·질문 조회를 아예 하지 않는다.
+            // 관제 값이 있는 영상 — 선택을 노출하지 않으므로 질문 조회를 아예 하지 않는다.
             return Collections.emptyList();
         }
-        List<LsVrfcEvntType> types = vrfcEvntTypeRepository.findAllByOrderBySortSeqAscVrfcEvntTypeCdAsc();
         if (types.isEmpty()) {
             // 고를 유형이 없으면 질문을 읽어봐야 담을 곳이 없다.
             return Collections.emptyList();

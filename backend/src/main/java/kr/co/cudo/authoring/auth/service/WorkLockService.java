@@ -65,6 +65,56 @@ public class WorkLockService {
         repository.save(LsAuthWorkLock.lockRaw(rawSn, ownerId, LsAuthWorkLock.REASON_MERGE));
     }
 
+    /**
+     * 선두 비식별 실패 영상의 배치 재시작 락 선점 — <b>호출자 트랜잭션에 합류</b>한다(판정과 선점을 한
+     * 트랜잭션으로 묶기 위함). [@design API-167] [@design AC-1134]
+     *
+     * <p>이미 잠겨 있으면(다른 재시작·트랙 병합·재비식별) {@link ErrorCode#CONFLICT}. 선제 검사를 동시에
+     * 통과한 두 요청 중 하나는 영상 단위 활성 락 유일 인덱스가 원자적으로 거부한다 — 즉시 flush 해 그
+     * 거부({@link org.springframework.dao.DataIntegrityViolationException})가 이 호출 안에서 드러나게 한다.
+     * 호출자가 409 로 바꾼다.
+     */
+    public void lockRawForDeidentRetry(Long rawSn, String ownerId, String conflictReason) {
+        if (isRawLocked(rawSn)) {
+            throw new CustomException(ErrorCode.CONFLICT, conflictReason);
+        }
+        repository.saveAndFlush(LsAuthWorkLock.lockRawForDeidentRetry(rawSn, ownerId));
+    }
+
+    /**
+     * 선두 비식별 재시작이 잡은 락<b>만</b> 해제한다 — 호출자 트랜잭션에 합류. [@design AC-1135]
+     *
+     * <p>같은 영상에 다른 기능(트랙 병합·검수완료 재비식별)이 잡은 락은 건드리지 않는다. 비식별 종결
+     * 지점들이 재비식별 여부와 무관하게 부를 수 있도록 멱등이며, 해당 락이 없으면 0 이다.
+     *
+     * @return 해제한 락 수
+     */
+    public int releaseDeidentRetryLock(Long rawSn, String actorId, String reason) {
+        if (rawSn == null) {
+            return 0;
+        }
+        int released = 0;
+        for (LsAuthWorkLock lock : repository.findAllByLockTargetCdAndDataRawSnAndLockSttsCd(
+                LsAuthWorkLock.TARGET_RAW, rawSn, LsAuthWorkLock.STATUS_LOCKED)) {
+            if (lock.isDeidentRetryLock()) {
+                lock.release(actorId, reason);
+                released++;
+            }
+        }
+        if (released > 0) {
+            log.info("[WorkLock] deident retry lock released rawSn={} reason={}", rawSn, reason);
+        }
+        return released;
+    }
+
+    /**
+     * {@link #releaseDeidentRetryLock} 의 독립 커밋 변형 — 트랜잭션 밖(비동기 실행기·접수 거부 보상)에서 쓴다.
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public int releaseDeidentRetryLockInNewTx(Long rawSn, String actorId, String reason) {
+        return releaseDeidentRetryLock(rawSn, actorId, reason);
+    }
+
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public boolean isRawLocked(Long rawSn) {
         if (rawSn == null) {

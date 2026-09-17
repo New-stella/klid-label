@@ -86,6 +86,24 @@ export interface VideoListParams {
    * 오토라벨 실패를 감출 이유가 없다.
    */
   failedStage?: StageBundle;
+  /**
+   * **제외분만 보기** — BE `GET /v1/videos` 의 `excludedOnly`.
+   * [@design API-042] [@design SCREEN-008] [@design ADR-069]
+   *
+   * 보내지 않거나 `false` 면 제외 표시가 붙지 않은 영상만 보는 **기본 목록**이고, `true` 면
+   * 제외된 영상만 남는다. 값역은 이 두 갈래뿐이며 **표시분과 제외분을 섞어 보는 갈래는 두지
+   * 않는다** — 섞이면 어느 것이 제외분인지 행마다 구분해야 한다. 불리언이라 「둘 다 보기」가
+   * 구조적으로 생길 수 없다(값역으로 두면 다음 사람이 그 값을 더할 자리가 열린다).
+   *
+   * ⚠ **다른 필터를 대신하지 않는다.** 이 화면은 제외분 보기로 전환할 때 걸린 검색·필터를
+   * **하나도 빼지 않는다** — 「제외됨 N건」이 같은 필터 범위에서 세어진 값이라, 조건을 빼면
+   * 누른 숫자와 전환 결과가 어긋난다. (작업 목록·검수 목록은 자기 상태 축을 빼는데, 그쪽은
+   * 집계 창구가 그 축을 반영하지 않고 세기 때문이다 — 규칙이 다른 것이 의도다.)
+   *
+   * ⚠ 미지정이면 파라미터를 아예 싣지 않는다 — 이 축을 모르는 기존 북마크·저장된 URL 의
+   * 동작이 그대로 유지된다(BE 기본값 불변).
+   */
+  excludedOnly?: boolean;
 }
 
 export interface Video {
@@ -188,8 +206,10 @@ export function isBatchProcessing(video: Pick<Video, 'status'>): boolean {
 /**
  * 영상의 배치 단계 상태가 「실패」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_FAILED`.
  *
- * 전체 재기동(`POST /v1/videos/{rawSn}/batch/retry`)이 <b>유일하게 받는 상태</b>이며, 서버는 이
- * 값에서만 FAILED→PROCESSING 원자 클레임에 성공한다.
+ * 전체 재기동(`POST /v1/videos/{rawSn}/batch/retry`)이 받는 상태이며, 서버는 이 값에서만
+ * FAILED→PROCESSING 원자 클레임에 성공한다.
+ * ⚠ **[폐기]** 구 서술 「재기동이 <b>유일하게</b> 받는 상태」 — 같은 요청이 선두 비식별 실패 영상
+ *   (배치 상태 대기)도 받게 됐다({@link isLeadDeidentFailed}). 그 영상은 이 값을 거치지 않는다.
  */
 export const BATCH_STATUS_FAILED = 'FAILED';
 
@@ -207,6 +227,58 @@ export const BATCH_STATUS_FAILED = 'FAILED';
  */
 export function isBatchFailed(video: Pick<Video, 'status'>): boolean {
   return video.status === BATCH_STATUS_FAILED;
+}
+
+/**
+ * 영상의 배치 단계 상태가 「대기」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_PENDING`.
+ *
+ * 적재 직후의 값이며, 선두 비식별이 성공해야 마킹 대기(`MARKING_READY`)로 넘어간다.
+ */
+export const BATCH_STATUS_PENDING = 'PENDING';
+
+/**
+ * **선두 비식별이 실패해 멈춘 영상**인가. [@design API-167] [@design SCREEN-009] [@design AC-1133]
+ *
+ * ★ 왜 이 축이 따로 필요한가
+ *   선두 비식별은 배치 진행 로그를 남기지 않는다 — 그래서 이 영상은 `stages` 가 빈 배열이고
+ *   `batchFailureReason` 도 비어 있으며 배치 상태는 실패가 아니라 **대기**다. 배치 실패 신호만 보면
+ *   조치 영역이 통째로 사라져, 확정 사양(「선두 비식별 단계 실패도 배치 실패로 보아 이 영역과
+ *   재기동 버튼을 보인다」)이 서지 않는다.
+ *
+ * ★ 판정 모양은 서버가 재시작 요청을 선두 비식별 재시도로 돌리는 형상과 **같다**
+ *   (비식별 여부 `'F'` + 배치 상태 대기). 서버가 이 형상 안에서도 건별로 막는 경우(파생 · 승인 이력 ·
+ *   열린 비식별 누락 신고 · 진행 중 위탁 · 동시 요청)는 화면이 미리 거르지 않고 **서버 문구로** 알린다
+ *   — 과대 노출은 서버가 보정하지만 과소 노출은 보정되지 않는다(요청을 보낼 창구가 없다).
+ *
+ * ⚠ `'F'` 에는 「비식별 누락 신고」라는 두 번째 뜻이 있다. 그 구분은 서버가 하며(열린 신고면 409)
+ *   이 함수는 가르지 않는다.
+ */
+export function isLeadDeidentFailed(video: {
+  status?: Video['status'] | string | null;
+  deIdntfYn?: Video['deIdntfYn'] | string | null;
+}): boolean {
+  return video.deIdntfYn === 'F' && video.status === BATCH_STATUS_PENDING;
+}
+
+/** 비식별 이력의 처리 상태 중 「위탁이 아직 끝나지 않았다」를 뜻하는 코드 — BE `LsDeidentProcLog.REQUESTED`. */
+export const DEIDENT_PROC_REQUESTED = 'REQUESTED';
+
+/**
+ * 선두 비식별 실패 영상에 **다시 요청한 비식별이 지금 진행 중인가**. [@design API-167] [@design SCREEN-009]
+ *
+ * ★ 왜 배치 상태로 판정하지 못하는가 — 이 재시도는 배치 상태를 처리 중으로 선점하지 않고(대기 그대로),
+ *   비식별 여부도 성공 전까지 `'F'` 로 남는다. 진행 사실이 남는 곳은 **서버가 내려준 비식별 이력의
+ *   최신 회차**(서버 정렬 — 최신이 맨 앞)뿐이다.
+ * ⚠ 요청 직후에는 새 회차가 아직 적재되지 않았을 수 있다(서버는 접수 뒤 비동기로 위탁한다). 그 구간에
+ *   다시 누르면 서버가 동시 요청을 막고 그 문구를 화면이 그대로 보인다.
+ */
+export function isLeadDeidentRunning(video: {
+  status?: Video['status'] | string | null;
+  deIdntfYn?: Video['deIdntfYn'] | string | null;
+  deidentHistory?: ReadonlyArray<Pick<DeidentHistoryItem, 'procSttsCd'>> | null;
+}): boolean {
+  if (!isLeadDeidentFailed(video)) return false;
+  return video.deidentHistory?.[0]?.procSttsCd === DEIDENT_PROC_REQUESTED;
 }
 
 /**
@@ -373,6 +445,22 @@ export const BULK_RETRY_MAX = 100;
 export const SKIP_REASON_MAX = 500;
 
 /**
+ * 영상 <b>제외 사유</b> 글자 수 상한 — BE `VideoExclusionService.REASON_MAX_LEN`(= 작업 이벤트
+ * 원장 `LS_TASK_EVNT_LOG.RSN` 칸 폭)과 <b>같은 값이어야 한다</b>.
+ * [@design API-260] [@design SCREEN-008]
+ *
+ * <p>★<b>상한을 실제로 강제하는 층이 화면</b>이다 — 입력 칸이 이 길이를 넘겨 쓰지 못하게 막는다.
+ * 화면이 이 숫자를 자기 문구에 적지 않고 <b>이 상수 하나를 가리키는</b> 것이 규칙이다(두 번째
+ * 진실원을 만들지 않는다).
+ *
+ * <p>⚠⚠ <b>건너뛰기 사유({@link SKIP_REASON_MAX})와 서버 동작이 정반대다.</b> 그쪽은 초과분을
+ * <b>거부</b>하지만 이쪽 서버는 <b>잘라서 저장</b>하는 백스톱이다 — 즉 길이 초과는 제외가
+ * 물리쳐지는 사유가 아니다. 그래서 제외 사유 입력 팝업에는 <b>길이 오류 안내를 두지 않는다</b>
+ * (있지도 않은 실패를 예고하게 된다). 두 축의 문구를 베껴 오지 말 것.
+ */
+export const EXCLUSION_REASON_MAX = 500;
+
+/**
  * 비식별 이력 1건 — BE `VideoDetailResponse.DeidentHistoryDto` 와 1:1. [req: R14]
  *
  * 원천은 `LS_DEIDENT_PROC_LOG` 1행(= 위탁 1회차)이다. 최초 배치 비식별과 재비식별 재위탁이
@@ -471,6 +559,31 @@ export interface SelectableVrfcEvntType {
    * optional 인 이유는 위 주석 참조 — <b>서버는 채운다</b>.
    */
   questions?: VrfcEvntQuestion[];
+}
+
+/**
+ * 등록된 **검증 이벤트 유형** 1건(코드·이름) — BE `VideoDetailResponse.allVrfcEvntTypes` 의 원소.
+ * [@design API-043]
+ *
+ * ★ {@link SelectableVrfcEvntType} 과 <b>서로 대신하지 않는다</b>. 원소 모양이 같아 합치고 싶어
+ * 지지만, 두 목록은 <b>뜻이 다르다</b>:
+ * <ul>
+ *   <li>selectable — 「작업자가 <b>고를</b> 유형」. 관제가 유형을 보낸 영상에서는 <b>빈 배열</b>이며
+ *       그 비었음이 곧 「유형 선택을 노출하지 않는다」는 계약이다.</li>
+ *   <li>all — 「등록된 유형 <b>전부</b>」. 관제 값 유무와 무관하게 늘 같은 목록이며, 이벤트 분류
+ *       코드를 <b>이름으로 옮기는 데만</b> 쓴다.</li>
+ * </ul>
+ * 그래서 all 을 selectable 자리에 채우면 유형 선택이 <b>모든 영상에서</b> 뜨고, 반대로 selectable 을
+ * 이름 조달에 쓰면 관제 값이 있는 영상에서 이름을 영영 찾지 못한다.
+ *
+ * 질문 목록은 담기지 않는다 — 이름을 찾는 데 필요하지 않고, 유형 수만큼 질문이 딸려 오면 응답이
+ * 커진다.
+ */
+export interface VrfcEvntType {
+  /** 검증이벤트유형코드(소문자 스네이크). */
+  vrfcEvntTypeCd: string;
+  /** 화면에 보여줄 유형 이름. */
+  vrfcEvntTypeNm: string;
 }
 
 export interface VideoDetail extends Video {
@@ -612,6 +725,19 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
    */
   selectableVrfcEvntTypes?: SelectableVrfcEvntType[];
+  /**
+   * **등록된 검증 이벤트 유형 전체**(정렬순서 오름차순, 동률은 코드 오름차순) — BE
+   * `VideoDetailResponse.allVrfcEvntTypes`. [@design API-043] [@design UI-107]
+   *
+   * ★ 쓰임은 하나다 — 이벤트 어노테이션의 <b>이벤트 분류 코드를 이름으로 옮기는 것</b>. 그 분류는
+   * 마킹에서 고른 값이거나 사람이 고친 값이라 `vrfcEvntTypeCd`(관제 인입 값)로는 이름을 정할 수
+   * 없고, 유형 이름을 주는 다른 조회 경로(`/v1/manage/…`)는 검수자 전용이라 작업자가 쓸 수 없다.
+   * 그래서 <b>라벨링·검수 두 화면 모두 이 목록</b>을 쓴다(역할로 조달처를 가르지 않는다).
+   *
+   * 등록된 유형이 없으면 빈 배열이며, 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
+   * 목록에 없는 코드는 <b>코드만</b> 보인다 — 코드를 이름인 것처럼 보이게 지어내지 않는다.
+   */
+  allVrfcEvntTypes?: VrfcEvntType[];
 }
 
 /**

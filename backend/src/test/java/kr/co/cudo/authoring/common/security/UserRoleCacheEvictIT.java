@@ -63,7 +63,7 @@ class UserRoleCacheEvictIT {
         assertThat(userRoleResolver.resolve(USER_NO)).isEqualTo(Role.REVIEWER); // 캐시 적재
 
         // when — WORKER 로 강등 (update tx 커밋 시 AFTER_COMMIT evict 발화)
-        userService.update(USER_NO, new UserUpdateRequest("WORKER"));
+        userService.update(USER_NO, new UserUpdateRequest("WORKER", null));
 
         // then — 캐시 무효화로 다음 resolve 가 새 역할(WORKER) 반환
         assertThat(userRoleResolver.resolve(USER_NO)).isEqualTo(Role.WORKER);

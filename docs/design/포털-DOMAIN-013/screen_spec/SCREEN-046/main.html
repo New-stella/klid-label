@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-046</span><span class="sep">/</span><span>포털 데이터셋 소재 조달 화면</span></div>
+      <h1 style="white-space:nowrap">포털 데이터셋 소재 조달 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">포털 데이터셋 상세의 「저작도구로 열기」가 보낸 사용자가 떨어지는 자리다. 주소의 ★경로 변수에 실린 데이터셋 숫자 식별자를 화면이 직접 읽어 조달 창구에 넘기고, 배포 압축본이 작업영역에 풀릴 때까지의 진행을 보여 준다. 포털이 주입하는 것이 아니라 우리가 주소에서 읽으며, 질의 문자열이 아니라 경로 변수다.
+
+진입하면 먼저 상태를 묻고(조회 창구), 아직 조달한 적이 없으면 ★데이터셋마다 한 번만 스스로 착수한다 — 이 주소로 들어온 것이 곧 그 의사이므로 버튼을 한 번 더 누를 이유가 없다. 착수는 멱등이라 이미 준비됐거나 진행 중이면 서버가 새로 시작하지 않는다. 실패한 뒤의 재시도는 사람이 누른다(자동으로 되풀이하면 확정 실패 사유에서 같은 요청이 끝없이 나간다). 되묻기는 ★진행 중일 때만 하고 … · route /portal/datasets/:datasetId</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 구역 머리</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">소재 가져오기</span>
+        <span class="wf-muted">포털에서 고른 데이터셋의 배포본을 작업영역으로 가져옵니다. 용량이 커서 시간이 걸립니다.</span>
+        <span class="wf-badge">데이터셋 {식별자}</span><span class="wf-help">주소의 경로 변수에서 읽은 값 그대로.</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 조달 상태</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-248</span>
+            <span class="wf-badge wf-badge-primary">API-249</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">소재 상태를 확인하고 있습니다.</span><span class="wf-badge wf-badge-warning">loading</span>
+            <span class="wf-muted">소재 가져오기를 시작하고 있습니다.</span><span class="wf-help">미조달 상태에서 자동 착수가 도는 동안의 문구. 착수가 거부되면 문구가 바뀌고 수동 버튼이 나타난다.</span>
+            <button class="wf-btn wf-btn-primary">소재 가져오기</button><span class="wf-badge">hidden</span><span class="wf-badge wf-badge-primary">API-248</span><span class="wf-help">자동 착수가 실패했을 때만 나타난다. 자동 착수는 데이터셋마다 한 번뿐이라 그 뒤의 재시도는 사람이 누른다.</span>
+            <span class="wf-muted">소재를 가져오는 중입니다. 준비가 끝나면 이 화면이 바뀝니다. 창을 닫아도 작업은 계속됩니다.</span>
+            <button class="wf-btn wf-btn-secondary">상태 다시 확인</button><span class="wf-badge wf-badge-primary">API-249</span><span class="wf-help">자동 확인 예산이 다한 뒤에도 남는 길. 멈춤과 함께 조작까지 사라지면 새로고침 말고는 빠져나올 수 없다.</span>
+            <span class="wf-muted">소재가 준비됐습니다.</span>
+            <div class="wf-stack"><div class="wf-row"><span class="wf-muted">해제본 요약</span><span>···</span></div></div><span class="wf-help">항목 수 · 총 용량 · 영상 수 · 준비 시각을 보이고, 코드·버전·구분은 값이 있을 때만 보인다. 경로는 어떤 형태로도 보이지 않는다.</span>
+            <span class="wf-muted">가져온 내용의 요약은 확인할 수 없지만, 소재는 준비돼 있습니다.</span><span class="wf-badge">hidden</span><span class="wf-help">준비 완료인데 요약을 읽지 못한 경우.</span>
+            <span class="wf-muted">{실패 사유 안내 제목과 다음에 할 일}</span><span class="wf-badge wf-badge-danger">error</span><span class="wf-help">사유는 서버가 값으로 준 분류를 화면 문구로 바꿔 보인다. 사유 코드를 그대로 찍지 않고, 우리 표에 없는 사유가 와도 빈칸이 되지 않게 폴백 문구를 둔다.</span>
+            <button class="wf-btn">다시 시도</button><span class="wf-badge wf-badge-primary">API-248</span><span class="wf-help">같은 답이 돌아올 사유에서는 권하지 않고 보조 위계로 낮춘다. 버튼을 숨기는 축이 아니다 — 어느 사유든 다시 착수할 수는 있다.</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">내 작업으로 가기</a><span class="wf-help">이 배포본 안에 있는 목적지 가운데 가장 가까운 자리.</span>
+            <span class="wf-muted">가져온 소재는 저작도구 작업영역에 보관됩니다.</span><span class="wf-help">어디에 풀렸는지는 말하지 않는다 — 응답에 경로가 없고 내부 경로는 밖으로 내보내지 않는다.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 조회·착수 실패 알림</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-248</span>
+            <span class="wf-badge wf-badge-primary">API-249</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">조달 상태를 확인하지 못했습니다.</div>
+            <div class="wf-alert wf-alert-info">조달을 시작하지 못했습니다.</div>
+            <button class="wf-btn wf-btn-secondary">다시 확인</button><span class="wf-badge wf-badge-primary">API-249</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 주소가 데이터셋을 가리키지 않을 때</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">이 주소로는 소재를 찾을 수 없습니다. 포털의 데이터셋 화면에서 다시 열어 주세요.</div>
+            <a href="#_" class="wf-btn wf-btn-ghost">내 작업으로 가기</a>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 모르는 상태</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">소재 상태를 알 수 없습니다. 잠시 후 다시 확인해 주세요.</div>
+            <button class="wf-btn wf-btn-secondary">상태 다시 확인</button><span class="wf-badge wf-badge-primary">API-249</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ 데이터셋 영상</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-253</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">데이터셋 영상 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div><span class="wf-help">한 줄이 영상 하나다. 줄은 영상 이름을 먼저 보이고, 그 아래에 프레임 수와 기존 라벨 수를 사실 칩으로 놓으며, 오른쪽에 마지막 저장 시각과 라벨링 진입을 둔다. 이 사용자가 저장한 적 있는 영상에는 「저장한 작업 있음」 배지를 붙인다. 표가 아니라 줄로 둔다 — 형제 목록(업로드·…</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">라벨링 · 이어서 라벨링</a><span class="wf-help">누르면 응답이 알려 준 프레임으로 라벨링 화면을 연다. 저장한 적이 없으면 「라벨링」, 있으면 「이어서 라벨링」이다. 열 프레임이 없는 영상에는 진입을 두지 않고 그 이유를 한 줄로 보인다. 화면이 스스로 프레임을 고르지 않는다.</span>
+            <span class="wf-muted">영상 등록 중 안내</span><span class="wf-help">등록이 끝나지 않았을 때 목록 자리에 둔다. 끝나면 목록이 나타난다고 알리고 주기적으로 다시 부른다.</span>
+            <div class="wf-alert wf-alert-info">영상 목록을 불러오지 못함 · 등록 실패</div><span class="wf-help">조회 실패와 등록 실패를 빈 상태와 반드시 가른다 — 오류를 영상이 없는 것으로 보이면 사용자가 데이터셋이 비었다고 오해한다. 조회 실패의 걸음은 「다시 시도」(재조회)다. 등록 실패는 서버가 준 실패 사유 분류를 화면 문구로 바꿔 보인다 — 사유 코드를 그대로 찍지 않고, 우리 표에 …</span>
+            <span class="wf-muted">영상이 없습니다</span><span class="wf-help">등록이 끝났는데 영상이 하나도 없을 때만 보인다.</span>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">서버가 페이지로 내려주므로 옮길 수단이 없으면 첫 쪽의 영상에만 도달한다. 한 페이지에 다 들어오면 그리지 않는다.</span>
+            <button class="wf-btn wf-btn-secondary">다시 등록</button><span class="wf-badge wf-badge-primary">API-262</span><span class="wf-help">등록 실패일 때만 보인다. 실패 표식일 때만 등록을 다시 시작시키며 완료·진행 중이면 서버가 새로 시작하지 않는다. 누르면 목록을 다시 불러 등록 중 안내와 주기 확인이 재개된다. 요청 중에는 눌리지 않는다. 재착수 요청 자체가 거부되면(소재 미준비·등록 꺼짐·대기열 포화) 서버가 함께…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 구역 머리</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>지금 무엇을 하는 중인지 말하는 구역 제목과 한 줄 안내. 대상 데이터셋 번호를 함께 보인다. 전역 머리 영역과 좌측 메뉴는 Host 가 소유하므로 이 화면은 본문만 그린다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(소재 가져오기)</li><li>Text(포털에서 고른 데이터셋의 배포본을 작업영역으로 가져옵니다. 용량이 커서 시간이 걸립니다.)</li><li>Badge(데이터셋 {식별자})<p class="wf-help" style="margin:2px 0 0">주소의 경로 변수에서 읽은 값 그대로.</p></li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 조달 상태</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상태별로 한 장의 카드만 보인다. 확인 중 · 착수 중(미조달) · 진행 중 · 준비 완료 · 실패 다섯 갈래다. 진행 중에는 진행률을 그리지 않는다(응답에 없다). 준비 완료의 요약은 응답이 실제로 담는 값만 보이며, 요약이 비어 와도 준비 완료 판정은 되돌리지 않고 요약만 없다고 말한다. 비어 올 수 있는 값(코드·버전·구분)은 그 칩 자체를 그리지 않는다 — 없음과 못 읽었음을 한 표기로 뭉개지 않기 위해서다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Text(소재 상태를 확인하고 있습니다.) · → API-249 · loading</li><li>Text(소재 가져오기를 시작하고 있습니다.) · → API-248<p class="wf-help" style="margin:2px 0 0">미조달 상태에서 자동 착수가 도는 동안의 문구. 착수가 거부되면 문구가 바뀌고 수동 버튼이 나타난다.</p></li><li>Button(소재 가져오기) · → API-248 · hidden<p class="wf-help" style="margin:2px 0 0">자동 착수가 실패했을 때만 나타난다. 자동 착수는 데이터셋마다 한 번뿐이라 그 뒤의 재시도는 사람이 누른다.</p></li><li>Text(소재를 가져오는 중입니다. 준비가 끝나면 이 화면이 바뀝니다. 창을 닫아도 작업은 계속됩니다.)</li><li>Button(상태 다시 확인) · → API-249<p class="wf-help" style="margin:2px 0 0">자동 확인 예산이 다한 뒤에도 남는 길. 멈춤과 함께 조작까지 사라지면 새로고침 말고는 빠져나올 수 없다.</p></li><li>Text(소재가 준비됐습니다.)</li><li>KeyValue(해제본 요약) · binds materials<p class="wf-help" style="margin:2px 0 0">항목 수 · 총 용량 · 영상 수 · 준비 시각을 보이고, 코드·버전·구분은 값이 있을 때만 보인다. 경로는 어떤 형태로도 보이지 않는다.</p></li><li>Text(가져온 내용의 요약은 확인할 수 없지만, 소재는 준비돼 있습니다.) · hidden<p class="wf-help" style="margin:2px 0 0">준비 완료인데 요약을 읽지 못한 경우.</p></li><li>Text({실패 사유 안내 제목과 다음에 할 일}) · error<p class="wf-help" style="margin:2px 0 0">사유는 서버가 값으로 준 분류를 화면 문구로 바꿔 보인다. 사유 코드를 그대로 찍지 않고, 우리 표에 없는 사유가 와도 빈칸이 되지 않게 폴백 문구를 둔다.</p></li><li>Button(다시 시도) · → API-248<p class="wf-help" style="margin:2px 0 0">같은 답이 돌아올 사유에서는 권하지 않고 보조 위계로 낮춘다. 버튼을 숨기는 축이 아니다 — 어느 사유든 다시 착수할 수는 있다.</p></li><li>Link(내 작업으로 가기)<p class="wf-help" style="margin:2px 0 0">이 배포본 안에 있는 목적지 가운데 가장 가까운 자리.</p></li><li>Text(가져온 소재는 저작도구 작업영역에 보관됩니다.)<p class="wf-help" style="margin:2px 0 0">어디에 풀렸는지는 말하지 않는다 — 응답에 경로가 없고 내부 경로는 밖으로 내보내지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-248</li><li>API-249</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 조회·착수 실패 알림</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>조달의 실패 상태(본문)와 다른 축이다. 상태 조회 자체가 실패한 경우와 착수 요청이 거부된 경우(대기열 포화 등)를 각각 따로 알리고, 서버가 함께 준 안내 문장을 그대로 싣는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(조달 상태를 확인하지 못했습니다.) · → API-249</li><li>Alert(조달을 시작하지 못했습니다.) · → API-248</li><li>Button(다시 확인) · → API-249</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-248</li><li>API-249</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 주소가 데이터셋을 가리키지 않을 때</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>★ 경로 변수가 양의 정수가 아니면 그 값으로 창구를 부르지 않는다. 필수 진입 조건으로 다루어 화면을 막지 않고, 왜 이 화면이 성립하지 않는지 알린 뒤 작업 목록으로 가는 길을 준다(포털 업로드·증강은 이 식별자 없이 쓰는 정상 경로다). 자동으로 다른 자리로 보내지 않는다 — 왜 아닌지 모른 채 다른 화면에 떨어지면 잘못된 링크라는 사실 자체가 드러나지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(이 주소로는 소재를 찾을 수 없습니다. 포털의 데이터셋 화면에서 다시 열어 주세요.)</li><li>Link(내 작업으로 가기)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 모르는 상태</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>서버가 상태 값역을 넓혔을 때를 위한 자리다. 타입은 선언일 뿐 강제가 아니라 런타임에는 모르는 값이 오며, 이 자리가 없으면 화면이 상태 칸만 통째로 빈 채로 선다(오류도 경고도 없이).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(소재 상태를 알 수 없습니다. 잠시 후 다시 확인해 주세요.)</li><li>Button(상태 다시 확인) · → API-249</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 데이터셋 영상</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>소재가 준비 완료일 때만 나타난다. 데이터셋에 든 영상을 한 줄씩 보여 주고, 사용자가 영상을 골라 라벨링 화면으로 들어간다. 구역 머리는 제목 「데이터셋 영상」과 전체 건수, 그리고 「라벨을 저장해야 내 작업에 남습니다」라는 한 줄 설명을 갖는다. 영상·프레임 등록이 아직 끝나지 않았으면 목록 대신 등록 중이라는 안내를 두고 주기적으로 다시 부르며, 등록이 실패하면 실패 안내와 다시 시도를 둔다. 등록이 끝났는데 영상이 없으면 빈 상태를 보인다. 한 페이지를 넘으면 페이지 이동을 둔다. 정렬은 영상 이름 오름차순이다. 등록이 실패하면 실패 사유를 문구로 보이고 「다시 등록」으로 사람이 재착수한다 — 자동으로 되풀이하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(데이터셋 영상 목록) · → API-253<p class="wf-help" style="margin:2px 0 0">한 줄이 영상 하나다. 줄은 영상 이름을 먼저 보이고, 그 아래에 프레임 수와 기존 라벨 수를 사실 칩으로 놓으며, 오른쪽에 마지막 저장 시각과 라벨링 진입을 둔다. 이 사용자가 저장한 적 있는 영상에는 「저장한 작업 있음」 배지를 붙인다. 표가 아니라 줄로 둔다 — 형제 목록(업로드·증강)과 같은 짜임이다.</p></li><li>Link(라벨링 · 이어서 라벨링)<p class="wf-help" style="margin:2px 0 0">누르면 응답이 알려 준 프레임으로 라벨링 화면을 연다. 저장한 적이 없으면 「라벨링」, 있으면 「이어서 라벨링」이다. 열 프레임이 없는 영상에는 진입을 두지 않고 그 이유를 한 줄로 보인다. 화면이 스스로 프레임을 고르지 않는다.</p></li><li>Text(영상 등록 중 안내)<p class="wf-help" style="margin:2px 0 0">등록이 끝나지 않았을 때 목록 자리에 둔다. 끝나면 목록이 나타난다고 알리고 주기적으로 다시 부른다.</p></li><li>Alert(영상 목록을 불러오지 못함 · 등록 실패)<p class="wf-help" style="margin:2px 0 0">조회 실패와 등록 실패를 빈 상태와 반드시 가른다 — 오류를 영상이 없는 것으로 보이면 사용자가 데이터셋이 비었다고 오해한다. 조회 실패의 걸음은 「다시 시도」(재조회)다. 등록 실패는 서버가 준 실패 사유 분류를 화면 문구로 바꿔 보인다 — 사유 코드를 그대로 찍지 않고, 우리 표에 없는 사유가 와도 빈칸이 되지 않게 폴백 문구를 둔다. 등록 실패의 걸음은 「다시 등록」이며 같은 답이 돌아올 사유(구조 불일치 계열)에서는 버튼을 숨기지 않고 보조 위계로 낮추고 「같은 소재로는 같은 결과입니다」를 말한다.</p></li><li>Text(영상이 없습니다)<p class="wf-help" style="margin:2px 0 0">등록이 끝났는데 영상이 하나도 없을 때만 보인다.</p></li><li>Pagination(데이터셋 영상 목록 페이지)<p class="wf-help" style="margin:2px 0 0">서버가 페이지로 내려주므로 옮길 수단이 없으면 첫 쪽의 영상에만 도달한다. 한 페이지에 다 들어오면 그리지 않는다.</p></li><li>Button(다시 등록) · → API-262<p class="wf-help" style="margin:2px 0 0">등록 실패일 때만 보인다. 실패 표식일 때만 등록을 다시 시작시키며 완료·진행 중이면 서버가 새로 시작하지 않는다. 누르면 목록을 다시 불러 등록 중 안내와 주기 확인이 재개된다. 요청 중에는 눌리지 않는다. 재착수 요청 자체가 거부되면(소재 미준비·등록 꺼짐·대기열 포화) 서버가 함께 준 안내 문장을 그 자리에 보이고 버튼은 다시 누를 수 있다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-253</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -21,6 +21,7 @@ import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
 import kr.co.cudo.authoring.video.repository.InternalWorkScope;
+import kr.co.cudo.authoring.video.repository.VideoExclusionScope;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
@@ -174,6 +175,34 @@ public class TaskBoardQueryRepository {
         return counts;
     }
 
+    /**
+     * 「제외됨 N건」 — <b>같은 필터 조건</b>을 「제외분만」으로 한 번 더 세어 얻는다.
+     * [@design ADR-069] [@design API-136]
+     *
+     * <p>★<b>세 번째 WHERE 절을 만들지 않는다.</b> 목록·count·집계가 이미
+     * {@link #buildWhere(QLsDataRaw, TaskBoardSearchCondition, boolean, boolean)} 하나를 공유하는데
+     * 전용 집계 쿼리를 새로 적으면 <b>드리프트 면이 하나 더</b> 생겨, 필터가 늘 때 한 곳만 빠뜨리면
+     * 건수가 조용히 어긋난다. 그래서 같은 조립을 「제외분만」으로 호출한다 — 조건이 늘어도 따라온다.
+     *
+     * <p>{@code workStatus} 를 빼는 것도 KPI 집계와 동일하다({@code includeWorkStatus=false}) — 카드
+     * 자체가 그 선택지이므로, 이 숫자도 그 좁힘 없이 같은 범위를 세야 화면의 숫자와 그것을 눌러 얻는
+     * 목록이 일치한다.
+     *
+     * <p><b>0건이어도 값이 실린다</b>(집계이므로 {@code COUNT} 가 항상 한 행을 돌려준다) — 빠지면
+     * 화면이 「제외된 것이 없다」와 「제외 기능이 없다」를 구분해 보여 주지 못한다.
+     */
+    public long countExcluded(TaskBoardSearchCondition condition) {
+        JPAQueryFactory queryFactory = new JPAQueryFactory(entityManager);
+        QLsDataRaw raw = QLsDataRaw.lsDataRaw;
+
+        Long count = queryFactory
+                .select(raw.count())
+                .from(raw)
+                .where(buildWhere(raw, condition, false, true))
+                .fetchOne();
+        return nullToZero(count);
+    }
+
     /** 해당 상태에 속하는 행 수 — {@code SUM(CASE WHEN <상태 판정식> THEN 1 ELSE 0 END)}. */
     private NumberExpression<Long> bucketCount(QLsDataRaw raw, BoardWorkStatus ws) {
         return new CaseBuilder()
@@ -240,15 +269,43 @@ public class TaskBoardQueryRepository {
     }
 
     /**
+     * 가시 범위 갈래는 <b>조건 객체가 싣고 온다</b>({@code excludedOnly}) — 목록·count·집계·옵션이 모두
+     * 이 길목을 지나므로 갈래가 한 곳에서 정해지고 네 경로가 갈라질 수 없다. [design: ADR-069]
+     *
+     * <p>「제외분 건수」({@link #countExcluded})만 이 값을 <b>덮어쓴다</b> — 그 숫자는 지금 보고 있는
+     * 갈래와 무관하게 언제나 제외분을 세야 하기 때문이다.
+     */
+    private BooleanBuilder buildWhere(QLsDataRaw raw, TaskBoardSearchCondition condition,
+                                      boolean includeWorkStatus) {
+        return buildWhere(raw, condition, includeWorkStatus, condition.excludedOnlyOn());
+    }
+
+    /**
      * 조건 조립 <b>단일 지점</b> — 목록/count/집계/옵션 조회가 모두 이 메서드를 통과한다.
      *
      * @param includeWorkStatus {@code workStatus} 필터 적용 여부. KPI 집계는 5종을 모두 세야 하므로
      *                          이 조건만 빼고 나머지({@code status}/{@code q}/{@code eventTypeCd}/
      *                          {@code workerId})는 목록과 완전히 동일하게 적용한다(HIGH-12).
+     * @param excludedOnly      {@code false}(기본)면 <b>제외되지 않은 영상만</b>, {@code true} 면
+     *                          <b>제외된 영상만</b>. 「제외됨 N건」을 <b>같은 조건</b>으로 세기 위한
+     *                          갈래이며(두 번째 WHERE 절을 만들지 않는다), 다른 축은 전부 동일하다.
      */
     private BooleanBuilder buildWhere(QLsDataRaw raw, TaskBoardSearchCondition condition,
-                                      boolean includeWorkStatus) {
+                                      boolean includeWorkStatus, boolean excludedOnly) {
         BooleanBuilder where = new BooleanBuilder();
+
+        // 가시성 축 — 화면 목록에서 제외된 영상은 작업 목록에도 나타나지 않는다. [design: ADR-069]
+        //   필터가 아니라 <가시 범위> 이므로 목록·count·KPI 집계·이벤트유형 옵션 <전부>에 걸린다.
+        //   그래서 여기(조건 조립 단일 지점)에만 붙인다 — 호출부마다 붙이면 한 곳이 빠져 샌다.
+        //
+        // ★제외 판정은 <조회 조건>에만 붙이고 버킷 판정식(workStatusPredicate)은 건드리지 않는다.
+        //   판정식에 섞으면 어느 버킷에도 들지 않는 행이 생겨 「버킷 합 = 전체 건수」 불변식이 깨진다.
+        //   조회 조건에만 붙이면 total 과 버킷이 같은 집합 위에서 계산돼 불변식이 그대로 유지된다.
+        //
+        // 「제외분만」은 소유자 술어의 <부정>으로 얻는다 — 여기서 EXCL_YN 비교를 새로 적으면 술어가
+        //   두 벌이 되어 한쪽만 바뀌어도 드러나지 않는다(그 비교는 VideoExclusionScope 단독 소유).
+        BooleanExpression notExcluded = VideoExclusionScope.notExcluded(raw);
+        where.and(excludedOnly ? notExcluded.not() : notExcluded);
 
         // 파생영상 등재 게이트 — 미검수 파생은 작업 대상이 아니다(판정은 단일 원천에 위임).
         // 필터가 아니라 <가시 범위> 이므로 목록·count·KPI 집계·이벤트유형 옵션 <전부>에 걸린다.

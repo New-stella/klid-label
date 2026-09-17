@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/ai-보조-라벨링-DOMAIN-004/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 도메인 규칙 정본은 `docs/rules/` 에 있다 (자동으로 실리지 않는다)** — `CLAUDE.md` 에는 불변식 요약만 남았다. 작업이나 판정이 아래 축에 닿으면 해당 파일을 `Read` 한 뒤 판단한다: 배치 파이프라인·시계열 위탁 `klid-batch-pipeline.md` · 라벨링·버전·export 재생성·재검수 `klid-labeling-version.md` · 증강·해상도 파생 `klid-augment-derivative.md` · 포털 `klid-portal.md` · DB·마이그레이션·표준용어 `klid-db-policy.md` · 개인정보·비식별 신고 `klid-privacy.md`.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -234,6 +236,24 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - **`@ConditionalOnProperty` 게이팅 시험에 개수를 박으면**(`hasSingleBean` · `size()==1`)
   그 축과 무관한 이유(빈이 하나 늘어남)로 깨진다. **그 시험이 지키려는 것은 「등록됐는가」이지 개수가 아니다.**
   ⇒ `!isEmpty()` 로 두고, **시험이 무는 축을 문장으로 적어** 다음 사람이 개수를 다시 박지 않게 하라.
+
+### 채널 입력 경계 분리 — 같은 이름 오버로드는 기존 스텁을 시끄럽게 깬다 (2026-09-15 · CO-20260915-포털-라벨링-AI보조-제공)
+
+**실측**: 추론 본체를 `segment(AiFrameAccess, req)` 처럼 기존 `segment(req, actor)` 와 **같은 이름·같은 인자 수**로 열자
+`compileTestJava` 가 `reference to segment is ambiguous`(`Sam2SegmentMockMessageWiringTest`·`TrackNoticeChannelTest`)로 실패했다
+— 기존 Mockito `when(svc.m(any(), any()))` 스텁이 두 오버로드를 가르지 못한다.
+⇒ 채널·전략 인자를 받는 본체 진입점은 **다른 이름**(`*WithAccess`)으로 연다.
+
+### 좌표 clamp 치수는 추론 입력과 같은 파일에서 잰다 (2026-09-15)
+
+**실측**: `FrameBoundsResolver` 는 내부 저장 base(raw/비식별, `resolveFrameImageWithoutGate`) 전용이다. 저장 base 가 다른 채널
+(포털 업로드 = 포털 저장 base) 프레임에 재사용하면 **오류 없이** 상한이 생략되거나, 상대경로가 우연히 겹치면 다른 파일 치수로 clamp 된다.
+⇒ 그래서 `AiFrameAccess.resolveBounds` 는 기본 구현 없는 필수 메서드다. 채널 구현은 `resolveImage` 와 **같은 파일**에서 치수를 잰다.
+
+### ★링크드 워크트리에서는 복합 셸 한 줄이 거부된다 — 스크립트 파일로 실행하라 (CO-20260916-마킹영상재생-차단결함)
+워크트리 격리 세션은 `cd` · heredoc · 리다이렉트 · 따옴표 와일드카드(`--tests 'pkg.*'`) · 런타임 계산 값이 섞인 한 줄 명령을 「too complex to verify」로 **실행 자체를 거부**한다. 코드 결함이 아니다.
+- **근거**: `./gradlew ... --tests "kr.co.cudo.authoring.video.*" > log` · `cat >> file <<EOF` · `cp ... && python3 - <<EOF` 가 모두 거부됐고, scratchpad 에 Write 로 스크립트를 만든 뒤 `bash <스크립트>` 로 실행하자 통과했다(D003·D012·프론트·QA 네 에이전트가 각자 밟았다).
+- **재발 조건**: 워크트리 세션에서 대상 지정 Gradle·vitest·변이 시험을 돌릴 때. ⇒ 처음부터 스크립트 파일로 만든다.
 
 ## 출력 (YAML 한 블록만)
 ```yaml

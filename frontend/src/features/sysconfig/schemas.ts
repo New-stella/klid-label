@@ -166,6 +166,13 @@ export const integrationEndpointsSchema = z.object({
    */
   augment: endpointUrl,
   controlNotify: endpointUrl,
+  /**
+   * 관제 계정 창구 — 관제 채널 세션 연장·로그아웃 중계가 부르는 관제 주소. [@design SCREEN-042]
+   *
+   * 관제 통지 수신처와 별개 값이다. 배포 기본값이 비어 있어 비면 세션 연장이 동작하지 않지만,
+   * 다른 칸과 같이 빈 값은 «바꾸지 않음»이라 전송 대상에서 빠진다(필수 검증을 걸지 않는다).
+   */
+  controlAccount: endpointUrl,
 });
 
 export type IntegrationEndpointsForm = z.infer<typeof integrationEndpointsSchema>;

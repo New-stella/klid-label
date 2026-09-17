@@ -21,7 +21,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 그것으로 충분하다.
  *
  * <h3>배치 경로에는 매이지 않는다</h3>
- * <p>등록 경로를 온디맨드 4종으로 한정하므로({@code AiCallCancellationWebConfig}) 배치 파이프라인
+ * <p>등록 경로를 온디맨드 추론 경로(내부 4종 + 포털 3종)로 한정하므로({@code AiCallCancellationWebConfig}) 배치 파이프라인
  * 스레드에는 스코프가 없고, 그러면 {@link CancellableAiCall} 이 기존 블로킹 동작을 그대로 한다.
  *
  * <h3>실패해도 추론을 막지 않는다</h3>
@@ -44,7 +44,7 @@ public class AiCallCancellationInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        registry.open(request.getHeader(REQUEST_ID_HEADER), currentSubject());
+        registry.open(request.getHeader(REQUEST_ID_HEADER), currentOwnerKey());
         return true;
     }
 
@@ -60,12 +60,15 @@ public class AiCallCancellationInterceptor implements HandlerInterceptor {
         registry.unbind();
     }
 
-    /** 토큰 subject — 인증 필터 이후라 사용할 수 있다. 없으면 «추적하지 않음». */
-    private String currentSubject() {
+    /**
+     * 소유자 키(채널 + 토큰 subject) — 인증 필터 이후라 사용할 수 있다. 없으면 «추적하지 않음».
+     * 키 조립은 {@link AiCallCancellationRegistry#ownerKey} 한 곳이다(취소 창구와 같은 함수).
+     */
+    private String currentOwnerKey() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof TokenClaims claims)) {
             return null;
         }
-        return claims.sub();
+        return AiCallCancellationRegistry.ownerKey(claims);
     }
 }

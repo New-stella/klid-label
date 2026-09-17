@@ -1,0 +1,171 @@
+/* -----------------------------------------------------------------------------
+   KeyValueList — 라벨·값 묶음. 꼴이 둘이다 (컴포넌트 주석 참조).
+     .klid-kv-rows   판 한 장 · 줄을 구분선으로 가른다 (design.md §5 「두 칸짜리 정보 표」)
+     .klid-kv-cards  카드 여러 장 · 라벨 위 · 값 아래로 쌓는다
+
+   면은 두 꼴 모두 공통 구획 카드(.klid-section-card)가 갖는다. 값이 갈리는 것은 패딩뿐이라
+   그것만 여기서 돌린다 — 보더·라운드·배경은 공통층 하나가 계속 owner 다.
+   두 클래스로 조준해 로드 순서와 무관하게 이긴다 (같은 특이도면 나중 파일이 이긴다).
+   -------------------------------------------------------------------------- */
+
+/* ── 판 한 장 (rows) ────────────────────────────────────────────────────── */
+
+/* 세로 패딩만 0 으로 돌린다 — 위아래 여백을 판이 가지면 첫 줄이 24+16 만큼 내려앉아
+   줄 리듬이 첫 줄에서만 깨진다. 좌우 24 는 아래 구획 카드와 왼쪽 선을 맞추는 값이라 그대로 */
+.klid-kv-rows.klid-section-card {
+  padding-block: 0;
+}
+
+/* 줄 — 라벨은 왼쪽 시작선, 값은 오른쪽 끝선. 끝선이 하나라 자릿수가 달라도 한 줄로 읽힌다.
+   **윗선으로 맞춘다** (2026-08-31 사용자 확정) — 값이 라벨보다 커서 가운데·밑선으로 맞추면
+   큰 쪽이 줄을 끌고 다녀 줄마다 라벨 높이가 달라 보인다. 윗선이면 라벨이 늘 같은 자리에 선다 */
+.klid-kv-rows .row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--krds-gap-5); /* 라벨 ↔ 값 최소 사이 16 — 둘이 길어 만나도 붙지 않는다 */
+  padding-block: var(--krds-padding-6); /* 줄 위아래 16 */
+}
+
+/* 줄 사이 구분선 — 판 테두리(gray-20)보다 한 단계 옅다 (§5 구분선 위계).
+   첫 줄 위·마지막 줄 아래에는 긋지 않는다: 그 자리는 판 테두리가 이미 맡았다 */
+.klid-kv-rows .row + .row {
+  border-top: 0.1rem solid var(--krds-color-light-gray-10);
+}
+
+/* 라벨 — 본문 기본 15 (§2 표 셀 급). 값보다 뒤로 물러나는 일은 굵기가 아니라 색이 맡는다 */
+.klid-kv-rows dt {
+  font-size: 1.5rem;
+  line-height: 1.6;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 값 — 20 · 600 (§2 상세 구획 제목 급). 라벨(15)보다 두 단 위라 줄 안에서 값이 먼저 읽힌다.
+   빅넘버 급(30·40)까지는 올리지 않는다: 한 줄 안에 라벨과 나란히 서는 값이라 값이 라벨을
+   밀어내고 줄 높이가 값 하나 때문에 늘어난다 (2026-08-31 사용자 확정 — 30 → 17 → 20).
+   빅넘버는 카드 꼴(아래)의 것이다: 거기서는 값이 줄을 독차지한다 */
+.klid-kv-rows dd {
+  margin: 0; /* `dd` 의 브라우저 기본 왼쪽 여백 */
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.4; /* 제목권 행간 (§2 — 행간은 크기와 반비례) */
+  font-variant-numeric: tabular-nums; /* 자리폭 고정 — 값끼리 세로로 견주며 읽는다 (§2) */
+  letter-spacing: -0.03rem;
+  text-align: right;
+  color: var(--krds-color-light-gray-90);
+}
+
+/* 되보여 주는 사실 (emphasis="fact") — 값이 라벨과 같은 본문 급으로 선다.
+   폼 안에서 「이미 정해진 값」을 확인시키는 자리라, 아직 적어야 할 입력칸보다 크면
+   다 끝난 값이 화면에서 제일 크게 읽힌다. 라벨과 갈리는 일은 굵기와 색이 맡는다 */
+.klid-kv-rows[data-emphasis='fact'] dd {
+  font-size: var(--krds-pc-font-size-body-medium); /* 본문 기본 15 (§2) — 라벨과 같은 급 */
+  line-height: 1.6; /* 본문권 행간 (§2) — 킷 행간 토큰은 base(1.5)·none(1) 둘뿐이라 값으로 둔다 */
+  letter-spacing: normal;
+}
+
+/* 요약 상자 (surface="muted") — 흰 면 안에서 「지금 값이면 이렇게 된다」를 되보여 준다.
+   옅은 회색 면(gray-5)만 깔고 보더·구분선은 두지 않는다: 흰 카드 안에 또 선을 두르면 면이 두 겹이 되고,
+   두 줄짜리 요약에 줄 선을 그으면 표로 읽힌다.
+   라운드 12 는 안쪽 면이라 카드 16 보다 작다 (§7).
+   안쪽 여백은 네 변 모두 16 — 표면 패딩 ≥ 라운드 × 1.25 (design.md §5 비례 규칙, 12 → 16).
+   종전 위아래 12(상자 8 + 줄 4)는 라운드와 같아 첫 줄·끝 줄이 모서리 곡선에 끼어 보였다 (2026-09-14 사용자 지적).
+   줄끼리는 8 로 붙인다 — 여백을 줄이 나눠 가지면 첫 줄·끝 줄에만 덧붙어 상자 여백이 네 변마다 달라진다.
+   판 꼴의 줄 여백(16)을 그대로 두면 두 줄짜리 요약이 입력칸보다 커진다.
+   ★ 세 겹으로 조준한다 — 둥근 면 위 맨 글자 보정(klid-optical.css §2)이 구획 카드의 직계 `dl` 을
+   글자로 보고 좌우를 4 로 덮는다. 이 상자는 제 면을 가진 조각이라 그 보정 대상이 아닌데,
+   두 겹(0-2-0)으로는 그 규칙(0-2-1)에 져서 좌우가 4 로 서 있었다 */
+.klid-kv-list.klid-kv-rows[data-surface='muted'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+  padding: var(--krds-padding-6);
+  border-radius: var(--krds-radius-xlarge1);
+  background-color: var(--krds-color-light-gray-5);
+}
+.klid-kv-rows[data-surface='muted'] .row {
+  padding-block: 0;
+}
+.klid-kv-rows[data-surface='muted'] .row + .row {
+  border-top: 0;
+}
+
+/* 구분선 없음 (divided={false}) — 면 없는 판에서 줄 선을 걷는다. 줄 여백(16)도 같이 걷고
+   줄끼리는 8 로 붙인다: 선이 없는데 위아래 16 씩 남기면 세 줄이 따로 떠 보이고,
+   첫 줄 위에 16 이 덧붙어 창의 구획 선 ↔ 첫 줄 여백이 창 규칙(위아래 24)보다 벌어진다 */
+.klid-kv-rows[data-divided='false'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+}
+.klid-kv-rows[data-divided='false'] .row {
+  padding-block: 0;
+}
+.klid-kv-rows[data-divided='false'] .row + .row {
+  border-top: 0;
+}
+
+/* 좁은 화면에서도 두 칸을 유지한다 — 라벨이 짧고(성능 지표명·항목명) 값도 짧아 한 줄에 든다.
+   줄을 접어 라벨 위 · 값 아래로 쌓으면 줄 수가 두 배가 되어 판이 화면 한 판을 먹는다 */
+
+/* ── 카드 여러 장 (cards) ───────────────────────────────────────────────── */
+
+/* 같은 폭으로 나란히 선다 — 폭이 같아야 값끼리 견줘진다. 칸 최소폭(160)에 못 미치면
+   줄을 내려 접는다: 항목 수를 컴포넌트가 모르므로 칸 수를 못 박지 않는다 */
+.klid-kv-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--krds-gap-5); /* 카드 사이 16 (§6) */
+}
+
+/* 카드 한 장 — 밀집 카드라 패딩 20 이다 (§5. 구획 카드의 24 와 갈리는 값은 이것 하나) */
+.klid-kv-cards .row.klid-section-card {
+  padding: var(--krds-padding-7);
+}
+
+/* 라벨 위 · 값 아래. 라벨은 14 (§2 보조 본문) 로 한 단 낮추고 값에 자리를 내준다 */
+.klid-kv-cards dt {
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--krds-color-light-gray-50);
+}
+
+/* 값 — 빅넘버 30 (§2). 카드마다 값이 줄을 독차지하므로 판 꼴보다 두 단 크다 */
+.klid-kv-cards dd {
+  margin: 0.8rem 0 0; /* 라벨 → 값, 한 컴포넌트 안 (§6) */
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 1.3; /* 디스플레이권 행간 (§2) */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05rem;
+  color: var(--krds-color-light-gray-90);
+}
+
+/* ── 면 없이 쌓기 (stack) ───────────────────────────────────────────────── */
+
+/* 한 줄에 한 짝씩 쌓는다 — 좁은 칸이라 칸 수를 나누지 않는다.
+   짝 사이 16 은 학습데이터 상세 개요가 좁은 화면에서 쓰는 격자 간격과 같다 */
+.klid-kv-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+  margin: 0;
+}
+
+/* 라벨 — 13 · gray-60 (학습데이터 상세 개요와 같다 · §2 메타 하한) */
+.klid-kv-stack dt {
+  font-size: var(--krds-pc-font-size-body-xsmall);
+  font-weight: 400;
+  color: var(--krds-color-light-gray-60);
+}
+
+/* 값 — 15 · 500. 라벨에 붙어 선다 (§6 라벨은 대상에 밀착).
+   긴 파일 이름은 칸 끝에서 접는다 — 이음표 없는 긴 이름이 칸 밖으로 새지 않게 */
+.klid-kv-stack dd {
+  margin: var(--krds-gap-2) 0 0;
+  font-size: var(--krds-pc-font-size-body-medium);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--krds-color-light-gray-90);
+  overflow-wrap: anywhere;
+}

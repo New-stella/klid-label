@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import {
   Select,
@@ -12,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/common/Select';
 import { Skeleton } from '@/components/common/Skeleton';
-import { useUsers } from '@/features/user/hooks/useUsers';
 import { useWorkers } from '@/features/user/hooks/useWorkers';
 import { Role } from '@/lib/api/types';
 import { roleSatisfies } from '@/lib/authz';
@@ -64,7 +62,14 @@ function extractBeMessage(err: unknown, fallback: string): string {
 /**
  * SCR-TASK-002 작업 배정 모달.
  * - assign / reassign / bulk 모드 지원
- * - 작업자 select, 검수자 select(REVIEWER 한정) / readonly(WORKER)
+ * - 작업자 select 하나뿐이다.
+ *
+ * ★**검수자 선택칸을 두지 않는다**(`ADR-067` · `SCREEN-012`). 검수는 배정 없이 전체 대기열에서
+ * 집어가므로 여기서 검수자를 골라도 아무것도 게이트하지 않았다 — 검수 목록 조회·승인·반려 어디에도
+ * 배정 검사가 없었고, 그 칸은 값을 쌓기만 하는 장식이었다. 되살리지 말 것.
+ * 「지금 누가 검수 중인가」는 검수 목록의 점유 표시가 보여준다.
+ *
+ * [@design ADR-067] [@design SCREEN-012] [@design API-070]
  */
 export function AssignModal({
   open,
@@ -81,23 +86,18 @@ export function AssignModal({
   const claims = useAuthStore((s) => s.claims);
   const pushToast = useUiStore((s) => s.pushToast);
   const role = claims?.role;
-  // 검수자 자리 — 관리자는 계층으로 함께 들어온다.
-  const canChangeReviewer = roleSatisfies(role, Role.REVIEWER);
+  // 배정을 수행할 수 있는 자리 — 관리자는 계층으로 함께 들어온다.
+  // ★역할 판정 축이며 「검수자 배정」 축이 아니다. 배정 자체는 검수자 권한이 하는 일이라 그대로 남는다.
+  const canAssign = roleSatisfies(role, Role.REVIEWER);
 
-  // 모달이 열려 있고 REVIEWER 일 때만 호출 — /users 와 /users/workers 는 REVIEWER 전용 API.
+  // 모달이 열려 있고 REVIEWER 일 때만 호출 — /users/workers 는 REVIEWER 전용 API.
   // (WORKER 화면에서도 모달이 마운트되어 있어 무조건 호출되면 403 이 발생하므로 enabled 로 막는다.)
-  const shouldFetchUsers = open && canChangeReviewer;
+  const shouldFetchUsers = open && canAssign;
   const { data: workers, isLoading: workersLoading } = useWorkers({
     enabled: shouldFetchUsers,
   });
-  const { data: reviewersPage } = useUsers(
-    { role: Role.REVIEWER, size: 50 },
-    { enabled: shouldFetchUsers },
-  );
-  const reviewers = reviewersPage?.content ?? [];
 
   const [workerId, setWorkerId] = useState<number | ''>('');
-  const [reviewerId, setReviewerId] = useState<number | ''>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isBulk = mode === 'bulk';
@@ -106,21 +106,16 @@ export function AssignModal({
   // 모달 열릴 때 초기값 설정
   useEffect(() => {
     if (!open) return;
-    const defaultReviewer =
-      canChangeReviewer && claims?.sub ? Number(claims.sub) : '';
     if (isBulk) {
       setWorkerId(workers?.[0]?.id ?? '');
-      setReviewerId(defaultReviewer);
     } else if (task) {
       setWorkerId(task.workerId ?? '');
-      setReviewerId(task.reviewerId ?? defaultReviewer);
     } else {
-      // 미배정 영상 단건 신규 배정 — 작업자는 미선택, 검수자는 로그인 사용자
+      // 미배정 영상 단건 신규 배정 — 작업자는 미선택
       setWorkerId('');
-      setReviewerId(defaultReviewer);
     }
     setErrors({});
-  }, [open, task, isBulk, canChangeReviewer, claims?.sub, workers]);
+  }, [open, task, isBulk, workers]);
 
   const handleAssignSuccess = () => {
     const count = isBulk ? videoIds.length : 1;
@@ -178,11 +173,10 @@ export function AssignModal({
           ? [videoId]
           : [];
     if (targetVideoIds.length === 0) return;
-    // BE 계약: { workerId, rawDataIds, reviewerId? }
+    // BE 계약: { workerId, rawDataIds } — ★검수자 항목을 싣지 않는다(ADR-067).
     mutateAssign({
       workerId: Number(workerId),
       rawDataIds: targetVideoIds,
-      ...(reviewerId ? { reviewerId: Number(reviewerId) } : {}),
     });
   };
 
@@ -318,42 +312,6 @@ export function AssignModal({
           )}
         </div>
 
-        {/* 검수자 select */}
-        <div className="space-y-1">
-          <label
-            htmlFor="assign-reviewer"
-            className="text-label font-medium text-gray-700"
-          >
-            검수자
-          </label>
-          {canChangeReviewer ? (
-            <Select
-              value={String(reviewerId)}
-              onValueChange={(v) => setReviewerId(v ? Number(v) : '')}
-              disabled={isPending}
-            >
-              <SelectTrigger id="assign-reviewer">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">검수자 선택 (선택)</SelectItem>
-                {reviewers.map((r) => (
-                  <SelectItem key={r.id} value={String(r.id)}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              id="assign-reviewer"
-              type="text"
-              readOnly
-              value={claims?.name ?? '현재 사용자'}
-              className="border-gray-200 bg-gray-50 text-gray-600"
-            />
-          )}
-        </div>
       </div>
     </Modal>
   );

@@ -151,7 +151,36 @@ describe('취소 — 서버에도 멈추라고 알린다', () => {
     });
     await running;
 
-    expect(cancelSpy).toHaveBeenCalledWith(seenRequestId);
+    // 두 번째 인자 false = 내부 채널 취소 창구(범위에 portal 을 주지 않은 훅).
+    expect(cancelSpy).toHaveBeenCalledWith(seenRequestId, false);
+    cancelSpy.mockRestore();
+  });
+
+  it('포털_범위의_훅은_포털_취소_창구로_서버_취소를_요청한다', async () => {
+    // SCREEN-029 · API-258 — 포털 AI 요청은 포털 창구로 나가므로 취소도 포털 창구로 가야 한다.
+    //   내부 창구로 가면 403 이고 그 실패는 삼켜져 «취소했는데 서버는 계속 돈다» 가 신호 없이 남는다.
+    const cancelSpy = vi.spyOn(labelApi, 'cancelAiRequest').mockResolvedValue(undefined);
+    const { result } = renderHook(() => useBusyTask({ srcSn: SRC_SN, portal: true }), { wrapper });
+    let seenRequestId: string | undefined;
+
+    const running = result.current.runExclusive(
+      'AI_SEGMENT',
+      { srcSn: SRC_SN },
+      (_alive, signal, requestId) => {
+        seenRequestId = requestId;
+        return new Promise<void>((_r, rej) => {
+          signal?.addEventListener('abort', () => rej(new Error('canceled')));
+        });
+      },
+    );
+    await waitFor(() => expect(seenRequestId).toBeDefined());
+
+    act(() => {
+      useLabelStore.getState().cancelBusy();
+    });
+    await running;
+
+    expect(cancelSpy).toHaveBeenCalledWith(seenRequestId, true);
     cancelSpy.mockRestore();
   });
 

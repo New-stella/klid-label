@@ -36,7 +36,10 @@ import java.util.Set;
 
 /**
  * SCR-TASK-001 REVIEWER 통합 작업 목록 — 영상을 BE 페이징(+서버 필터)으로 응답하고
- * LABELER/REVIEWER 배정을 LEFT JOIN 방식으로 enrich 한다.
+ * LABELER 배정을 LEFT JOIN 방식으로 enrich 한다.
+ *
+ * <p><b>검수자 축은 없다</b> — 검수자를 영상에 배정하는 절차를 두지 않으므로(ADR-067) 응답에
+ * 검수자 필드가 없고 그 조회도 하지 않는다.
  *
  * <p>검색·필터·정렬은 {@link TaskBoardQueryRepository} 가 단일 조건으로 처리하고(목록/count 동일 조건),
  * 본 서비스는 그 결과 페이지를 화면 표시용으로 enrich 하는 책임만 갖는다.
@@ -47,7 +50,7 @@ import java.util.Set;
  *   <li>미배정 영상도 노출되므로 IDOR 차단을 위해 REVIEWER 권한자만 접근 허용 (CWE-862/863)</li>
  * </ul>
  *
- * <p>N+1 회피: 페이지의 rawSn 집합에 대해 cctvName / eventInfo / labeler / reviewer / firstSrcSn /
+ * <p>N+1 회피: 페이지의 rawSn 집합에 대해 cctvName / eventInfo / labeler / firstSrcSn /
  * status / user 이름을 각 1회 IN 쿼리로 batch lookup 한다.
  */
 @Slf4j
@@ -86,7 +89,7 @@ public class TaskBoardService {
         Page<LsDataRaw> page = taskBoardQueryRepository.search(effective, pageable);
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {
-            return page.map(r -> toResponse(r, null, null, null, null,
+            return page.map(r -> toResponse(r, null, null, null,
                     UserNameResolver.UserNames.empty(), null, 0L, null));
         }
 
@@ -94,17 +97,14 @@ public class TaskBoardService {
 
         Map<Long, String> cctvByVideo = lookupCctvNameByVideo(rawSns);
         Map<Long, String[]> eventByVideo = lookupEventInfoByVideo(rawSns);
+        // 검수자 배정은 조회하지 않는다 — 배정의 대상은 작업자뿐이고 응답에 검수자 축이 없다(ADR-067).
         Map<Long, LsTaskAssignment> labelerByVideo = lookupLatestAssignmentByVideo(rawSns, LsTaskAssignment.TASK_LABELER);
-        Map<Long, LsTaskAssignment> reviewerByVideo = lookupLatestAssignmentByVideo(rawSns, LsTaskAssignment.TASK_REVIEWER);
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rawSns);
         Map<Long, Long> frameCountByVideo = lookupFrameCountByVideo(rawSns);
         Map<Long, String> dataSttsByVideo = lookupDataSttsByVideo(rawSns);
 
         Set<Long> userNos = new HashSet<>();
         for (LsTaskAssignment a : labelerByVideo.values()) {
-            if (a.getUserNo() != null) userNos.add(a.getUserNo());
-        }
-        for (LsTaskAssignment a : reviewerByVideo.values()) {
             if (a.getUserNo() != null) userNos.add(a.getUserNo());
         }
         UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
@@ -114,11 +114,10 @@ public class TaskBoardService {
             String cctvName = cctvByVideo.get(rawSn);
             String[] eventInfo = eventByVideo.get(rawSn);
             LsTaskAssignment labeler = labelerByVideo.get(rawSn);
-            LsTaskAssignment reviewer = reviewerByVideo.get(rawSn);
             Long firstSrcSn = firstSrcSnByVideo.get(rawSn);
             String dataSttsCd = dataSttsByVideo.get(rawSn);
             long frameCount = frameCountByVideo.getOrDefault(rawSn, 0L);
-            return toResponse(r, cctvName, eventInfo, labeler, reviewer, names, dataSttsCd, frameCount, firstSrcSn);
+            return toResponse(r, cctvName, eventInfo, labeler, names, dataSttsCd, frameCount, firstSrcSn);
         });
     }
 
@@ -136,7 +135,12 @@ public class TaskBoardService {
     public TaskBoardSummaryResponse summarizeBoard(TaskBoardSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
 
-        return TaskBoardSummaryResponse.of(taskBoardQueryRepository.countByWorkStatus(effective(condition)));
+        // 두 집계가 <같은 조건 객체>를 본다 — 하나만 정규화하면 그룹 확장이 한쪽에만 적용돼
+        // 카드 숫자와 「제외됨 N건」의 필터 범위가 갈라진다. [design: ADR-069] [design: API-136]
+        TaskBoardSearchCondition effective = effective(condition);
+        return TaskBoardSummaryResponse.of(
+                taskBoardQueryRepository.countByWorkStatus(effective),
+                taskBoardQueryRepository.countExcluded(effective));
     }
 
     /**
@@ -174,15 +178,13 @@ public class TaskBoardService {
     }
 
     private TaskBoardItemResponse toResponse(LsDataRaw r, String cctvName, String[] eventInfo,
-                                              LsTaskAssignment labeler, LsTaskAssignment reviewer,
+                                              LsTaskAssignment labeler,
                                               UserNameResolver.UserNames names,
                                               String dataSttsCd, long frameCount, Long firstSrcSn) {
         String eventName = eventInfo != null ? eventInfo[0] : null;
         String eventTypeCd = eventInfo != null ? eventInfo[1] : null;
         Long workerId = labeler != null ? labeler.getUserNo() : null;
         String workerName = (names != null) ? names.nameOf(workerId) : null;
-        Long reviewerId = reviewer != null ? reviewer.getUserNo() : null;
-        String reviewerName = (names != null) ? names.nameOf(reviewerId) : null;
         String mappedStatus = mapBoardStatus(dataSttsCd, labeler != null);
         // R3 — 파생 영상 여부(ORGNL_RAW_SN != null) + 증강 종류(AUG_TYPE_CD 컬럼, V148/V149).
         //      원본이면 augmented=false, augType=null. 계약 밖 값(레거시 'RESOLUTION'·미지 코드)도 노출하지 않는다.
@@ -206,8 +208,6 @@ public class TaskBoardService {
                 workerName,
                 labeler != null ? labeler.getRegDt() : null,
                 firstSrcSn,
-                reviewerId,
-                reviewerName,
                 augmented,
                 augType
         );

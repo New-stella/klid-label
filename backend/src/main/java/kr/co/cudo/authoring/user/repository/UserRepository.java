@@ -153,6 +153,45 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
                                @Param("userNm") String userNm);
 
     /**
+     * <b>표시 이름 수정 — 값이 실제로 달라질 때만 쓰는 조건부 UPDATE</b> (@design API-004 · AC-1018).
+     *
+     * <h3>★ 인계 경로 upsert 와 <b>별개 문장</b>이다 — 재사용하지 않는다</h3>
+     * <p>{@link #upsertUser} 는 관제 인계 표시정보를 받아 <b>행을 만들거나</b> {@code USER_ID} 까지
+     * 함께 갱신한다. 관리 화면의 이름 수정은 그 둘 다 하면 안 된다 — 없는 사용자를 만들어서도 안 되고
+     * ({@code update} 는 그 경우 404 다), 로그인 식별자를 건드려서도 안 된다. 한 문장으로 합치면
+     * 한쪽 요구에 맞춰 고칠 때마다 다른 쪽이 조용히 끌려간다.
+     *
+     * <h3>왜 조회 후 비교가 아니라 문장 안의 조건인가</h3>
+     * <p>같은 이름을 다시 보내면 <b>아무것도 바꾸지 않고 수정일시도 밀지 않는다</b>. 그 판정을
+     * 애플리케이션이 「읽고 비교한 뒤 쓰기」로 하면 2노드 Active-Active 에서 두 노드가 같은 옛 값을
+     * 읽고 각각 UPDATE 해 수정일시가 두 번 밀린다. {@code IS DISTINCT FROM} 은 <b>행을 잠근 시점의
+     * 값</b>으로 판정하므로 노드 수와 무관하게 no-op 이 지켜진다({@link #upsertUser} 와 같은 규율).
+     *
+     * <p><b>건드리지 않는 것</b> — {@code USER_ID}(로그인 식별자) · {@code USE_YN}(계정 활성 여부,
+     * 외부 소유 읽기 전용) · {@code USER_EML_ADDR} · {@code LAST_LGN_DT}. 이 문장이 쓰는 것은 이름과
+     * 수정일시 둘뿐이고, <b>수정자 칸은 두지 않는다</b>(이름 수정의 감사는 수정일시만 남긴다).
+     *
+     * <p>존재하지 않는 사용자면 0행이다 — 행을 만들지 않는다. 호출자가 그보다 앞서 404 로 가른다.
+     *
+     * <p>보안: 두 값 모두 파라미터 바인딩이다(CWE-89). {@code userNm} 은 호출자가 정규화·길이 판정을
+     * 마친 non-null 값이며, 컬럼 폭은 최종 방어선이지 1차 방어선이 아니다.
+     *
+     * <p>{@code clearAutomatically}: native 문장이 영속성 컨텍스트를 우회하므로 직후 재조회가 옛
+     * 스냅샷을 돌려주지 않도록 비운다.
+     *
+     * @return 실제로 바꿨으면 1, 같은 이름이라 no-op 이거나 대상 사용자가 없으면 0
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_ACNT_USER
+               SET USER_NM  = :userNm,
+                   MDFCN_DT = CURRENT_TIMESTAMP
+             WHERE USER_NO = :userNo
+               AND USER_NM IS DISTINCT FROM CAST(:userNm AS varchar)
+            """, nativeQuery = true)
+    int updateUserNm(@Param("userNo") Long userNo, @Param("userNm") String userNm);
+
+    /**
      * <b>최종로그인일시 기록 — throttle 이 내장된 조건부 UPDATE</b> (V12).
      *
      * <p>저작도구에는 독립 로그인 UI 가 없어 "로그인" 이라는 단일 이벤트가 없다. 기록 지점은 JWT

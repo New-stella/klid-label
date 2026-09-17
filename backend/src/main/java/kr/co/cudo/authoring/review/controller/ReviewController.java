@@ -15,14 +15,17 @@ import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.ApproveRequest;
+import kr.co.cudo.authoring.review.dto.BatchApproveRequest;
+import kr.co.cudo.authoring.review.dto.BatchApproveResponse;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
+import kr.co.cudo.authoring.review.dto.ReviewListPage;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
 import kr.co.cudo.authoring.review.dto.ReviewSummaryResponse;
+import kr.co.cudo.authoring.review.service.ReviewBatchApproveService;
 import kr.co.cudo.authoring.review.service.ReviewService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -47,6 +50,8 @@ public class ReviewController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final ReviewService reviewService;
+    /** 일괄 승인 — 단건 승인을 건별 트랜잭션으로 반복 호출하는 별도 빈(복제 아님). [design: API-250] */
+    private final ReviewBatchApproveService reviewBatchApproveService;
 
     /** 정렬 미지정/폴백 기본값 — 제출일(UPD_DT) 최신순. 구 JPQL 의 정적 ORDER BY 와 동일(R8). */
     private static final Sort DEFAULT_REVIEW_SORT = Sort.by(Sort.Direction.DESC, "updDt");
@@ -68,7 +73,21 @@ public class ReviewController {
                     "정렬 항목 개수 상한 초과도 동일하게 폴백. 미지정 시 제출일 최신순. " +
                     "동일 제출일에서 페이지 경계가 흔들리지 않도록 PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다.\n\n" +
                     "- **needsRecheck**(Phase 7b 추가 필드): 검수 승인 이후 라벨/메타가 수정되어 재검토가 " +
-                    "필요한 영상인가. `true` 면 이미 APPROVED 여도 다시 확인 후 재승인해야 관제 재통지가 나간다."
+                    "필요한 영상인가. `true` 면 이미 APPROVED 여도 다시 확인 후 재승인해야 관제 재통지가 나간다.\n\n" +
+                    "- **검수 점유·최근 승인자·일괄 승인 자격**(ADR-067 추가 필드): 각 항목에 지금 그 영상을 " +
+                    "검수 중인 사람(`reviewingUserId`/`reviewingUserName`/`reviewStartedAt` — 없거나 유예 만료면 " +
+                    "셋 다 null), 마지막 승인자와 **그 행위 시점의** 역할(`lastApproverId`/`lastApproverName`/" +
+                    "`lastApproverRole`/`lastApprovedAt`), 요청자가 그 건을 일괄 승인에 담을 수 있는지" +
+                    "(`bulkApprovable`)가 실린다. 세 축 모두 **표시 전용**이며 질의 항목으로 올리지 않는다 — " +
+                    "검수 목록은 배정과 무관하게 전체를 보여주므로 '내 검수만 보기' 같은 사용자 축 필터를 두지 않는다.\n" +
+                    "- **bulkApproveLimit**: 한 번에 일괄 승인으로 담을 수 있는 최대 건수. 항목마다가 아니라 " +
+                    "**응답 한 번에 하나**이며 배포 설정값이라 고정 숫자가 아니다. 화면은 이 값으로 선택을 미리 " +
+                    "제한하고 숫자를 스스로 갖지 않는다. 실제 강제는 일괄 승인 창구가 한다.\n" +
+                    "- **제외분 배제**(ADR-069): 제외 표시가 선 영상은 이 목록에서 빠지며 전체 건수·페이지 수도 " +
+                    "같은 조건으로 함께 줄어든다.\n" +
+                    "- **excludedOnly**: 보내지 않으면 제외분을 뺀 기본 목록이고 `true` 면 제외된 영상만 남는다. " +
+                    "값역은 이 두 갈래뿐이며 섞어 보는 갈래는 두지 않는다. **「제외됨 건수」는 이 창구에 싣지 않는다** — " +
+                    "집계 창구(`GET /v1/reviews/summary`)가 소유하며, 두 곳에 두면 같은 숫자의 진실원이 둘이 된다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (허용되지 않은 정렬 키는 무시하고 기본 정렬)"),
@@ -78,7 +97,7 @@ public class ReviewController {
     })
     @GetMapping("/reviews")
     @PreAuthorize("hasRole('REVIEWER')")
-    public ApiResponse<Page<ReviewResponse>> list(
+    public ApiResponse<ReviewListPage> list(
             @Parameter(description = "검수 상태 (PENDING/IN_REVIEW/APPROVED/REJECTED). 그 밖의 값은 빈 결과.")
             @RequestParam(required = false) String status,
             @Parameter(description = "검색어 (선택) — 영상명·작업자명 부분일치.", example = "강남")
@@ -90,6 +109,9 @@ public class ReviewController {
                     + "미지정·미등록 키·개수 초과는 모두 제출일 최신순으로 폴백(400 아님).",
                     example = "submittedAt,desc")
             Sort sort,
+            @Parameter(description = "제외분만 보기 (선택) — 보내지 않으면 제외분을 뺀 기본 목록, "
+                    + "true 면 제외된 영상만. 섞어 보는 갈래는 없다.", example = "true")
+            @RequestParam(required = false) Boolean excludedOnly,
             @AuthenticationPrincipal TokenClaims actor) {
         if (size > MAX_PAGE_SIZE) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "size 한도 초과 (max=" + MAX_PAGE_SIZE + ")");
@@ -102,7 +124,10 @@ public class ReviewController {
         // page/size 는 기존 계약(RequestParam + 상한 400)을 그대로 유지하고 정렬만 추가로 해석한다(R8).
         Pageable pageable = PageRequest.of(page, size,
                 SortAllowlist.resolveLenient(sort, SortAllowlist.REVIEW, DEFAULT_REVIEW_SORT));
-        return ApiResponse.ok(reviewService.list(new ReviewSearchCondition(status, q), pageable, actor));
+        // [design: ADR-069] 제외 축은 필터가 아니라 <가시 범위의 갈래>다 — 목록·건수가 같은 조건 조립을
+        // 통과하므로 두 갈래 어느 쪽에서도 내용과 건수가 어긋나지 않는다.
+        return ApiResponse.ok(
+                reviewService.list(new ReviewSearchCondition(status, q, excludedOnly), pageable, actor));
     }
 
     /**
@@ -118,6 +143,11 @@ public class ReviewController {
                     "무시되며 400 이 아니다(목록의 정렬 폴백 정책과 동일한 취지).\n" +
                     "- 검수 대상이 아닌 배치/작업 상태는 어느 버킷에도 합산되지 않는다.\n" +
                     "- 불변식: total == pending + inReview + approved + rejected.\n" +
+                    "- **제외분은 집계에서 빠진다**(ADR-069) — 목록과 같은 조건 조립을 공유하므로 목록이 " +
+                    "제외분을 빼면 이 집계도 함께 줄어든다.\n" +
+                    "- **excludedCount** — 같은 필터 범위 안의 제외 건수가 키 하나로 실린다. 현재 페이지가 " +
+                    "아니라 필터 결과 전체 기준이며 **0건이어도 실린다**. 위 불변식의 항이 아니다(제외분은 " +
+                    "total 에서 이미 빠져 있다). 화면은 그 숫자를 눌러 목록을 `excludedOnly=true` 로 전환한다.\n" +
                     "- 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다."
     )
     @ApiResponses({
@@ -254,14 +284,28 @@ public class ReviewController {
      */
     @Operation(
             summary = "검수 시작 (REVIEWER)",
-            description = "REVIEWER가 검수를 시작한다. 상태: PENDING → IN_REVIEW."
+            description = "검수를 시작하고 **그 영상의 점유를 세운다**. 배정 여부는 자격 조건이 아니다(ADR-067).\n\n"
+                    + "점유 판정이 상태 판정보다 앞서며 결과는 다섯 갈래다.\n"
+                    + "1. 남이 유효하게 점유 중이면 상태와 무관하게 **409** — 응답 `data.reviewingUserName` 에 "
+                    + "점유자의 표시 이름만 실린다(식별자·역할·소속은 싣지 않는다).\n"
+                    + "2. 본인이 이미 주인이면 상태를 바꾸지 않고 **200(멱등 재진입)** — 점유 시각이 갱신되어 "
+                    + "보던 도중 만료되지 않는다. 이미 쌓인 이력을 고치지 않으므로 최초 시작 시각은 그대로 남는다.\n"
+                    + "3. 점유가 없고 상태가 PENDING 이면 IN_REVIEW 로 전이 — **상태가 바뀌는 유일한 갈래**.\n"
+                    + "4. 점유가 없고 이미 IN_REVIEW(유예가 지나 점유가 풀린 영상)면 전이 없이 새 점유자가 된다.\n"
+                    + "5. 점유가 없고 APPROVED + `needsRecheck=true`(재검수 대기)면 전이 없이 점유만 선다 — "
+                    + "**상태를 되돌리지 않는다**. 관제 데이터마트 뷰가 라이브 승인 상태로 행을 걸러, 상태를 내리면 "
+                    + "이미 통지한 영상이 관제에서 사라지기 때문이다.\n\n"
+                    + "그 밖의 상태는 종전대로 거절한다. 동시에 눌러 경합하면 한 건만 성공하고 나머지는 409 다 — "
+                    + "승인·반려와 같은 방식이며 다른 오류로 새지 않는다.\n\n"
+                    + "유예는 배포 설정값(기본 30분)이고 지나면 점유가 저절로 풀린다. **점유는 잠금이 아니다** — "
+                    + "승인 시점의 낙관적 잠금이 실제 방어로 그대로 남는다."
     )
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (상태 전이는 PENDING 출발 갈래에서만 일어난다)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 전이 불가")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "남이 점유 중(data 에 표시 이름) / 동시 시작 경합 / 상태 전이 불가")
     })
     @PostMapping("/reviews/{videoId}/start")
     @PreAuthorize("hasRole('REVIEWER')")
@@ -296,6 +340,47 @@ public class ReviewController {
         // 바디는 선택이다 — 미첨부(null)면 기존 승인과 완전히 동일하게 동작한다(하위호환).
         // negative sample(라벨 0건) 승인만 검수자의 명시 확인(noLabelConfirmed=true)을 요구한다.
         return ApiResponse.ok(reviewService.approve(videoId, req, actor));
+    }
+
+    /**
+     * 검수 일괄 승인 — 목록에서 고른 여러 영상을 한 번에 승인한다.
+     *
+     * <p>★<b>별도 자원이다.</b> 단건 승인 주소에 질의 항목을 붙여 행위를 가르지 않는다
+     * (「같은 URL 에 쿼리 파라미터로 행위 분기 금지」). 같은 주소가 대상 수에 따라 다르게 동작하면
+     * 권한·감사·오류 처리가 한 자리에 섞인다. 묶음 자리를 식별자 자리에 두는 이 모양은
+     * {@code /v1/videos/batch/retry} 선례와 같다.
+     *
+     * @design API-250
+     */
+    @Operation(
+            summary = "검수 일괄 승인 (REVIEWER)",
+            description = "검수 목록에서 고른 여러 영상을 한 번에 승인한다. 승인 = 작업 완료이며 단건 승인과 "
+                    + "**완전히 같은 결과**(버전 스냅샷·메타 동결·산출물 재생성·관제 통지)를 낸다.\n\n"
+                    + "- **자격**: ①유효 점유의 주인이 본인이고 ②단건 승인이 허용하는 상태인 건만 승인된다. "
+                    + "상태 축을 '검수 진행 중'으로 좁히지 않는다 — 수정 뒤 재검수를 기다리는 영상은 승인 상태로 "
+                    + "남아 있으므로 그 축으로 좁히면 재검수 건이 영영 담기지 않는다. 재검수 건도 먼저 검수 시작으로 "
+                    + "점유를 세운 뒤 담으면 그대로 재승인된다.\n"
+                    + "- **부분 실패 허용**: 되는 것만 처리하고 안 된 건은 식별자와 사유를 응답에 담는다. "
+                    + "한 건의 실패가 다른 건을 되돌리지 않는다(처리 경계는 건별). 한 건도 승인되지 못해도 200 이며 "
+                    + "판정은 결과 목록으로 한다.\n"
+                    + "- **요청 단위 거부(400)**: 목록이 비었거나 건수 상한을 넘으면 한 건도 처리하지 않는다. "
+                    + "상한은 배포 설정값이며 검수 목록 응답(`bulkApproveLimit`)으로 내려간다. "
+                    + "개별 영상의 상태·게이트 위반은 이 축이 아니라 건별 실패 사유다.\n"
+                    + "- **반려는 없다** — 건마다 사유가 달라 묶을 수 없다.\n"
+                    + "- 응답은 각 건의 승인이 **받아들여졌다**는 뜻이며 산출과 통지는 그 뒤 비동기로 이어진다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "건별 결과 (성공 0건이어도 200)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "대상 목록이 비었거나 건수 상한 초과 — 한 건도 처리되지 않음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
+    @PostMapping("/reviews/batch/approve")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<BatchApproveResponse> approveBatch(
+            @Valid @RequestBody BatchApproveRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(reviewBatchApproveService.approveAll(req, actor));
     }
 
     /**

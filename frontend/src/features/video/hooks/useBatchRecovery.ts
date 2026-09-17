@@ -44,6 +44,21 @@ interface MutationOptions<T> {
 }
 
 /**
+ * 재기동 뮤테이션 키 — 상세 화면이 **다른 컴포넌트(패널)가 보낸 접수 결과**를 읽는 창구다.
+ * [@design API-167] [@design SCREEN-009]
+ */
+export const batchRetryMutationKey = (rawSn: number) => ['video-batch-retry', rawSn] as const;
+
+/** 재기동 뮤테이션 변수 — 서버로 보내지 않는다(화면 내부 추적용). */
+export interface BatchRetryVariables {
+  /**
+   * 접수 직전 화면이 본 **비식별 이력 최신 회차 식별자**. 선두 비식별 재시도의 추적 폴링이 이 값보다
+   * 새 회차가 쌓였는지로 「위탁이 시작됐다/끝났다」를 가른다. 이력이 없으면 null.
+   */
+  deidentBaselineProcLogSn?: number | null;
+}
+
+/**
  * 배치 재실행 **접수** (POST /videos/{rawSn}/batch/retry).
  *
  * 성공 시 `VIDEO_KEYS.all` 을 무효화한다 — 재기동은 **상세의 단계 표시뿐 아니라 목록의 처리 단계
@@ -56,7 +71,10 @@ interface MutationOptions<T> {
 export function useRetryBatch(rawSn: number, options: MutationOptions<BatchRetryResult> = {}) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => retryBatch(rawSn),
+    mutationKey: batchRetryMutationKey(rawSn),
+    // ★ 변수는 요청에 실리지 않는다 — 접수 시점의 비식별 이력 기준선을 상세 화면의 추적 폴링에
+    //   넘기는 통로다(구 `onRetryAccepted` 콜백을 되살리지 않고 뮤테이션 상태로 전달한다).
+    mutationFn: (_vars: BatchRetryVariables = {}) => retryBatch(rawSn),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
       options.onSuccess?.(data);

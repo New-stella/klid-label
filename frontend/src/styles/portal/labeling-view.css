@@ -1,0 +1,138 @@
+@charset "utf-8";
+/* 저작도구 · 라벨링 편집기. 칸 안의 배치(격자 · 간격 · 크기)만 둔다 — 모양은 부품(EditorLayout ·
+   ToolPanel · ToolList · FrameStrip · ShortcutTable)이 갖는다 */
+
+/* 프레임 번호 칸 — 두 자리 번호가 들어가는 폭. 킷 입력칸은 줄을 다 채우는 폭이라 여기서 좁힌다 */
+.klid-labeling-frame-input {
+  flex: none;
+  width: 5.6rem; /* 번호 두 자리 + 좌우 여백 14 — 척도 밖 입력칸 폭 */
+  margin: 0;
+}
+.klid-labeling-frame-input .krds-input {
+  text-align: center;
+}
+/* 번호 칸과 「/ 23」, 그 뒤 버튼 사이 — 버튼끼리(4)보다 한 칸 떼어 번호 묶음으로 읽히게 */
+.klid-labeling-frame-total {
+  margin-inline: var(--krds-gap-2);
+}
+/* 저장은 확대·라벨 버튼 무리와 떼어 둔다 — 도구 줄을 끝맺는 걸음이다 */
+.klid-labeling-save {
+  margin-left: var(--krds-gap-3);
+}
+
+/* 판 아래 안내 문구(보기 · 이미지 조절) — 위에 선을 긋고 선 위아래를 12 씩 뗀다 (2026-09-15 사용자 지시).
+   판의 이름 → 내용 간격(8)에 4 를 더해 선 위 12, 선 아래 12 */
+.klid-labeling .klid-tool-panel-note {
+  margin-top: var(--krds-gap-2);
+  padding-top: var(--krds-padding-5);
+  border-top: 0.1rem solid var(--krds-color-light-gray-20);
+}
+
+/* 단축키 안내 — 도구 칸 맨 아래로 내려 가로를 다 쓴다 */
+.klid-labeling-help {
+  width: 100%;
+  margin-top: auto;
+}
+
+/* 속성 칸 — 객체 목록과 속성은 성격이 달라 20 (§6 블록 사이), 속성 안 두 판은 16 */
+.klid-labeling-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-6);
+}
+.klid-labeling-panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+}
+
+/* 단축키 도움말 — 세 묶음 나란히. 액션 묶음은 조합 키가 길어 한 칸 반을 준다 */
+.klid-labeling-shortcuts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  align-items: start;
+  gap: var(--krds-gap-7);
+}
+
+/* 메타 탭의 저장 줄 — 안내 글 바로 아래에 걸음이 칸 폭을 다 쓰고 선다 (좁은 옆 칸이라 걸음을 늘려 잡기 쉽게) */
+.klid-labeling-meta-save {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-3);
+}
+.klid-labeling-meta-save > .krds-btn {
+  width: 100%;
+}
+
+/* 객체 속성 — 라벨 칸 · 정보 · 좌표 · 속성 값이 한 흐름으로 쌓인다. 조각 사이 16 (§6 같은 판 안 묶음) */
+.klid-labeling-attrs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--krds-gap-5);
+}
+/* 생성출처 값 옆 「낮은 신뢰도」 배지 — 값과 한 줄 */
+.klid-labeling-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--krds-gap-2);
+}
+/* 신뢰도 — 막대가 남는 폭을 먹고 퍼센트는 오른쪽 */
+.klid-labeling-confidence {
+  display: flex;
+  align-items: center;
+  gap: var(--krds-gap-3);
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.klid-labeling-confidence > .klid-progress {
+  flex: 1;
+}
+/* 체크박스 묶음 — 선택지가 짧아 한 줄에 흘린다 */
+.klid-labeling-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--krds-gap-2) var(--krds-gap-5);
+}
+
+/* 라벨 선택 창 — 설명 글 · 목록이 길면 목록 안에서만 굴린다 (24rem 은 여섯 줄 남짓이 보이는 창의 키) */
+.klid-labeling-picker-desc {
+  margin: 0;
+}
+.klid-labeling-picker-list {
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+/* 화면 전체 안내 — 편집기 자리를 대신한다. 여백·바닥은 영역이 갖는다 (AuthoringPage.css § 편집 면) */
+
+/* ── 좌측 도구 칸 (포털 채널) ──
+   킷 `EditorLayout` 의 `.klid-editor-rail` 과 같은 값이다. 그 클래스를 그대로 쓰지 못하는 것은
+   `grid-area: rail` · `contain: size` 라 **격자 안에서만** 서기 때문이다 — 우리 라벨링 화면은
+   관제와 한 벌을 쓰므로 그 격자를 아직 세우지 않았다(셸 이관은 별도 라운드).
+   ⚠ 값을 옮겨 적은 사본이라 킷 쪽이 바뀌면 여기가 낡는다. 격자를 세우는 라운드에서 이 규칙을
+     지우고 `.klid-editor-rail` 로 갈아끼운다. */
+.klid-labeling-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--krds-gap-4);
+  width: 20rem; /* 킷 격자의 도구 칸 폭 — 도구 이름 + 단축키가 한 줄에 서는 가장 좁은 폭 */
+  padding: var(--krds-padding-5);
+  overflow-y: auto;
+  border-right: 0.1rem solid var(--krds-color-light-gray-20);
+  background-color: var(--krds-color-light-gray-0);
+}
+/* 단축키 안내 — 도구를 다 훑고 난 자리라 목록 끝에 붙는다(시안). 목록이 길어 스크롤이 생겨도
+   맨 아래에 남도록 위쪽 남는 자리를 밀어낸다 */
+.klid-labeling-rail > .klid-labeling-help {
+  margin-top: auto;
+}
+
+/* ── 머리 줄 (포털 채널) ──
+   킷 `EditorLayout` 의 `.klid-editor-header` 와 같은 값이다. 그 클래스를 그대로 쓰지 못하는
+   까닭은 레일과 같다(§ 좌측 도구 칸 주석 참조) — `grid-area` 가 격자 안에서만 뜻을 갖는다. */
+.klid-labeling-header {
+  flex: none;
+  border-bottom: 0.1rem solid var(--krds-color-light-gray-20);
+  background-color: var(--krds-color-light-gray-0);
+}

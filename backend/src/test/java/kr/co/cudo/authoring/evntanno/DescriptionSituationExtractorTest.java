@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.evntanno;
 
 import kr.co.cudo.authoring.evntanno.dto.EventAnnotationPayload;
 import kr.co.cudo.authoring.evntanno.service.DescriptionSituationExtractor;
+import kr.co.cudo.authoring.support.VlmKlidLiveFixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -110,5 +111,36 @@ class DescriptionSituationExtractorTest {
         assertThat(DescriptionSituationExtractor.extract(null)).isEmpty();
         assertThat(DescriptionSituationExtractor.extract("")).isEmpty();
         assertThat(DescriptionSituationExtractor.extract("   \n  ")).isEmpty();
+    }
+
+    // ------------------------------------------------------- 사업자 실응답 원문 (2026-09-14)
+    // 원문 출처·보존 규칙은 fixtures/vlm-klid-live-20260914/README.md. 사업자 형식이 바뀌면 여기가 먼저 깨진다.
+    // [design: CDIAG-014] [design: INTSPEC-002]
+
+    @Test
+    @DisplayName("실응답_교통사고_묘사는_대시_접두가_없는_라벨_줄에서도_상황값을_원문_그대로_뽑는다")
+    void extractsSituationFromLiveDescriptionWithoutDashPrefix() {
+        String description = VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT);
+
+        // 파서와 무관하게 원문 형식부터 고정한다 — 접두가 붙거나 라벨이 바뀌면 여기서 먼저 알린다.
+        assertThat(description.split("\n", -1))
+                .as("원문에 대시 접두 없는 「상황」 줄이 정확히 그 값으로 있어야 한다")
+                .contains("상황: " + VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT_SITUATION);
+
+        assertThat(DescriptionSituationExtractor.extract(description))
+                .contains(VlmKlidLiveFixtures.DESCRIBE_CAR_ACCIDENT_SITUATION);
+    }
+
+    @Test
+    @DisplayName("실응답_화재_묘사는_대시_접두가_있는_라벨_줄에서_상황값을_원문_그대로_뽑는다")
+    void extractsSituationFromLiveDescriptionWithDashPrefix() {
+        String description = VlmKlidLiveFixtures.description(VlmKlidLiveFixtures.DESCRIBE_FIRE);
+
+        assertThat(description.split("\n", -1))
+                .as("원문에 대시 접두가 붙은 「상황」 줄이 정확히 그 값으로 있어야 한다")
+                .contains("- 상황: " + VlmKlidLiveFixtures.DESCRIBE_FIRE_SITUATION);
+
+        assertThat(DescriptionSituationExtractor.extract(description))
+                .contains(VlmKlidLiveFixtures.DESCRIBE_FIRE_SITUATION);
     }
 }

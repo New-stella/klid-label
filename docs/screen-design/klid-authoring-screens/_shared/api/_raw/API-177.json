@@ -148,8 +148,9 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "라벨링 화면의 AI 탐지 팝업용 조회다. 활성 라벨 마스터 목록과 각 라벨의 COCO 검출 매핑(DTCT_TYPE_CD) 여부(mapped)를 반환한다.\n\nAI 탐지 후보는 라벨 마스터 기준으로 노출하되 검출 매핑이 있는 라벨만 실제 검출할 수 있다 — 매핑된 라벨만 선택 가능하게 하고 미매핑은 표시하되 비활성화한다. 목록에서 아예 숨기지 않는 것은 운영자가 '왜 이 라벨로는 탐지가 안 되는지' 를 알 수 있게 하기 위함이다.\n\n이 응답은 표시·선택 후보일 뿐이다. 실제 검출 대상은 서버가 신뢰 경계에서 마스터 매핑과 교집합을 다시 계산하므로 화면이 보낸 목록을 그대로 신뢰하지 않는다.",
+      "description": "라벨링 화면의 AI 탐지 팝업용 조회다. 활성 라벨 마스터 목록과 각 라벨의 COCO 검출 매핑(DTCT_TYPE_CD) 여부(mapped)를 반환한다.\n\nAI 탐지 후보는 라벨 마스터 기준으로 노출하되 검출 매핑이 있는 라벨만 실제 검출할 수 있다 — 매핑된 라벨만 선택 가능하게 하고 미매핑은 표시하되 비활성화한다. 목록에서 아예 숨기지 않는 것은 운영자가 '왜 이 라벨로는 탐지가 안 되는지' 를 알 수 있게 하기 위함이다.\n\n이 응답은 표시·선택 후보일 뿐이다. 실제 검출 대상은 서버가 신뢰 경계에서 마스터 매핑과 교집합을 다시 계산하므로 화면이 보낸 목록을 그대로 신뢰하지 않는다.\n\n[소비처] 내부 라벨링 화면의 AI 탐지 팝업과 포털 라벨링 화면의 AI 탐지 팝업이 이 조회를 쓴다. 포털 화면에서 고른 대상 라벨로 실제 탐지를 실행하는 창구는 포털 AI 탐지 창구 [[API-255]] 다.",
       "operation_id": "listDetectCandidates",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -159,7 +160,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:27.448Z"
+        "last_updated": "2026-08-25T01:21:27.448Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -169,12 +171,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "API-177(GET /v1/manage/labels/detect-candidates) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). AI 검출 클래스(COCO) 매핑 후보 조회로 FEAT-001(AI 보조 라벨링)의 관리 축을 지지하므로 연결한다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:27.448Z",
+    "change_summary": "소비처로 포털 라벨링 화면의 AI 탐지 팝업을 명시한다(2026-09-15 포털 라벨링 AI 보조 제공 결정 후속). 본문 끝에 소비처 문단 하나를 더하고 포털 AI 탐지 실행 창구 API-255 를 가리켰다. 응답·권한 계약 무변경.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-15T05:51:28.742Z",
     "created_at": "2026-07-30T07:14:23.205Z"
   }
 }

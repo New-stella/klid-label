@@ -31,7 +31,21 @@ import type { YnFlag } from '../api/framePrivacyMeta';
 import { useFramePrivacyMeta, useUpdateFramePrivacyMeta } from '../hooks/useFramePrivacyMeta';
 import { isUserDeterminedMetaValue } from '../utils/metaPromotion';
 
-import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
+import {
+  joinPrivacyValues,
+  MetaReadonlyField,
+  MetaSection,
+  NOT_FILLED_TEXT,
+  PRIVACY_GROUPED_LABEL,
+  ynLabel,
+} from './MetaSection';
+
+/** 구역 설명 한 줄 — 화면정의서 SCREEN-019 의 「개인정보 판정 검토 (프레임 축)」 note 원문. */
+const READONLY_DESCRIPTION = '이 프레임 기준의 판정입니다. 영상 축 판정과 별개 축입니다.';
+
+/** 라벨링(편집) 쪽 설명 — 반영 범위 안내. 도움말을 켰을 때만 보인다. */
+const EDITABLE_DESCRIPTION =
+  '이 프레임 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 학습데이터는 비식별 처리 전이라 판정하지 않습니다. 직접 지정하지 않은 항목은 기본값이 그대로 적용됩니다.';
 
 export interface FramePrivacyMetaPanelProps {
   srcSn: number | undefined;
@@ -143,27 +157,26 @@ export function FramePrivacyMetaPanel({
 
   // 읽기 전용(검수 화면) — 판정값만 보여준다. 비활성 체크박스를 두지 않고 렌더 자체를 하지 않는다.
   if (readOnly) {
+    // ★검수 화면의 구역 이름은 라벨링과 **일부러 다르다** — 검수는 「…검토」로 끝난다
+    //   (SCREEN-019). 두 이름을 같게 「통일」하면 확정된 사양을 되돌리는 것이다.
     return (
-      <MetaSection title="개인정보(프레임)">
-        <div className="space-y-1.5" data-testid="frame-privacy-meta-readonly">
-          {FIELDS.map((f) => (
-            <MetaReadonlyField
-              key={f.key}
-              label={f.label}
-              // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
-              value={ynLabel(data?.[f.key] ?? null)}
-            />
-          ))}
+      <MetaSection title="개인정보 판정 검토 (프레임 축)" description={READONLY_DESCRIPTION}>
+        {/* ★영상 축과 <b>같은 한 줄 묶음</b>이다 — 두 축이 다른 모양으로 보이면 검수자가 값을
+            대응시키지 못한다. 묶는 규칙은 {@code joinPrivacyValues} 한 곳이 소유한다. */}
+        <div data-testid="frame-privacy-meta-readonly">
+          <MetaReadonlyField
+            label={PRIVACY_GROUPED_LABEL}
+            // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
+            value={joinPrivacyValues(FIELDS.map((f) => ynLabel(data?.[f.key] ?? null)))}
+            emptyText={NOT_FILLED_TEXT}
+          />
         </div>
-        <p className="text-[11px] leading-snug text-gray-500">
-          이 프레임 기준의 판정입니다. 영상 전체 기준 판정은 위 영상 개인정보에서 확인하세요.
-        </p>
       </MetaSection>
     );
   }
 
   return (
-    <MetaSection title="개인정보(프레임)">
+    <MetaSection title="개인정보(프레임)" description={EDITABLE_DESCRIPTION}>
       <div className="space-y-1.5">
         {FIELDS.map((f) => (
           <Field key={f.key} orientation="horizontal">
@@ -177,11 +190,6 @@ export function FramePrivacyMetaPanel({
           </Field>
         ))}
       </div>
-
-      <p className="text-[11px] leading-snug text-gray-500">
-        이 프레임 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 학습데이터는
-        비식별 처리 전이라 판정하지 않습니다. 직접 지정하지 않은 항목은 기본값이 그대로 적용됩니다.
-      </p>
 
       {update.isError && (
         <p className="text-caption text-danger" role="alert">

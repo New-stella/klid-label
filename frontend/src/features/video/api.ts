@@ -17,6 +17,7 @@ import type {
   VideoDetail,
   VideoListParams,
   VrfcEvntQuestion,
+  VrfcEvntType,
 } from './types';
 import { BULK_RETRY_MAX, BULK_STAGE_BUNDLE, isBulkStageBundle, isStageBundle } from './types';
 
@@ -101,9 +102,9 @@ function isVrfcEvntQuestion(q: unknown): q is VrfcEvntQuestion {
  * ⚠ <b>코드값을 이름으로 대신 채우지 않는다</b>. 그렇게 하면 작업자에게 사업자 내부 코드가
  * 이름인 것처럼 보이고, 그 화면을 보고 만든 다음 판단이 코드 체계를 이름으로 오해한다.
  */
-function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
+function isVrfcEvntType(t: unknown): t is VrfcEvntType {
   if (typeof t !== 'object' || t === null) return false;
-  const { vrfcEvntTypeCd, vrfcEvntTypeNm } = t as Partial<SelectableVrfcEvntType>;
+  const { vrfcEvntTypeCd, vrfcEvntTypeNm } = t as Partial<VrfcEvntType>;
   return (
     typeof vrfcEvntTypeCd === 'string' &&
     vrfcEvntTypeCd.trim() !== '' &&
@@ -112,13 +113,115 @@ function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
   );
 }
 
-export function listVideos(params: VideoListParams) {
+function isSelectableVrfcEvntType(t: unknown): t is SelectableVrfcEvntType {
+  // 코드·이름 판정은 한 곳이다 — 두 목록이 같은 이유로 걸러지는데 검사를 복제하면 한쪽만 바뀐다.
+  return isVrfcEvntType(t);
+}
+
+/**
+ * 영상 목록 응답 — 기존 페이지에 <b>「제외됨 N건」 하나</b>가 얹힌 형태.
+ * [@design API-042] [@design AC-1124] [@design ADR-069]
+ *
+ * <p>★<b>항목마다가 아니라 응답 한 번에 하나</b>다. 목록 전체에 걸리는 값이라 영상마다 다르지
+ * 않고, 무엇보다 <b>행이 0건인 페이지에서도 화면이 건수를 알아야</b> 한다 — 제외분만 남은
+ * 상태에서 되돌아갈 길을 안내하지 못하기 때문이다.
+ *
+ * <p>★<b>이 화면만 페이지 응답이 그 숫자를 갖는다.</b> 작업 목록·검수 목록은 집계 창구가 갖고
+ * 목록 응답에는 키가 없다 — 집계 창구가 없는 것이 이 화면뿐이기 때문이다. 같은 숫자를 목록과
+ * 집계가 함께 실으면 진실원이 둘이 된다.
+ *
+ * <p>값이 `0` 이어도 실린다. 값을 못 내리는 구 응답만 `undefined` 다.
+ */
+export interface VideoListResponse extends PageResponse<Video> {
+  excludedCount?: number;
+}
+
+export function listVideos(params: VideoListParams): Promise<VideoListResponse> {
   return apiClient
-    .get<PageResponse<RawVideo>>('/videos', { params })
+    .get<PageResponse<RawVideo> & { excludedCount?: number }>('/videos', { params })
     .then((r) => ({
       ...r.data,
       content: (r.data.content ?? []).map(normalizeVideo),
     }));
+}
+
+/**
+ * 영상 <b>제외</b> 결과 — BE `VideoExclusionResponse` 와 1:1. [@design API-260]
+ *
+ * <p>★<b>「바꿨다」와 「이미 그 상태였다」를 상태코드로 가르지 않는다</b> — 둘 다 성공이고
+ * 되풀이 호출은 오류가 아니다(멱등). 호출자는 {@link changed} 로 가른다. 무변경이면 사유와
+ * 시각이 <b>`null`</b> 인데, 그건 값을 못 받은 것이 아니라 <b>이력이 남지 않았다</b>는 뜻이다
+ * (남지 않은 이력의 시각을 지어내지 않는다).
+ */
+export interface VideoExclusionResult {
+  rawSn: number;
+  /** 요청 처리 후 제외 상태인지 — 이 창구가 성공하면 언제나 참이다. */
+  excluded: boolean;
+  /** 이번 요청이 실제로 값을 바꿨는지. 거짓이면 이미 제외돼 있었고 이력도 남지 않았다. */
+  changed: boolean;
+  /** 서버가 정제·절단해 저장한 사유. 무변경이면 `null` — 화면은 재가공하지 않는다. */
+  reason: string | null;
+  /** 제외 이력이 남은 시각. 무변경이면 `null`. */
+  excludedAt: string | null;
+}
+
+/**
+ * 영상 <b>복원</b> 결과 — BE `VideoRestoreResponse` 와 1:1. [@design API-261]
+ *
+ * <p>⚠ 제외 응답과 <b>모양이 다른 것은 의도</b>다 — 복원은 사유를 받지도 남기지도 않으므로
+ * 사유·시각 칸이 없다. 「일관성」을 이유로 사유 칸을 붙이지 말 것.
+ */
+export interface VideoRestoreResult {
+  rawSn: number;
+  /** 이 요청 이후의 제외 표시 상태 — 복원했으므로 언제나 거짓이다. */
+  excluded: boolean;
+  /** 이 요청이 실제로 표시를 바꿨는지. 거짓이면 이미 보이는 영상이었다(멱등). */
+  restored: boolean;
+}
+
+/**
+ * 영상 제외 — BE: POST /api/v1/videos/{rawSn}/exclusion (검수자 이상). [@design API-260]
+ *
+ * <p>행을 지우지 않고 <b>제외 표시만</b> 세워 저작도구 화면 목록 세 곳에서 뺀다. 언제든
+ * {@link restoreVideo} 로 되돌릴 수 있다.
+ *
+ * <p>★<b>사유는 필수</b>다 — 무엇이 왜 보이지 않게 됐는지가 남아야 나중에 되돌릴지 판단할
+ * 근거가 생긴다. 빈 값·공백만은 호출부 폼이 <b>보내기 전에</b> 막는다(서버도 400 으로 같은
+ * 제약을 건다). 길이는 서버가 <b>잘라서 저장</b>하므로 초과가 실패 사유가 아니다 —
+ * 화면은 {@code EXCLUSION_REASON_MAX} 로 입력 칸에서 미리 막는다.
+ *
+ * <p>★배정이 있는 영상은 <b>409</b> 이며 이는 <b>일시 조건</b>이다 — 배정을 해제하면 같은
+ * 요청이 수락된다. 호출부는 그 안내가 막다른 길이 되지 않게 배정 해제 수단을 함께 둔다.
+ *
+ * <p>★<b>화면 시야만 바꾼다</b> — 배치 파이프라인·관제 통지·데이터마트 조회 뷰·학습데이터
+ * 산출물·관제 조회 창구·통계·포털 채널은 전부 무변경이고 라벨링 상세 진입도 막지 않는다.
+ *
+ * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결 없음. 사유는 body 로만 보내고
+ * 주소에 싣지 않는다(접근 기록에 남는다). 권한·상태는 BE 가 403/409 로 강제한다.
+ */
+export function excludeVideo(rawSn: number, reason: string) {
+  return apiClient
+    .post<VideoExclusionResult>(`/videos/${rawSn}/exclusion`, { reason })
+    .then((r) => r.data);
+}
+
+/**
+ * 영상 복원 — BE: DELETE /api/v1/videos/{rawSn}/exclusion (검수자 이상). [@design API-261]
+ *
+ * <p>제외가 세운 하위 자원을 지우는 <b>짝</b>이다 — 같은 주소에 파라미터를 붙여 행위를 가르지
+ * 않는다(저장소 규약). 선례는 배치 단계 건너뛰기(`POST`/`DELETE …/skip`)다.
+ *
+ * <p>★<b>요청 본문이 없다 — 사유를 받지 않는다.</b> 「왜」는 <b>감추는 쪽</b>의 요구였고
+ * 되돌리는 쪽은 사유가 없어도 사실이 왜곡되지 않는다. 사유를 주소에 실으면 접근 기록에
+ * 개인정보가 남는다. ⚠ 「일관성」을 이유로 사유 인자를 더하지 말 것.
+ *
+ * <p>배정 존재 조건을 두지 않는 것도 의도다 — 제외된 영상에는 배정이 존재할 수 없다.
+ * 복원은 아무것도 재생성하지 않고 관제 수정 통지도 내지 않는다.
+ */
+export function restoreVideo(rawSn: number) {
+  return apiClient
+    .delete<VideoRestoreResult>(`/videos/${rawSn}/exclusion`)
+    .then((r) => r.data);
 }
 
 export function getVideo(id: number) {
@@ -216,6 +319,12 @@ export function getVideo(id: number) {
             ...t,
             questions: t.questions ? t.questions.filter(isVrfcEvntQuestion) : undefined,
           })),
+        // [@design API-043] [@design UI-107] 등록된 검증 이벤트 유형 <b>전체</b> — 이벤트 어노테이션의
+        //   이벤트 분류 코드를 이름으로 옮기는 데만 쓴다. BE 가 정렬해 내려주므로 **다시 정렬하지
+        //   않는다**. ★`selectableVrfcEvntTypes` 와 서로 대신하지 않는다 — 그쪽은 「비었는가」가
+        //   유형 선택 노출을 가르는 계약이라, 이 목록을 그 자리에 채우면 그 계약이 깨진다.
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        allVrfcEvntTypes: (d.allVrfcEvntTypes ?? []).filter(isVrfcEvntType),
       } as VideoDetail;
     });
 }

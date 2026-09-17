@@ -406,4 +406,191 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("WORKER"));
     }
+
+    // ------------------------------------------------------------------------
+    // 표시 이름 수정 — 같은 창구, 같은 유효창  [@design API-004] [@design AC-1018] [@design AC-1019]
+    // ------------------------------------------------------------------------
+
+    /** 저장소에 실제로 남은 표시 이름. 응답만 보면 저장 실패를 못 잡는다. */
+    private String userNmOf(long userNo) {
+        return jdbc.queryForObject("SELECT USER_NM FROM LS_ACNT_USER WHERE USER_NO = ?", String.class, userNo);
+    }
+
+    /** 저장소에 남은 수정일시. 시드 행은 null 이다(이 컬럼을 채우는 것은 표시정보 변경뿐). */
+    private java.sql.Timestamp mdfcnDtOf(long userNo) {
+        return jdbc.queryForObject("SELECT MDFCN_DT FROM LS_ACNT_USER WHERE USER_NO = ?",
+                java.sql.Timestamp.class, userNo);
+    }
+
+    private org.springframework.test.web.servlet.ResultActions patchAsAdmin(long userNo, String body)
+            throws Exception {
+        return mockMvc.perform(patch("/v1/users/" + userNo)
+                .header("Authorization", "Bearer " + adminToken())
+                .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    @Test
+    @DisplayName("★이름을_고치면_200이고_저장소에_실제로_남는다 — 응답만_보면_저장_실패를_못_잡는다")
+    void adminPatchChangesDisplayName() throws Exception {
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+
+        // 앞뒤 공백·제어문자는 저장 직전에 걷힌다.
+        patchAsAdmin(100L, "{\"userNm\":\"  새이름\\t \"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userNm").value("새이름"))
+                .andExpect(jsonPath("$.data.role").value("WORKER"));
+
+        assertThat(userNmOf(100L)).isEqualTo("새이름");
+        assertThat(mdfcnDtOf(100L)).as("실제 변경이므로 수정일시가 찍힌다").isNotNull();
+    }
+
+    @Test
+    @DisplayName("★같은_이름을_다시_보내면_수정일시가_밀리지_않는다 — 멱등")
+    void resendingSameDisplayNameIsNoOp() throws Exception {
+        patchAsAdmin(100L, "{\"userNm\":\"새이름\"}").andExpect(status().isOk());
+        java.sql.Timestamp first = mdfcnDtOf(100L);
+        assertThat(first).isNotNull();
+
+        // 같은 값 · 정규화하면 같아지는 값 — 어느 쪽도 행을 건드리면 안 된다.
+        patchAsAdmin(100L, "{\"userNm\":\"새이름\"}").andExpect(status().isOk());
+        patchAsAdmin(100L, "{\"userNm\":\"  새이름  \"}").andExpect(status().isOk());
+
+        assertThat(mdfcnDtOf(100L))
+                .as("무변경 저장이 수정일시를 밀면 「언제 프로필이 바뀌었나」가 오염된다")
+                .isEqualTo(first);
+        assertThat(userNmOf(100L)).isEqualTo("새이름");
+    }
+
+    @Test
+    @DisplayName("★정규화_후_비는_이름은_400이고_저장된_이름이_그대로다")
+    void blankDisplayNameRejected() throws Exception {
+        for (String blank : List.of("   ", "\\t\\n")) {
+            patchAsAdmin(100L, "{\"userNm\":\"" + blank + "\"}")
+                    .andExpect(status().isBadRequest())
+                    // 거부 응답은 어느 칸이 틀렸는지 필드 경로·배열 순번을 담지 않는다.
+                    .andExpect(jsonPath("$.message",
+                            org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("userNm"))));
+        }
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+        assertThat(mdfcnDtOf(100L)).as("거절된 요청은 행을 건드리지 않는다").isNull();
+    }
+
+    /**
+     * ★보이지 않는 공백만 채운 이름 — 창구 끝까지 가서 <b>저장소에 남지 않는지</b>까지 본다.
+     *
+     * <p>입력은 JSON {@code \}{@code uXXXX} 이스케이프로 쓴다(문자를 그대로 붙여넣으면 편집기·인코딩
+     * 경로에서 조용히 일반 공백으로 바뀌어 "정규화가 걸렀다" 고 오판하는 공허한 시험이 된다).
+     */
+    @Test
+    @DisplayName("★보이지_않는_공백만_보내면_400이고_저장된_이름이_그대로다 — NBSP·전각공백")
+    void invisibleSpaceOnlyDisplayNameRejected() throws Exception {
+        for (String invisible : List.of("\\u00A0", "\\u3000", "\\u2007", "\\u202F", "\\u200B", "\\uFEFF")) {
+            patchAsAdmin(100L, "{\"userNm\":\"" + invisible + "\"}")
+                    .andExpect(status().isBadRequest())
+                    // 거부 응답은 어느 칸이 틀렸는지 필드 경로·배열 순번을 담지 않는다.
+                    .andExpect(jsonPath("$.message",
+                            org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("userNm"))));
+        }
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+        assertThat(mdfcnDtOf(100L)).as("거절된 요청은 행을 건드리지 않는다").isNull();
+    }
+
+    @Test
+    @DisplayName("★가장자리_NBSP는_걷힌_채_저장된다 — 저장소에서_되읽어_확인한다")
+    void edgeInvisibleSpaceIsStrippedBeforeStore() throws Exception {
+        patchAsAdmin(100L, "{\"userNm\":\"\\u00A0새이름\\u3000\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userNm").value("새이름"));
+
+        // 응답만 보면 저장 실패를 못 잡는다 — 실제로 남은 값에 보이지 않는 문자가 섞이면 안 된다.
+        assertThat(userNmOf(100L)).isEqualTo("새이름");
+    }
+
+    @Test
+    @DisplayName("★저장_폭을_넘는_이름은_400이고_잘린_값이_저장되지_않는다")
+    void overlongDisplayNameRejectedNotTruncated() throws Exception {
+        int max = kr.co.cudo.authoring.user.service.UserDisplayNames.MAX_USER_NM_LENGTH;
+
+        patchAsAdmin(100L, "{\"userNm\":\"" + "가".repeat(max + 1) + "\"}")
+                .andExpect(status().isBadRequest());
+        assertThat(userNmOf(100L)).as("잘라 담으면 다른 사람 이름이 된다").isEqualTo("작업자100");
+
+        // 경계값 — 정확히 폭과 같은 길이는 통과한다(절단값으로 판정하면 여기서 깨진다).
+        patchAsAdmin(100L, "{\"userNm\":\"" + "가".repeat(max) + "\"}")
+                .andExpect(status().isOk());
+        assertThat(userNmOf(100L)).hasSize(max);
+    }
+
+    @Test
+    @DisplayName("★이름만_보낸_요청에도_관리자_유효창이_필요하다 — 요구는_창구_전체에_걸린다")
+    void nameOnlyPatchStillRequiresAdminSession() throws Exception {
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userNm\":\"우회시도\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+    }
+
+    @Test
+    @DisplayName("★REVIEWER는_유효창이_있어도_이름을_고치지_못한다 — 역할이_1차_축이다")
+    void reviewerCannotChangeDisplayName() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header(AdminSessionGate.HEADER, adminSession("1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userNm\":\"검수자가고침\"}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+    }
+
+    /** 그 사용자의 역할 코드. 행이 없으면 null. */
+    private String roleCdOf(long userNo) {
+        List<String> rows = jdbc.queryForList(
+                "SELECT ROLE_CD FROM LS_USER_ROLE WHERE USER_NO = ?", String.class, userNo);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * ★두 축을 함께 보냈는데 한쪽이 무효면 <b>요청 전체가 무효</b>다 — 반만 반영되지 않는다.
+     *
+     * <p>⚠ 이 시험은 "결과가 안전한가" 만 본다. 검증을 역할 분기 뒤로 되돌려도 트랜잭션이 롤백해
+     * 여기서는 <b>여전히 초록</b>이다. "역할 쓰기가 일어났는가" 를 보는 짝은 {@code UserServiceTest}
+     * 의 목 기반 시험이며, 둘 중 하나만 두면 구조가 조용히 되돌려진다.
+     */
+    @Test
+    @DisplayName("★역할이_유효해도_이름이_무효면_400이고_역할도_이름도_그대로다 — 반만_반영되지_않는다")
+    void invalidNameRejectsWholeRequestIncludingRoleAxis() throws Exception {
+        assertThat(roleCdOf(100L)).isEqualTo("WORKER");
+
+        patchAsAdmin(100L, "{\"role\":\"REVIEWER\",\"userNm\":\"   \"}")
+                .andExpect(status().isBadRequest());
+
+        assertThat(roleCdOf(100L)).as("거절된 요청이 역할만 바꿔 놓으면 안 된다").isEqualTo("WORKER");
+        assertThat(userNmOf(100L)).isEqualTo("작업자100");
+        assertThat(mdfcnDtOf(100L)).as("거절된 요청은 행을 건드리지 않는다").isNull();
+
+        // 짝 — 이름을 보내지 않은 역할 변경은 종전대로 성공한다(검증 선행이 정상 경로를 막지 않는다).
+        patchAsAdmin(100L, "{\"role\":\"REVIEWER\"}").andExpect(status().isOk());
+        assertThat(roleCdOf(100L)).isEqualTo("REVIEWER");
+    }
+
+    @Test
+    @DisplayName("이름을_고쳐도_로그인_식별자·활성여부는_그대로다")
+    void displayNameChangeLeavesIdentityColumnsAlone() throws Exception {
+        patchAsAdmin(200L, "{\"userNm\":\"비활성사용자\"}").andExpect(status().isOk());
+
+        // 시드 200 은 USE_YN='N' — 이름 수정이 계정을 되살리면 안 된다(활성여부는 외부 소유값).
+        java.util.Map<String, Object> row = jdbc.queryForMap(
+                "SELECT USER_ID, USE_YN, USER_EML_ADDR FROM LS_ACNT_USER WHERE USER_NO = ?", 200L);
+        assertThat(row.get("user_id")).isEqualTo("worker200");
+        assertThat(((String) row.get("use_yn")).trim()).isEqualTo("N");
+        assertThat(row.get("user_eml_addr")).isEqualTo("w200@example.com");
+        assertThat(userNmOf(200L)).isEqualTo("비활성사용자");
+    }
 }

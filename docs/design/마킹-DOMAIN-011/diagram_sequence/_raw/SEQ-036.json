@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "이벤트 마킹 — 비식별 영상에서 자동·수동으로 시점을 찍고 잔여 배치를 깨운다",
-      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    actor worker as 라벨링 작업자(WORKER)\n    participant videoList as 영상 처리 현황 화면 (마킹 진입 팝업)\n    participant markingScreen as 마킹 화면\n    participant videoCtrl as VideoController\n    participant streamSvc as VideoStreamService\n    participant markingCtrl as MarkingController\n    participant guards as MarkingGuards\n    participant markingSvc as MarkingService\n    participant bridge as MarkingBatchBridge\n    participant reportCtrl as DeidentReportController\n    participant reportSvc as DeidentReportService\n    participant db as LS_DATA_RAW · LS_MARKING · LS_VRFC_EVNT_QSTN\n\n    Note over videoList: 마킹에 이르는 길은 둘이다 — 검수자가 미배정 영상을 팝업에서 바로 자동으로 돌리거나, 작업자에게 배정해 마킹 화면에서 직접 찍게 한다\n    opt 검수자가 미배정 영상을 팝업에서 처리하는 경우\n        reviewer->>videoList: 미배정·마킹 가능 영상에서 마킹 진입 팝업을 연다\n        reviewer->>videoList: 자동을 골라 프레임 간격을 정하면 그 자리에서 마킹을 만든다\n        Note over videoList: 이 경로는 마킹 화면을 거치지 않는다 — 검수자는 시작 안내만 받고 목록으로 돌아가며, 유형을 고르는 자리도 없다\n        reviewer->>videoList: 수동을 고르면 작업자 배정으로 넘어간다 — 배정 자체는 작업 배정 흐름이 소유한다\n    end\n    worker->>markingScreen: 배정받은 영상의 마킹 화면에 들어온다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}\n    videoCtrl->>db: 영상 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록 조회 — 정렬순서 오름차순. 유형이 없으면 고를 수 있는 유형 목록을 그 유형별 질문 목록까지 함께 조회한다\n    db-->>videoCtrl: 배치 단계 · 검증 이벤트 유형(없을 수 있다) · 질문 목록 · 고를 수 있는 유형 목록(각 유형의 질문 목록 포함)\n    videoCtrl-->>markingScreen: 200 OK — 검증 이벤트 유형과 질문 목록이 영상 상세에 함께 실려 온다. 유형이 없는 영상이면 고를 수 있는 유형 목록이 오고, 각 유형은 자기 질문 목록을 함께 싣는다\n    Note over markingScreen: 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 마킹 화면은 그것을 읽기만 하고 따로 조회하는 창구도 두지 않는다. 고를 수 있는 유형 목록은 각 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 오므로, 유형을 고른 뒤 서버에 다시 묻지 않는다\n    Note over markingScreen: 관제가 유형을 보내지 않아 유형 선택이 노출된 영상은 유형을 고르는 것이 필수다 — 위탁 본문에 실을 질문 문구는 어느 방식에서도 값이 있어야 하고, 질문을 고르려면 유형이 먼저 정해져야 한다. 고르지 않고 완료를 누르면 화면이 사유를 알리고 제출만 막는다\n    Note over markingScreen: 배치 단계가 마킹 대기가 아니면 화면이 진입 자체를 막는다 — 편집기도 신고 단추도 열리지 않으므로 사유를 다 적고 제출한 뒤에야 거부되는 동선이 없다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}/stream-url\n    videoCtrl-->>markingScreen: 스트리밍 주소\n    markingScreen->>streamSvc: GET /v1/videos/{rawSn}/stream — 구간 요청\n    streamSvc->>db: 비식별 산출물 경로 조회\n    db-->>streamSvc: 비식별 영상 경로\n    streamSvc-->>markingScreen: 비식별 영상 구간 전송\n    Note over streamSvc: [대안] 비식별본이 없으면 영상을 주지 않는다 — 스트리밍은 항상 비식별본만 서빙해 원본 노출을 차단한다\n    worker->>markingScreen: 배속을 조절해 재생한다\n    alt 수동 — 재생하다 시점을 직접 찍고 질문을 고른다\n        worker->>markingScreen: 수동 — 이벤트 시점에서 마킹을 찍고 지운다\n        Note over markingScreen: 작업자가 프레임을 직접 고른다\n        worker->>markingScreen: 검증 질문을 고른다 — 고르지 않으면 첫 번째 질문이 쓰인다\n    end\n    alt 자동 — 프레임 간격이 시점을 정하고 첫 질문이 쓰인다\n        worker->>markingScreen: 자동 — 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다\n        Note over markingScreen: 자동에는 질문을 고르는 자리가 없다 — 그 유형의 첫 번째 질문이 자동으로 쓰인다\n        Note over markingScreen: 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다. 관제가 유형을 보내지 않았어도 작업자가 고른 값이 있으면 그 유형의 질문을 쓴다. [대안] 유형도 선택도 없는 것은 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 행뿐이며, 그때만 추가 질문 축을 건너뛰고 없는 질문을 지어내지 않는다\n    end\n    worker->>markingScreen: 마킹을 완료한다\n    markingScreen->>markingCtrl: POST /v1/videos/{rawSn}/markings — 모드와 시점 배열 또는 프레임 간격, 고른 질문, 고른 검증 이벤트 유형 코드\n    markingCtrl->>guards: 채널 · 배정 · 배치 단계를 확인\n    guards-->>markingCtrl: 통과\n    markingCtrl->>markingSvc: save(모드, 시점 배열 또는 프레임 간격, 고른 질문, 고른 검증 이벤트 유형 코드)\n    markingSvc->>db: 고른 질문이 그 영상의 검증 이벤트 유형에 속하는지 확인\n    db-->>markingSvc: 질문의 소속 유형\n    Note over markingSvc: [대안] 값이 없거나 그 유형의 질문이 아니면 그 유형의 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다\n    markingSvc->>db: LS_MARKING 적재 — 시점 배열과 고른 질문 식별자, 작업자가 고른 검증 이벤트 유형 코드를 함께 저장\n    markingSvc-)bridge: 마킹 완료 — 커밋 이후에 신호가 나간다\n    Note over bridge: 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다 — 마킹은 비식별 영상을 대상으로 하기 때문이다\n    bridge->>db: 작업 상태를 처리중으로 전이\n    bridge->>bridge: 잔여 배치를 비동기로 시작한다\n    Note over bridge: 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유한다 — 여기서는 깨우는 데까지만 그린다. 여기서 고른 질문 문구는 그 배치가 추가 질문 창구로 위탁할 때 요청 본문에 그대로 실려 나간다\n    markingSvc-->>markingCtrl: 저장 결과\n    markingCtrl-->>markingScreen: 200 OK\n    opt 마킹 도중 비식별 누락을 발견하면\n        worker->>markingScreen: 마킹 도중 비식별 누락을 발견해 신고한다\n        markingScreen->>reportCtrl: POST /v1/videos/{rawSn}/deident-report\n        reportCtrl->>reportSvc: report(rawSn, 사유, 신고 단계 = 마킹)\n        reportSvc->>db: 신고를 접수하고 비식별 표식을 신고 상태로 내린다 — 그 영상에 작업락이 걸려 마킹이 멈춘다\n        Note over reportSvc: 접수는 배치 단계가 마킹 대기일 때만 받는다. 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다\n        Note over reportSvc: 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다\n    end\n",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    actor worker as 라벨링 작업자(WORKER)\n    participant videoList as 영상 처리 현황 화면 (마킹 진입 팝업)\n    participant markingScreen as 마킹 화면\n    participant videoCtrl as 영상 조회 창구\n    participant streamSvc as 영상 스트림 창구\n    participant markingCtrl as 마킹 저장 창구\n    participant guards as 마킹 진입 검사\n    participant markingSvc as 마킹 저장 처리\n    participant bridge as 마킹 완료 배치 연계\n    participant reportCtrl as 비식별 누락 신고 창구\n    participant reportSvc as 비식별 누락 신고 처리\n    participant db as LS_DATA_RAW · LS_MARKING · LS_VRFC_EVNT_QSTN\n\n    Note over videoList: 마킹에 이르는 길은 둘이다 — 검수자가 미배정 영상을 팝업에서 바로 자동으로 돌리거나, 작업자에게 배정해 마킹 화면에서 직접 찍게 한다\n    opt 검수자가 미배정 영상을 팝업에서 처리하는 경우\n        reviewer->>videoList: 미배정·마킹 가능 영상에서 마킹 진입 팝업을 연다\n        reviewer->>videoList: 자동을 골라 프레임 간격을 정하면 그 자리에서 마킹을 만든다\n        Note over videoList: 이 경로는 마킹 화면을 거치지 않는다 — 검수자는 시작 안내만 받고 목록으로 돌아가며, 유형을 고르는 자리도 없다\n        reviewer->>videoList: 수동을 고르면 작업자 배정으로 넘어간다 — 배정 자체는 작업 배정 흐름이 소유한다\n    end\n    worker->>markingScreen: 배정받은 영상의 마킹 화면에 들어온다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}\n    videoCtrl->>db: 영상 상세와 그 영상의 검증 이벤트 유형에 등록된 질문 목록 조회 — 정렬순서 오름차순. 유형이 없으면 고를 수 있는 유형 목록을 그 유형별 질문 목록까지 함께 조회한다\n    db-->>videoCtrl: 배치 단계 · 검증 이벤트 유형(없을 수 있다) · 질문 목록 · 고를 수 있는 유형 목록(각 유형의 질문 목록 포함)\n    videoCtrl-->>markingScreen: 200 OK — 검증 이벤트 유형과 질문 목록이 영상 상세에 함께 실려 온다. 유형이 없는 영상이면 고를 수 있는 유형 목록이 오고, 각 유형은 자기 질문 목록을 함께 싣는다\n    Note over markingScreen: 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 마킹 화면은 그것을 읽기만 하고 따로 조회하는 창구도 두지 않는다. 고를 수 있는 유형 목록은 각 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 오므로, 유형을 고른 뒤 서버에 다시 묻지 않는다\n    Note over markingScreen: 관제가 유형을 보내지 않아 유형 선택이 노출된 영상은 유형을 고르는 것이 필수다 — 위탁 본문에 실을 질문 문구는 어느 방식에서도 값이 있어야 하고, 질문을 고르려면 유형이 먼저 정해져야 한다. 고르지 않고 완료를 누르면 화면이 사유를 알리고 제출만 막는다\n    Note over markingScreen: 배치 단계가 마킹 대기가 아니면 화면이 진입 자체를 막는다 — 편집기도 신고 단추도 열리지 않으므로 사유를 다 적고 제출한 뒤에야 거부되는 동선이 없다\n    markingScreen->>videoCtrl: GET /v1/videos/{rawSn}/stream-url\n    videoCtrl-->>markingScreen: 스트리밍 주소 — 재생 인증 쿠키가 함께 발급된다(스크립트가 읽을 수 없고 스트림 경로로만 실린다)\n    markingScreen->>markingScreen: 배포 접두를 결합해 최종 재생 주소를 만든다\n    Note over markingScreen: 발급받은 주소는 API 기준 경로라 배포 접두를 담고 있지 않다 — 발급하는 쪽은 배포 접두를 알더라도 붙이지 않고 결합은 화면 한 곳에서만 한다. 붙이지 않으면 같은 오리진의 다른 시스템 경로로 나가고, 양쪽이 모두 붙이면 접두가 두 번 붙어 어느 쪽이든 영상이 오지 않는다. 이 기준은 API-114 가 소유한다\n    markingScreen->>streamSvc: GET /v1/videos/{rawSn}/stream — 구간 요청(부분 요청 포함). 발급 때 받은 재생 인증 쿠키가 함께 실린다\n    streamSvc->>streamSvc: 재생 인증 쿠키의 봉인을 검증해 발급자를 복원하고, 그 발급자로 영상 단위 인가를 요청 진입부에서 다시 판정한다\n    Note over streamSvc: [대안] 쿠키가 없거나 봉인 검증에 실패하거나 다른 사용자에게 발급된 쿠키이면 거부한다. 주소에 실린 만료·서명은 재생 인증에 쓰이지 않으므로, 그 만료 시각이 지나도 유효한 쿠키가 있으면 거부되지 않는다. 판정 기준은 ADR-071 이다\n    streamSvc->>db: 비식별 산출물 경로 조회\n    db-->>streamSvc: 비식별 영상 경로\n    streamSvc-->>markingScreen: 비식별 영상 구간 전송\n    Note over streamSvc: [대안] 비식별본이 없으면 영상을 주지 않는다 — 스트리밍은 항상 비식별본만 서빙해 원본 노출을 차단한다\n    loop 재생 인증 쿠키 판정에 실패해 재생이 거부되면(쿠키 수명 만료 등) 주소를 다시 발급받아 재시도한다 — 상한까지만\n        markingScreen->>markingScreen: 재생 요소의 소스를 바꾸기 전에 직전 재생 위치를 기억한다\n        markingScreen->>videoCtrl: GET /v1/videos/{rawSn}/stream-url — 쿠키 판정 실패로 재생이 거부돼 주소와 재생 인증 쿠키를 다시 발급받는다\n        markingScreen->>markingScreen: 배포 접두를 다시 결합해 재생 요소의 소스를 바꾸고 재생을 재시도한다\n        markingScreen->>markingScreen: 새 소스의 메타데이터가 불러와진 시점에 기억해 둔 재생 위치로 복원한다\n        Note over markingScreen: 소스를 바꾸면 재생 요소는 처음부터 다시 불러오므로, 위치를 복원하지 않으면 재생이 처음으로 돌아간다. 재발급의 원인은 쿠키 판정 실패이며 주소의 서명 만료는 재발급 사유가 아니다\n        Note over markingScreen: 되풀이는 상한 안에서만 한다 — 상한에 이르면 멈추고 작업자에게 재생 실패를 알린다. 무한히 되풀이하지 않으며 상한값 자체는 API-114 가 구현 판단에 맡긴다\n    end\n    worker->>markingScreen: 배속을 조절해 재생한다\n    alt 수동 — 재생하다 시점을 직접 찍고 질문을 고른다\n        worker->>markingScreen: 수동 — 이벤트 시점에서 마킹을 찍고 지운다\n        Note over markingScreen: 작업자가 프레임을 직접 고른다\n        worker->>markingScreen: 검증 질문을 고른다 — 고르지 않으면 첫 번째 질문이 쓰인다\n    end\n    alt 자동 — 프레임 간격이 시점을 정하고 첫 질문이 쓰인다\n        worker->>markingScreen: 자동 — 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다\n        Note over markingScreen: 자동에는 질문을 고르는 자리가 없다 — 그 유형의 첫 번째 질문이 자동으로 쓰인다\n        Note over markingScreen: 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다. 관제가 유형을 보내지 않았어도 작업자가 고른 값이 있으면 그 유형의 질문을 쓴다. [대안] 유형도 선택도 없는 것은 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 행뿐이며, 그때만 추가 질문 축을 건너뛰고 없는 질문을 지어내지 않는다\n    end\n    worker->>markingScreen: 마킹을 완료한다\n    markingScreen->>markingCtrl: POST /v1/videos/{rawSn}/markings — 모드와 시점 배열 또는 프레임 간격, 고른 질문, 고른 검증 이벤트 유형 코드\n    markingCtrl->>guards: 채널 · 배정 · 배치 단계를 확인\n    guards-->>markingCtrl: 통과\n    markingCtrl->>markingSvc: save(모드, 시점 배열 또는 프레임 간격, 고른 질문, 고른 검증 이벤트 유형 코드)\n    markingSvc->>db: 고른 질문이 그 영상의 검증 이벤트 유형에 속하는지 확인\n    db-->>markingSvc: 질문의 소속 유형\n    Note over markingSvc: [대안] 값이 없거나 그 유형의 질문이 아니면 그 유형의 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다\n    markingSvc->>db: LS_MARKING 적재 — 시점 배열과 고른 질문 식별자, 작업자가 고른 검증 이벤트 유형 코드를 함께 저장\n    markingSvc-)bridge: 마킹 완료 — 커밋 이후에 신호가 나간다\n    Note over bridge: 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다 — 마킹은 비식별 영상을 대상으로 하기 때문이다\n    bridge->>db: 작업 상태를 처리중으로 전이\n    bridge->>bridge: 잔여 배치를 비동기로 시작한다\n    Note over bridge: 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유한다 — 여기서는 깨우는 데까지만 그린다. 여기서 고른 질문 문구는 그 배치가 추가 질문 창구로 위탁할 때 요청 본문에 그대로 실려 나간다\n    markingSvc-->>markingCtrl: 저장 결과\n    markingCtrl-->>markingScreen: 200 OK\n    opt 마킹 도중 비식별 누락을 발견하면\n        worker->>markingScreen: 마킹 도중 비식별 누락을 발견해 신고한다\n        markingScreen->>reportCtrl: POST /v1/videos/{rawSn}/deident-report\n        reportCtrl->>reportSvc: report(rawSn, 사유, 신고 단계 = 마킹)\n        reportSvc->>db: 신고를 접수하고 비식별 표식을 신고 상태로 내린다 — 그 영상에 작업락이 걸려 마킹이 멈춘다\n        Note over reportSvc: 접수는 배치 단계가 마킹 대기일 때만 받는다. 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다\n        Note over reportSvc: 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다\n    end\n",
       "messages": [
         {
           "to": "videoList",
@@ -102,14 +102,38 @@
           "to": "markingScreen",
           "from": "videoCtrl",
           "kind": "return",
-          "label": "스트리밍 주소"
+          "label": "스트리밍 주소 — 재생 인증 쿠키가 함께 발급된다(스크립트가 읽을 수 없고 스트림 경로로만 실린다)"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "self",
+          "label": "배포 접두를 결합해 최종 재생 주소를 만든다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "발급받은 주소는 API 기준 경로라 배포 접두를 담고 있지 않다 — 발급하는 쪽은 배포 접두를 알더라도 붙이지 않고 결합은 화면 한 곳에서만 한다. 붙이지 않으면 같은 오리진의 다른 시스템 경로로 나가고, 양쪽이 모두 붙이면 접두가 두 번 붙어 어느 쪽이든 영상이 오지 않는다. 이 기준은 API-114 가 소유한다"
         },
         {
           "to": "streamSvc",
           "from": "markingScreen",
           "kind": "sync",
-          "label": "GET /v1/videos/{rawSn}/stream — 구간 요청",
+          "label": "GET /v1/videos/{rawSn}/stream — 구간 요청(부분 요청 포함). 발급 때 받은 재생 인증 쿠키가 함께 실린다",
           "item_ref": "API-084"
+        },
+        {
+          "to": "streamSvc",
+          "from": "streamSvc",
+          "kind": "self",
+          "label": "재생 인증 쿠키의 봉인을 검증해 발급자를 복원하고, 그 발급자로 영상 단위 인가를 요청 진입부에서 다시 판정한다"
+        },
+        {
+          "to": "streamSvc",
+          "from": "streamSvc",
+          "kind": "note",
+          "label": "[대안] 쿠키가 없거나 봉인 검증에 실패하거나 다른 사용자에게 발급된 쿠키이면 거부한다. 주소에 실린 만료·서명은 재생 인증에 쓰이지 않으므로, 그 만료 시각이 지나도 유효한 쿠키가 있으면 거부되지 않는다. 판정 기준은 ADR-071 이다"
         },
         {
           "to": "db",
@@ -134,6 +158,43 @@
           "from": "streamSvc",
           "kind": "note",
           "label": "[대안] 비식별본이 없으면 영상을 주지 않는다 — 스트리밍은 항상 비식별본만 서빙해 원본 노출을 차단한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "self",
+          "label": "재생 요소의 소스를 바꾸기 전에 직전 재생 위치를 기억한다"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "markingScreen",
+          "kind": "sync",
+          "label": "GET /v1/videos/{rawSn}/stream-url — 쿠키 판정 실패로 재생이 거부돼 주소와 재생 인증 쿠키를 다시 발급받는다",
+          "item_ref": "API-114"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "self",
+          "label": "배포 접두를 다시 결합해 재생 요소의 소스를 바꾸고 재생을 재시도한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "self",
+          "label": "새 소스의 메타데이터가 불러와진 시점에 기억해 둔 재생 위치로 복원한다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "소스를 바꾸면 재생 요소는 처음부터 다시 불러오므로, 위치를 복원하지 않으면 재생이 처음으로 돌아간다. 재발급의 원인은 쿠키 판정 실패이며 주소의 서명 만료는 재발급 사유가 아니다"
+        },
+        {
+          "to": "markingScreen",
+          "from": "markingScreen",
+          "kind": "note",
+          "label": "되풀이는 상한 안에서만 한다 — 상한에 이르면 멈추고 작업자에게 재생 실패를 알린다. 무한히 되풀이하지 않으며 상한값 자체는 API-114 가 구현 판단에 맡긴다"
         },
         {
           "to": "markingScreen",
@@ -320,22 +381,28 @@
           "start_index": 1
         },
         {
+          "kind": "loop",
+          "label": "재생 인증 쿠키 판정에 실패해 재생이 거부되면(쿠키 수명 만료 등) 주소를 다시 발급받아 재시도한다 — 상한까지만",
+          "end_index": 29,
+          "start_index": 24
+        },
+        {
           "kind": "alt",
           "label": "수동 — 재생하다 시점을 직접 찍고 질문을 고른다",
-          "end_index": 23,
-          "start_index": 21
+          "end_index": 33,
+          "start_index": 31
         },
         {
           "kind": "alt",
           "label": "자동 — 프레임 간격이 시점을 정하고 첫 질문이 쓰인다",
-          "end_index": 26,
-          "start_index": 24
+          "end_index": 36,
+          "start_index": 34
         },
         {
           "kind": "opt",
           "label": "마킹 도중 비식별 누락을 발견하면",
-          "end_index": 48,
-          "start_index": 43
+          "end_index": 58,
+          "start_index": 53
         }
       ],
       "brownfield": {
@@ -345,7 +412,7 @@
         ],
         "diff_summary": "2차 신규 — 이벤트 마킹 그 자체의 흐름을 처음으로 전용 시각화한다."
       },
-      "description": "작업자가 비식별 영상에서 이벤트 시점을 찍고, 마킹이 끝나면 잔여 배치가 깨어나는 흐름을 그린다.\n\n[시점을 고르는 방식은 마킹 화면 안에서 갈린다] 수동은 재생하다 이벤트 시점에서 직접 찍고, 자동은 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다. 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다.\n\n[마킹에 이르는 길은 둘이다] 작업자가 배정받아 마킹 화면에서 찍는 것이 본줄기이고, 그와 별개로 검수자가 영상 처리 현황 화면의 마킹 진입 팝업에서 미배정 영상을 자동으로 바로 돌리거나 작업자에게 배정할 수 있다. 배정 자체는 작업 배정 흐름이 소유하므로 여기서는 마킹으로 이어지는 지점만 그린다.\n\n[재생되는 것은 언제나 비식별 영상이다] 비식별본이 없으면 영상을 주지 않아 원본이 노출되지 않는다.\n\n[질문은 미리 등록된 것을 고를 뿐이다] 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 저장하면 그 유형의 목록이 보이는 순서 그대로 통째로 교체되고 첫 번째가 그 유형의 기본 질문이 된다. 마킹 화면은 영상 상세 응답에 실려 온 그 목록을 읽기만 하고 여기서 만들거나 고치지 않는다. 고를 수 있는 유형 목록도 각 항목마다 그 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 오므로, 유형을 고른 뒤 서버에 다시 묻지 않는다.\n\n[검증 이벤트 유형이 없으면 작업자가 고른다] 관제가 유형을 보내지 않은 영상에서만 마킹 화면이 유형 선택을 노출한다 — 관제 값이 있으면 선택을 아예 띄우지 않는다. 작업자가 유형을 고르면 그 유형의 질문 목록이 따라온다. 고르는 것은 필수라 고르지 않으면 마킹을 완료할 수 없다 — 위탁 본문에 실을 질문 문구는 수동이든 자동이든 반드시 값이 있어야 하고, 질문을 고르려면 유형이 먼저 정해져야 하기 때문이다. 완료 조작 자체를 막지는 않고, 눌렀을 때 마킹 화면이 사유를 알리고 제출만 막는다. 고른 값은 시점 배열·고른 질문과 함께 마킹에 저장된다.\n\n[자동은 질문을 고르지 않는다] 수동은 작업자가 목록에서 하나를 고르고 고르지 않으면 첫 번째가 쓰인다. 자동은 고르는 자리 자체가 없어 언제나 그 유형의 첫 번째 질문이 쓰인다. 서버는 고른 값이 그 유형에 속하는지 다시 확인하고 값이 없거나 다른 유형의 질문이면 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다. 관제가 검증 이벤트 유형을 보내지 않았어도 작업자가 마킹에서 고른 값이 있으면 그 유형의 질문을 쓴다. 유형도 선택도 없는 경우는 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 마킹 행에 한한다 — 그때만 추가 질문 축을 건너뛰고 묘사 축은 그대로 나가며, 없는 질문을 지어내지 않는다.\n\n[완료는 커밋 뒤에 알린다] 마킹이 커밋된 뒤에야 완료 신호가 나가고, 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다. 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유하므로 여기서는 깨우는 데까지만 그린다. 여기서 고른 질문 문구는 그 배치가 추가 질문 창구로 위탁할 때 요청 본문에 그대로 실려 나간다.\n\n[마킹 도중 비식별 누락을 발견하면 그 자리에서 신고한다] 접수는 배치 단계가 마킹 대기일 때만 받으며, 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다. 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다.",
+      "description": "작업자가 비식별 영상에서 이벤트 시점을 찍고, 마킹이 끝나면 잔여 배치가 깨어나는 흐름을 그린다.\n\n[시점을 고르는 방식은 마킹 화면 안에서 갈린다] 수동은 재생하다 이벤트 시점에서 직접 찍고, 자동은 프레임 간격을 정하면 그 간격으로 시점이 자동 선택된다. 두 방식은 프레임 인덱스를 누가 골랐는지만 다르고 저장 형태는 같다.\n\n[마킹에 이르는 길은 둘이다] 작업자가 배정받아 마킹 화면에서 찍는 것이 본줄기이고, 그와 별개로 검수자가 영상 처리 현황 화면의 마킹 진입 팝업에서 미배정 영상을 자동으로 바로 돌리거나 작업자에게 배정할 수 있다. 배정 자체는 작업 배정 흐름이 소유하므로 여기서는 마킹으로 이어지는 지점만 그린다.\n\n[재생되는 것은 언제나 비식별 영상이다] 비식별본이 없으면 영상을 주지 않아 원본이 노출되지 않는다.\n\n[재생 인증은 쿠키 하나로 판정한다] 재생 요소는 인증 헤더를 실을 수 없으므로, 주소 발급 창구가 주소와 함께 재생 인증 쿠키를 내려준다. 이 쿠키는 스크립트가 읽을 수 없고 스트림 경로로만 실리며 교차 사이트 요청에는 실리지 않는다. 부분 요청을 포함한 매 스트림 요청에서 서버는 쿠키의 봉인을 검증해 발급자를 복원하고, 그 발급자로 영상 단위 인가(검수자는 전체, 작업자는 본인 배정분)를 요청 진입부에서 다시 판정한다. 쿠키가 없거나 봉인 검증에 실패하거나 다른 사용자에게 발급된 쿠키이면 거부한다. 주소에 실린 만료·서명은 재생 인증에 쓰이지 않으므로, 그 만료 시각이 지나도 유효한 쿠키가 있으면 재생은 끊기지 않는다. 비식별 미완료 영상의 재생 거부와 비식별 누락 신고가 열린 영상의 재생 차단은 인증 방식과 무관하게 그대로 적용된다. 이 판정 기준은 ADR-071 이 소유한다.\n\n[재생 주소는 화면이 완성한다] 발급받은 스트리밍 주소는 API 기준 경로라 배포 접두를 담고 있지 않다 — 발급하는 쪽은 배포 접두를 알 수 있더라도 붙이지 않으며, 결합 책임은 마킹 화면 한 곳에만 둔다. 마킹 화면이 자신이 아는 배포 접두를 그 값 앞에 붙여 최종 요청 주소를 만들며, 붙이지 않으면 요청이 그 창구의 경로 공간을 벗어나 같은 오리진에 놓인 다른 시스템의 경로로 나가 영상이 도달하지 않는다. 반대로 양쪽이 모두 접두를 붙이면 접두가 두 번 붙은 경로로 나가 역시 도달하지 않는다. 앱이 루트에 서비스되는 배포에서는 두 주소가 우연히 같아 이 어긋남이 드러나지 않으므로, 베이스 경로 아래에 놓인 배포에서만 나타난다. 재생 인증 쿠키 판정에 실패해 재생이 거부되면 화면이 주소를 다시 발급받아 재시도하되 되풀이는 상한 안에서만 하고, 상한에 이르면 멈추고 작업자에게 실패를 알린다. 이 기준의 진실원은 API-114 다.\n\n[재발급해도 재생 위치는 이어진다] 재발급은 쿠키 판정에 실패했을 때(쿠키 수명 만료 등) 일어나며, 주소의 서명 만료는 재발급 사유가 아니다. 재발급으로 재생 요소의 소스를 바꾸면 재생 요소가 처음부터 다시 불러오므로, 마킹 화면은 소스를 바꾸기 전에 직전 재생 위치를 기억했다가 새 소스의 메타데이터가 불러와진 시점에 그 위치로 복원한다. 재발급과 재시도가 상한 안에서만 되풀이된다는 규칙은 그대로다.\n\n[질문은 미리 등록된 것을 고를 뿐이다] 질문 목록은 검수자가 이벤트유형 관리 화면에서 등록해 둔 것이다. 그 화면에서 유형 자체는 더하거나 지울 수 없고 질문만 편집하며, 저장하면 그 유형의 목록이 보이는 순서 그대로 통째로 교체되고 첫 번째가 그 유형의 기본 질문이 된다. 마킹 화면은 영상 상세 응답에 실려 온 그 목록을 읽기만 하고 여기서 만들거나 고치지 않는다. 고를 수 있는 유형 목록도 각 항목마다 그 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 오므로, 유형을 고른 뒤 서버에 다시 묻지 않는다.\n\n[검증 이벤트 유형이 없으면 작업자가 고른다] 관제가 유형을 보내지 않은 영상에서만 마킹 화면이 유형 선택을 노출한다 — 관제 값이 있으면 선택을 아예 띄우지 않는다. 작업자가 유형을 고르면 그 유형의 질문 목록이 따라온다. 고르는 것은 필수라 고르지 않으면 마킹을 완료할 수 없다 — 위탁 본문에 실을 질문 문구는 수동이든 자동이든 반드시 값이 있어야 하고, 질문을 고르려면 유형이 먼저 정해져야 하기 때문이다. 완료 조작 자체를 막지는 않고, 눌렀을 때 마킹 화면이 사유를 알리고 제출만 막는다. 고른 값은 시점 배열·고른 질문과 함께 마킹에 저장된다.\n\n[자동은 질문을 고르지 않는다] 수동은 작업자가 목록에서 하나를 고르고 고르지 않으면 첫 번째가 쓰인다. 자동은 고르는 자리 자체가 없어 언제나 그 유형의 첫 번째 질문이 쓰인다. 서버는 고른 값이 그 유형에 속하는지 다시 확인하고 값이 없거나 다른 유형의 질문이면 첫 번째로 되돌린다 — 화면 입력을 신뢰하지 않되 거부하지도 않는다. 관제가 검증 이벤트 유형을 보내지 않았어도 작업자가 마킹에서 고른 값이 있으면 그 유형의 질문을 쓴다. 유형도 선택도 없는 경우는 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 마킹 행에 한한다 — 그때만 추가 질문 축을 건너뛰고 묘사 축은 그대로 나가며, 없는 질문을 지어내지 않는다.\n\n[완료는 커밋 뒤에 알린다] 마킹이 커밋된 뒤에야 완료 신호가 나가고, 부모 영상의 비식별이 유효할 때만 잔여 배치로 넘어간다. 잔여 배치의 내부는 배치 자동 처리 파이프라인 흐름이 소유하므로 여기서는 깨우는 데까지만 그린다. 여기서 고른 질문 문구는 그 배치가 추가 질문 창구로 위탁할 때 요청 본문에 그대로 실려 나간다.\n\n[마킹 도중 비식별 누락을 발견하면 그 자리에서 신고한다] 접수는 배치 단계가 마킹 대기일 때만 받으며, 그 밖의 상태는 단계를 구분하지 않는 하나의 문구로 거부해 응답이 처리 단계를 알려주는 창구가 되지 않게 한다. 그 시점은 프레임도 라벨도 아직 없어 재마킹이 무너뜨릴 작업 결과가 없다. 해소와 마킹 대기 되감기는 비식별 누락 신고 흐름이 소유한다.",
       "invokes_apis": [
         "API-047",
         "API-043",
@@ -379,42 +446,42 @@
         {
           "id": "videoCtrl",
           "kind": "service",
-          "name": "VideoController"
+          "name": "영상 조회 창구"
         },
         {
           "id": "streamSvc",
           "kind": "service",
-          "name": "VideoStreamService"
+          "name": "영상 스트림 창구"
         },
         {
           "id": "markingCtrl",
           "kind": "service",
-          "name": "MarkingController"
+          "name": "마킹 저장 창구"
         },
         {
           "id": "guards",
           "kind": "service",
-          "name": "MarkingGuards"
+          "name": "마킹 진입 검사"
         },
         {
           "id": "markingSvc",
           "kind": "service",
-          "name": "MarkingService"
+          "name": "마킹 저장 처리"
         },
         {
           "id": "bridge",
           "kind": "service",
-          "name": "MarkingBatchBridge"
+          "name": "마킹 완료 배치 연계"
         },
         {
           "id": "reportCtrl",
           "kind": "service",
-          "name": "DeidentReportController"
+          "name": "비식별 누락 신고 창구"
         },
         {
           "id": "reportSvc",
           "kind": "service",
-          "name": "DeidentReportService"
+          "name": "비식별 누락 신고 처리"
         },
         {
           "id": "db",
@@ -449,12 +516,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": true,
-    "stale_reason": "AC-1015의 data.scenario 변경 — verifies",
-    "change_summary": "유형 선택을 선택 사항에서 필수로 뒤집고, 유형별 질문 목록이 상세 조회 응답에 함께 실려 온다는 사실을 반영한다. mermaid source · messages 주석 · description 산문 세 층을 동시에 정정했다. 관제가 유형을 보내지 않아 유형 선택이 노출된 영상은 유형을 고르지 않으면 마킹을 완료할 수 없으며, 완료 조작 자체는 막지 않고 눌렀을 때 사유를 알리고 제출만 막는다. 고를 수 있는 유형 목록은 각 항목마다 그 유형의 질문 목록을 정렬순서 오름차순으로 함께 싣고 오므로 유형을 고른 뒤 서버에 다시 묻지 않는다. 실을 문구를 얻지 못하는 대안 경로는 지우지 않고 마킹 화면을 거치지 않는 경로와 이미 저장된 기존 마킹 행으로 범위를 좁혔다. 이번 필수는 화면 축이며 마킹 등록 요청 스키마의 필수 목록과 마킹 원장 유형 컬럼의 널 허용은 어느 것도 올리지 않는다. 새 주석 1건 추가로 messages 48 → 49, fragments 인덱스는 그에 맞춰 이동했다.",
+    "stale_reason": "SCREEN-008의 data.sections 변경 — references",
+    "change_summary": "ADR-071(재생 구간 인증 = 클라이언트 바인딩 쿠키 단독 판정)과 API-114 v4 · API-084 v9 를 흐름에 반영했다. (1) 스트림 요청 단계에 재생 인증 쿠키가 함께 실린다는 점과, 스트림 창구가 쿠키 봉인을 검증해 발급자를 복원하고 영상 단위 인가를 요청 진입부에서 재판정하는 단계(self)·거부 조건 주석(note)을 삽입했다 — 주소의 만료·서명은 재생 인증에 쓰이지 않음을 명시. 발급 응답(return) 문구에 쿠키 발급을 더했다. (2) 재시도 loop 의 원인을 「재생 실패」에서 「쿠키 판정 실패(쿠키 수명 만료 등)」로 고쳤고, loop 안에 「소스를 바꾸기 전 재생 위치 기억」·「새 소스 메타데이터 로드 시점에 위치 복원」 단계와 그 이유 주석을 삽입했다. 재발급 메시지는 주소와 쿠키를 함께 다시 받는 것으로, 재시도 메시지는 소스를 바꾸는 것으로 문구만 고쳤다. 배포 접두 결합 단계와 재시도 상한 주석은 유지. (3) 배포 접두 주석·description 의 근거 「발급하는 쪽은 자신이 어느 컨텍스트 아래에 놓이는지 알 수 없다」를 API-114 v4 정정에 맞춰 「알더라도 붙이지 않으며 결합은 화면 한 곳 · 양쪽이 붙이면 접두가 두 번 붙어 도달하지 않는다」로 교체했다(결론 불변, 메시지 라벨 200자 상한에 맞춰 주석 문장을 압축). (4) 본문 사양화 — 참가자 표시명을 클래스명에서 역할명으로 바꿨다: VideoController→영상 조회 창구 · VideoStreamService→영상 스트림 창구 · MarkingController→마킹 저장 창구 · MarkingGuards→마킹 진입 검사 · MarkingService→마킹 저장 처리 · MarkingBatchBridge→마킹 완료 배치 연계 · DeidentReportController→비식별 누락 신고 창구 · DeidentReportService→비식별 누락 신고 처리(참가자 id 불변). (5) description 에 [재생 인증은 쿠키 하나로 판정한다]·[재발급해도 재생 위치는 이어진다] 두 문단을 더했다. mermaid source · messages · fragments · description 네 층을 함께 갱신했고 메시지 5건 삽입으로 54 → 59, 기존 단계·주석 삭제 없음. fragment 인덱스 재계산: loop 22-24 → 24-29(라벨 변경) · alt 26-28 → 31-33 · alt 29-31 → 34-36 · opt 48-53 → 53-58, 첫 opt 1-4 불변. 쓰기 전 stale=true, stale_reason=「API-084의 2개 필드 변경 — consumes」(이번 반영 축과 같음). 비식별 미완료 거부·누락 신고 차단은 그대로.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-07T14:32:50.221Z",
+    "last_updated_at": "2026-09-16T09:05:45.223Z",
     "created_at": "2026-09-03T09:01:39.441Z"
   }
 }

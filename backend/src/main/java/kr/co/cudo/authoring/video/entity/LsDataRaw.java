@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 원시 영상 (LS_DATA_RAW). 관제서버로부터 수신한 라벨링 대상 영상 메타.
@@ -99,6 +100,46 @@ public class LsDataRaw {
      */
     public static final String SRC_TYPE_PORTAL_ULD = "PORTAL_ULD";
 
+    /**
+     * 출처유형 — <b>포털 데이터셋 소재에서 등록한 영상</b>(ADR-068). 관제·저작도구 생산물이 아니고
+     * 사용자 자산도 아니다 — 데이터셋에 들어온 포털 사용자가 함께 쓰는 소재라 소유자
+     * ({@code PORTAL_USER_NO})가 비어 있다. 판별 <b>축</b>을 새로 만든 것이 아니라 출처 축에 값 하나를
+     * 더한 것이다({@link #SRC_TYPE_PORTAL_ULD} 를 더한 방식과 같다).
+     *
+     * <p>⚠ 이 값은 {@link LsDataIngest#ALLOWED_SRC_TYPES}(적재면)·{@code UPLOAD_SRC_TYPES}(입력면)
+     * <b>어느 쪽에도 넣지 않는다</b> — 관제 인입 원장을 거치지 않고 내부 업로드 폼이 고를 수 있는 값도
+     * 아니다({@link #SRC_TYPE_IMPORTED}·{@link #SRC_TYPE_PORTAL_ULD} 와 같은 이유). 이 값을 채우는 곳은
+     * {@link #createPortalDataset} 하나뿐이다.
+     *
+     * <p>{@code gen_ai_yn} 은 {@code N} 이다({@link #genAiYnOf} 는 {@code GENERATED}·{@code AUGMENTED}
+     * 두 값만 본다).
+     *
+     * <p>★ <b>포털 채널 출처가 둘이 됐다.</b> 영상 원장을 읽으며 포털 채널을 가르는 자리는 두 값을 따로
+     * 열거하지 말고 {@link #PORTAL_CHANNEL_SRC_TYPES} 한 집합을 쓴다 — 한 값만 적으면 다른 값의 영상이
+     * 작업보드·배정·통계에 조용히 섞인다.
+     *
+     * <p>⚠ <b>보존기간 만료 자동 삭제의 대상이 아니다</b> — 그 삭제의 판별자는
+     * {@link #SRC_TYPE_PORTAL_ULD} + 소유자 보유 + 보존기간 경과이며, 이 출처는 소유자가 없다.
+     *
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static final String SRC_TYPE_PORTAL_DATASET = "PORTAL_DATASET";
+
+    /**
+     * <b>포털 채널 출처 집합</b> — 관제 채널 작업 범위에서 빼야 하는 출처 값의 단일 원천(ADR-058 · ADR-068).
+     *
+     * <p>본인 업로드({@link #SRC_TYPE_PORTAL_ULD})와 데이터셋 소재({@link #SRC_TYPE_PORTAL_DATASET})
+     * 둘이다. 가시 범위 술어({@code InternalWorkScope})가 이 집합으로 판정한다.
+     *
+     * <p>⚠ JPQL 조각은 애너테이션에 이어 붙이는 <b>컴파일 타임 상수</b>여야 해 이 집합을 쓸 수 없고
+     * 두 상수를 직접 이어 붙인다 — 그 조각이 이 집합의 원소를 빠짐없이 담는지는 시험이 대조한다.
+     *
+     * @design ADR-068
+     */
+    public static final List<String> PORTAL_CHANNEL_SRC_TYPES =
+            List.of(SRC_TYPE_PORTAL_ULD, SRC_TYPE_PORTAL_DATASET);
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -126,6 +167,16 @@ public class LsDataRaw {
      * 고착되던 결함을 막기 위해 도입. PROCESSING → FAILED 로 전이한다.
      */
     public static final String DATA_STTS_FAILED = "FAILED";
+
+    /**
+     * 제외여부 값역 — {@code Y}=저작도구 화면 목록에서 뺀다 / {@code N}=표시(기본값). [@design ADR-069]
+     *
+     * <p>비교는 <b>여기서 하지 않는다</b> — 배제 술어의 단일 소유자는
+     * {@code kr.co.cudo.authoring.video.repository.VideoExclusionScope} 이며 조회 경로는 그것만 쓴다.
+     * 호출부마다 이 상수로 비교를 다시 적으면 한 곳만 빠져도 제외한 영상이 그 화면에 그대로 뜬다.
+     */
+    public static final String EXCL_YES = "Y";
+    public static final String EXCL_NO = "N";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -286,6 +337,39 @@ public class LsDataRaw {
     @Column(name = "PORTAL_USER_NO", length = 100)
     private String portalUserNo;
 
+    /**
+     * <b>제외여부</b>(V39) — 이 영상을 저작도구 화면 목록에서 뺄지에 대한 사람의 판정. [@design ADR-069]
+     *
+     * <p><b>가시성 축</b>이며 개인정보 성질 축({@code PRVC_TYPE_CD}·{@code DE_IDENT_YN})과 무관하다 —
+     * 둘을 엮지 말 것.
+     *
+     * <p>★★<b>미치는 범위는 저작도구 화면 시야 하나다.</b> 배치 파이프라인 · 관제 통지 · 데이터마트
+     * 조회 뷰 · 학습데이터 산출물 · 관제 조회 창구 · 통계 · 포털 채널은 <b>전부 무변경</b>이고 제외된
+     * 영상도 그대로 흐른다. 「일관성」을 이유로 그쪽에 이 조건을 붙이면 관제가 보던 행이 예고 없이
+     * 사라져 ADR-037(검수 완료·통지 건의 관제 접근 무조건 보장)을 정면으로 깬다.
+     *
+     * <p>★<b>산출물 콘텐츠 해시의 입력이 아니다</b> — 넣으면 제외를 켰다 끄는 것만으로 산출물이
+     * 재생성되고 관제에 수정 통지가 나간다(내용은 하나도 바뀌지 않았는데).
+     *
+     * <p><b>비어 있을 수 없다</b>({@code NOT NULL DEFAULT 'N'}) — 빈값을 허용하면 모든 조회부가 빈값
+     * 처리를 각자 재구현해야 하고 한 곳만 빠뜨려도 제외한 영상이 그 화면에 그대로 뜬다.
+     *
+     * <p>★기본값을 <b>필드 선언에</b> 둔다 — 생성자에만 두면 <b>빌더를 거치지 않는 생성 경로</b>에서
+     * 비어 버린다. 이 엔티티는 증강·해상도 파생을 {@code new LsDataRaw()}(보호 생성자) + 필드 대입으로
+     * 만들어, 실제로 그 경로 전부가 {@code null} 로 INSERT 되어 파생 생성이 통째로 실패했다(실측).
+     * 필드 초기화는 <b>모든</b> 생성 경로가 지나가므로 누락이 구조적으로 불가능하다. Hibernate 는
+     * 보호 생성자로 만든 뒤 DB 값을 덮어쓰므로 조회에는 영향이 없다.
+     * <b>이 필드를 인자로 받는 팩토리를 만들지 않는다</b>(파생은 언제나 표시분으로 시작한다).
+     *
+     * <p>쓰기는 {@code VideoExclusionService} 한 곳이며 <b>조건부 원자 UPDATE</b>로만 바꾼다 —
+     * 엔티티 dirty checking 으로 쓰면 함께 로드된 다른 컬럼을 stale 값으로 덮어쓴다(클래스 주석 참조).
+     *
+     * @design ERD-012
+     */
+    @Column(name = "EXCL_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String exclYn = EXCL_NO;
+
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
@@ -316,6 +400,8 @@ public class LsDataRaw {
         this.psdoInclYn = DEID_PSEUDONYMITY_ON_INSERT;
         this.prvcInclYn = DEID_PRIVACY_INCLUDED_ON_INSERT;
         this.dataSttsCd = STATUS_PENDING;
+        // ⚠ 제외여부는 여기서 대입하지 않는다 — <b>필드 선언</b>이 기본값을 갖는다. 이 생성자에만 두면
+        //   보호 생성자 + 필드 대입으로 만드는 파생 생성 경로가 비어 INSERT 가 실패한다(필드 javadoc).
         this.regDt = LocalDateTime.now();
     }
 
@@ -750,6 +836,113 @@ public class LsDataRaw {
         this.mdfcnDt = LocalDateTime.now();
     }
 
+    // ------------------------------------------------------------------
+    // 포털 데이터셋 영상 (ADR-068) — 값 규약과 생성 통로
+    // ------------------------------------------------------------------
+
+    /**
+     * 포털 데이터셋 영상의 <b>클립 식별자 접두</b>. 최종 형태는
+     * {@code PORTAL_DATASET_{데이터셋 번호}_{영상 키}} 이며 조립은 {@link #portalDatasetClipId} 한 곳에서 한다.
+     *
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static final String PORTAL_DATASET_CLIP_ID_PREFIX = "PORTAL_DATASET_";
+
+    /**
+     * 포털 데이터셋 영상의 클립 식별자를 조립한다 — {@code PORTAL_DATASET_{datasetId}_{videoKey}}.
+     *
+     * <p>★ <b>이 값이 등록의 멱등 키다</b>(ADR-068). {@code UK_LS_DATA_RAW_VMS_CLIP} 가 같은 데이터셋·같은
+     * 영상의 재등록을 막으므로, 호출부는 이 값으로 먼저 조회해 있으면 건너뛰고 없으면
+     * {@link #createPortalDataset} 로 만든다. 그래서 조립 규칙을 호출부에 두지 않는다 — 두 곳이 서로 다른
+     * 모양을 만들면 조회는 못 찾고 INSERT 만 유일 제약에 걸린다.
+     *
+     * <p>파생영상 식별자({@link #derivativeClipId})와 달리 <b>넘쳐도 자르지 않고 거부</b>한다 — 자르면
+     * 서로 다른 영상 키가 같은 식별자로 접혀 멱등 키가 다른 영상을 가리키게 된다. 파생은 유일 접미(PK)가
+     * 유일성을 지키지만 여기는 영상 키 자체가 유일성의 근거다.
+     *
+     * @param datasetId 포털 데이터셋 번호
+     * @param videoKey  해제본 안 영상 폴더 이름 — 비어 있으면 거부한다
+     * @return 조립된 클립 식별자({@value #VMS_CLIP_ID_MAX}자 이하)
+     * @throws IllegalArgumentException 영상 키가 비었거나 조립 결과가 컬럼 상한을 넘을 때
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static String portalDatasetClipId(long datasetId, String videoKey) {
+        if (videoKey == null || videoKey.isBlank()) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 키는 비울 수 없습니다.");
+        }
+        String clipId = PORTAL_DATASET_CLIP_ID_PREFIX + datasetId + "_" + videoKey;
+        if (clipId.length() > VMS_CLIP_ID_MAX) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 식별자가 허용 길이를 넘습니다.");
+        }
+        return clipId;
+    }
+
+    /**
+     * <b>포털 데이터셋 영상</b> 적재 — 소재 해제본에서 등록하는 영상 1건(ADR-068). 값 규약을 이 한 곳에서 채운다.
+     *
+     * <ul>
+     *   <li><b>출처</b> — {@link #SRC_TYPE_PORTAL_DATASET}.</li>
+     *   <li><b>개인정보 유형</b> — {@link #PRVC_TYPE_UNKNOWN}(미상). ⚠ {@code ANONY} 를 쓰지 않는다 —
+     *       그건 「비식별이 불필요하다」는 <b>판정 결과</b>인데 우리는 그 판정을 한 적이 없다
+     *       ({@link #createPortalUpload} 와 같은 이유).</li>
+     *   <li><b>비식별 여부</b> — {@code 'Y'}. 배포본의 프레임 이미지가 비식별본이기 때문이다.
+     *       원본 이미지는 등록하지 않는다.</li>
+     *   <li><b>소유자</b>({@code PORTAL_USER_NO}) — 비운다. 데이터셋은 한 사용자의 자산이 아니라 그
+     *       데이터셋에 들어온 포털 사용자가 함께 쓰는 소재다. 그래서 보존기간 만료 자동 삭제(소유자 보유를
+     *       판별자로 요구한다)에도 걸리지 않는다.</li>
+     *   <li><b>원본 참조</b>({@code ORGNL_RAW_SN}) — 비운다. 파생이 아니다.</li>
+     *   <li><b>배치 단계</b>({@code DATA_STTS_CD}) — 빌더 기본값 {@code PENDING} 그대로 둔다. 외부 이관
+     *       적재({@link #createFromImport})와 같은 규약이다(ADR-048) — 배치는 원장 상태를 폴링하지 않고
+     *       <b>적재 이벤트</b>로 시작하므로, 이 경로가 적재 이벤트를 발행하지 않는 한 파이프라인이 집어
+     *       가지 않는다.</li>
+     * </ul>
+     *
+     * <p>⚠ <b>검수 승인 상태를 꾸며 넣지 않는다</b> — 이 팩토리는 검수 워크플로 상태 행을 만들지 않고,
+     * 호출부도 만들지 않는다. 만들면 관제 조회 뷰·통지·산출물 연동이 이 영상을 승인 영상으로 읽는다
+     * (ADR-068). 포털 작업 허용 근거는 승인이 아니라 출처({@link #isPortalDataset()})다.
+     *
+     * @param vmsClipId     {@link #portalDatasetClipId} 로 조립한 값 — 그 접두가 아니면 거부한다
+     *                      (관제 클립 식별자를 넘기면 인입 역참조와 멱등 키가 함께 어긋난다)
+     * @param rawFilePathNm 해제본 안 그 영상 폴더의 위치 — 영상 파일이 배포본에 없어 원천 위치를
+     *                      기록한다. 비울 수 없다(컬럼이 NOT NULL)
+     * @throws IllegalArgumentException 식별자 접두가 맞지 않거나 경로가 비었을 때
+     * @design ADR-068
+     * @design ERD-012
+     */
+    public static LsDataRaw createPortalDataset(String vmsClipId, String rawFilePathNm) {
+        if (vmsClipId == null || !vmsClipId.startsWith(PORTAL_DATASET_CLIP_ID_PREFIX)
+                || vmsClipId.length() == PORTAL_DATASET_CLIP_ID_PREFIX.length()
+                || vmsClipId.length() > VMS_CLIP_ID_MAX) {
+            throw new IllegalArgumentException("포털 데이터셋 영상 식별자는 정해진 규칙으로 조립해야 합니다.");
+        }
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new IllegalArgumentException("포털 데이터셋 영상의 원천 위치는 비울 수 없습니다.");
+        }
+        LsDataRaw raw = LsDataRaw.builder()
+                .vmsClipId(vmsClipId)
+                .prvcTypeCd(PRVC_TYPE_UNKNOWN)
+                .rawFilePathNm(rawFilePathNm)
+                .srcType(SRC_TYPE_PORTAL_DATASET)
+                .build();
+        // 빌더 생성자는 비식별 여부를 'N'(미수행)으로 고정한다 — 배포본 이미지는 비식별본이라 덮는다.
+        raw.deIdntfYn = "Y";
+        return raw;
+    }
+
+    /**
+     * 이 영상이 <b>포털 데이터셋 영상</b>인가 — 판정의 단일 지점(ADR-068).
+     *
+     * <p>포털 작업 가능 판정(「검수 승인 또는 이 출처」)이 이 헬퍼를 쓴다. 판별자 상수를 호출부에서
+     * 다시 비교하지 않는다.
+     *
+     * @design ADR-068
+     */
+    public boolean isPortalDataset() {
+        return SRC_TYPE_PORTAL_DATASET.equals(this.srcType);
+    }
+
     /**
      * 생성형AI여부({@code Y}/{@code N}) 판정의 <b>단일 원천</b> — 판정축은 {@code SRC_TYPE} 하나다.
      *
@@ -869,6 +1062,17 @@ public class LsDataRaw {
      */
     public boolean needsDeidentify() {
         return PRVC_TYPE_PRVC.equals(this.prvcTypeCd) || PRVC_TYPE_PSDO.equals(this.prvcTypeCd);
+    }
+
+    /**
+     * 이 영상이 <b>저작도구 화면 목록에서 빠진 상태</b>인가. [@design ADR-069]
+     *
+     * <p>단건 판정 전용이다 — <b>조회 술어로 쓰지 말 것</b>. 목록·건수의 배제 조건은
+     * {@code VideoExclusionScope} 가 소유하며, 여기서 걸러 내면 페이징 이후 Java 필터가 되어
+     * {@code totalElements} 가 어긋난다.
+     */
+    public boolean isExcluded() {
+        return EXCL_YES.equals(this.exclYn);
     }
 
     /**

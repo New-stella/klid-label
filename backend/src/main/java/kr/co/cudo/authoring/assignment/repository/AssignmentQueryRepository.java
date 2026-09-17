@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
 import kr.co.cudo.authoring.video.repository.InternalWorkScope;
+import kr.co.cudo.authoring.video.repository.VideoExclusionScope;
 import kr.co.cudo.authoring.batch.entity.QLsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -196,6 +197,21 @@ public class AssignmentQueryRepository {
         // 채널 축 — 포털 자산은 관제 배정 대상이 아니다(ADR-058 흡수). 위 파생 게이트는 파생만
         // 배제하므로 포털 업로드 원본을 막지 못한다. 같은 이유로 상관 EXISTS 한 겹만 더한다.
         where.and(InternalWorkScope.internalByRawSn(assignment.rawDataId));
+
+        // 가시성 축 — 화면 목록에서 제외된 영상은 이 목록에도 나타나지 않는다. [design: ADR-069]
+        //
+        // ★이 조건은 <구조적으로 도달 불가>인데도 붙인다. 배정이 있는 영상은 제외가 거부되므로
+        //   (VideoRepository.markExcluded 의 NOT EXISTS 절) 제외된 영상에는 배정이 없고, 따라서
+        //   FROM 이 배정인 이 쿼리에는 원래 나타나지 않는다. 그럼에도 붙이는 이유는 <거부 판정이
+        //   뚫렸을 때의 마지막 방어>이고 비용이 술어 한 줄이기 때문이다 — 그 거부는 쓰기 경로 한 곳이
+        //   지키는데, 가시성 축은 조용히 새는 축이라(행이 사라질 뿐 오류가 없다) 읽기 쪽에도 같은
+        //   판정을 둔다. ⚠ 「죽은 조건」으로 보고 지우지 말 것.
+        //
+        // 구동 테이블이 배정이라 상관 EXISTS 형태를 쓴다 — 조인을 넣으면 이 리포지토리의 "행 증식
+        // 원천 차단" 제약이 깨져 totalElements 가 어긋난다. 술어 소유자는 VideoExclusionScope 이며
+        // 여기서 EXCL_YN 비교를 다시 적지 않는다(한 곳만 빠져도 제외한 영상이 그 화면에 그대로 뜬다).
+        // 조건 조립 단일 지점에만 붙여 목록·count·이벤트유형 옵션이 같은 가시 범위를 공유하게 한다.
+        where.and(VideoExclusionScope.notExcludedByRawSn(assignment.rawDataId));
 
         if (condition.selfUserNo() != null) {
             // 인가 축 — 이 분기에서는 workerIdFilter 를 참조하지 않는다(CWE-639).

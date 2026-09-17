@@ -302,10 +302,12 @@ describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
     expect(useLabelStore.getState().activeTool).not.toBe(ToolType.KEYPOINT);
   });
 
-  it('포털_사용자는_AI분할과_AI추적_도구를_사용할_수_없다', () => {
+  it('포털_사용자는_G로_AI분할을_켜되_ShiftT_AI추적은_켜지_않는다', () => {
+    // ★반전(2026-09-15 · SCREEN-029) — 구 가드 「포털_사용자는_AI분할과_AI추적_도구를_사용할_수_없다」.
+    //   AI 분할은 포털 전용 창구로 제공되고, 선택 객체 AI 추적(Shift+T)은 포털에 계속 없다.
     renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
     act(() => press('g'));
-    expect(useLabelStore.getState().activeTool).not.toBe(ToolType.SAM_SEGMENT);
+    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
     act(() => press('T', { shiftKey: true }));
     expect(useLabelStore.getState().activeTool).not.toBe(ToolType.TRACK);
   });

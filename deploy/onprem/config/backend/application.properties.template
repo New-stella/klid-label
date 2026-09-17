@@ -41,6 +41,8 @@
 # ★ 운영은 prd 권장(application-prd.yml: DataSource 2종 + Swagger/actuator 차단).
 #    prd 는 webhook HMAC 시크릿(VLM/AUGMENT)이 필수다(미설정 시 부팅 차단).
 #    ★ 비식별(KPST)은 폐쇄망 동거 연동이 확정 정책이다 — prd 에서 끄거나 mock 우회 불가.
+#      단 DEIDENTIFY_EXCLUDED_SRC_TYPES(기본 GENERATED)에 든 출처유형만은 위탁 없이 원본 복사로
+#      비식별 단계를 끝낸다(확정 예외, 아래 KPST 절 참조). 우회 스위치가 아니라 대상 판정 예외다.
 #    그 외 외부(관제통지/VLM/증강)는 토글로 on/off. 04-configuration.md B 절 참고.
 # SPRING_PROFILES_ACTIVE 는 이 파일이 아니라 WAS 기동 옵션으로 준다 (아래 머리말 참조)
 
@@ -119,6 +121,20 @@ JWT_ALLOWED_ISSUERS=klid-auth,klid,klid-portal
 #      한 축이 유출돼도 다른 축으로 번지지 않게 한다.
 #    · 저작도구가 생성해 안전한 채널로 포털에 공유한다(포털 요청).
 PORTAL_CLEANUP_API_KEY=
+# ★ 포털 <소재 조회> 조달 — 우리가 포털을 부르는 축 (@design INT-014).
+#   포털 진입 시 받은 데이터셋 숫자 식별자로 포털 내부 창구를 불러 배포 압축본의 NAS 절대경로를 받는다.
+#   ⚠ 키의 발급 주체가 cleanup 과 <반대>다 — 이 키는 «포털이 발급해 우리에게» 준다.
+#     PORTAL_CLEANUP_API_KEY 와 같은 값을 넣지 말 것(연동 축마다 별도 키).
+#   ⚠ 둘 중 하나라도 비면 조달이 닫힌다(fail-closed). 기동은 정상이다.
+#   ⚠ base-url 은 포털 «내부 WAS» 주소다. 포털 웹 주소로는 안 된다 — 외부망에서 /api/internal/** 은
+#     앞단이 차단한다.
+# ★★ 포털이 준 소재 경로를 «어디까지» 인정할지 — 봉쇄의 기준점(쉼표로 여럿, 절대경로).
+#   ⚠ 응답이 함께 준 저장소 루트만 믿으면 봉쇄가 아니다 — 상대가 루트를 '/' 로 주장하면
+#     경로 판정을 전부 통과한다. 그래서 «우리가 아는 값»을 따로 둔다.
+#   ⚠ 비면 조달이 닫힌다(fail-closed). 기동은 정상이다.
+PORTAL_MATERIALS_REPO_ROOT_ALLOWLIST=
+PORTAL_MATERIALS_BASE_URL=
+PORTAL_MATERIALS_API_KEY=
 # ★ 영상 스트림 단기 서명 URL 시크릿(JWT_SECRET 과 다른 값, 32바이트 이상).
 #    미설정 시 서명 URL 발급/검증이 fail-closed(스트리밍 불가).
 STREAM_SIGN_SECRET=
@@ -161,7 +177,9 @@ WEBHOOK_TRUSTED_PROXY_CIDRS=
 # ★ VLM 콜백 허용 출처 CIDR (CSV) — VLM describe 콜백은 벤더 규격상 무서명이라
 #    IP allowlist 가 3계층 방어(allowlist / rate limit·size cap / request_id 발급 게이트)의 첫 계층이다.
 #    벤더 송신 대역을 지정 / 미적용을 의도하면 none 명시. prd·stg 는 **미설정 시 부팅 차단**.
-WEBHOOK_VLM_ALLOWED_IP_CIDRS=
+#    ★ 현재 배포 기본은 전면 허용이다(2026-09-14 사용자 확정) — 외부 유입은 인프라 방화벽이 막는다.
+#      요청 제한·본문 크기 상한·request_id 발급 게이트는 그대로 남는다. 벤더 대역이 정해지면 좁힌다.
+WEBHOOK_VLM_ALLOWED_IP_CIDRS=0.0.0.0/0
 
 # ---- 저장소 경로 ----------------------------------------------------------
 # ★ 원본/비식별 영상·프레임 저장 베이스. NAS 마운트 루트와 반드시 일치시킬 것.
@@ -203,6 +221,11 @@ STORAGE_EXTERNAL_READ_ROOTS=
 # ⚠ 서버 B 쪽도 함께 열어야 한다 — ai-server 는 기본이 loopback 바인드라 원격에서 닿지 않는다.
 #   서버 B 의 /etc/klid/ai-server.env 에서 AI_BIND_HOST 를 바꾸고 방화벽 9300 을 연다
 #   (config/ai-server/env.template 의 AI_BIND_HOST 주석 참고).
+# ★ 포털 채널 배포본(KLID_DEPLOY_FLAVOR=portal, 아래 「배포 향」 절)도 이 값을 설정한다 — 관제 채널
+#   배포본이 쓰는 기존 ai-server 를 그대로 가리킨다(별도 AI 서버를 두지 않는다, 2026-09-15 확정 ·
+#   `ADR-012` v23). 포털 라벨링 화면의 온디맨드 AI 보조(AI 탐지·AI 분할·AI 자동 추적)에만 쓰인다.
+#   포털 배포본 WAS → 기존 ai-server 로 가는 네트워크 경로 개방이 필요하다(두 배포본은 서로 다른
+#   장비·NAS 일 수 있으므로 방화벽·라우팅을 별도로 확인할 것).
 AI_SERVER_URL=http://127.0.0.1:9300
 
 # ---- CORS -----------------------------------------------------------------
@@ -271,6 +294,17 @@ TRAINING_SCAN_INTERVAL_SEC=60
 # ★ 기본 true 유지. mock/disable 우회는 prd 에서 미지원 — 비식별을 끄면 개인정보(PII)가 노출되고
 #   파이프라인(마킹/프레임추출)이 차단된다. false 이고 mock 도 아니면 DeidentifyStep 이 설정오류로 거부한다.
 KPST_DEID_ENABLED=true
+# ★ 비식별 제외 출처유형(쉼표 구분 복수) — 여기 든 출처유형(LS_DATA_RAW.SRC_TYPE) 영상은 KPST 에
+#   위탁하지 않고 원본을 비식별 영상 자리에 복사해 비식별 단계를 끝낸다(이력 요청종류 EXCLUDED).
+#   기본 GENERATED(생성형 AI 영상 — 실제 인물이 없다). KPST_DEID_ENABLED 와 무관하게 동작한다.
+#   ⚠ 원천 CCTV 출처유형 ORIGINAL · RELAY · IMPORTED 를 절대 넣지 말 것 — 그 유형 전체가
+#     마스킹 없이 마킹 화면·학습데이터 산출물·관제로 흐른다. 기동 시 값 검사는 하지 않는다
+#     (적용 목록은 기동 로그 INFO 한 줄로만 남는다 — 설치 후 반드시 로그로 확인할 것).
+#   · 비우면 빈 목록 = 모든 영상을 KPST 에 위탁한다(안전측).
+#   · 판정은 영상마다 비식별 단계 처리 시점 1회이고 소급하지 않는다 — 바꿔도 이미 처리된 영상은 그대로다.
+#   · 관리자 화면 설정이 아니다. 이 파일에서만 바꾸며 재기동해야 반영된다.
+#   · 잘못 인입된 영상(실제 인물이 찍혔는데 GENERATED)은 검수 중 비식별 누락 신고 → 외부 재비식별로 회수한다.
+DEIDENTIFY_EXCLUDED_SRC_TYPES=GENERATED
 # ★ KPST 서버 주소. base-url 스키마로 전송 방식이 자동 분기된다.
 #   - http://IP:PORT   → 격리망 평문. CA 불요(비워둠). ← 이 현장이 여기 해당한다
 #   - https://IP:PORT  → 사설 CA 인증서 경로(KPST_DEID_CA_CERT_PATH)가 필수(아래 참고).
@@ -299,10 +333,22 @@ KPST_DEID_POLL_TIMEOUT_MINUTES=180
 
 # ---- 관제서버 outbound 완료/수정 통지 ------------------------------------
 # · 기본 false. 관제서버 inbound SPI 가 있으면 true + URL 주입.
+# · 이 URL 은 통지 전용이다 — 관제 채널 세션 연장·로그아웃 중계는 아래 CONTROL_ACCOUNT_URL 을 쓴다.
+#   넣을 값: 관제 웹서버 주소, 또는 데이터셋 창구(/api/data-set/)를 가진 WAS 주소.
 CONTROL_NOTIFY_ENABLED=false
 CONTROL_NOTIFY_URL=http://127.0.0.1:8090
 CONTROL_NOTIFY_TIMEOUT_MS=10000
 CONTROL_NOTIFY_DEBOUNCE_SEC=60
+
+# ---- 관제 계정 창구 (관제 채널 세션 연장·로그아웃 중계) ------------------
+# · ★ 관제 채널 배포본은 반드시 채운다. 비우면 세션 연장·로그아웃 중계가 관제를 부르지 않고 실패한다.
+# · 통지 수신처(CONTROL_NOTIFY_URL)와 별개이며, 비어 있어도 그 주소로 대체하지 않는다. 통지 토글과 무관하다.
+# · 넣을 값: 관제 웹서버 주소, 또는 계정 창구(/api/account/)를 가진 WAS 주소.
+#   관제는 계정 창구와 데이터셋 창구를 서로 다른 WAS 에 둔다 — WAS 를 직접 가리키면 두 URL 에 서로 다른
+#   WAS 를 넣는다(관제 웹서버 주소면 같은 값이어도 된다).
+# · 확인: curl -s -X POST <주소>/api/account/auth/refresh → 401 JSON 이면 맞는 주소, 404 HTML 이면 틀린 주소.
+# · 포털 채널 배포본은 이 창구가 닫혀 있어 비워 둔다.
+CONTROL_ACCOUNT_URL=
 
 # ---- 외부 VLM 시계열 위탁 -------------------------------------------------
 # · ★ 활성/비활성 토글은 폐지됐다 — 껐다 켜는 손잡이를 되살리지 말 것.
@@ -339,6 +385,16 @@ VLM_SERVICE_TOKEN=
 #     ★ 구 서술 「기동 차단」·「빈 값만 기동에서 걸리지 않는다」는 폐기다(2026-09-03 · ADR-062) —
 #       <빈 값을 포함한 다섯 축 모두> 기동을 막지 않고 위탁 시점에 실패한다(기동 시 ERROR 로그).
 AUGMENT_API_BASE_URL=
+# ★ 증강 결과 콜백 허용 출처 CIDR (CSV) — 콜백이 무서명 규격이라 IP allowlist 가 첫 방어선이다.
+#   · 비우거나 none = <전면 차단>(fail-closed). 기동은 정상이고 콜백만 전건 403 이 된다.
+#   · 벤더 송신 IP 가 정해지면 그 IP 만: 203.0.113.5/32 (여럿이면 쉼표로)
+#   · 전면 허용이 필요하면 <명시>한다: 0.0.0.0/0
+#     IPv6 발신까지 열려면 0.0.0.0/0,::/0 (IPv6 는 :: 압축 표기를 받는다 — 2026-09-14 검사기 수정).
+#     허용해도 요청 제한·본문 크기 상한·request_id 발급 게이트(우리가 발급 안 한 id 는 401)는 남는다.
+#   · 형식 오류(공백·세미콜론·호스트명·/33)는 <기동 차단>이다.
+#   ⚠ 이 줄이 템플릿에 없어 현장이 손으로 추가했다(2026-09-11) — 지우지 말 것.
+#   ★ 현재 배포 기본은 전면 허용이다(2026-09-14 사용자 확정) — 외부 유입은 인프라 방화벽이 막는다.
+WEBHOOK_GENAI_ALLOWED_IP_CIDRS=0.0.0.0/0
 
 # ---- DEIDENTIFY_API_URL (헬스 핑/레거시 WebClient base-url) ---------------
 # · 비식별 단일 경로는 KPST 폴링이라 실 비식별 호출에는 쓰이지 않지만,

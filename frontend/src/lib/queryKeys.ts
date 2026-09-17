@@ -190,6 +190,28 @@ export const PORTAL_KEYS = {
    * 받아 오고, 편집 중 프레임을 옮기면 다른 자리의 값처럼 보인다).
    */
   eventAnnotation: (rawSn: number) => [...PORTAL_KEYS.all, 'event-annotation', rawSn] as const,
+  /**
+   * 포털 데이터셋 소재 조달 상태(INT-014) — **데이터셋 단위**다.
+   *
+   * 데이터셋 식별자는 **조건 축**이라 키에 넣는다 — 넣지 않으면 다른 데이터셋으로 진입해도 앞
+   * 데이터셋의 상태가 그대로 보여, 「준비 완료」가 엉뚱한 소재를 가리킨다.
+   *
+   * ⚠ 착수(POST) 응답과 상태 조회(GET) 응답이 같은 모양이라 착수 결과를 이 자리에 그대로 앉힌다.
+   *   두 축에 키를 나누면 착수 직후 화면이 낡은 조회값을 계속 본다.
+   */
+  datasetMaterials: (datasetId: number) =>
+    [...PORTAL_KEYS.all, 'dataset-materials', datasetId] as const,
+  /**
+   * 한 데이터셋의 영상 목록 **전 페이지**를 덮는 접두 키 — 등록 재착수 뒤 무효화의 대상. @design API-262
+   *
+   * ★ 아래 `datasetVideos` 가 이 키 뒤에 페이지를 붙이는 구조라 접두 일치가 **구조적으로** 성립한다.
+   *   두 팩토리가 각자 리터럴을 들면 한쪽만 바뀌어도 타입 오류가 없고 무효화만 조용히 빗나간다.
+   */
+  datasetVideosOf: (datasetId: number) =>
+    [...PORTAL_KEYS.all, 'dataset-videos', datasetId] as const,
+  /** 데이터셋 영상 목록 — 데이터셋·페이지가 조건 축이다. @design API-253 */
+  datasetVideos: (datasetId: number, page: number) =>
+    [...PORTAL_KEYS.datasetVideosOf(datasetId), page] as const,
 };
 
 export const SYSCONFIG_KEYS = {
@@ -199,8 +221,14 @@ export const SYSCONFIG_KEYS = {
    * AI 정밀도 기본값(GET /v1/ai-defaults) — 라벨링 화면 전용 읽기.
    *
    * `all` 하위에 두어 검수자의 설정 수정(useUpdateConfig)이 이 조회도 함께 무효화하게 한다.
+   *
+   * ★ 포털 채널은 다른 창구(GET /v1/portal/ai-defaults)를 부르므로 키를 가른다 — 창구가 조건 축이다.
+   *   내부 채널 키는 종전 그대로 둔다(기존 무효화·캐시 무회귀).
    */
-  aiDefaults: () => [...SYSCONFIG_KEYS.all, 'ai-defaults'] as const,
+  aiDefaults: (portal = false) =>
+    portal
+      ? ([...SYSCONFIG_KEYS.all, 'ai-defaults', 'portal'] as const)
+      : ([...SYSCONFIG_KEYS.all, 'ai-defaults'] as const),
 };
 
 /**

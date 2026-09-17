@@ -831,7 +831,8 @@ CREATE TABLE klid_at.ls_data_raw (
     anony_incl_yn character(1),
     psdo_incl_yn character(1),
     prvc_incl_yn character(1),
-    portal_user_no character varying(100)
+    portal_user_no character varying(100),
+    excl_yn character(1) DEFAULT 'N'::bpchar NOT NULL
 );
 
 
@@ -1990,7 +1991,9 @@ CREATE TABLE klid_at.ls_task_evnt_log (
     subject_user_no bigint,
     prev_user_no bigint,
     rsn character varying(500),
-    ocrn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    ocrn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    actor_role_cd character varying(20),
+    CONSTRAINT ck_ls_task_evnt_log_actor_role CHECK (((actor_role_cd)::text = ANY ((ARRAY['ADMIN'::character varying, 'REVIEWER'::character varying, 'WORKER'::character varying])::text[])))
 );
 
 
@@ -2650,7 +2653,7 @@ COPY klid_at.ls_data_meta_review (data_meta_review_sn, data_meta_sn, data_raw_sn
 -- Data for Name: ls_data_raw; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_data_raw (raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, data_stts_cd, reg_dt, mdfcn_dt, orgnl_raw_sn, vdo_len_ms, wthr_nm, day_ngt_cd, sesn_cd, src_type, aug_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, portal_user_no) FROM stdin;
+COPY klid_at.ls_data_raw (raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, data_stts_cd, reg_dt, mdfcn_dt, orgnl_raw_sn, vdo_len_ms, wthr_nm, day_ngt_cd, sesn_cd, src_type, aug_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, portal_user_no, excl_yn) FROM stdin;
 \.
 
 
@@ -3012,7 +3015,7 @@ COPY klid_at.ls_task_altmnt (assignment_id, user_no, raw_data_id, task_type_cd, 
 -- Data for Name: ls_task_evnt_log; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_task_evnt_log (evnt_id, raw_data_id, evnt_type_cd, actor_user_no, subject_user_no, prev_user_no, rsn, ocrn_dt) FROM stdin;
+COPY klid_at.ls_task_evnt_log (evnt_id, raw_data_id, evnt_type_cd, actor_user_no, subject_user_no, prev_user_no, rsn, ocrn_dt, actor_role_cd) FROM stdin;
 \.
 
 

@@ -21,6 +21,12 @@ import java.util.List;
  * </ol>
  *
  * <p>설정: {@code webhook.vlm.allowed-ip-cidrs} (CSV). <b>비어 있으면 미적용</b>(로컬/dev 기본).
+ * 값은 쉼표로 나열한 IPv4·IPv6 주소 리터럴 또는 CIDR 이며, IPv6 는 {@code ::} 압축을 포함한 표준
+ * 텍스트 표기를 받는다. 전면 허용은 <b>명시</b>한다 — IPv4 전체 {@code 0.0.0.0/0}, IPv4·IPv6 전체
+ * {@code 0.0.0.0/0,::/0}. 배포 기본값은 {@code 0.0.0.0/0} 이다(외부 유입 차단은 인프라 방화벽 담당).
+ * 형식 오류는 기동을 막는다({@link WebhookCidrParser}).
+ *
+ * @design INT-003
  *
  * <h3>운영(prd)·스테이징(stg) 명시 설정 강제 (DEV_FIX M-3 / REDESIGN R-3)</h3>
  * <p>과거에는 미설정이면 WARN 만 남기고 <b>전면 허용(fail-open)</b> 으로 기동했다. 시크릿은

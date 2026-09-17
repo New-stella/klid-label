@@ -80,6 +80,12 @@ export interface CanvasShellProps {
    *   회전 이전 뷰 좌표로 되돌린 뒤 계산하므로 회전각과 무관하게 같은 결과가 나온다.
    */
   zoomAreaMode?: boolean;
+  /**
+   * 포털 채널 여부 — AI 분할 요청·취소를 포털 전용 창구로 보낸다(본문·응답은 내부와 같다).
+   * 판정은 라벨링 화면의 portalMode 에서 파생해 넘긴다(캔버스가 채널을 판정하지 않는다).
+   * 기본값 false — 내부 경로 무회귀.
+   */
+  portalMode?: boolean;
 }
 
 /** 사양이 정한 화면 표시용 회전 단계(시계방향). */
@@ -282,6 +288,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     rotation: rotationProp,
     showGrid = false,
     zoomAreaMode = false,
+    portalMode = false,
   }: CanvasShellProps,
   ref,
 ) {
@@ -319,7 +326,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const [imageLoading, setImageLoading] = useState(false);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
   // isSegmenting: 요청 in-flight 진행 인디케이터(R7)용.
-  const { segment: rawSegment, isSegmenting } = useSam2Segment(frame.srcSn);
+  const { segment: rawSegment, isSegmenting } = useSam2Segment(frame.srcSn, portalMode);
   // 사용자가 조절한 경계 세밀함이 있으면 모든 분할 요청 payload 에 주입(미조절이면 그대로 전달 → BE 기본값).
   const segment = useCallback(
     (payload: Parameters<typeof rawSegment>[0]) =>

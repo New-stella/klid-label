@@ -1,11 +1,13 @@
 package kr.co.cudo.authoring.review.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.assignment.domain.ReviewClaim;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewClaimSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -20,6 +22,8 @@ import kr.co.cudo.authoring.review.dto.FrameListResponse;
 import kr.co.cudo.authoring.review.dto.IssueResponse;
 import kr.co.cudo.authoring.review.dto.ApproveRequest;
 import kr.co.cudo.authoring.review.dto.RejectRequest;
+import kr.co.cudo.authoring.review.dto.ReviewClaimConflict;
+import kr.co.cudo.authoring.review.dto.ReviewListPage;
 import kr.co.cudo.authoring.review.dto.ReviewResponse;
 import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
 import kr.co.cudo.authoring.review.dto.ReviewSummaryResponse;
@@ -42,7 +46,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import kr.co.cudo.authoring.common.config.PublicApiPath;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,8 +56,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Phase 7 — 검수 워크플로우 (REVIEWER 승인/반려).
@@ -128,6 +134,16 @@ public class ReviewService {
      * 그 표시로 축적된 디바운스 윈도우가 실제로 있는지 확인한다({@link #approve(Long, ApproveRequest, TokenClaims)}).
      */
     private final ControlNotifyDebounceStore controlNotifyDebounceStore;
+    /**
+     * 검수 점유 조회 <b>단일 창구</b> — 「지금 누가 이 영상을 보고 있는가」의 판정은 이 창구가 소유한다.
+     *
+     * <p>★판정 규칙을 이 서비스에 복제하지 않는다. 복제하면 <b>목록 표시</b>와 <b>검수 시작 거절</b>이
+     * 서로 다른 답을 내어, 화면에는 비어 보이는데 눌러 보면 남이 잡고 있다고 하는 상태가 된다.
+     * 유예 설정값과 판정 기준 시각도 그 창구가 가진다({@code ADR-067}).
+     */
+    private final ReviewClaimSupport reviewClaimSupport;
+    /** 일괄 승인 건수 상한 — 목록 응답이 화면에 미리 알려 주는 값의 <b>단일 소유자</b>. */
+    private final ReviewBatchApprovePolicy batchApprovePolicy;
 
     /**
      * 검수 워크플로우 목록 (REVIEWER 의 검수 목록 화면용) — 상태/검색어 필터 + 정렬.
@@ -137,14 +153,27 @@ public class ReviewService {
      * 후처리하면 반환 건수와 {@code totalElements} 가 동시에 깨진다(HIGH-1).
      *
      * <p>{@code status} 가 null/빈 문자열이면 화이트리스트 전체, 화이트리스트 밖 값이면 빈 결과다(R8).
+     *
+     * <h3>점유·최근 승인자·일괄 승인 자격 (ADR-067 — 표시 전용 추가)</h3>
+     * 세 축을 더하되 <b>조건 조립에는 손대지 않는다</b> — 검수 목록은 배정과 무관하게 검수 대기 전체를
+     * 보여주며, 「내가 검수 중인 것만 보기」 같은 사용자 축 필터를 두지 않는다. 점유는 <b>표시이지
+     * 필터가 아니다</b>.
+     *
+     * <p>★조달은 <b>페이지 단위 일괄 조회</b>다. 행마다 점유를 뒤지면 한 화면에 수십 건이 뜨는 이
+     * 목록에서 그대로 N+1 이 된다 — 그 성질은 쿼리 수 계측으로 고정돼 있다.
+     *
+     * @design API-008
      */
-    public Page<ReviewResponse> list(ReviewSearchCondition condition, Pageable pageable, TokenClaims actor) {
+    public ReviewListPage list(ReviewSearchCondition condition, Pageable pageable, TokenClaims actor) {
         requireReviewer(actor);
         ReviewSearchCondition effective = (condition != null) ? condition : ReviewSearchCondition.defaults();
         Page<LsRawDataStatus> page = reviewQueryRepository.search(effective, pageable);
         List<LsRawDataStatus> rows = page.getContent();
+        int bulkApproveLimit = batchApprovePolicy.limit();
         if (rows.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(), pageable, page.getTotalElements());
+            // 행이 없어도 상한은 싣는다 — 화면이 전건 필터로 비운 뒤 다시 채웠을 때 값을 잃지 않게.
+            return new ReviewListPage(Collections.emptyList(), pageable,
+                    page.getTotalElements(), bulkApproveLimit);
         }
 
         // 페이지의 영상 ID 집합 (N+1 회피용 batch lookup 키)
@@ -160,14 +189,28 @@ public class ReviewService {
         // 2) LABELER 배정 lookup — REG_DT DESC, rawDataId → userNo (단일 IN 쿼리)
         Map<Long, Long> workerIdMap = lookupLabelerByVideo(videoIds);
 
-        // 3) 사용자 이름 lookup — userNo → userNm (단일 IN 쿼리)
-        UserNameResolver.UserNames userNames = lookupUserNames(workerIdMap.values());
-
-        // 4) 영상별 라벨 총개수 lookup — LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn (단일 IN 쿼리)
+        // 3) 영상별 라벨 총개수 lookup — LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn (단일 IN 쿼리)
         Map<Long, Long> labelCountMap = lookupLabelCountByVideo(videoIds);
 
-        // 5) 영상별 이벤트 메타 lookup — LS_DATA_RAW.EVNT_TYPE_CD (단일 IN 쿼리)
+        // 4) 영상별 이벤트 메타 lookup — LS_DATA_RAW.EVNT_TYPE_CD (단일 IN 쿼리)
         Map<Long, String[]> eventInfoMap = lookupEventByVideo(videoIds);
+
+        // 5) 검수 점유 lookup — 페이지 전체를 <b>조회 한 번</b>에 판정한다(ADR-067).
+        //    ★행마다 claimOf 를 부르면 그 순간 N+1 이다. 회귀 가드는 ReviewClaimBatchApproveIT 의
+        //      쿼리 수 계측(ThreadScopedQueryProbe)이며, 페이지 크기를 키워도 쿼리가 늘지 않음을 고정한다.
+        Map<Long, ReviewClaim> claimMap = reviewClaimSupport.claimsOf(videoIds);
+
+        // 6) 최근 승인자 lookup — 영상별 마지막 승인 이벤트 1건씩 (단일 쿼리)
+        Map<Long, LsTaskEventLog> lastApprovalMap = lookupLastApprovalByVideo(videoIds);
+
+        // 7) 사용자 이름 lookup — 작업자·점유자·승인자를 <b>한 번에</b> 모아 단일 IN 쿼리로 해석한다.
+        //    세 축을 따로 부르면 이름 조회만 3회가 된다.
+        UserNameResolver.UserNames userNames = lookupUserNames(
+                collectUserNos(workerIdMap.values(), claimMap, lastApprovalMap));
+
+        // 「이 요청을 보낸 사람」 — 일괄 승인 자격이 요청자에 따라 갈리는 유일한 축이다.
+        //   ⚠ 조회 경로라 사번을 해석하지 못해도 예외를 던지지 않는다(자격만 false 로 떨어진다).
+        Long selfNo = parseUserNoOrNull(actor.sub());
 
         List<ReviewResponse> content = rows.stream()
                 .map(stts -> {
@@ -179,11 +222,93 @@ public class ReviewService {
                     String[] eventInfo = eventInfoMap.get(videoId);
                     String eventName = (eventInfo != null) ? eventInfo[0] : null;
                     String eventTypeCd = (eventInfo != null) ? eventInfo[1] : null;
+                    ReviewClaim claim = claimMap.get(videoId);
                     return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount,
-                            eventName, eventTypeCd);
+                            eventName, eventTypeCd,
+                            toReviewing(claim, userNames),
+                            toLastApproval(lastApprovalMap.get(videoId), userNames),
+                            isBulkApprovable(stts, claim, selfNo));
                 })
                 .toList();
-        return new PageImpl<>(content, pageable, page.getTotalElements());
+        return new ReviewListPage(content, pageable, page.getTotalElements(), bulkApproveLimit);
+    }
+
+    /**
+     * <b>일괄 승인 자격</b> — ①유효 점유의 주인이 나이고 ②단건 승인이 그 상태를 받아들이는가.
+     *
+     * <p>②의 판정은 {@link ReviewStateMachine#allowsApproval} 에 위임한다. 여기서 상태를 직접 비교하면
+     * 「단건은 되는데 일괄에서는 안 보이는」 두 번째 진실원이 생긴다. 특히 <b>재검수 건은 승인 상태에
+     * 머물러 있으므로</b> 「검수 진행 중인 것만」으로 좁히면 그 건이 영영 담기지 않는다.
+     *
+     * <p>이 값은 화면이 체크칸을 켤지 끌지에 쓰는 <b>편의 표시</b>다 — 인가 판정이 아니며, 자격 없는
+     * 건을 담아 보내도 일괄 승인 창구가 그 건만 실패로 돌려준다.
+     *
+     * @design API-008
+     * @design API-250
+     */
+    private boolean isBulkApprovable(LsRawDataStatus stts, ReviewClaim claim, Long selfNo) {
+        if (claim == null || !claim.ownedBy(selfNo)) {
+            return false;
+        }
+        return stateMachine.allowsApproval(stts.getDataSttsCd(), stts.needsRecheck());
+    }
+
+    /** 점유 판정 결과 → 응답 축. 점유가 없거나 만료면 세 값이 모두 빈 {@code NONE} 이다. */
+    private static ReviewResponse.Reviewing toReviewing(ReviewClaim claim,
+                                                        UserNameResolver.UserNames userNames) {
+        if (claim == null) {
+            return ReviewResponse.Reviewing.NONE;
+        }
+        return new ReviewResponse.Reviewing(
+                claim.ownerUserNo(), userNames.nameOf(claim.ownerUserNo()), claim.startedAt());
+    }
+
+    /**
+     * 마지막 승인 이벤트 → 응답 축.
+     *
+     * <p>역할은 <b>그 이벤트에 박힌 값</b>을 그대로 쓴다 — 지금 그 사람의 역할을 다시 읽지 않는다.
+     * 역할을 남기지 않던 시기의 기록이면 사람·시각은 있는데 역할만 비며, 그것을 지어내 채우지 않는다.
+     */
+    private static ReviewResponse.LastApproval toLastApproval(LsTaskEventLog approval,
+                                                              UserNameResolver.UserNames userNames) {
+        if (approval == null) {
+            return ReviewResponse.LastApproval.NONE;
+        }
+        return new ReviewResponse.LastApproval(
+                approval.getActorUserNo(),
+                userNames.nameOf(approval.getActorUserNo()),
+                approval.getActorRoleCd(),
+                approval.getOcrnDt());
+    }
+
+    /** 이름을 해석해야 하는 사번 전부(작업자·점유자·승인자)를 중복 없이 모은다. */
+    private static Set<Long> collectUserNos(java.util.Collection<Long> workerNos,
+                                            Map<Long, ReviewClaim> claims,
+                                            Map<Long, LsTaskEventLog> approvals) {
+        Set<Long> userNos = new LinkedHashSet<>(workerNos);
+        claims.values().forEach(claim -> userNos.add(claim.ownerUserNo()));
+        approvals.values().forEach(approval -> userNos.add(approval.getActorUserNo()));
+        userNos.remove(null);
+        return userNos;
+    }
+
+    /**
+     * 영상별 <b>마지막 승인 이벤트</b>를 쿼리 한 번으로 조회한다.
+     *
+     * <p>점유 조회와 같은 창구를 쓰되 후보 종류가 승인 하나라, 영상마다 「가장 최근 승인」 1건이 돌아온다
+     * (반려·검수 시작이 그 뒤에 있어도 승인 이력 자체는 남아 있어야 하므로 후보를 넓히지 않는다).
+     */
+    private Map<Long, LsTaskEventLog> lookupLastApprovalByVideo(List<Long> videoIds) {
+        if (videoIds == null || videoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, LsTaskEventLog> map = new HashMap<>();
+        for (LsTaskEventLog event : taskEventLogRepository.findLatestOfTypesByRawDataIds(
+                videoIds, List.of(LsTaskEventLog.EVENT_APPROVE))) {
+            if (event == null || event.getRawDataId() == null) continue;
+            map.put(event.getRawDataId(), event);
+        }
+        return map;
     }
 
     /**
@@ -194,13 +319,24 @@ public class ReviewService {
      * {@code workStatus} 축만 제외하는 것과 대칭). 검수 워크플로 화이트리스트는 목록과 동일하게 상시
      * 적용되므로 배치/작업 상태는 어느 버킷에도 합산되지 않는다(HIGH-5).
      *
+     * <p>★<b>제외분은 4종 버킷에서 빠지고 「제외됨 건수」로 따로 실린다</b>(ADR-069). 목록이 제외분을
+     * 빼므로 집계도 같이 줄어야 한다 — 갈리면 화면의 카드 숫자와 그 카드를 눌러 얻는 목록이 어긋난다.
+     * 그 건수는 <b>4종 합의 항이 아니다</b>(제외분은 {@code total} 에서도 이미 빠져 있다).
+     *
      * <p>목록과 별도 요청이라 두 호출 사이의 상태 전이로 미세하게 어긋날 수 있으며, 반환값은
      * <b>조회 시점 스냅샷</b>이다(대시보드성 KPI 라 강한 정합성은 요구하지 않는다).
+     *
+     * @design API-138
      */
     public ReviewSummaryResponse summarize(ReviewSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
         ReviewSearchCondition effective = (condition != null) ? condition : ReviewSearchCondition.defaults();
-        return ReviewSummaryResponse.of(reviewQueryRepository.countByStatus(effective.searchOnly()));
+        // 두 집계가 <같은 조건 객체>를 본다 — 하나만 따로 만들면 검색어 정규화가 한쪽에만 적용돼
+        // 카드 숫자와 「제외됨 N건」의 필터 범위가 갈라진다. [design: ADR-069] [design: API-138]
+        ReviewSearchCondition searchOnly = effective.searchOnly();
+        return ReviewSummaryResponse.of(
+                reviewQueryRepository.countByStatus(searchOnly),
+                reviewQueryRepository.countExcluded(searchOnly));
     }
 
     /**
@@ -322,16 +458,20 @@ public class ReviewService {
     public ReviewResponse getDetail(Long videoId, TokenClaims actor) {
         requireAssignedOrReviewer(videoId, actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
-        return enrichOne(stts);
+        return enrichOne(stts, actor);
     }
 
     /**
      * 단건 응답 enrich — list() 의 batch helper 를 {@code List.of(videoId)} 단건 인자로 재사용해
-     * cctvName/workerId/workerName/labelCount 를 채운다.
+     * cctvName/workerId/workerName/labelCount 와 점유·최근 승인자·일괄 승인 자격을 채운다.
      * <p>모두 readOnly 조회이므로 쓰기 트랜잭션 내부(approve/reject)에서도 호출 가능.
      * 변경된 stts 상태를 응답에 반영하려면 flush 이후에 호출할 것.
+     *
+     * <p><b>승인·반려 뒤에 불리면 점유가 비어 나오는 것이 정상</b>이다 — 그 행위가 자기 이벤트를
+     * 남겨 점유 판정의 조건 ①(뒤에 종결 이벤트가 없을 것)에 걸리기 때문이다. 점유를 푸는 별도
+     * 동작이 없는 것은 그래서다({@code ADR-067}).
      */
-    private ReviewResponse enrichOne(LsRawDataStatus stts) {
+    private ReviewResponse enrichOne(LsRawDataStatus stts, TokenClaims actor) {
         Long videoId = stts.getRawDataId();
         if (videoId == null) {
             return ReviewResponse.from(stts);
@@ -340,15 +480,24 @@ public class ReviewService {
         String cctvName = lookupCctvNames(ids).get(videoId);
         Map<Long, Long> workerIdMap = lookupLabelerByVideo(ids);
         Long workerId = workerIdMap.get(videoId);
-        String workerName = (workerId != null)
-                ? lookupUserNames(List.of(workerId)).nameOf(workerId)
-                : null;
         Long labelCount = lookupLabelCountByVideo(ids).getOrDefault(videoId, 0L);
         String[] eventInfo = lookupEventByVideo(ids).get(videoId);
         String eventName = (eventInfo != null) ? eventInfo[0] : null;
         String eventTypeCd = (eventInfo != null) ? eventInfo[1] : null;
+        ReviewClaim claim = reviewClaimSupport.claimOf(videoId).orElse(null);
+        Map<Long, LsTaskEventLog> lastApprovalMap = lookupLastApprovalByVideo(ids);
+        // 작업자·점유자·승인자 이름을 한 번에 해석한다(단건이어도 조회 3회로 쪼개지 않는다).
+        UserNameResolver.UserNames userNames = lookupUserNames(collectUserNos(
+                (workerId != null) ? List.of(workerId) : Collections.emptyList(),
+                (claim != null) ? Map.of(videoId, claim) : Collections.emptyMap(),
+                lastApprovalMap));
+        String workerName = userNames.nameOf(workerId);
+        Long selfNo = parseUserNoOrNull(actor != null ? actor.sub() : null);
         return ReviewResponse.from(stts, cctvName, workerId, workerName, labelCount,
-                eventName, eventTypeCd);
+                eventName, eventTypeCd,
+                toReviewing(claim, userNames),
+                toLastApproval(lastApprovalMap.get(videoId), userNames),
+                isBulkApprovable(stts, claim, selfNo));
     }
 
     /**
@@ -429,7 +578,7 @@ public class ReviewService {
         taskEventLogRepository.save(LsTaskEventLog.submit(
                 stts.getRawDataId(), workerUserNo));
         log.info("[Review] submitted videoId={} actor={}", videoId, actor.sub());
-        return enrichOne(stts);
+        return enrichOne(stts, actor);
     }
 
     /**
@@ -462,20 +611,102 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "이미 검수가 시작되었거나 상태가 변경되었습니다.");
         }
         log.info("[Review] cancelSubmit videoId={} actor={}", videoId, actor.sub());
-        return enrichOne(stts);
+        return enrichOne(stts, actor);
     }
 
     /**
-     * REVIEWER 가 검수 시작. PENDING → IN_REVIEW.
+     * 검수 시작 — <b>그 영상의 점유를 세운다</b>. 배정 여부는 자격 조건이 아니다({@code ADR-067}).
+     *
+     * <h3>다섯 갈래 — 점유 판정이 상태 판정보다 앞선다</h3>
+     * <ol>
+     *   <li><b>남이 점유 중</b> → 상태와 무관하게 409. 응답 본문에 점유자의 <b>표시 이름만</b> 싣는다.</li>
+     *   <li><b>내가 이미 주인</b> → 상태를 바꾸지 않고 성공(멱등 재진입). 이때 「검수 시작」을 <b>새로
+     *       남겨</b> 점유 시각을 갱신한다 — 갱신하지 않으면 보던 도중에 만료돼 남에게 넘어간다.
+     *       ★이미 쌓인 이벤트를 고치거나 지우지 않으므로 <b>최초 시작 시각은 앞선 행에 그대로 남는다</b>.</li>
+     *   <li><b>점유 없음 + 검수 대기</b> → 검수 진행으로 전이하고 점유. <b>상태가 바뀌는 유일한 갈래</b>다.</li>
+     *   <li><b>점유 없음 + 이미 검수 진행</b>(유예가 지나 점유가 풀린 영상) → 전이 없이 새 점유자가 된다.</li>
+     *   <li><b>점유 없음 + 승인 + 재검토 표시</b>(수정 뒤 재검수 대기) → 전이 없이 점유만 세운다.</li>
+     * </ol>
+     * 그 밖의 상태는 종전대로 전이 검증이 거절한다(재검토 표시가 없는 승인 영상 포함).
+     *
+     * <h3>★★재검수 건의 상태를 되돌리지 않는 이유</h3>
+     * 관제 조회 데이터마트 뷰가 <b>라이브 승인 상태</b>로 행을 거른다. 검수 시작이 그 상태를 검수
+     * 진행으로 내리면 <b>이미 완료로 통지한 영상의 행이 관제에서 예고 없이 사라진다</b> — 「검수 완료·
+     * 통지 건에 대한 관제 접근은 무조건 보장한다」는 구속 규칙의 정면 위반이다. 같은 이유로 이 경우를
+     * 위한 <b>새 상태값도 만들지 않는다</b>(새 값은 그 뷰의 조건이 알지 못해 결국 같은 일이 일어난다).
+     *
+     * <h3>동시 시작 경합</h3>
+     * 둘이 동시에 눌러 갈래 3 에 함께 들어오면 상태 원장의 {@code @Version} 이 한 명만 통과시키고
+     * 패자는 409 다 — 승인·반려가 같은 상황에서 쓰는 것과 <b>같은 방식</b>이며, 안내 없이 커밋 시점
+     * 예외로 새지 않는다(그것이 이 라운드 이전의 동작이었다).
+     *
+     * <p>★<b>점유는 잠금이 아니다.</b> 만료가 있어 영구 잠금이 되지 않고, 승인 시점의 낙관적 잠금이
+     * 실제 방어로 그대로 남는다. 점유가 생겼다는 이유로 그 잠금을 걷어내지 말 것.
+     *
+     * @design API-013
+     * @design ADR-067
      */
     @Transactional("controlTransactionManager")
     public ReviewResponse startReview(Long videoId, TokenClaims actor) {
         requireReviewer(actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
-        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_IN_REVIEW);
-        stts.transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
-        log.info("[Review] startReview videoId={} actor={}", videoId, actor.sub());
-        return enrichOne(stts);
+        Long selfNo = parseUserNo(actor.sub());
+
+        // ① 점유 판정이 먼저다 — 남이 보고 있으면 상태가 무엇이든 시작하지 않는다.
+        Optional<ReviewClaim> existing = reviewClaimSupport.claimOf(videoId);
+        if (existing.isPresent() && !existing.get().ownedBy(selfNo)) {
+            throw claimConflict(videoId, existing.get());
+        }
+        boolean reentry = existing.isPresent();
+
+        if (!reentry) {
+            String from = stts.getDataSttsCd();
+            if (LsRawDataStatus.STTS_PENDING.equals(from)) {
+                // 갈래 3 — 검수 대기 영상을 집어간다. 상태가 바뀌는 유일한 자리.
+                stateMachine.verify(from, LsRawDataStatus.STTS_IN_REVIEW);
+                stts.transitionTo(LsRawDataStatus.STTS_IN_REVIEW);
+            } else if (!LsRawDataStatus.STTS_IN_REVIEW.equals(from)
+                    && !stateMachine.isReapproval(from, stts.needsRecheck())) {
+                // 갈래 4·5 가 아니면 종전 거절을 그대로 쓴다 — 전이 검증이 400/409 를 가른다.
+                //   (전이 불가를 여기서 새로 판정하면 오류 계약이 갈린다.)
+                stateMachine.verify(from, LsRawDataStatus.STTS_IN_REVIEW);
+            }
+            // 갈래 4(유예 만료된 검수 진행) · 갈래 5(재검수 대기 승인 영상)는 전이 없이 점유만 선다.
+        }
+
+        // 갈래 2·3·4·5 공통 — 「검수 시작」을 남겨 점유를 세우거나 갱신한다.
+        //   점유를 <b>푸는</b> 이벤트는 만들지 않는다(승인·반려가 자기 이벤트로 푼다).
+        taskEventLogRepository.save(LsTaskEventLog.startReview(videoId, selfNo, actor.role()));
+        try {
+            reviewRepository.flush();
+        } catch (OptimisticLockingFailureException e) {
+            // 동시 시작 경합 — 승인·반려와 같은 방식으로 409 를 돌려준다.
+            log.warn("[Review] optimistic lock conflict on startReview videoId={} actor={}",
+                    videoId, actor.sub());
+            throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 검수를 시작했습니다.");
+        }
+        log.info("[Review] startReview videoId={} actor={} reentry={}", videoId, actor.sub(), reentry);
+        return enrichOne(stts, actor);
+    }
+
+    /**
+     * 남의 점유로 검수 시작이 거절될 때의 409 — 누가 보고 있는지를 <b>표시 이름만</b> 담아 알린다.
+     *
+     * <p>사용자 식별자·역할·소속은 요청자가 알 필요가 없다(CWE-359). 이름을 해석하지 못하면 사람을
+     * 특정하지 않는 문구로 내려간다 — 그 경우에도 거절 자체는 유지된다(fail-closed).
+     *
+     * @design API-013
+     */
+    private CustomException claimConflict(Long videoId, ReviewClaim claim) {
+        Long ownerNo = claim.ownerUserNo();
+        String ownerName = (ownerNo != null)
+                ? lookupUserNames(List.of(ownerNo)).nameOf(ownerNo)
+                : null;
+        log.warn("[Review] startReview blocked — already claimed videoId={}", videoId);
+        String message = (ownerName != null && !ownerName.isBlank())
+                ? ownerName + " 님이 검수 중입니다."
+                : "다른 검수자가 검수 중입니다.";
+        return new CustomException(ErrorCode.CONFLICT, message, new ReviewClaimConflict(ownerName));
     }
 
     /**
@@ -531,7 +762,10 @@ public class ReviewService {
         //   통지가 영구히 보류되는 사고를 막는다.
         String currentStatus = stts.getDataSttsCd();
         boolean hadRecheckFlag = stts.needsRecheck();
-        boolean isReapproval = LsRawDataStatus.STTS_APPROVED.equals(currentStatus) && hadRecheckFlag;
+        // ★ 재승인 갈래 판정은 {@link ReviewStateMachine} 단독 소유다 — 여기서 상태를 직접 비교하면
+        //   일괄 승인 자격(allowsApproval)이 보는 규칙과 갈려 「단건은 되는데 일괄에는 안 보이는」
+        //   두 번째 진실원이 생긴다(ADR-067 · API-250).
+        boolean isReapproval = stateMachine.isReapproval(currentStatus, hadRecheckFlag);
         if (!isReapproval) {
             // 상태 전이 유효성이 먼저다 — 잘못된 전이(예: PENDING→APPROVED)는 라벨 유무와 무관하게 기존대로
             //   400 을 유지한다(라벨 게이트가 기존 오류 계약을 덮어쓰지 않도록 순서 고정).
@@ -554,9 +788,11 @@ public class ReviewService {
         //   H6 — negative sample 승인은 <b>같은 이벤트 로그에 사유를 남겨</b> 감사 가능하게 한다
         //   (누가·언제·어떤 영상을 라벨 없음 확인으로 승인했는지 — 신규 테이블/메커니즘 없이 재사용).
         Long reviewerUserNo = parseUserNo(actor.sub());
+        // 역할은 <행위 시점의 실제 역할>이다 — actor.role() 은 계층으로 승격되지 않은 값이라
+        // 관리자가 승인하면 ADMIN 이 그대로 남는다(ADR-067 · ERD-014). REVIEWER 로 내려 적지 말 것.
         taskEventLogRepository.save(approvedWithoutLabel
-                ? LsTaskEventLog.approveWithoutLabel(stts.getRawDataId(), reviewerUserNo)
-                : LsTaskEventLog.approve(stts.getRawDataId(), reviewerUserNo));
+                ? LsTaskEventLog.approveWithoutLabel(stts.getRawDataId(), reviewerUserNo, actor.role())
+                : LsTaskEventLog.approve(stts.getRawDataId(), reviewerUserNo, actor.role()));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -614,7 +850,7 @@ public class ReviewService {
             eventPublisher.publishEvent(new ReviewApprovedEvent(
                     stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
         }
-        return enrichOne(stts);
+        return enrichOne(stts, actor);
     }
 
     /**
@@ -686,8 +922,10 @@ public class ReviewService {
         stts.transitionTo(LsRawDataStatus.STTS_REJECTED);
         // 통합 이벤트 로그 (SCR-TASK-003): 반려 이벤트 기록
         Long reviewerUserNo = parseUserNo(actor.sub());
+        // 역할은 <행위 시점의 실제 역할>이다 — actor.role() 은 계층으로 승격되지 않은 값이라
+        // 관리자가 반려하면 ADMIN 이 그대로 남는다(ADR-067 · ERD-014).
         taskEventLogRepository.save(LsTaskEventLog.reject(
-                stts.getRawDataId(), reviewerUserNo, req.reason()));
+                stts.getRawDataId(), reviewerUserNo, req.reason(), actor.role()));
         try {
             reviewRepository.flush();
         } catch (OptimisticLockingFailureException e) {
@@ -695,7 +933,7 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
         log.info("[Review] rejected videoId={} actor={} parentIssueSn={}", videoId, actor.sub(), parentIssueSn);
-        return enrichOne(stts);
+        return enrichOne(stts, actor);
     }
 
     /**
@@ -780,6 +1018,24 @@ public class ReviewService {
             return Long.parseLong(sub);
         } catch (NumberFormatException e) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "토큰 subject 형식이 올바르지 않습니다.");
+        }
+    }
+
+    /**
+     * 조회 경로 전용 사번 해석 — 해석하지 못하면 <b>예외 대신 {@code null}</b> 이다.
+     *
+     * <p>목록·상세는 이 라운드 이전에 사번을 전혀 보지 않았다. 여기서 {@link #parseUserNo} 를 쓰면
+     * 표시용 값 하나(일괄 승인 자격) 때문에 <b>200 이던 조회가 401 로 바뀐다</b> — 되던 화면이 죽는다.
+     * 해석 실패의 결과는 「자격 없음」일 뿐이며, 실제 승인 자격은 쓰기 경로가 따로 판정한다.
+     */
+    private static Long parseUserNoOrNull(String sub) {
+        if (sub == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(sub);
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

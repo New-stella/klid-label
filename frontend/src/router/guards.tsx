@@ -1,4 +1,4 @@
-import { lazy, ReactNode, Suspense, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 
 import { syncPortalSessionFromHandoff } from '@/features/auth/portalSession';
@@ -8,38 +8,12 @@ import {
   SERVER_ROLE_UNKNOWN_DESC,
   SERVER_ROLE_UNKNOWN_TITLE,
 } from '@/features/auth/sessionBootstrap';
-import { IS_PORTAL_CHANNEL_BUILD, isPortalEmbedChannel } from '@/lib/buildChannel';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { roleSatisfiesAny } from '@/lib/authz';
 import type { Channel, Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
-
-/**
- * 포털 채널의 진입 안내 모양 — 포털 화면의 빈 화면 안내 부품으로 영역 안에 선다.
- * ⚠ 산출 시점 상수로 가른다 — 관제 산출물에서는 이 지연 로드가 통째로 사라져 포털 스킨이 새지 않는다.
- */
-const PortalGuardNotice = IS_PORTAL_CHANNEL_BUILD
-  ? lazy(() =>
-      import('@/components/layout/PortalGuardNotice').then((m) => ({ default: m.PortalGuardNotice })),
-    )
-  : null;
-
-/** 인증 확인 중 — 포털 채널은 영역 안 안내(도는 고리), 관제 채널은 지금 모습 그대로. */
-function GuardSpinner() {
-  if (PortalGuardNotice && isPortalEmbedChannel()) {
-    return (
-      <Suspense fallback={null}>
-        <PortalGuardNotice busy title="인증 확인 중" />
-      </Suspense>
-    );
-  }
-  return (
-    <div className="flex h-full items-center justify-center py-10">
-      <Spinner label="인증 확인 중" />
-    </div>
-  );
-}
 
 type EmbedNoticeKind = 'auth-required' | 'role-required' | 'forbidden';
 
@@ -81,13 +55,6 @@ const EMBED_NOTICE_COPY: Record<EmbedNoticeKind, { title: string; message: strin
  */
 function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
   const { title, message } = EMBED_NOTICE_COPY[kind];
-  if (PortalGuardNotice) {
-    return (
-      <Suspense fallback={null}>
-        <PortalGuardNotice title={title} desc={message} testId="portal-embed-guard-notice" />
-      </Suspense>
-    );
-  }
   return (
     <div
       className="flex h-full items-center justify-center py-10"
@@ -150,20 +117,6 @@ function usePortalSessionRecovery(shouldRecover: boolean): void {
  *   걸면 실패 → 렌더 → 재시도 → 실패 고리가 되어 장애 구간에 조회가 폭주한다.
  */
 function ServerRoleUnknownNotice() {
-  if (PortalGuardNotice && isPortalEmbedChannel()) {
-    return (
-      <Suspense fallback={null}>
-        <PortalGuardNotice
-          title={SERVER_ROLE_UNKNOWN_TITLE}
-          desc={SERVER_ROLE_UNKNOWN_DESC}
-          onRetry={() => {
-            void retryServerRole();
-          }}
-          testId="server-role-unknown-notice"
-        />
-      </Suspense>
-    );
-  }
   return (
     <div
       className="flex h-full items-center justify-center py-10"
@@ -223,7 +176,11 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   }, [claims, expired]);
 
   if (!isHydrated) {
-    return <GuardSpinner />;
+    return (
+      <div className="flex h-full items-center justify-center py-10">
+        <Spinner label="인증 확인 중" />
+      </div>
+    );
   }
   if (!claims) {
     if (isPortalEmbedChannel()) return <PortalEmbedNotice kind="auth-required" />;
@@ -231,7 +188,11 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   }
   if (expired) {
     // redirect는 useEffect에서 처리. 빈 화면 노출 방지를 위해 스피너 표시.
-    return <GuardSpinner />;
+    return (
+      <div className="flex h-full items-center justify-center py-10">
+        <Spinner label="인증 확인 중" />
+      </div>
+    );
   }
   // [@design ADR-063] [@design SEQ-034] [@design AC-1016] [@design AC-1098]
   // ★서버 인가 역할을 <아직 확보하지 못했으면 판정하지 않는다>. 새로고침 복원 직후가 그
@@ -249,7 +210,11 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
   //     기다린다. 조회는 부팅 1회(`features/auth/sessionBootstrap`)에서 끝내고 여기서는
   //     그 결과만 읽는다.
   if (serverRoleStatus === 'unacquired' || serverRoleStatus === 'pending') {
-    return <GuardSpinner />;
+    return (
+      <div className="flex h-full items-center justify-center py-10">
+        <Spinner label="인증 확인 중" />
+      </div>
+    );
   }
   // ★확인하지 <못한> 것과 역할이 <없는> 것을 가른다 (@design AC-1017).
   //   토큰에 역할이 남아 있으면 종전 폴백대로 통과시킨다 — 유효 세션을 막다른 길에 빠뜨리지
@@ -314,7 +279,11 @@ export function ChannelGuard({ channel, children }: ChannelGuardProps) {
   usePortalSessionRecovery(isHydrated && !claims);
 
   if (!isHydrated) {
-    return <GuardSpinner />;
+    return (
+      <div className="flex h-full items-center justify-center py-10">
+        <Spinner label="인증 확인 중" />
+      </div>
+    );
   }
   if (!claims) {
     if (isPortalEmbedChannel()) return <PortalEmbedNotice kind="auth-required" />;

@@ -12,6 +12,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { PortalUpload } from '@/features/portal/uploads/types';
@@ -70,7 +71,11 @@ describe('포털 업로드 목록 — 카드 구조', () => {
     mountWith([up()]);
     expect(screen.queryByRole('table')).toBeNull();
     const list = screen.getByRole('list', { name: '업로드 자산 목록' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    // ⚠ 2026-09-16 — 줄 카드가 **제 안에 목록을 품는다**(일시 줄 · 자산 정보 칩). 그래서
+    //   `getAllByRole('listitem')` 은 안쪽 항목까지 함께 센다 — 구 기대값 「1」은 폐기하고
+    //   **바로 아래 자식**을 센다(자산 한 건 = 카드 한 장이라는 축은 그대로다).
+    expect(list.children).toHaveLength(1);
+    expect(screen.getByTestId('portal-upload-item-1')).toBe(list.children[0]);
   });
 
   /**
@@ -139,28 +144,48 @@ describe('포털 업로드 목록 — 카드 구조', () => {
 describe('포털 업로드 목록 — 처리 중 행', () => {
   /*
    * ★ 비활성 버튼은 마우스 이벤트를 받지 않으므로 사유를 그 버튼에 걸 수 없다. 감싸는 요소가
-   *   문구를 나르고, 마크업에 실려 있어야(`role="note"`) 속성이 지워져도 보조기술이 읽는다.
+   *   설명을 띄우고, 마크업에 실려 있어야(`role="tooltip"` + `aria-describedby`) 보조기술이 읽는다.
    *   ⚠ 이 단언이 없으면 «비활성이니 굳이» 로 사유가 사라지고, 사용자는 왜 못 지우는지 모른다.
    */
   it('★삭제가_막힌_이유를_마크업에_남긴다', () => {
     mountWith([up({ uldSttsCd: 'PROCESSING', frmeCnt: null, expiresAt: null })]);
-    const row = screen.getByTestId('portal-upload-item-1');
-    const note = within(row).getByRole('note');
-    expect(note).toHaveTextContent(/프레임을 뽑는 중에는 지울 수 없습니다/);
+    const del = screen.getByRole('button', { name: 'crossroad-0812-1430.mp4 삭제' });
+    expect(del).toHaveAccessibleDescription(/프레임을 뽑는 중에는 지울 수 없습니다/);
   });
 
-  it('처리_중_자산의_삭제는_비활성이다', () => {
+  /*
+   * ⚠ 2026-09-16 — **속성으로 잠그지 않는다**(`disabled` 미사용). WCAG 2.1.1 — native `disabled`
+   *   는 Tab 순서에서 빠져 위 시험이 지키려는 **사유 자체에 닿을 길이 사라진다**(초점이 안 가면
+   *   스크린리더가 그 설명을 읽을 계기가 없다). 구 기대값 `toBeDisabled()` 는 폐기다.
+   *   대신 **잠김이 실제로 막는지를 눌러서 확인한다** — 속성만 보면 «표시만 잠긴 버튼» 이
+   *   통과하므로, 여기가 그 구멍을 메우는 자리다.
+   */
+  it('처리_중_자산의_삭제는_잠겨_있고_눌러도_열리지_않는다', async () => {
+    const user = userEvent.setup();
     mountWith([up({ uldSttsCd: 'PROCESSING', frmeCnt: null, expiresAt: null })]);
-    expect(
-      screen.getByRole('button', { name: 'crossroad-0812-1430.mp4 삭제' }),
-    ).toBeDisabled();
+    const del = screen.getByRole('button', { name: 'crossroad-0812-1430.mp4 삭제' });
+
+    expect(del).toHaveAttribute('aria-disabled', 'true');
+
+    await user.click(del);
+
+    // 확인 창이 뜨지 않는다 — 잠김이 표시가 아니라 실제 차단이다.
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  /*
+   * ⚠ 2026-09-16 — 삭제가 아이콘 버튼에서 **글자 버튼**이 되면서 말풍선이 사라졌다. 구 기대값
+   *   `toHaveAccessibleDescription('삭제')` 는 폐기다 — 그 설명은 아이콘만 있던 시절 말풍선이
+   *   남기던 것이고, 지금은 버튼 **자신이** 「삭제」라고 말한다(설명을 또 두면 같은 말이 두 번).
+   *   지키는 축은 그대로다: 막을 사유가 없으면 **사유 없이 눌린다.**
+   */
   it('준비_완료_자산의_삭제는_사유_없이_눌린다', () => {
     mountWith([up()]);
-    const row = screen.getByTestId('portal-upload-item-1');
-    expect(within(row).queryByRole('note')).toBeNull();
-    expect(screen.getByRole('button', { name: /삭제$/ })).toBeEnabled();
+    const del = screen.getByRole('button', { name: /삭제$/ });
+    expect(del).toHaveTextContent('삭제');
+    expect(del).not.toHaveAttribute('aria-disabled');
+    expect(del).toHaveAccessibleDescription('');
+    expect(del).toBeEnabled();
   });
 });
 

@@ -58,6 +58,17 @@ export interface BusyContext {
   srcSn?: number;
 }
 
+/**
+ * 훅 범위 — 화면의 프레임 + **서버 취소 창구의 채널**.
+ *
+ * ★ `portal` 은 취소 API 경로만 가른다. 포털 채널의 AI 요청은 포털 창구로 나가므로 취소도 포털
+ *   창구로 보내야 한다 — 내부 창구로 보내면 403 이고 그 실패는 삼켜지므로 «취소했는데 서버는
+ *   계속 돈다» 가 신호 없이 남는다. 판정은 화면의 portalMode 에서 파생해 넘긴다.
+ */
+export interface BusyScope extends BusyContext {
+  portal?: boolean;
+}
+
 /** 실행 1건의 옵션. */
 export interface BusyRunOptions {
   /**
@@ -160,10 +171,13 @@ export interface UseBusyTaskResult {
  * 풀고 ref 는 원 요청이 끝날 때까지 잠긴 채로 남아 재클릭이 조용히 무시된다(유령 잠금).
  *
  * @param scope 이 훅이 속한 화면의 프레임. srcSn 이 바뀌면(프레임 전환) 이전 프레임의 busy 를
- *              취소해 새 화면이 남의 작업으로 잠기지 않게 한다.
+ *              취소해 새 화면이 남의 작업으로 잠기지 않게 한다. `portal` 은 서버 취소 창구 채널.
  */
-export function useBusyTask(scope: BusyContext = {}): UseBusyTaskResult {
-  const { srcSn } = scope;
+export function useBusyTask(scope: BusyScope = {}): UseBusyTaskResult {
+  const { srcSn, portal = false } = scope;
+  // 취소 창구 채널 — 렌더마다 최신값. 실행 시작 시점에 붙잡아 쓴다(아래 run).
+  const portalRef = useRef(portal);
+  portalRef.current = portal;
   // 화면이 지금 보고 있는 프레임 — **렌더 시점에 갱신**한다. effect 로 미루면
   // [프레임 B 렌더 커밋] → [effect flush] 사이의 마이크로태스크(프라미스 continuation)에서
   // 토큰이 아직 살아 있어, 지난 프레임 결과가 현재 화면에 병합된다(거짓 성공 토스트 + 결과 소실).
@@ -224,6 +238,8 @@ export function useBusyTask(scope: BusyContext = {}): UseBusyTaskResult {
     // 추론이 아닌 작업(저장·불러오기)은 서버의 취소 등록 대상 경로가 아니다 — 부르면 존재하지
     // 않는 식별자로 왕복만 돈다.
     const cancellableOnServer = busyKindWaitKind(kind) !== null;
+    // 요청을 보낸 채널로 취소도 보낸다 — 실행 시작 시점에 붙잡는다(도중에 훅이 사라져도 같은 값).
+    const cancelViaPortal = portalRef.current;
     let serverCancelSent = false;
     const abortIfDead = () => {
       if (useLabelStore.getState().isTokenAlive(token)) return;
@@ -231,7 +247,7 @@ export function useBusyTask(scope: BusyContext = {}): UseBusyTaskResult {
       // 멱등 — 토큰 사망은 구독 콜백에서 여러 번 관측될 수 있다.
       if (cancellableOnServer && !serverCancelSent) {
         serverCancelSent = true;
-        void cancelAiRequest(requestId);
+        void cancelAiRequest(requestId, cancelViaPortal);
       }
     };
     const unsubscribe = useLabelStore.subscribe(abortIfDead);

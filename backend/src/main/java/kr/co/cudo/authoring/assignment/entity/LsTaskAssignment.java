@@ -25,6 +25,20 @@ import java.time.LocalDateTime;
 public class LsTaskAssignment {
 
     public static final String TASK_LABELER = "LABELER";
+    /**
+     * <b>(구) 검수자 배정 — 새로 쓰지 않는다. 이미 적재된 행을 판독하기 위해서만 존치한다.</b>
+     *
+     * <p>검수는 배정 없이 전체 대기열에서 집어가므로 배정을 인가 축으로 쓰지 않는다. 그래서 이 값으로
+     * 행을 만드는 경로를 없앴다(구 {@code createReviewer} 팩토리 제거). 상수를 <b>지우지 말 것</b> —
+     * 지우면 남아 있는 옛 행의 의미를 코드에서 읽을 수 없게 된다. 같은 저장소의
+     * {@code LsTaskEventLog.EVENT_PRIVACY_META_RESET}(신규 발생 없음·과거 행 판독용 존치)과 같은 관례다.
+     *
+     * <p>옛 행은 <b>지우지 않는다</b>. 유니크 제약에 작업 유형이 들어 있어 그 행이 남아도 작업자 배정과
+     * 충돌하지 않으므로 제약도 바꾸지 않는다.
+     *
+     * @design ADR-067
+     * @design ERD-014
+     */
     public static final String TASK_REVIEWER = "REVIEWER";
 
     @Id
@@ -79,15 +93,8 @@ public class LsTaskAssignment {
                 .build();
     }
 
-    public static LsTaskAssignment createReviewer(Long rawDataId, Long reviewerNo, Long actorNo) {
-        return LsTaskAssignment.builder()
-                .userNo(reviewerNo)
-                .rawDataId(rawDataId)
-                .taskTypeCd(TASK_REVIEWER)
-                .regUserNo(actorNo)
-                .regDt(LocalDateTime.now())
-                .build();
-    }
+    // 구 createReviewer 팩토리는 제거됐다 — 검수자 배정을 새로 만드는 경로를 두지 않는다(ADR-067).
+    // 되살리지 말 것: 검수는 배정 없이 전체 대기열에서 집어가며 배정의 대상은 작업자뿐이다.
 
     public void reassignTo(Long newWorkerNo) {
         this.userNo = newWorkerNo;

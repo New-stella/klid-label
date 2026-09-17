@@ -105,9 +105,11 @@ export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
           <AttrRow
             label="좌표"
             value={
+              // 「x 412 · y 268 · w 96 · h 214」 — 이름과 값을 띄어 쓰고 항목 사이를
+              // 가운뎃점으로 나눈다. 구 표기 `x:173 y:87 …` 는 콜론이 이름에 붙고 구분이 공백
+              // 하나뿐이라 좁은 패널에서 줄이 접히면 어느 숫자가 어느 이름의 값인지 흐려졌다.
               <span data-testid="attr-bbox-coords" className="font-mono">
-                x:{Math.round(bbox.x)} y:{Math.round(bbox.y)} w:{Math.round(bbox.width)} h:
-                {Math.round(bbox.height)}
+                {`x ${Math.round(bbox.x)} · y ${Math.round(bbox.y)} · w ${Math.round(bbox.width)} · h ${Math.round(bbox.height)}`}
               </span>
             }
           />

@@ -307,9 +307,9 @@ export const AI_증강_요청_창_보내는_중: Story = {
   play: ({ canvasElement }) => 조건을_채워_요청한다(canvasElement),
 };
 
-/** 거부 — 서버가 준 사유가 창 안 띠에 붙는다 (준비가 끝나지 않은 영상으로 되돌아온 경우) */
-export const AI_증강_요청_창_거부됨: Story = {
-  name: 'AI 증강 요청 창 · 거부됨',
+/** 반려 — 서버가 준 사유가 창 안 띠에 붙는다 (준비가 끝나지 않은 영상으로 되돌아온 경우) */
+export const AI_증강_요청_창_반려됨: Story = {
+  name: 'AI 증강 요청 창 · 반려됨',
   render: () =>
     목록(UPLOADS, (mock) =>
       mock

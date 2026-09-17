@@ -101,6 +101,33 @@ export function reassignTask(id: number, body: ReassignTaskRequest) {
 }
 
 /**
+ * 배정 해제 — BE: DELETE /api/v1/assignments/{assignmentId} (검수자 이상).
+ * [@design API-259] [@design AC-1123] [@design ADR-069]
+ *
+ * <p>★<b>재배정과 뜻이 다르다</b> — 재배정은 담당을 바꾸고 해제는 <b>배정을 없앤다</b>.
+ * 배정표에 상태 칸이 없어 행을 지우며, 되돌리려면 <b>다시 배정</b>한다(해제 취소 창구는 없다).
+ *
+ * <p>★<b>작업 결과(라벨·그 이력)는 지우지 않는다</b> — 배정만 푸는 것이 「해제」의 뜻이다.
+ * 누가 언제 무엇을 풀었는지는 작업 이벤트 원장에 남는다.
+ *
+ * <p>★<b>사유를 받지 않는다</b> — 되돌리기 쉽고(다시 배정) 작업 결과가 보존되기 때문이다.
+ * 「감추는 쪽만 사유를 남긴다」는 원칙이 제외·복원·해제 셋에 같게 적용된다.
+ *
+ * <p>★검수 단계에 들어간 배정(검수 대기·검수 중·승인)은 <b>409</b>(`ASSIGNMENT_SUBMITTED`)다 —
+ * 배정이 그 워크플로의 전제라 풀면 검수 흐름이 주인 없는 상태가 된다. <b>반려는 그 셋에 들지
+ * 않아 해제가 열린다</b>. 화면은 `unassignEligibility` 로 <b>미리</b> 비활성화해, 눌러서
+ * 물리쳐진 뒤에야 아는 동선을 없앤다.
+ *
+ * <p><b>204 No Content</b> 라 응답 본문이 없다(반환값 없음).
+ *
+ * 보안: assignmentId 는 숫자 path 파라미터로만 전달 — 문자열 직접 연결 없음.
+ * 권한(검수자 이상)·상태는 BE 가 403/409 로 강제한다.
+ */
+export function unassignTask(assignmentId: number): Promise<void> {
+  return apiClient.delete(`/assignments/${assignmentId}`).then(() => undefined);
+}
+
+/**
  * 배정 이력 조회 — REVIEWER 만 접근(서버측 @PreAuthorize 검증).
  * URL 파라미터는 axios 가 안전하게 인코딩한다.
  */

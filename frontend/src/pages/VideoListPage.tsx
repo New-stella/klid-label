@@ -7,6 +7,7 @@ import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { ExcludedCountToggle } from '@/components/common/ExcludedCountToggle';
 import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
@@ -18,7 +19,9 @@ import { MarkingModal } from '@/features/marking/components/MarkingModal';
 import { canMark } from '@/features/marking/markingEligibility';
 import { BulkRetryResultModal } from '@/features/video/components/BulkRetryResultModal';
 import { BulkSkipReasonModal } from '@/features/video/components/BulkSkipReasonModal';
+import { VideoExcludeReasonModal } from '@/features/video/components/VideoExcludeReasonModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
+import { VideoRestoreConfirmModal } from '@/features/video/components/VideoRestoreConfirmModal';
 import { VlmSkipDefaultBanner } from '@/features/video/components/VlmSkipDefaultBanner';
 import { exceedsBulkRetryLimit } from '@/features/video/api';
 import {
@@ -27,6 +30,7 @@ import {
   useBulkSkipBatchStage,
 } from '@/features/video/hooks/useBatchRecovery';
 import { useVlmSkipDefault } from '@/features/sysconfig/hooks/useVlmSkipDefault';
+import { useExcludeVideo, useRestoreVideo } from '@/features/video/hooks/useVideoExclusion';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
@@ -34,7 +38,6 @@ import {
 } from '@/features/video/parseVideoListParams';
 import {
   BULK_RETRY_MAX,
-  isBatchFailed,
   type BatchBulkRetryResult,
   type Video,
   type VideoListParams,
@@ -62,6 +65,19 @@ import { useAuthStore } from '@/stores/useAuthStore';
  */
 const TH_CLASS =
   'text-left text-table-header text-gray-600 uppercase tracking-wide px-4 py-3';
+
+/**
+ * 이 영상에 **작업자 배정이 있는가** — 제외 버튼의 사전 비활성 판정. [@design AC-1127]
+ *
+ * 두 값을 함께 본다: 배정 식별자와 작업자. 둘 중 하나만 보면, 서버가 한쪽만 내려주는 응답
+ * 형태에서 배정이 있는 영상의 제외 버튼이 열려 버린다(그때 사용자는 눌러서 물리쳐진 뒤에야 안다).
+ *
+ * ⚠ 이것은 **화면의 편의**일 뿐이고 실제 강제는 제외 창구가 그대로 한다 — 판정과 요청 사이에
+ * 배정이 새로 생길 수 있어 서버가 최종 판정한다(그쪽은 갱신 문장 자체에 조건을 건다).
+ */
+function isAssigned(v: Video): boolean {
+  return v.workerId != null || v.assignmentId != null;
+}
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -130,6 +146,17 @@ export function VideoListPage() {
   // 시계열 일괄 건너뛰기 — 사유를 받아야 하므로 이 조작만 모달을 거친다(재수행은 즉시 실행).
   const [skipReasonOpen, setSkipReasonOpen] = useState(false);
   const pushToast = useUiStore((s) => s.pushToast);
+
+  /**
+   * [@design SCREEN-008] [@design ADR-069] 지금 **제외분만** 보고 있는가.
+   *
+   * URL 이 단일 진실원이라 새로고침·북마크·뒤로가기에서 그대로 유지된다.
+   */
+  const excludedOnly = params.excludedOnly === true;
+
+  // 제외·복원 — **행 단위**이며 둘 다 확인 단계를 거치므로 대상 영상을 들고 있는다.
+  const [excludeTarget, setExcludeTarget] = useState<Video | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Video | null>(null);
 
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
@@ -246,19 +273,58 @@ export function VideoListPage() {
     onError: notifyBulkError('시계열 일괄 재수행에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
   });
 
+  /**
+   * [@design API-260] 영상 제외 — 성공하면 목록과 「제외됨 N건」이 함께 갱신된다(훅이 무효화).
+   *
+   * ★실패를 **삼키지 않는다**. 화면이 배정 유무로 미리 막지만 판정과 요청 사이에 배정이 새로
+   * 생길 수 있어 그때는 서버가 물리친다 — 그 문구가 다음 행동(배정 해제)을 가리키므로 그대로 보인다.
+   */
+  const excludeVideo = useExcludeVideo({
+    onSuccess: () => {
+      setExcludeTarget(null);
+      pushToast({ variant: 'success', message: '영상을 목록에서 제외했습니다.' });
+    },
+    // 이 알림기는 "요청 자체가 실패한 경우" 를 다루는 것이라 일괄 축 전용이 아니다(이름만 그렇다).
+    onError: notifyBulkError('영상을 제외하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+  });
+
+  /** [@design API-261] 영상 복원 — 사유를 받지 않으므로 확인만 거친다. */
+  const restoreVideo = useRestoreVideo({
+    onSuccess: () => {
+      setRestoreTarget(null);
+      pushToast({ variant: 'success', message: '영상을 목록에 다시 표시했습니다.' });
+    },
+    onError: notifyBulkError('영상을 복원하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+  });
+
+  /**
+   * 「제외됨 N건」 전환.
+   *
+   * ★★**이 화면은 걸린 검색·필터를 하나도 빼지 않는다.** 「제외됨 N건」이 그 필터 범위 안에서
+   * 세어진 값이라, 조건을 빼면 눌렀을 때 나오는 건수가 방금 본 숫자와 달라진다.
+   * ⚠ 작업 목록은 작업 진행 상태 축을, 검수 목록은 검수 상태 축을 뺀다 — 그 두 화면은 집계 창구가
+   *   그 축을 반영하지 않고 세기 때문이며, 이 화면은 집계 창구가 없어 페이지 응답이 같은 조건으로
+   *   센다. **「일관성」을 이유로 세 화면을 같게 만들지 말 것** — 맞추는 순간 어느 한 화면에서
+   *   누른 숫자와 전환 결과가 어긋난다.
+   */
+  const toggleExcludedOnly = () => {
+    updateParams({ excludedOnly: excludedOnly ? undefined : true, page: 0 });
+  };
+
   // 상한 판정은 API 모듈의 단일 원천을 그대로 쓴다(화면이 같은 비교식을 다시 갖지 않는다).
   const overBulkRetryLimit = exceedsBulkRetryLimit(selected.size);
   const bulkBusy = bulkRetry.isPending || bulkSkip.isPending || bulkRerun.isPending;
 
-  /**
-   * 선택분 중 **지금 실패 상태**인 건수 — 일괄 재시작이 실제로 접수될 수 있는 대상 수다.
+  /*
+   * ⚠ **[폐기]** 구 `selectedFailedCount`(선택분 중 배치 상태가 실패인 건수를 안내에 싣던 값).
+   * [@design SCREEN-008] [@design API-199]
    *
-   * ⚠ 이 값으로 요청을 거르지 않는다. 재시작은 지금도 선택 전건을 보내고 **서버가 건별로 거부**하며,
-   * 화면이 미리 거르면 그 계약이 바뀐다. 여기서는 안내 문구에만 쓴다.
+   * 일괄 재시작의 접수 대상이 **선두 비식별이 실패한 영상**(배치 상태가 대기로 남는다)까지 넓어져,
+   * 배치 상태로 센 숫자는 그 영상을 빼고 세는 **틀린 대상 수**가 됐다(비식별 실패만 골랐을 때
+   * 「0건만 재시작 대상」이라고 말했다). 화면이 그 판정을 다시 세지 않고 — 서버가 형상 안에서도
+   * 건별로 막는 경우가 있어 화면 계산은 어차피 근사다 — **접수 건수는 결과 창이 서버 결과로** 말한다.
+   * 되살리지 말 것.
    */
-  // `rows` 는 매 렌더 새 배열이라 useMemo 로 감싸도 재계산을 막지 못한다(현재 페이지 한 벌 필터라
-  // 비용도 무시할 수준이다). 불필요한 의존성 경고만 남으므로 그대로 계산한다.
-  const selectedFailedCount = rows.filter((r) => selected.has(r.id) && isBatchFailed(r)).length;
 
   /** 일괄 조작 공통 가드 — 권한·빈 선택·상한·진행 중. */
   const canRunBulk = isReviewer && selected.size > 0 && !overBulkRetryLimit && !bulkBusy;
@@ -335,8 +401,10 @@ export function VideoListPage() {
         <ErrorState title="영상 목록을 불러올 수 없습니다" onRetry={handleRefresh} />
       )}
 
-      {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
-      {isReviewer && selected.size > 0 && (
+      {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다.
+          ★제외분만 보는 목록에서는 이 바를 두지 않는다(SCREEN-008) — 제외한 것을 일괄 배정·
+            재시작·시계열 조작의 대상으로 만들 수 있으면 제외가 무의미해진다. */}
+      {isReviewer && !excludedOnly && selected.size > 0 && (
         <div className="flex flex-col gap-1.5 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
           <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-primary-700">선택 {selected.size}건</span>
@@ -355,7 +423,7 @@ export function VideoListPage() {
                 {selected.size}건 일괄 재시작
               </Button>
 
-              {/* 구분 — 대상 범위가 다른 축(재시작=실패분 / 시계열=선택 전건)이라 시각적으로 가른다. */}
+              {/* 구분 — 접수 대상이 다른 축(재시작=배치·선두 비식별 실패 / 시계열=시계열 묶음)이라 시각적으로 가른다. */}
               <span className="h-4 w-px bg-primary-200" aria-hidden />
 
               {/*
@@ -415,15 +483,17 @@ export function VideoListPage() {
             </div>
           </div>
           {/*
-            두 조작의 **대상 범위가 다르다**는 사실을 미리 알린다 — 재시작은 실패 건만 접수되고
-            시계열 일괄 조작은 선택 전건에 적용되며 거부는 건별 사유로 돌아온다. 이 차이를 결과
-            모달에서야 알게 되면 사용자는 "왜 일부만 됐나"를 되짚어야 한다.
+            조작마다 **접수 대상이 다르다**는 사실을 미리 알린다 — 재시작은 배치 실패·선두 비식별
+            실패 영상, 시계열 건너뛰기는 시계열 실패 영상, 재수행은 건너뛴 적이 있는 영상이다. 셋 다
+            선택 전건을 보내고 서버가 건별로 판정해 사유를 돌려준다. 이 차이를 결과 모달에서야 알게
+            되면 사용자는 "왜 일부만 됐나"를 되짚어야 한다.
+            ⚠ 대상 **건수**는 여기서 세지 않는다 — 결과 창이 서버 결과로 말한다(구 건수 안내 폐기).
           */}
           <p className="text-caption text-gray-600" data-testid="bulk-scope-hint">
-            선택한 영상 중 배치가 실패한 {selectedFailedCount}건만 재시작 대상입니다. 시계열
-            건너뛰기는 시계열 작업이 실패한 영상에, 시계열 재수행은 건너뛴 적이 있는 영상에
-            접수됩니다. 이 두 조작은 화면이 대상을 미리 가르지 않고 선택한 {selected.size}건
-            전부를 보내 되는 것만 처리하고,{' '}
+            재시작은 배치가 실패한 영상과 비식별이 실패한 영상에, 시계열 건너뛰기는 시계열
+            작업이 실패한 영상에, 시계열 재수행은 건너뛴 적이 있는 영상에 접수됩니다. 세 조작
+            모두 화면이 대상을 미리 가르지 않고 선택한 {selected.size}건 전부를 보내 되는 것만
+            처리하고,{' '}
             {/* ⚠ 이 구절은 문구 가드(`uiWordingGuard`)의 허용 목록에 **줄 단위**로 올라 있다 —
                 줄바꿈으로 쪼개면 예외가 풀려 가드가 FAIL 한다. 한 줄로 유지할 것. */}
             거부된 건은 사유와 함께 돌려줍니다. 시계열 작업이 실패한 영상만 모으려면 위 「작업 묶음
@@ -455,18 +525,38 @@ export function VideoListPage() {
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="flex items-center px-4 py-2 border-b border-gray-100 bg-gray-50">
-          <input
-            type="checkbox"
-            checked={allChecked}
-            onChange={toggleAll}
-            className="w-4 h-4 accent-primary-600"
-            aria-label="전체 선택"
-          />
-          <span className="ml-2 text-caption text-gray-600">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
+          {/* ★제외분만 보는 목록에서는 선택 체크박스를 두지 않는다 — 선택이 먹이는 곳(일괄 작업
+              바)이 통째로 사라져 아무 데도 닿지 않는 조작이 되고, 제외한 것을 작업 대상으로 담는
+              길처럼 보인다. 칸(`<td>`)은 그대로 둬 열 수·스켈레톤 칸 수가 갈라지지 않게 한다. */}
+          {!excludedOnly && (
+            <input
+              type="checkbox"
+              checked={allChecked}
+              onChange={toggleAll}
+              className="w-4 h-4 accent-primary-600"
+              aria-label="전체 선택"
+            />
+          )}
+          <span className="text-caption text-gray-600">
             전체 {data?.totalElements ?? 0}건
             {data ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
           </span>
+          {/*
+            [@design SCREEN-008] [@design AC-1124] 「제외됨 N건」 — **목록 표 바로 위**(세 화면 공통 자리).
+            ★0건이어도 사라지지 않는다. 이 화면은 별도 집계 창구가 없어 **페이지 응답**이 그 숫자를
+              싣는다(작업·검수 목록은 집계 창구가 싣는다 — 진실원을 둘로 두지 않기 위해서다).
+            ⚠ 작업자에게는 두지 않는다 — 제외·복원은 검수자 이상의 일이고 작업자는 그 동선에 들지 않는다.
+          */}
+          {isReviewer && (
+            <div className="ml-auto">
+              <ExcludedCountToggle
+                count={data?.excludedCount}
+                active={excludedOnly}
+                onToggle={toggleExcludedOnly}
+              />
+            </div>
+          )}
         </div>
 
         <div
@@ -528,13 +618,17 @@ export function VideoListPage() {
                       className="px-4 py-3"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selected.has(v.id)}
-                        onChange={() => toggleRow(v.id)}
-                        className="w-4 h-4 accent-primary-600"
-                        aria-label={`${v.cctvName} 선택`}
-                      />
+                      {/* 제외분만 보는 목록에서는 선택 자체를 두지 않는다(위 머리글과 같은 이유).
+                          칸은 남겨 열 수가 헤더·스켈레톤과 갈라지지 않게 한다. */}
+                      {!excludedOnly && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(v.id)}
+                          onChange={() => toggleRow(v.id)}
+                          className="w-4 h-4 accent-primary-600"
+                          aria-label={`${v.cctvName} 선택`}
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800 text-body-md">{v.cctvName}</span>
@@ -580,14 +674,17 @@ export function VideoListPage() {
                       className="px-4 py-3"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         {/* 배정된 영상 — 재배정(기존 유지). 검수 승인 완료 행은 재배정 불가.
                             미배정 + 마킹 진입 가능 영상 — "마킹 설정" 버튼(MarkingModal 오픈).
                             그 외(미배정 && !canMark, 검수완료 등)는 액션 버튼 미노출.
                             ★라벨은 사양 SCREEN-008 의 '마킹 설정'이다 — 이 버튼은 마킹을 바로
                             실행하지 않고 자동/수동 방식을 고르는 팝업을 연다. 작업목록(SCREEN-012)의
-                            '마킹'은 마킹 화면으로 바로 이동하는 다른 버튼이라 문구가 다르다. */}
-                        {isReviewer &&
+                            '마킹'은 마킹 화면으로 바로 이동하는 다른 버튼이라 문구가 다르다.
+                            ★제외분만 보는 목록에서는 이 둘을 노출하지 않는다 — 제외한 것을 작업
+                            대상으로 만들 수 있으면 제외가 무의미해진다(복원만 남는다). */}
+                        {!excludedOnly &&
+                          isReviewer &&
                           v.workerId != null &&
                           v.assignStatus !== 'COMPLETED' && (
                             <Button
@@ -603,7 +700,7 @@ export function VideoListPage() {
                               재배정
                             </Button>
                           )}
-                        {isReviewer && v.workerId == null && canMark(v) && (
+                        {!excludedOnly && isReviewer && v.workerId == null && canMark(v) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -615,6 +712,54 @@ export function VideoListPage() {
                           >
                             <Sparkles size={12} aria-hidden />
                             마킹 설정
+                          </Button>
+                        )}
+                        {/*
+                          [@design SCREEN-008] [@design API-260] [@design AC-1127] 제외 — 기본 목록에서만.
+                          ★<b>배정이 있으면 미리 비활성 + 사유를 함께 보인다</b> — 눌러서 물리쳐진 뒤에야
+                            아는 동선을 만들지 않는다. 판정에 쓰는 값(배정 식별자·작업자)은 목록 응답에
+                            이미 실려 있어 조회를 새로 붙이지 않는다.
+                          ⚠ 사유를 `title` 로만 두지 않는다 — 비활성 버튼은 초점을 받지 못해 보조기술이
+                            그 속성에 닿지 못하고, 마우스를 올려야만 보이는 단서는 없는 것과 같다.
+                        */}
+                        {!excludedOnly && isReviewer && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isAssigned(v)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExcludeTarget(v);
+                              }}
+                              aria-label={`${v.cctvName} 제외`}
+                              data-testid={`video-exclude-${v.id}`}
+                            >
+                              제외
+                            </Button>
+                            {isAssigned(v) && (
+                              <span
+                                className="text-caption text-gray-600"
+                                data-testid={`video-exclude-blocked-${v.id}`}
+                              >
+                                먼저 배정을 해제하세요
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {/* 복원 — 제외분만 보는 목록에서만. 사유를 받지 않고 확인만 거친다. */}
+                        {excludedOnly && isReviewer && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRestoreTarget(v);
+                            }}
+                            aria-label={`${v.cctvName} 복원`}
+                            data-testid={`video-restore-${v.id}`}
+                          >
+                            복원
                           </Button>
                         )}
                         <Button
@@ -697,6 +842,30 @@ export function VideoListPage() {
           videoName={markingTarget.name}
           onClose={() => setMarkingTarget(null)}
           onMarked={handleMarked}
+        />
+      )}
+
+      {/* 영상 제외 사유 입력 (REVIEWER 전용) — 사유 필수. */}
+      {isReviewer && excludeTarget && (
+        <VideoExcludeReasonModal
+          open
+          videoName={excludeTarget.cctvName}
+          loading={excludeVideo.isPending}
+          onClose={() => setExcludeTarget(null)}
+          onConfirm={(reason) =>
+            excludeVideo.mutate({ rawSn: excludeTarget.id, reason })
+          }
+        />
+      )}
+
+      {/* 영상 복원 확인 (REVIEWER 전용) — 사유를 받지 않는다. */}
+      {isReviewer && restoreTarget && (
+        <VideoRestoreConfirmModal
+          open
+          videoName={restoreTarget.cctvName}
+          loading={restoreVideo.isPending}
+          onClose={() => setRestoreTarget(null)}
+          onConfirm={() => restoreVideo.mutate(restoreTarget.id)}
         />
       )}
     </div>

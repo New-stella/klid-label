@@ -22,6 +22,19 @@ import {
   type FrameStatus,
 } from './frameStatus';
 
+/**
+ * 포털 낱장의 상태 테 — **킷이 칠하는 두 상태는 비운다.**
+ * `CURRENT` 는 킷 규칙(`[aria-current]`)이 코발트로 그리고, `NONE` 의 hover 도 킷이 이미 갖는다.
+ * 우리가 덮으면 부모 포털과 다른 회색이 되어 같은 줄이 화면마다 달라 보인다.
+ */
+const PORTAL_STATUS_BORDER: Record<FrameStatus, string> = {
+  CURRENT: '',
+  INQUIRY: FRAME_STATUS_BORDER.INQUIRY,
+  REJECTION: FRAME_STATUS_BORDER.REJECTION,
+  SAVED: FRAME_STATUS_BORDER.SAVED,
+  NONE: '',
+};
+
 interface FrameFilmstripProps {
   frames: FrameSummary[];
   currentIndex: number;
@@ -87,6 +100,75 @@ function FrameThumbnail({
   disabled = false,
 }: FrameThumbnailProps) {
   const { url } = useImageBlob(srcSn, { portalMode, uploadSource });
+  // 흐림(시각)만으로는 보조기술 사용자가 구분할 수 없어 이름에도 담는다.
+  const name = discarded ? `프레임 ${frameNo} (폐기)` : `프레임 ${frameNo}`;
+
+  if (portalMode) {
+    /*
+      ★포털 낱장 — <b>부모 포털 시안의 줄 꼴</b>이다(그림 위 · 번호 아래 · 고른 장은 코발트 테 +
+        번호 굵게). 종전에는 회색 바닥에 번호를 그림 위로 겹쳐 얹어, 부모 포털 옆에 두면 이 줄만
+        «되다 만» 것처럼 보였다(2026-09-16 사용자 지적).
+      ★<b>배선·시험 후크는 관제와 같다</b> — `data-frame-*` 세 값과 접근성 이름이 같은 값을 받는다.
+      ⚠ 고른 장을 `aria-current` 로 말한다(킷 규칙이 그 표식으로 테를 그린다). 관제의
+        `listbox`/`option` 짜임은 <b>그대로 둔다</b> — 관제향 화면 불변 구속이라 한쪽에 맞추지 않는다.
+      ⚠ 상태색(확인요청·저장)은 <b>그림에</b> 준다 — 킷이 테를 그림에 두기 때문이다. 현재 장은
+        킷이 이미 칠하므로 겹쳐 주지 않는다.
+    */
+    return (
+      <li>
+        <button
+          type="button"
+          className="klid-frame-strip-item"
+          aria-current={isSelected ? 'true' : undefined}
+          data-frame-index={index}
+          data-frame-status={status}
+          data-frame-discarded={discarded ? 'Y' : undefined}
+          onClick={() => onSelect(index)}
+          disabled={disabled}
+          aria-label={name}
+        >
+          <span className="relative block">
+            {url ? (
+              <img
+                src={url}
+                alt=""
+                loading="lazy"
+                className={cn(
+                  'thumb',
+                  PORTAL_STATUS_BORDER[status],
+                  discarded && 'opacity-40 grayscale',
+                )}
+              />
+            ) : (
+              <span
+                className={cn(
+                  'thumb animate-pulse',
+                  PORTAL_STATUS_BORDER[status],
+                )}
+              />
+            )}
+            {hasIssue && (
+              <span className="absolute top-0 right-0 p-0.5 leading-none" aria-hidden>
+                <Flag className="h-3 w-3 fill-danger text-danger" />
+              </span>
+            )}
+            {discarded && (
+              <span
+                className="absolute inset-x-0 top-0 bg-warning/90 text-center text-[9px] font-semibold leading-tight text-gray-900"
+                aria-hidden
+              >
+                폐기
+              </span>
+            )}
+          </span>
+          <span className="index" aria-hidden>
+            {frameNo}
+          </span>
+        </button>
+      </li>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -103,8 +185,7 @@ function FrameThumbnail({
         disabled && 'opacity-50 cursor-not-allowed',
       )}
       style={{ width: 80, height: 45 }}
-      // 흐림(시각)만으로는 보조기술 사용자가 구분할 수 없어 이름에도 담는다.
-      aria-label={discarded ? `프레임 ${frameNo} (폐기)` : `프레임 ${frameNo}`}
+      aria-label={name}
     >
       {url ? (
         <img
@@ -158,7 +239,8 @@ export function FrameFilmstrip({
   uploadSource,
   disabled = false,
 }: FrameFilmstripProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // 두 채널이 서로 다른 태그를 감싸므로(`div` · `ol`) 공통 상위 타입으로 잡는다.
+  const scrollRef = useRef<HTMLElement>(null);
 
   // 현재 선택된 thumb를 가운데로 자동 스크롤
   // jsdom에는 scrollIntoView가 없으므로 typeof 가드 필수 (테스트 환경 호환)
@@ -173,46 +255,70 @@ export function FrameFilmstrip({
     }
   }, [currentIndex]);
 
+  /** 낱장 목록 — **두 채널이 같은 목록을 그린다.** 갈리는 것은 감싸개와 낱장 꼴뿐이다. */
+  const renderThumbs = () =>
+    frames.map((f, idx) => {
+      const status = resolveFrameStatus({
+        isCurrent: idx === currentIndex,
+        hasInquiry: inquirySrcSns?.has(f.srcSn) ?? false,
+        // v2 반려는 영상 단위라 프레임 매핑 불가 → hasRejection 항상 false(주황 미대상).
+        hasRejection: false,
+        hasLabel: savedSrcSns?.has(f.srcSn) ?? false,
+      });
+      return (
+        <FrameThumbnail
+          key={f.srcSn ?? f.frameNo}
+          srcSn={f.srcSn}
+          frameNo={f.frameNo}
+          index={idx}
+          isSelected={idx === currentIndex}
+          status={status}
+          hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
+          discarded={discardedSrcSns?.has(f.srcSn) ?? false}
+          onSelect={onSelect}
+          portalMode={portalMode}
+          uploadSource={uploadSource}
+          disabled={disabled}
+        />
+      );
+    });
+
   if (frames.length === 0) {
     return (
-      <div className="h-full bg-gray-50 flex items-center justify-center text-gray-600 text-caption">
+      <div
+        className={cn(
+          'flex items-center justify-center text-caption',
+          portalMode ? 'py-6 text-gray-600' : 'h-full bg-gray-50 text-gray-600',
+        )}
+      >
         프레임 없음
       </div>
     );
   }
 
+  if (portalMode) {
+    /* ★킷 프레임 줄 — 낱장 76 · 16:9 · 번호는 그림 <b>아래</b>. 가로 스크롤 막대도 킷 것을 쓴다.
+       ⚠ 높이를 우리가 정하지 않는다 — 낱장 치수가 킷 규칙에 있어, 여기서 `h-full` 로 묶으면
+         번호 줄이 잘린다. 호출부가 이 줄을 <b>내용 높이</b>로 둔다. */
+    return (
+      <ol
+        ref={scrollRef as React.Ref<HTMLOListElement>}
+        className="klid-frame-strip klid-scrollbar"
+        aria-label="프레임 목록"
+      >
+        {renderThumbs()}
+      </ol>
+    );
+  }
+
   return (
     <div
-      ref={scrollRef}
+      ref={scrollRef as React.Ref<HTMLDivElement>}
       className="h-full bg-gray-50 flex items-center gap-1 overflow-x-auto px-2 py-1"
       role="listbox"
       aria-label="프레임 목록"
     >
-      {frames.map((f, idx) => {
-        const status = resolveFrameStatus({
-          isCurrent: idx === currentIndex,
-          hasInquiry: inquirySrcSns?.has(f.srcSn) ?? false,
-          // v2 반려는 영상 단위라 프레임 매핑 불가 → hasRejection 항상 false(주황 미대상).
-          hasRejection: false,
-          hasLabel: savedSrcSns?.has(f.srcSn) ?? false,
-        });
-        return (
-          <FrameThumbnail
-            key={f.srcSn ?? f.frameNo}
-            srcSn={f.srcSn}
-            frameNo={f.frameNo}
-            index={idx}
-            isSelected={idx === currentIndex}
-            status={status}
-            hasIssue={issueFrameNos?.has(f.frameNo) ?? false}
-            discarded={discardedSrcSns?.has(f.srcSn) ?? false}
-            onSelect={onSelect}
-            portalMode={portalMode}
-            uploadSource={uploadSource}
-            disabled={disabled}
-          />
-        );
-      })}
+      {renderThumbs()}
     </div>
   );
 }

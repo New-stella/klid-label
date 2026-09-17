@@ -1,0 +1,24 @@
+@charset "utf-8";
+/* 단일선택 조건 한 줄 (RadioRow). 기준: design.md §9 반응형 범위 */
+
+/* 낱개가 줄을 넘치면 다음 줄로 접힌다.
+   킷 `.krds-check-area` 는 `display:flex; gap:var(--krds-gap-6)` 만 선언하고 `flex-wrap` 은
+   선언하지 않아 기본값 nowrap 으로 남는다 — **선언하지 않은 속성을 더하는 것**이라 덮어쓰기가
+   아니다 (CLAUDE.md 디자인 구조 원칙. `grep '\.krds-check-area{' krds-react/dist/index.css` 로 확인).
+   접기가 없으면 낱개가 많은 축에서 줄이 화면 밖으로 뻗는다 — 지형·장소(아홉 낱개)가 360 에서
+   본문을 327px 넘겨 페이지 전체에 가로 스크롤을 만들었다.
+   세로 간격은 킷이 선언한 gap 이 그대로 맡는다 (gap 은 두 축에 함께 걸린다) */
+.klid-radio-row .krds-check-area {
+  flex-wrap: wrap;
+}
+
+/* ★ 줄이 **제 층 안에서 겹친다** (2026-08-26 추가).
+   킷은 동그라미와 그 안의 점을 라벨의 `::before`(z-index 3) · `::after`(z-index 4)로 그린다.
+   라벨 자체는 층을 새로 열지 않아(position relative · z-index auto) 그 3·4 가 **줄 바깥으로
+   새어 나가**, 위에 덮이는 것(창 바닥에 붙는 실행 줄 등)이 3·4 보다 큰 수를 들고 있지 않으면
+   라디오가 그 위로 올라탄다 — 조건 창에서 실제로 났던 일이다 (칩·셀렉트는 안 그런다).
+   여기서 층 하나를 열어 3·4 를 **줄 안에 가둔다.** 줄 안에서의 앞뒤는 그대로다.
+   덮는 쪽이 큰 수를 들고 쫓아가는 방식은 안 쓴다 — 킷 값이 바뀌면 그때마다 다시 재야 한다 */
+.klid-radio-row {
+  isolation: isolate;
+}

@@ -57,6 +57,12 @@ public class KpstDeidentTxService {
      * 이 서비스의 {@code REQUIRES_NEW} 안에서 불리므로 훅이 스스로 {@code afterCommit} 으로 미룬다.
      */
     private final DeidentReservationHook deidentReservationHook;
+    /**
+     * 재생 인덱스 재배치 (ADR-072). 완료 전이를 기록한 자리에서 불리며 스스로 {@code afterCommit} 으로
+     * 미룬다 — 완료 선점을 얻어 <b>실제로 커밋한 노드</b>에서만 실행되고, 롤백되면 실행되지 않는다.
+     * 파일 입출력은 이 트랜잭션 밖(전용 실행기)에서 하며 실패해도 완료 전이를 되돌리지 않는다.
+     */
+    private final DeidentFaststartService deidentFaststartService;
 
     /**
      * 폴링 대상 <b>원자 클레임</b> — 이 호출이 {@code true} 를 받은 노드만 해당 위탁 건을 폴링한다
@@ -133,7 +139,8 @@ public class KpstDeidentTxService {
      * 아무것도 나가지 않은</b> 상태다 — 요청 트랜잭션이 롤백돼 위탁 구독 자체가 일어나지 않았다.
      * 여기서 'F' 를 찍으면 실패한 요청이 그 영상을 신고 게이트(라벨 조회 412 · 스트리밍 404 ·
      * export 보류)에 밀어 넣는다. 그래서 <b>원장만</b> terminal 로 닫아 폴링 대상에서 제외하고
-     * 영상 상태·작업락은 건드리지 않는다(작업락 INSERT 도 같은 롤백으로 사라졌다).
+     * 영상 상태는 건드리지 않는다(재비식별 작업락 INSERT 도 같은 롤백으로 사라졌다). 단 선두 비식별
+     * 재시작이 요청 트랜잭션에서 미리 커밋한 잠금은 이 종결에서 한정 해제한다(AC-1135).
      *
      * <p>종결은 {@code claimSubmitFailure}(WAITING + prjId null) 조건부 UPDATE 라, 만에 하나 ACK 가
      * 먼저 기록된 건이면 0행 no-op 이다(진행 중 위탁을 취소하지 않는다).
@@ -152,6 +159,9 @@ public class KpstDeidentTxService {
             log.info("[KpstDeid] submit cancel ignored (already settled) rawSn={}", rawSn);
             return false;
         }
+        // AC-1135 — 취소 종결도 선두 비식별 재시작의 종결이다. 영상 상태는 그대로 두되 그 재시작이 잡은
+        //   잠금은 푼다(재비식별 잠금은 같은 롤백으로 이미 사라졌고, 이 해제는 그 잠금을 건드리지 않는다).
+        releaseDeidentRetryLock(rawSn, "DEIDENT_RETRY_CANCELED");
         log.warn("[KpstDeid] submit canceled — ledger closed without deident failure rawSn={}", rawSn);
         return true;
     }
@@ -184,7 +194,9 @@ public class KpstDeidentTxService {
         }
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
         // 재비식별(REDEIDENT)은 요청 시 작업락을 잡는다 — 위탁이 실패로 끝나면 해제해야 재요청이 가능하다
-        // (해제하지 않으면 409 영구 차단). 배치 경로는 락 자체가 없어 무영향.
+        // (해제하지 않으면 409 영구 차단). 배치 경로는 선두 비식별 재시작이 잡은 잠금만 있을 수 있어
+        // 아래 한정 해제가 맡는다(적재 직후 자동 실행은 잠금이 없어 무영향). ACK 유예 만료 회수도 이 지점이다.
+        releaseDeidentRetryLock(rawSn, "DEIDENT_RETRY_SUBMIT_FAILED");
         boolean redeident = procLogRepository.findById(procLogSn)
                 .map(LsDeidentProcLog::isRedeident)
                 .orElse(false);
@@ -272,6 +284,8 @@ public class KpstDeidentTxService {
         procLogRepository.findById(procLogSn)
                 .ifPresent(p -> p.fail("DEIDENT_INCOMPLETE", "deid file invalid"));
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // AC-1135 — 선두 비식별 재시작이 잡은 잠금만 푼다(그 밖의 잠금은 이 경로에 없고, 있어도 건드리지 않는다).
+        releaseDeidentRetryLock(rawSn, "DEIDENT_RETRY_POLL_FAILED");
         // ADR-052 / AC-1033 — 폴링이 terminal 실패로 종결됐다. 예약 마킹을 마감한다(적재는 유지).
         deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         log.warn("[KpstDeid] poll incomplete download rawSn={}", rawSn);
@@ -312,6 +326,8 @@ public class KpstDeidentTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDeidentFailed(Long rawSn) {
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // AC-1135 — 산출물 무효 확정 실패도 선두 비식별 재시작의 종결이다.
+        releaseDeidentRetryLock(rawSn, "DEIDENT_RETRY_ARTIFACT_INVALID");
         // ADR-052 / AC-1033 — 산출물 무효로 Y 전이가 막힌 확정 실패의 보정 커밋 지점이다. 예약 마킹을
         //   함께 마감한다(적재는 유지 — 재마킹 가능).
         deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
@@ -349,10 +365,12 @@ public class KpstDeidentTxService {
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
         // DEV_FIX HIGH-2: REDEIDENT 건이 끝내 procState=2 미도달(타임아웃)이면 위탁 시 잡은 작업락이 영구 잔존
         // 한다(완료/실패 분기를 안 타므로). 타임아웃 'F' 마킹 시 락 보유면 해제하여 재요청을 허용한다.
-        // 비-REDEIDENT(배치)는 락 자체가 없어 무영향.
+        // 비-REDEIDENT(배치)는 선두 비식별 재시작이 잡은 잠금만 있을 수 있어 아래 한정 해제가 맡는다.
         if (procLog.isRedeident() && workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_TIMEOUT");
         }
+        // AC-1135 — 처리 시한 초과 종결.
+        releaseDeidentRetryLock(rawSn, "DEIDENT_RETRY_TIMEOUT");
         // ADR-052 / AC-1033 — 타임아웃은 이 위탁 건의 종결이다(자동 재비식별 큐가 없어 스스로 되살아나지
         //   않는다). 예약 마킹을 마감해 사람이 그 영상을 다시 마킹할 수 있게 한다(적재는 유지).
         deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
@@ -385,7 +403,7 @@ public class KpstDeidentTxService {
         if (redeident) {
             applyRedeidentCompletion(rawSn, deidFilePath);
         } else {
-            applyBatchCompletion(rawSn);
+            applyBatchCompletion(rawSn, deidFilePath);
         }
     }
 
@@ -397,12 +415,16 @@ public class KpstDeidentTxService {
      * 않는다. 이 경로와 무관한 영상에서는 보류가 애초에 서 있지 않아 no-op 이다
      * ({@link DeidentApprovalHoldReleaser}).
      *
+     * <p>완료가 커밋된 뒤 산출물의 재생 인덱스 재배치를 넘긴다(ADR-072) — 경로·파일명·완료 상태는 불변이다.
+     *
      * @design ADR-048
-     * @design AC-046
+     * @design AC-1063
+     * @design AC-1064
      * @design ADR-052
      * @design SEQ-030
+     * @design ADR-072
      */
-    private void applyBatchCompletion(Long rawSn) {
+    private void applyBatchCompletion(Long rawSn, String deidFilePath) {
         LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
         if (managed == null) {
             log.warn("[KpstDeid] raw not found rawSn={} (complete) — skip", rawSn);
@@ -446,6 +468,8 @@ public class KpstDeidentTxService {
         //   ★ 재비식별(REDEIDENT) 경로에는 붙이지 않는다 — 그쪽은 APPROVED 유지 경로라 마킹 단계로의
         //     재진입을 만들지 않으며(R1), 승인된 영상에 예약이 존재할 수 없다.
         deidentReservationHook.activateAfterCommit(rawSn);
+        // ADR-072 — 커밋 이후 재생 인덱스 재배치(인덱스가 이미 앞이거나 판정 불가면 무동작, 실패는 fail-open).
+        deidentFaststartService.scheduleAfterCommit(rawSn, managed.getRawFilePathNm(), deidFilePath);
         log.info("[KpstDeid] completed rawSn={}", rawSn);
     }
 
@@ -491,6 +515,9 @@ public class KpstDeidentTxService {
         // 5) 스트림 메타 캐시 무효화 (HIGH — 무결성/privacy) — 재비식별로 비식별본이 교체(동일 경로
         //    in-place 교체 시 옛 contentLength 로 Range 경계 오류·재생 잘림 가능)되었으므로 커밋 후 무효화.
         streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        // 6) ADR-072 — 재비식별 회차도 같은 완료 경로라 커밋 이후 재생 인덱스 재배치를 넘긴다
+        //    (프레임 attach 는 위에서 이미 끝났다 — 재배치는 영상 내용을 바꾸지 않는다).
+        deidentFaststartService.scheduleAfterCommit(rawSn, managed.getRawFilePathNm(), deidFilePath);
         log.info("[KpstDeid] redeident completed rawSn={}", rawSn);
     }
 
@@ -512,6 +539,16 @@ public class KpstDeidentTxService {
             log.warn("[KpstDeid] deid file invalid rawSn={} — mark F", rawSn);
             throw new CustomException(ErrorCode.INVALID_INPUT, "비식별 산출물이 유효하지 않습니다.");
         }
+    }
+
+    /**
+     * 선두 비식별 재시작(배치 재시작)이 잡은 작업 잠금만 해제한다 — 본 서비스의 트랜잭션에 합류한다.
+     * 트랙 병합·검수완료 재비식별이 잡은 잠금은 풀지 않는다. 잠금이 없으면 no-op.
+     *
+     * @design AC-1135
+     */
+    private void releaseDeidentRetryLock(Long rawSn, String reason) {
+        workLockService.releaseDeidentRetryLock(rawSn, "batch", reason);
     }
 
     @Transactional(value = "controlTransactionManager", readOnly = true,

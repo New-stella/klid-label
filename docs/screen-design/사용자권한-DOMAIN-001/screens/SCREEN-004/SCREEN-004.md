@@ -1,24 +1,20 @@
 ---
 logicraft_item: SCREEN-004
 type: screen_spec
-version: 17
-last_updated_at: 2026-09-02T11:24:47.846Z
+version: 18
+last_updated_at: 2026-09-10T08:53:19.078Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-08T00:21:15.708Z
-sync_session: 18
-stale: true
-status: CHANGED
-prev_version: 14
+synced_at: 2026-09-17T01:18:28.152Z
+sync_session: 22
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-004.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-153]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v14 → v17**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (6.2KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 개발용 로그인 화면
 
@@ -40,7 +36,7 @@ draft
 
 ## purpose
 
-개발 환경 전용 로그인 화면. 운영에서는 관제/포털 JWT 인계 흐름을 사용하며, 이 화면은 그 흐름을 재현하기 위한 개발용 토큰 발급 화면이다(비운영). 접근: 공개(개발 환경에서만 노출). 운영 미노출은 프론트엔드 빌드 설정·백엔드 런타임 설정·운영 계열 프로파일 기동 검증의 3중 조건으로 통제된다(아래 DEV 안내 헤더 절 참조).
+개발 환경 전용 로그인 화면. 운영에서는 관제/포털 JWT 인계 흐름을 사용하며, 이 화면은 그 흐름을 재현하기 위한 개발용 토큰 발급 화면이다(비운영). 접근: 공개(개발 환경에서만 노출). 운영 미노출은 프론트엔드 빌드 설정·백엔드 런타임 설정·운영 계열 프로파일 기동 검증의 3중 조건으로 통제된다(아래 DEV 안내 헤더 절 참조). 관제 채널에서 이 화면이 발급한 토큰에는 세션 정보(tokenInfo)와 refresh 토큰이 함께 놓이지 않는다. 그래서 세션 연장(갱신)이 일어나지 않고 발급 때 정한 만료 시각까지 그대로 쓰며, 세션 정보가 없다는 이유로 로그아웃되지 않는다.
 
 ## sections
 

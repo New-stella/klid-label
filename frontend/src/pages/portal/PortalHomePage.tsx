@@ -17,20 +17,29 @@
 //   본문 상단 탭(`PortalContentTabs`, 레이아웃이 그린다)이 맡으므로 이 화면은 자기 제목 밴드도 두지
 //   않는다(서비스 제목은 Host 머리 영역이, 화면 이름은 활성 탭이 이미 말한다).
 //
-// <h3>모양 — 포털 저작도구 화면이 정본</h3>
-// 포털 저장소의 부품(`@portal/components/custom` · KRDS 킷)으로 짓는다. 짜임·문구는 포털 화면
-// 스토리북 「워크스페이스 / 저작도구 / 내 작업」(KLID_Portal `AuthoringWorkView`)과 같게 둔다.
-// 데이터 · 받기 · 취소 흐름은 이 화면의 것 그대로다.
+// <h3>모양 — 부모 포털의 저작도구 화면을 그대로 입혔다 (2026-09-16)</h3>
+// 부모 포털(KLID_Portal)이 이 화면을 **자기 부품으로 다시 그려** 「저작도구 쪽에 넘기는 기준」으로
+// 삼았고(`pages/workspace/authoring/AuthoringWorkView.tsx`), 그 짜임을 여기에 옮겼다.
+//   · 판·블록·목록 짜임 = `klid-authoring-*` (components/portal/authoring/authoring.css)
+//   · 부품 = 포털 킷(`components/portal/kit`) + KRDS 킷(`krds-react`)
+//   · 보존기간 안내가 **목록 바로 위 회색 띠**로 올라왔다 — 표를 읽기 전에 먼저 보이게
+//     (구 동작: 페이지 맨 아래 회색 글 한 줄)
+//   · 내려받기가 **제 칸으로 떨어져 나왔다** — 「이어서 작업」 옆에 붙어 있으면 머리글로 갈리지 않았다
+//   · 못 누르는 사유는 **말풍선**으로 옮겼다. 다만 말풍선만 두면 보조기술이 못 읽으므로
+//     `aria-describedby` + 화면 밖 글을 **함께** 남긴다(아래 `LockedAction` 주석)
+//
+// ⚠ 관제 공통 부품(`components/common/*`)을 쓰지 않는다 — 관제 화면 여럿이 함께 쓰므로 포털 모양을
+//   넣으면 관제 화면이 같이 바뀐다(사용자 확정 구속: **관제향 화면·컴포넌트 불변**).
 //
 // 보안: 사용자·서버가 준 이름은 JSX 텍스트 노드로만 렌더한다(자동 escape). 본인 데이터 격리는
 //   서버가 토큰 주체로 강제한다(CWE-639).
 
 import { useRef, useState } from 'react';
 import { Badge, Button, Table, Tooltip } from 'krds-react';
-import { Inbox, X } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Download, FileBraces, Inbox, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 
-import { Alert, EmptyState, PageNav, ResultCount, StepHeading } from '@portal/components/custom';
+import { Alert, EmptyState, PageNav, ResultCount, StepHeading } from '@/components/portal/kit';
 import {
   downloadDatamartVideoData,
   type PortalUserWork,
@@ -38,10 +47,10 @@ import {
 } from '@/features/portal/api';
 import { datamartDownloadErrorMessage } from '@/features/portal/downloadError';
 import { formatExpiryDate } from '@/features/portal/expiry';
+import { formatPortalDateTime } from '@/features/portal/formatDateTime';
+import { useUserWorks } from '@/features/portal/hooks/useUserWorks';
 import { buildPortalWorkLabelPath } from '@/features/portal/labelingEntry';
 import { downloadUploadExport } from '@/features/portal/uploads/api';
-import { useUserWorks } from '@/features/portal/hooks/useUserWorks';
-import { formatPortalDateTime } from '@/features/portal/formatDateTime';
 
 const PAGE_SIZE = 20;
 
@@ -60,18 +69,30 @@ const SOURCE_LABEL: Record<PortalWorkAssetSource, string> = {
  * ★★ **원인을 단정하지 않는다 — 사유가 둘인데 창구는 값 하나로만 말한다.**
  *   진입 자리(`entrySrcSn`)가 비는 사유는 ①열 프레임이 없다(업로드인데 마킹·추출 전)
  *   ②진입이 허용되지 않는다(데이터마트 영상이 노출 조건을 잃었다) 둘이고, **응답은 그 둘을 구분해
- *   주지 않는다**(인지·수용한 대가로 창구 사양·응답 필드 설명·서비스 주석 세 자리에 명시돼 있다).
- *   그래서 **두 사유 모두에 참인 표현**만 쓴다.
+ *   주지 않는다**. 그래서 **두 사유 모두에 참인 표현**만 쓴다.
  *   ⚠ 구 문구 폐기 — *"열 수 있는 프레임이 없어 …"*. ②에서는 **프레임이 멀쩡히 있는데** 없다고
  *     말하게 되어, 사용자가 프레임이 사라진 줄 알고 엉뚱한 회복 경로로 간다.
- *
- * ⚠ **잠정 문구다** — 시안이 이 문구와 그 자리를 아직 확정하지 않았다(사양 SCREEN-028 이 그렇게
- *   적는다). 확정 전까지 **최소한의 평이한 표기**로 둔다. 꾸미지 말 것.
  */
 const NO_ENTRY_REASON = '지금은 이어서 작업할 수 없습니다.';
 
 /** 내려받을 저작물이 없는 행의 사유 문구. */
 const NO_DOWNLOAD_REASON = '아직 저장한 작업이 없어 내려받을 것이 없습니다.';
+
+/** 다른 행을 받는 중이라 잠긴 사유 문구 — 한 번에 하나만 받는다. */
+const DOWNLOAD_BUSY_REASON = '다른 작업을 내려받는 중입니다.';
+
+/**
+ * 내려받기 버튼 문구 — **받는 형식을 밝힌다**[SCREEN-028].
+ * 같은 자리의 버튼이 출처마다 다른 파일을 내려주므로(데이터마트 = 프레임 이미지·문서·비식별 영상 ZIP,
+ * 업로드 = 라벨 JSON 한 파일) 문구가 같으면 누르기 전에는 무엇을 받는지 알 수 없다.
+ *
+ * ⚠ 부모 포털 시안은 이 자리를 「내려받기」 한 마디로 그렸다(그쪽 목 데이터에는 형식 차이가 없다).
+ *   형식을 밝히는 것은 **우리 쪽에만 있는 사실**이라 유지한다 — 열 머리는 시안대로 「내려받기」다.
+ */
+const DOWNLOAD_LABEL: Record<PortalWorkAssetSource, string> = {
+  DATAMART: 'ZIP 내려받기',
+  PORTAL_UPLOAD: 'JSON 내려받기',
+};
 
 /**
  * 주소의 page 값(0부터)을 읽는다. 사용자가 주소를 직접 고칠 수 있으므로 음수·소수·비수치는
@@ -95,13 +116,63 @@ function hasAuthoredWork(work: PortalUserWork): boolean {
   return work.lastSavedAt !== null;
 }
 
+/**
+ * 잠긴 걸음 — 버튼 모양은 그대로 두고 누르기만 막는다. 부모 포털의 「잠긴 걸음」 처리다.
+ *
+ * ★ **속성으로 잠그지 않는다**(`disabled` 미사용). WCAG 2.1.1 — native `disabled` 는 Tab 순서에서
+ *   빠져 **왜 못 누르는지 알 길이 사라진다.** `aria-disabled` 로 초점은 남기고 활성화만 막는다.
+ * ★★ **말풍선만으로 끝내지 않는다.** 부모 포털 시안은 사유를 `Tooltip` 하나로 옮겼는데, 말풍선은
+ *   손을 올려야 뜨므로 **보조기술과 손가락 입력에는 사유가 전달되지 않는다.** 그래서 말풍선(눈)과
+ *   화면 밖 글 + `aria-describedby`(보조기술)를 **함께** 둔다 — 시안의 생김새는 그대로이고
+ *   접근성만 되살린다.
+ */
+function LockedAction({
+  reason,
+  reasonId,
+  testId,
+  variant,
+  children,
+}: {
+  reason: string;
+  reasonId: string;
+  testId: string;
+  variant?: 'secondary';
+  children: string;
+}) {
+  return (
+    <Tooltip text={reason}>
+      <span>
+        {/* 킷 버튼의 잠김 모양(disabled 클래스)만 입힌다 — 속성으로 잠그면 사유가 안 뜬다.
+            시험 후크는 **실제 조작 요소인 이 버튼**에 단다 — 바깥 싸개에 달면 잠김 여부를
+            그 후크로 확인할 수 없다. */}
+        <Button
+          size="small"
+          variant={variant}
+          className="disabled"
+          aria-disabled
+          aria-describedby={reasonId}
+          data-testid={testId}
+          onClick={(e) => e.preventDefault()}
+        >
+          {children}
+        </Button>
+        {/* ★말풍선만으로는 보조기술에 닿지 않는다 — 킷 말풍선 본문은 `aria-hidden` 이다(실측).
+            그래서 같은 문구를 화면 밖 글로 한 벌 더 두고 버튼이 그것을 가리킨다.
+            ⚠ 그 결과 같은 문구가 문서에 **두 번** 나온다 — 의도이며, 하나는 눈 하나는 귀다. */}
+        <span id={reasonId} className="sr-only">
+          {reason}
+        </span>
+      </span>
+    </Tooltip>
+  );
+}
+
 export function PortalHomePage() {
   /*
    * 페이지는 주소에 둔다 — 뒤로가기·북마크가 동작해야 하고, 내부 목록 화면(공지 등)이 이미 같은
    * 방식이다. 기본값(첫 페이지)일 때는 키를 넣지 않는다(공지 목록과 같은 관례).
    */
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const page = parsePageParam(searchParams.get('page'));
 
   const { data, isLoading } = useUserWorks({ page, size: PAGE_SIZE });
@@ -110,7 +181,9 @@ export function PortalHomePage() {
   const totalElements = data?.totalElements ?? 0;
   const totalPages = data?.totalPages ?? 0;
 
-  const handlePageChange = (next: number) => {
+  /** 킷 페이저는 1부터 센다 — 우리 창구는 0부터라 경계에서 한 번만 옮긴다. */
+  const handlePageChange = (oneBased: number) => {
+    const next = Math.max(0, oneBased - 1);
     const sp = new URLSearchParams(searchParams);
     if (next > 0) sp.set('page', String(next));
     else sp.delete('page');
@@ -126,8 +199,7 @@ export function PortalHomePage() {
    *   화면이 두 축을 한 창구로 합치려 하지 않는다.
    *
    * ★ **취소는 두 축 모두에서 동작해야 한다.** 행에 따라 취소가 되기도 안 되기도 하면 사용자가
-   *   예측할 수 없다 — 그래서 업로드 내보내기 창구에도 중단 신호를 싣는다(그쪽 함수에 선택 인자를
-   *   더했다). 사양(SCREEN-028)이 「같은 자리에서 전송을 멈출 수 있어야 한다」를 행 구분 없이 요구한다.
+   *   예측할 수 없다 — 그래서 업로드 내보내기 창구에도 중단 신호를 싣는다.
    *
    * ★★ **사용자 취소는 오류가 아니라 정상 종료다 — 안내를 띄우지 않는다.** 중단하면 응답이 오지
    *   않아 `ApiError(status 0)` 으로 올라오는데, 그 자리는 «전송이 끊겼습니다 … 연결이 안정적인
@@ -136,8 +208,6 @@ export function PortalHomePage() {
    *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 취소 표식을 남기지 않아 오류만
    *     봐서는 취소와 회선 단절이 **구분되지 않는다**. 반면 화면은 자기가 중단을 걸었는지 알고
    *     있으므로 그 사실(`controller.signal.aborted`)로 판정한다.
-   *   ⚠ 그렇다고 «응답 없는 실패» 통합(중단·네트워크 단절·제한시간 초과를 한 문구로 묶은 것)을
-   *     뒤집지 않는다 — 그건 «사용자가 할 일이 같다» 는 의도된 결정이다(downloadError.ts 머리말).
    */
   const [downloadingRawSn, setDownloadingRawSn] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -186,168 +256,235 @@ export function PortalHomePage() {
           title="내 저장 작업"
           desc="내가 올린 자산과, 내가 라벨이나 메타를 더한 영상이 여기에 모입니다."
         />
-        {/* 보존기간 안내 — 목록에 걸리는 규칙이라 목록 바로 위에 둔다. 늘 떠 있는 안내라 읽어 주지 않는다 */}
+
+        {/* 목록에 걸리는 규칙이라 목록 바로 위에 둔다 — 표를 읽기 전에 먼저 보이게. 늘 떠 있는
+            안내라 읽어 주지 않는다(`live="none"`). 회색(info)이다 — 지금 이 화면의 사정이 아니라
+            한 번 알아 두면 되는 규칙이라서다.
+            ★**구현 말투를 쓰지 않는다** — 알려야 할 것은 「기한이 지나면 사라진다」와 「그 전에
+              내려받아 두라」 둘이다(사양 SCREEN-028). */}
         <Alert tone="info" live="none">
           보존기간이 지나면 저장한 작업과 파일이 함께 삭제됩니다. 만료 예정일 전에 필요한 자료를
           내려받아 주세요.
         </Alert>
 
-        {/* 받기 실패 — 다음 받기를 누를 때 사라진다 */}
         {downloadError !== null && (
-          <Alert tone="danger" title="내려받지 못했습니다">
-            {downloadError}
+          <Alert tone="danger" title="내려받지 못했습니다" className="klid-alert">
+            <span data-testid="portal-work-download-error">{downloadError}</span>
           </Alert>
         )}
 
         {isLoading ? (
+          /* 불러오는 동안 자리를 지킨다 — 비워 두면 실패한 것으로 읽힌다. 빈 목록과 같은 판이다. */
           <EmptyState busy title="저장한 작업을 불러오고 있습니다." />
         ) : (
           <>
-            {/* 건수는 목록 왼쪽 위에 선다 — 내 업로드 · 증강 목록과 같은 결과 머리 줄(아래 목록과 12)이다.
-                불러오는 동안은 세우지 않는다 — 0 으로 읽힌다 */}
-            <div className="klid-authoring-assets">
-              <div className="klid-result-head">
-                <ResultCount total={totalElements} />
-              </div>
-              {isEmpty ? (
-                /* 행이 하나도 없을 때만 나온다 — 라벨 건수가 0인 행은 작업물을 가진 정상 행이다.
-                   영상을 고르는 자리가 포털 화면이라 여기서 갈 곳이 없어 조작을 두지 않는다 */
-                <EmptyState
-                  icon={Inbox}
-                  title="저장한 작업이 없습니다."
-                  desc="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다."
-                />
-              ) : (
-            <div className="klid-table-shell">
-              <Table scroll>
-                <Table.Caption>내 저장 작업 목록</Table.Caption>
-                {/* 짧은 값은 그 값만큼 주고 남는 폭은 전부 이름에 준다. 폭은 값의 글자 수가 정하는 치수라
-                    토큰이 아니다 (포털 화면과 같은 값) */}
-                <Table.Colgroup>
-                  <Table.Col />
-                  <Table.Col style={{ width: '14rem' }} />
-                  <Table.Col style={{ width: '12rem' }} />
-                  <Table.Col style={{ width: 'var(--klid-table-col-l)' }} />
-                  <Table.Col style={{ width: 'var(--klid-table-col-l)' }} />
-                </Table.Colgroup>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th scope="col" className="klid-th-title">
-                      대상 영상
-                    </Table.Th>
-                    <Table.Th scope="col">저장 시각</Table.Th>
-                    <Table.Th scope="col">만료 예정일</Table.Th>
-                    <Table.Th scope="col">작업</Table.Th>
-                    <Table.Th scope="col">내려받기</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {works.map((work) => {
-                    /* 진입 가부(열 프레임이 있는가)와 내려받기 가부(본인 저작물이 있는가)는 다른 축이라
-                       함께 막지 않는다. 진입 주소 조립은 `buildPortalWorkLabelPath` 가 출처별로 가른다 */
-                    const entryPath = buildPortalWorkLabelPath(
-                      work.assetSource,
-                      work.rawSn,
-                      work.entrySrcSn,
-                    );
-                    const canDownload = hasAuthoredWork(work);
-                    const expiresOn = formatExpiryDate(work.expiresOn);
-                    const downloading = downloadingRawSn === work.rawSn;
-                    const downloadBlocked = downloadingRawSn !== null && !downloading;
+            {/* 건수는 목록 왼쪽 위에 선다 — 목록을 설명하는 줄이라 목록과 한 덩어리로 묶어 12 로
+                붙인다. 불러오는 동안은 세우지 않는다 — 0 으로 읽힌다. */}
+            <div className="klid-authoring-list">
+              <span data-testid="portal-work-count" className="sr-only">
+                {totalElements}건
+              </span>
+              <ResultCount total={totalElements} />
 
-                    return (
-                      <Table.Tr key={work.rawSn} data-testid={`portal-work-row-${work.rawSn}`}>
-                        <Table.Td>
-                          {/* 이름 옆 출처 배지. 이름은 한 줄로 두고 넘치면 말줄임, 손을 올리면 전체 이름 */}
-                          <span className="klid-authoring-cell-title">
-                            <span className="klid-authoring-cell-name" title={work.videoName}>
-                              {work.videoName}
-                            </span>
-                            <Badge
-                              variant="light"
-                              color={work.assetSource === 'PORTAL_UPLOAD' ? 'primary' : 'gray'}
-                              className="klid-badge-tint klid-badge-square"
-                            >
-                              {SOURCE_LABEL[work.assetSource]}
-                            </Badge>
-                          </span>
-                          <span className="klid-authoring-cell-sub">#{work.rawSn}</span>
-                        </Table.Td>
-                        {/* 저장 이력 · 만료일이 없으면 「-」 */}
-                        <Table.Td>
-                          {work.lastSavedAt !== null ? formatPortalDateTime(work.lastSavedAt) : '-'}
-                        </Table.Td>
-                        <Table.Td>{expiresOn ?? '-'}</Table.Td>
-                        <Table.Td>
-                          {entryPath === null ? (
-                            <Tooltip text={NO_ENTRY_REASON}>
-                              <span>
-                                {/* 킷 버튼의 잠김 모양만 입힌다 — 속성으로 잠그면 손을 올려도 사유가 안 뜬다 */}
+              {isEmpty ? (
+                /* 행이 하나도 없을 때만 나온다 — 라벨 건수가 0인 행은 작업물을 가진 정상 행이라
+                   이 안내로 대신하지 않는다(사양 SCREEN-028).
+                   ★조작을 두지 않는다 — 영상을 고르는 자리가 **이 배포본 바깥**(Host 화면)이라
+                     여기서 갈 수 있는 곳이 없다. 누를 수 없는 버튼을 두면 막다른 길이 하나 더 는다. */
+                <div data-testid="portal-work-empty">
+                  <EmptyState
+                    icon={Inbox}
+                    title="저장한 작업이 없습니다."
+                    desc="포털에서 영상을 골라 라벨이나 메타를 저장하면 여기에 모입니다."
+                  />
+                </div>
+              ) : (
+                <div className="klid-table-shell">
+                  <Table scroll data-testid="portal-work-table">
+                    <Table.Caption>
+                      본인이 저장한 작업 목록. 대상 영상, 저장 시각, 만료 예정일, 작업, 내려받기
+                      순서로 이루어집니다.
+                    </Table.Caption>
+                    {/* 칸 폭을 못 박는다 — 자동 배분에 맡기면 값이 짧은 칸(시각·날짜)이 이름과 같은
+                        폭을 받아 파일명만 여러 줄로 접힌다. 짧은 값은 그 값만큼 주고 **남는 폭은
+                        전부 이름에** 준다. 폭은 값의 글자 수가 정하는 치수라 토큰이 아니다.
+                        ⚠ 내려받기 칸만 시안(`--klid-table-col-l`)보다 한 급 넓다 — 우리 버튼 문구가
+                          받는 형식까지 밝혀서(「ZIP 내려받기」) 시안 폭에 들어가지 않는다. */}
+                    <Table.Colgroup>
+                      <Table.Col />
+                      <Table.Col style={{ width: '14rem' }} />
+                      <Table.Col style={{ width: '12rem' }} />
+                      <Table.Col style={{ width: 'var(--klid-table-col-l)' }} />
+                      <Table.Col style={{ width: 'var(--klid-table-col-xl)' }} />
+                    </Table.Colgroup>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th scope="col" className="klid-th-title">
+                          대상 영상
+                        </Table.Th>
+                        <Table.Th scope="col">저장 시각</Table.Th>
+                        <Table.Th scope="col">만료 예정일</Table.Th>
+                        <Table.Th scope="col">작업</Table.Th>
+                        <Table.Th scope="col">내려받기</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {works.map((work) => {
+                        /*
+                         * ★ 진입 주소 조립은 화면이 문자열로 하지 않는다 — 단일 진실원
+                         *   `buildPortalWorkLabelPath` 가 출처별로 가른다. 화면이 직접 조립하다
+                         *   업로드 축 행까지 데이터마트 경로로 보낸 결함이 실제로 있었다.
+                         * ★ **진입 가부와 내려받기 가부는 서로 다른 축이라 함께 막지 않는다.**
+                         *   진입은 「열 프레임이 있는가」(`entrySrcSn`), 내려받기는 「본인 저작물이
+                         *   있는가」(`lastSavedAt`)로 갈린다.
+                         */
+                        const entryPath = buildPortalWorkLabelPath(
+                          work.assetSource,
+                          work.rawSn,
+                          work.entrySrcSn,
+                        );
+                        const canDownload = hasAuthoredWork(work);
+                        const expiresOn = formatExpiryDate(work.expiresOn);
+                        const downloading = downloadingRawSn === work.rawSn;
+                        const downloadBlocked = downloadingRawSn !== null && !downloading;
+                        const entryReasonId = `portal-work-no-entry-${work.rawSn}`;
+                        const downloadReasonId = `portal-work-no-download-${work.rawSn}`;
+
+                        return (
+                          <Table.Tr key={work.rawSn} data-testid={`portal-work-row-${work.rawSn}`}>
+                            <Table.Td>
+                              {/* 이름 옆 출처 배지 — 어디서 온 영상인지. 이름은 한 줄로 두고
+                                  넘치면 말줄임, 손을 올리면 전체 이름. */}
+                              <span className="klid-authoring-cell-title">
+                                <span className="klid-authoring-cell-name" title={work.videoName}>
+                                  {work.videoName}
+                                </span>
+                                <Badge
+                                  variant="light"
+                                  color={work.assetSource === 'PORTAL_UPLOAD' ? 'primary' : 'gray'}
+                                  className="klid-badge-tint klid-badge-square"
+                                  data-testid={`portal-work-source-${work.rawSn}`}
+                                >
+                                  {SOURCE_LABEL[work.assetSource]}
+                                </Badge>
+                              </span>
+                              <span className="klid-authoring-cell-sub">#{work.rawSn}</span>
+                            </Table.Td>
+                            {/* 값이 없으면 「-」로 — 지어내지 않되 칸이 빈 채로 남지도 않게
+                                (부모 포털 시안의 표기. 구 동작은 빈 칸이었다). */}
+                            <Table.Td>
+                              <span data-testid={`portal-work-saved-${work.rawSn}`}>
+                                {work.lastSavedAt !== null
+                                  ? formatPortalDateTime(work.lastSavedAt)
+                                  : '-'}
+                              </span>
+                            </Table.Td>
+                            {/* 만료가 가까운 행을 색·아이콘으로 강조하지 않는다(사양이 명시 거부). */}
+                            <Table.Td>
+                              <span data-testid={`portal-work-expiry-${work.rawSn}`}>
+                                {expiresOn !== null ? expiresOn : '-'}
+                              </span>
+                            </Table.Td>
+                            <Table.Td>
+                              {entryPath !== null ? (
+                                /* ★**링크로 남긴다** — 모양만 킷 버튼이고 실체는 이동이다.
+                                   킷 `Button` 은 `as` 로 어떤 요소로든 설 수 있어(다형 부품)
+                                   라우터 `Link` 를 끼우면 시안의 생김새와 링크의 성질
+                                   (가운데 클릭 · 새 탭 · 주소 복사 · 보조기술의 「링크」 안내)을
+                                   **둘 다** 갖는다. 버튼으로 바꾸면 그 성질이 통째로 사라진다. */
                                 <Button
+                                  as={Link}
+                                  to={entryPath}
+                                  /* ⚠ 킷 `Button` 은 `role` 기본값이 `"button"` 이라 앵커로 세워도
+                                     그것을 덮어쓴다(킷 원본 실측) — 그대로 두면 주소·가운데
+                                     클릭은 살아 있는데 **보조기술에는 「버튼」으로 읽혀** 링크로
+                                     남긴 뜻이 절반만 남는다. 명시로 되돌린다. */
+                                  role="link"
                                   size="small"
-                                  className="disabled"
-                                  aria-disabled
-                                  onClick={(e) => e.preventDefault()}
+                                  data-testid={`portal-work-continue-${work.rawSn}`}
                                 >
                                   이어서 작업
                                 </Button>
-                              </span>
-                            </Tooltip>
-                          ) : (
-                            <Button size="small" onClick={() => navigate(entryPath)}>
-                              이어서 작업
-                            </Button>
-                          )}
-                        </Table.Td>
-                        <Table.Td>
-                          {downloading ? (
-                            /* 받는 동안 — 「내려받기」 자리에 빨간 선 「✕ 취소」 하나만 선다 */
-                            <Button
-                              size="small"
-                              variant="secondary"
-                              className="klid-btn-danger-line"
-                              aria-label={`${work.videoName} 작업 데이터 다운로드 취소`}
-                              onClick={onCancelDownload}
-                            >
-                              <X aria-hidden />
-                              취소
-                            </Button>
-                          ) : !canDownload || downloadBlocked ? (
-                            <Tooltip
-                              text={!canDownload ? NO_DOWNLOAD_REASON : '다른 작업을 내려받는 중입니다.'}
-                            >
-                              <span>
+                              ) : (
+                                <LockedAction
+                                  reason={NO_ENTRY_REASON}
+                                  reasonId={entryReasonId}
+                                  testId={`portal-work-continue-${work.rawSn}`}
+                                >
+                                  이어서 작업
+                                </LockedAction>
+                              )}
+                            </Table.Td>
+                            {/* 내려받기는 제 칸으로 떼어 낸다 — 「이어서 작업」 버튼 옆에 붙어
+                                있으면 무슨 버튼인지 머리글로 안 갈렸다. */}
+                            <Table.Td>
+                              {downloading ? (
+                                <>
+                                  {/* ★받는 동안 눈에 보이는 것은 「✕ 취소」 하나뿐이다(시안) —
+                                      「내려받는 중…」 버튼을 따로 세우면 칸 폭 척도를 넘는다.
+                                      그러면 **진행 중이라는 사실이 보조기술에 전혀 전달되지 않으므로**
+                                      같은 칸에 화면 밖 상태 줄을 둔다. 이 요청은 GB 급일 수 있어
+                                      「지금 받고 있다」는 사실만은 반드시 알려야 한다. */}
+                                  <span role="status" className="sr-only">
+                                    {work.videoName} 내려받는 중…
+                                  </span>
+                                  {/* 취소는 눌러야 동작하므로 상호 잠금 대상에서 빠진다. */}
+                                  <Button
+                                    size="small"
+                                    variant="secondary"
+                                    className="klid-btn-danger-line"
+                                    data-testid={`portal-work-download-cancel-${work.rawSn}`}
+                                    aria-label={`${work.videoName} 작업 데이터 다운로드 취소`}
+                                    onClick={onCancelDownload}
+                                  >
+                                    <X aria-hidden />
+                                    취소
+                                  </Button>
+                                </>
+                              ) : !canDownload || downloadBlocked ? (
+                                /* 받을 것이 없거나 다른 줄을 받는 중이면 잠근다 — 걸음을 지우지
+                                   않고 왜 못 하는지를 남긴다(한 번에 하나만 받는다). */
+                                <LockedAction
+                                  reason={canDownload ? DOWNLOAD_BUSY_REASON : NO_DOWNLOAD_REASON}
+                                  reasonId={downloadReasonId}
+                                  testId={`portal-work-download-${work.rawSn}`}
+                                  variant="secondary"
+                                >
+                                  {DOWNLOAD_LABEL[work.assetSource]}
+                                </LockedAction>
+                              ) : (
                                 <Button
                                   size="small"
                                   variant="secondary"
-                                  className="disabled"
-                                  aria-disabled
-                                  onClick={(e) => e.preventDefault()}
+                                  data-testid={`portal-work-download-${work.rawSn}`}
+                                  aria-label={`${work.videoName} ${DOWNLOAD_LABEL[work.assetSource]}`}
+                                  onClick={() => onDownload(work)}
                                 >
-                                  내려받기
+                                  {/* 아이콘도 형식을 따른다 — 라벨 JSON 은 중괄호 문서 모양. */}
+                                  {work.assetSource === 'PORTAL_UPLOAD' ? (
+                                    <FileBraces aria-hidden />
+                                  ) : (
+                                    <Download aria-hidden />
+                                  )}
+                                  {DOWNLOAD_LABEL[work.assetSource]}
                                 </Button>
-                              </span>
-                            </Tooltip>
-                          ) : (
-                            <Button size="small" variant="secondary" onClick={() => onDownload(work)}>
-                              내려받기
-                            </Button>
-                          )}
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </div>
+                              )}
+                            </Table.Td>
+                          </Table.Tr>
+                        );
+                      })}
+                    </Table.Tbody>
+                  </Table>
+                </div>
               )}
             </div>
-            {/* 전체가 한 쪽에 들어오면 쪽 넘김을 그리지 않는다. 주소의 쪽은 0부터, 쪽 넘김 줄은 1부터 센다 */}
+
+            {/* 전체가 한 쪽에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
             {totalPages > 1 && (
               <PageNav
                 totalPages={totalPages}
                 currentPage={page + 1}
-                onChange={(next: number) => handlePageChange(next - 1)}
+                onChange={handlePageChange}
               />
             )}
           </>

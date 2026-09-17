@@ -21,6 +21,13 @@
 //   단축키(Shift+T)와 AI 탐지 다이얼로그의 '트랙으로 실행'은 사양이 유지하므로 그대로 둔다 —
 //   그 둘은 추적 형태·라벨을 기억한 상태를 켤 뿐 실행 진입점이 아니다.
 //   ⚠ 도구바에 되돌려 넣지 말 것(회귀 가드: ToolBar.test.tsx).
+// ★포털 채널(SCREEN-029)은 카드를 **세 묶음**으로 나눈다 (2026-09-15 확정) — 「그리기」(선택·바운딩
+//   박스·폴리곤) / 「AI 보조」(AI 탐지·AI 분할·AI 자동 추적) / 「보기」. AI 기능이 그리기 도구 사이에
+//   섞여 무엇이 AI 인지 구분되지 않던 것을 푼다. 내부 채널(SCREEN-005)은 종전 두 묶음 그대로다 —
+//   관제향 흐름 정리는 별건이라 여기서 함께 바꾸지 않는다.
+//   포털의 「AI 자동 추적」 버튼은 **실행하지 않는다** — 우측 객체 탭의 자동 추적 패널로 포커스를
+//   옮길 뿐이다(실행·검토의 자리는 그 패널 하나). 위 「AI 추적」(선택 객체 하나 전파)과는 다른 기능이며,
+//   선택 객체 AI 추적은 포털에 계속 없다(PORTAL_HIDDEN_TOOLS 의 TRACK).
 // ★보기 조작(회전·화면 맞춤·영역 확대)과 그리드 표시 토글은 SCREEN-005 §좌측 도구바 소관이다.
 //   회전·영역확대·그리드 상태는 이 도구바가 갖지 않고 **화면(호출부)** 이 갖는다 — 같은 상태를 캔버스
 //   (CanvasShell)도 써야 하므로 공통 상위가 단일 보유자여야 한다.
@@ -30,7 +37,7 @@
 //   담당한다(SCREEN-005 §좌측 도구바 / §캔버스 상단 옵션바 확정). 양쪽에 두지 않는다 —
 //   진입점이 둘이면 잠금·진행중 판정이 한쪽만 갱신돼 조용히 열린 구멍이 생긴다.
 //
-// @design SCREEN-005
+// @design SCREEN-005, SCREEN-029
 
 import {
   Grid3x3,
@@ -42,6 +49,7 @@ import {
   PersonStanding,
   RotateCcw,
   RotateCw,
+  Route,
   ScanSearch,
   Sparkles,
   Square,
@@ -51,6 +59,13 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
+import { getPortalOverlayRoot } from '@/lib/portalOverlayRoot';
+
+// ★포털 채널 전용 — 부모 포털 시안이 쓰는 킷 부품. 관제 렌더 경로는 이것들을 거치지 않는다.
+//   (포털 채널 산출물에만 실리도록 하는 것은 라우터의 `PortalLayout` 지연 로드가 맡는다.)
+import { Button } from 'krds-react';
+
+import { ToolAction, ToolList, ToolPanel, ToolSwitch, type ToolListItem } from '@/components/portal/authoring';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
@@ -98,14 +113,14 @@ const RAIL_CARD_TITLE_CLASS =
 
 interface ToolBarProps {
   /**
-   * R17 이슈3 / ADR-013 — 포털 모드에서는 SAM2 분할/추적 도구를 미노출.
-   * 포털은 데이터마트 영상 간편 라벨링 전용으로 오토라벨링(SAM2/YOLO)을 제공하지 않으며,
-   * 내부 /frames/{id}/sam2-* 엔드포인트도 PORTAL 채널 403 이다.
+   * 포털 채널 여부 — 카드 구성을 세 묶음(그리기 / AI 보조 / 보기)으로 바꾸고, 포털 미제공 도구
+   * (PORTAL_HIDDEN_TOOLS — 선택 객체 AI 추적·스켈레톤)를 숨긴다.
+   * ⚠ [폐기] 구 서술 — *"포털은 오토라벨링(SAM2/YOLO)을 제공하지 않아 AI 분할·AI 탐지를 미노출"*.
+   *   2026-09-15 에 포털도 AI 탐지·AI 분할·AI 자동 추적을 쓰게 됐다(포털 전용 창구).
    */
   portalMode?: boolean;
   /**
-   * Phase 3 — YOLO 오토라벨 수동 트리거 핸들러. 미지정 시 버튼 미노출.
-   * ADR-013 — 포털 모드에서는 항상 숨김(BE /frames/{id}/autolabel 도 PORTAL 채널 403).
+   * AI 탐지 팝업 열기 핸들러. 미지정 시 버튼 미노출. 두 채널 모두 노출한다.
    */
   onAutolabel?: () => void;
   /** YOLO 오토라벨 요청 진행 중 — 버튼 로딩/비활성 표시 + 중복 클릭 방지. */
@@ -137,6 +152,16 @@ interface ToolBarProps {
   showGrid?: boolean;
   /** 그리드 표시 토글 요청. 미지정 시 토글 버튼을 노출하지 않는다(기존 호출부 무회귀). */
   onToggleGrid?: () => void;
+  /**
+   * (포털 채널 전용) 「AI 자동 추적」 — 우측 객체 탭의 자동 추적 패널로 이동·포커스한다(실행 아님).
+   * 미지정이거나 내부 채널이면 버튼을 두지 않는다(내부 채널의 진입점은 그 패널 자체다).
+   */
+  onFocusAutoTrack?: () => void;
+  /**
+   * 「AI 자동 추적」을 쓸 수 없는 사유(예: 뒤따르는 프레임 없음). 값이 있으면 버튼을 비활성으로
+   * 두고 그 사유를 툴팁과 묶음 아래 보조문으로 보인다 — 눌러 봐야 알 수 있는 제약이 아니다.
+   */
+  autoTrackUnavailableReason?: string;
 }
 
 export type { ToolBarProps };
@@ -163,12 +188,22 @@ interface ActionItem {
   shortLabel?: string;
   shortcut: string;
   action: () => void;
-  /** ADR-013 — 포털 모드에서 숨김 대상 액션(오토라벨 등). */
-  portalHidden?: boolean;
   /** 진행 중 표시 — 스피너 + 비활성. */
   busy?: boolean;
   /** busy·editBlocked 와 **다른 축**의 추가 비활성(예: 영상 잠금). */
   disabled?: boolean;
+  /**
+   * 비활성 사유 — 지정하면 버튼을 비활성으로 두고 툴팁에 사유를 붙이며, `describedById` 가 있으면
+   * 화면의 보조문과 `aria-describedby` 로 잇는다(비활성 버튼의 이유를 보조기술에도 전달).
+   */
+  unavailableReason?: string;
+  describedById?: string;
+  /**
+   * 접근성 이름 — 미지정 시 `label`. 화면에 보이는 이름(`label`)을 **포함**해야 한다(WCAG 2.5.3).
+   * 같은 화면에 같은 이름의 다른 버튼이 있을 때만 쓴다(예: 도구바 「AI 자동 추적」은 패널로 이동,
+   * 패널의 「AI 자동 추적」은 실행 — 이름이 같으면 보조기술 사용자가 둘을 구별할 수 없다).
+   */
+  accessibleName?: string;
   /**
    * 토글형 액션의 눌림 상태 — 지정하면 `aria-pressed` 로 노출한다.
    * 미지정(일회성 액션)이면 속성 자체를 붙이지 않는다 — 누름 상태가 없는 버튼에 `aria-pressed="false"`
@@ -205,6 +240,8 @@ export function ToolBar({
   onToggleZoomArea,
   showGrid = false,
   onToggleGrid,
+  onFocusAutoTrack,
+  autoTrackUnavailableReason,
 }: ToolBarProps) {
   // 회전 중에는 그리기 도구를 잠근다(사양). 캔버스도 같은 구간에 편집 입력을 봉인하므로,
   // 여기서 잠그지 않으면 눌러도 아무 일이 없는 "죽은 버튼"이 된다.
@@ -218,53 +255,69 @@ export function ToolBar({
   // 툴팁은 스크롤 상자 밖(body)에서 그린다 — 상자 안에 두면 overflow 계약에 함께 잘린다.
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
-  // ADR-013 — 포털은 SAM 분할/추적·키포인트 미제공(PORTAL_HIDDEN_TOOLS)이고 오토라벨(YOLO) 액션도 숨긴다.
-  // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스.)
+  // 포털 미제공 도구(PORTAL_HIDDEN_TOOLS — 선택 객체 AI 추적·스켈레톤)는 숨긴다
+  // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스).
   // 도구 단축키는 키맵에서 파생(TOOL_KEYMAP_ID). 액션 단축키도 키맵 id 로 파생.
   const toolShortcut = (tool: ToolType): string => {
     const id = TOOL_KEYMAP_ID[tool];
     return id ? formatBindingKeys(id) : '';
   };
-  // ★그룹은 둘이다(시안 .rail-card ×2): ①그리기 도구 + AI 탐지 ②보기 조작 + 그리드.
-  //   한 배열에 섞어 두면 그룹 제목을 붙일 수 없어 화면에서 두 축이 한 덩어리로 읽힌다.
-  const drawGroup: Item[] = [
-    // 도구 표시명은 TOOL_DISPLAY_NAME 단일 출처에서 파생 — 라벨 선택 모달 안내와 동일 문구 보장.
-    {
-      kind: 'tool',
-      tool: ToolType.SELECT,
-      icon: MousePointer2,
-      label: TOOL_DISPLAY_NAME[ToolType.SELECT],
-      shortcut: toolShortcut(ToolType.SELECT),
-    },
-    {
-      kind: 'tool',
-      tool: ToolType.BBOX,
-      icon: Square,
-      label: TOOL_DISPLAY_NAME[ToolType.BBOX],
-      shortcut: toolShortcut(ToolType.BBOX),
-    },
-    {
-      kind: 'tool',
-      tool: ToolType.POLYGON,
-      icon: Pentagon,
-      label: TOOL_DISPLAY_NAME[ToolType.POLYGON],
-      shortcut: toolShortcut(ToolType.POLYGON),
-    },
-    {
-      kind: 'tool',
-      tool: ToolType.SAM_SEGMENT,
-      icon: Sparkles,
-      label: TOOL_DISPLAY_NAME[ToolType.SAM_SEGMENT],
-      shortcut: toolShortcut(ToolType.SAM_SEGMENT),
-    },
-    {
-      kind: 'tool',
-      tool: ToolType.KEYPOINT,
-      icon: PersonStanding,
-      label: TOOL_DISPLAY_NAME[ToolType.KEYPOINT],
-      shortcut: toolShortcut(ToolType.KEYPOINT),
-    },
-    // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
+  // ★그룹 — 내부 채널은 둘(시안 .rail-card ×2): ①그리기 도구 + AI 탐지 ②보기 조작 + 그리드.
+  //   포털 채널은 셋: ①그리기 ②AI 보조 ③보기 (SCREEN-029 §좌측 도구바).
+  //   한 배열에 섞어 두면 그룹 제목을 붙일 수 없어 화면에서 여러 축이 한 덩어리로 읽힌다.
+  // 도구 표시명은 TOOL_DISPLAY_NAME 단일 출처에서 파생 — 라벨 선택 모달 안내와 동일 문구 보장.
+  const toolItem = (tool: ToolType, icon: React.ElementType): ToolItem => ({
+    kind: 'tool',
+    tool,
+    icon,
+    label: TOOL_DISPLAY_NAME[tool],
+    shortcut: toolShortcut(tool),
+  });
+  const manualDrawItems: Item[] = [
+    toolItem(ToolType.SELECT, MousePointer2),
+    toolItem(ToolType.BBOX, Square),
+    toolItem(ToolType.POLYGON, Pentagon),
+  ];
+  const autolabelItems: Item[] = onAutolabel
+    ? [
+        {
+          kind: 'action',
+          icon: ScanSearch,
+          label: 'AI 탐지',
+          shortcut: '',
+          action: onAutolabel,
+          busy: isAutolabeling,
+        },
+      ]
+    : [];
+  // 포털 「AI 보조」 묶음 — AI 탐지(팝업) · AI 분할(도구 전환) · AI 자동 추적(패널로 이동).
+  const autoTrackReasonId = 'label-toolbar-auto-track-reason';
+  const portalAiGroup: Item[] = [
+    ...autolabelItems,
+    toolItem(ToolType.SAM_SEGMENT, Sparkles),
+    ...(onFocusAutoTrack
+      ? [
+          {
+            kind: 'action' as const,
+            icon: Route,
+            label: 'AI 자동 추적',
+            accessibleName: 'AI 자동 추적 패널로 이동',
+            shortcut: '',
+            action: onFocusAutoTrack,
+            unavailableReason: autoTrackUnavailableReason,
+            describedById: autoTrackUnavailableReason ? autoTrackReasonId : undefined,
+            testId: 'label-toolbar-auto-track',
+          },
+        ]
+      : []),
+  ];
+  const drawGroup: Item[] = portalMode
+    ? manualDrawItems
+    : [
+    ...manualDrawItems,
+    toolItem(ToolType.SAM_SEGMENT, Sparkles),
+    toolItem(ToolType.KEYPOINT, PersonStanding),
+    // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출.
     // ★단축키 표기를 갖지 않는다 (2026-08-18 정합 — 구 고정 표기 `'Y'` 폐기).
     //   SHORTCUT_KEYMAP 에 `y` 바인딩이 **없어** 사용자가 Y 를 눌러도 아무 일이 일어나지 않는데,
     //   그 고정값이 버튼 `title` 에 `(Y)` 로 실려 **존재하지 않는 단축키를 광고**하고 있었다.
@@ -273,19 +326,7 @@ export function ToolBar({
     //     파이프라인 트리거라 단축키 대상이 아니고 시안에도 없다. 표기만 걷어내는 것이 맞다.
     //   ⚠ 버튼의 접근성 이름('AI 탐지')·동작은 그대로다 — 바뀐 것은 툴팁의 단축키 노출뿐이다.
     //   회귀 가드: ToolBarShortcuts.test.tsx.
-    ...(onAutolabel
-      ? [
-          {
-            kind: 'action' as const,
-            icon: ScanSearch,
-            label: 'AI 탐지',
-            shortcut: '',
-            action: onAutolabel,
-            portalHidden: true,
-            busy: isAutolabeling,
-          },
-        ]
-      : []),
+    ...autolabelItems,
   ];
 
   // ★삭제·실행취소·다시실행·저장은 여기에 두지 않는다 — 캔버스 상단 옵션바(CanvasOptionBar) 소관.
@@ -361,12 +402,12 @@ export function ToolBar({
   const visible = (group: Item[]): Item[] =>
     group.filter((item) => {
       if (!portalMode) return true;
-      // 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS 단일 소스로만 관리. 액션(오토라벨)은 portalHidden 플래그.
+      // 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS 단일 소스로만 관리한다.
       if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
-      if (item.kind === 'action') return !item.portalHidden;
       return true;
     });
   const drawItems = visible(drawGroup);
+  const aiItems = portalMode ? visible(portalAiGroup) : [];
   const viewItems = visible(viewGroup);
 
   // ── 단축키 도움말 (SCREEN-005 §좌측 도구바 맨 아래) ─────────────────────────
@@ -429,8 +470,13 @@ export function ToolBar({
     const lockedByRotation = rotated && item.kind === 'tool' && item.tool !== ToolType.SELECT;
     // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)·회전 잠금은 서로 다른 축이지만,
     // 버튼 비활성은 동일하게 적용한다(fail-closed — 하나라도 참이면 막는다).
+    const unavailableReason = item.kind === 'action' ? item.unavailableReason : undefined;
     const disabled =
-      busy || editBlocked || lockedByRotation || (item.kind === 'action' && item.disabled === true);
+      busy ||
+      editBlocked ||
+      lockedByRotation ||
+      (item.kind === 'action' && item.disabled === true) ||
+      unavailableReason !== undefined;
     const isActive = item.kind === 'tool' && activeTool === item.tool;
     const selectTool = onSelectTool ?? setActiveTool;
     return {
@@ -443,11 +489,15 @@ export function ToolBar({
       pressed: item.kind === 'tool' ? isActive : item.pressed,
       title: lockedByRotation
         ? `${item.label} (회전 중에는 사용할 수 없습니다)`
-        : item.shortcut
+        : unavailableReason
+          ? `${item.label} (${unavailableReason})`
+          : item.shortcut
           ? `${item.label} (${item.shortcut})`
           : item.label,
       onClick: item.kind === 'action' ? item.action : () => selectTool(item.tool),
       testId: item.kind === 'action' ? item.testId : undefined,
+      describedBy: item.kind === 'action' ? item.describedById : undefined,
+      accessibleName: (item.kind === 'action' ? item.accessibleName : undefined) ?? item.label,
     };
   };
 
@@ -462,14 +512,15 @@ export function ToolBar({
         disabled={s.disabled}
         // ★접근성 이름은 aria-label 이 단일 출처다 — 눈에 보이는 이름·단축키 배지가 함께 읽혀
         //   이름이 흔들리지 않게 한다.
-        aria-label={item.label}
+        aria-label={s.accessibleName}
         // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
         title={s.title}
         aria-pressed={s.pressed}
         aria-busy={s.busy}
+        aria-describedby={s.describedBy}
         data-testid={s.testId}
         className={cn(
-          'flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border px-2 text-left text-body-md font-medium transition-colors',
+          'flex min-h-[40px] w-full items-center gap-2 rounded-md border px-2 text-left text-body-md font-medium transition-colors',
           s.isActive
             ? 'border-primary-200 bg-primary-50 text-primary-700'
             : 'border-transparent text-gray-900 hover:bg-gray-50',
@@ -508,7 +559,7 @@ export function ToolBar({
     // 토글(그리드·영역 확대)은 눌림 상태를 색으로도 알린다 — 아이콘만으로는 켜짐/꺼짐이 안 읽힌다.
     const toggledOn = s.pressed === true;
     return (
-      <div key={key} className="flex min-h-[2.25rem] items-center justify-between gap-2 px-2">
+      <div key={key} className="flex min-h-[36px] items-center justify-between gap-2 px-2">
         <span className="truncate text-body-md text-gray-900">
           {(item.kind === 'action' ? item.shortLabel : undefined) ?? item.label}
         </span>
@@ -540,6 +591,227 @@ export function ToolBar({
     );
   };
 
+  /**
+   * 단축키 도움말 미리 보기 패널 — **두 채널이 한 벌을 나눠 쓴다.**
+   * 표 본문은 `ShortcutCheatSheetContent` 단일 출처를 그대로 담는다(표기 복제 금지).
+   */
+  const renderHelpPanel = () => {
+    if (helpAnchor === null) return null;
+    return createPortal(
+          <div
+            id="toolbar-shortcut-help"
+            ref={helpPanelRef}
+            role="tooltip"
+            data-testid="label-toolbar-shortcut-panel"
+            // pl-2 = 버튼과의 시각적 간격(투명 영역). 요소 자체는 버튼에 붙어 있어야
+            // 포인터가 끊김 없이 패널로 넘어와 스크롤할 수 있다.
+            className="fixed z-[60] pl-2"
+            style={{ bottom: helpAnchor.bottom, left: helpAnchor.left }}
+            onMouseLeave={closeHelp}
+          >
+            <div
+              data-testid="label-toolbar-shortcut-panel-box"
+              // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
+              // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
+              className="w-[704px] max-w-[calc(100vw-80px)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
+              // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
+              style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
+            >
+              <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
+              <ShortcutCheatSheetContent portalMode={portalMode} />
+            </div>
+          </div>,
+          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
+          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+      getPortalOverlayRoot(),
+    );
+  };
+
+  /* ── 포털 채널 레일 ───────────────────────────────────────────────────────
+     부모 포털 시안(`AuthoringLabelingView` 의 `rail`)을 그대로 옮긴다 — 묶음 카드는 `ToolPanel`,
+     고르는 도구는 `ToolList`(라디오 묶음), 누르는 조작은 `ToolAction`, 켜고 끄는 조작은
+     `ToolSwitch`(오른쪽 끝 On·Off)다.
+
+     ★관제 렌더 경로는 아래 그대로 두고 **이 분기만 새로 선다** — 같은 파일 안 두 벌이지만
+       항목 정의(`drawItems`·`aiItems`·`viewItems`)와 잠금 판정은 **한 벌을 나눠 쓴다.**
+       그래서 도구가 늘거나 잠금 규칙이 바뀌어도 한쪽만 갱신되지 않는다.
+
+     ★말풍선(`tooltip`)을 포털 줄에는 달지 않는다 — 킷 줄은 이름과 단축키를 **늘 보여** 주므로
+       얹어야만 뜻이 통하는 자리가 없다. 사유가 있는 비활성만 `title` 로 남긴다.
+     ⚠ 단축키 도움말은 **미리 보기 패널을 그대로 쓴다**(시안은 창을 연다). 그 패널은 키보드로도
+       열리게 만든 접근성 보정이라 모양만 킷 버튼으로 갈아끼우고 동작은 유지한다. */
+  if (portalMode) {
+    const selectTool = onSelectTool ?? setActiveTool;
+    /** 킷 도구 목록의 한 줄 — 잠금·사유는 관제와 같은 판정(`itemState`)에서 가져온다. */
+    const toKitItem = (item: ToolItem): ToolListItem<ToolType> => {
+      const st = itemState(item);
+      return {
+        value: item.tool,
+        label: item.label,
+        icon: item.icon as NonNullable<ToolListItem<ToolType>['icon']>,
+        shortcut: item.shortcut || undefined,
+        disabled: st.disabled,
+        title: st.title,
+      };
+    };
+    /**
+     * 줄 하나 — 고르는 도구는 바깥에서 묶어 세우므로 여기는 누르는 조작만 다룬다.
+     *
+     * ⚠ **누르는 조작에는 키 이름표를 달지 않는다.** 킷 줄은 `shortcut` 을 오른쪽 끝 **키 배지**로
+     *   그리는데, 이 화면의 액션에는 실제 키가 하나도 없고(`shortcut: ''`) 회전만 그 칸을
+     *   「현재 N도」라는 **상태 안내**로 빌려 쓴다. 그대로 넘기면 배지 자리에 문장이 들어가
+     *   존재하지 않는 단축키를 광고하고, 그 폭에 밀려 이름이 두 줄로 접힌다(실측).
+     *   상태 안내는 말풍선(`title`)이 이미 나른다 — 관제 렌더 경로와 같은 자리다.
+     *
+     * ★**접근성 이름·보조문·시험 후크가 필요한 줄은 킷 부품을 쓰지 않는다.**
+     *   킷 `ToolAction`·`ToolSwitch` 는 `aria-label`·`aria-describedby`·`data-testid` 를 받지
+     *   않는데, 이 화면에는 그 셋이 **확정 사양**인 줄이 있다 — 도구바의 「AI 자동 추적」은
+     *   패널의 실행 버튼과 **같은 이름이면 보조기술 사용자가 둘을 구별할 수 없어** 이름을
+     *   달리 하고, 비활성 사유는 `aria-describedby` 로 화면 보조문과 이어야 한다.
+     *   그래서 그 줄만 킷과 **같은 클래스·같은 속**을 쓰는 우리 줄로 그린다(킷 원본은 고치지
+     *   않는다 — 킷 폴더 주석의 규약). 나머지는 킷 부품 그대로다.
+     */
+    const renderKitAction = (item: ActionItem, key: number) => {
+      const st = itemState(item);
+      const label = item.shortLabel ?? item.label;
+      const needsOwnRow =
+        item.accessibleName !== undefined ||
+        item.describedById !== undefined ||
+        item.testId !== undefined;
+
+      if (item.pressed !== undefined && !needsOwnRow) {
+        return (
+          <ToolSwitch
+            key={key}
+            icon={item.icon as NonNullable<ToolListItem['icon']>}
+            label={label}
+            checked={item.pressed}
+            disabled={st.disabled}
+            onChange={item.action}
+          />
+        );
+      }
+      if (!needsOwnRow) {
+        return (
+          <ToolAction
+            key={key}
+            icon={item.icon as NonNullable<ToolListItem['icon']>}
+            label={label}
+            disabled={st.disabled}
+            title={st.title}
+            onClick={item.action}
+          />
+        );
+      }
+
+      const Icon = st.Icon;
+      return (
+        <button
+          key={key}
+          type="button"
+          className="klid-tool-item"
+          aria-label={st.accessibleName}
+          aria-describedby={st.describedBy}
+          aria-pressed={item.pressed}
+          data-testid={item.testId}
+          disabled={st.disabled}
+          title={st.title}
+          onClick={item.action}
+        >
+          <Icon className="icon" aria-hidden />
+          <span className="label">{label}</span>
+          {item.pressed !== undefined && (
+            <span className="state" aria-hidden>
+              {item.pressed ? 'On' : 'Off'}
+            </span>
+          )}
+        </button>
+      );
+    };
+    /**
+     * 묶음 하나를 줄들로 편다 — **차례를 지킨다.**
+     * 고르는 도구가 이어지는 구간은 라디오 묶음 하나로 합치고, 그 사이의 누르는 조작은 제자리에
+     * 둔다. 차례를 무시하고 종류별로 몰아 세우면 시안·사양이 정한 순서가 무너진다.
+     */
+    const renderKitGroup = (items: Item[], label: string) => {
+      const out: React.ReactNode[] = [];
+      let run: ToolItem[] = [];
+      const flush = (key: number) => {
+        if (run.length === 0) return;
+        const items = run.map(toKitItem);
+        run = [];
+        out.push(
+          <ToolList
+            key={`tools-${key}`}
+            label={label}
+            items={items}
+            value={activeTool}
+            onChange={selectTool}
+          />,
+        );
+      };
+      items.forEach((item, i) => {
+        if (item.kind === 'tool') {
+          run.push(item);
+          return;
+        }
+        flush(i);
+        if (item.kind === 'action') out.push(renderKitAction(item, i));
+      });
+      flush(items.length);
+      return out;
+    };
+
+    return (
+      <div className="klid-labeling-rail" role="toolbar" aria-label="라벨링 도구">
+        <ToolPanel title="그리기 도구">{renderKitGroup(drawItems, '그리기 도구')}</ToolPanel>
+
+        {aiItems.length > 0 && (
+          <ToolPanel title="AI 보조">
+            <div className="klid-tool-list" data-testid="label-toolbar-ai-group">
+              {renderKitGroup(aiItems, 'AI 보조 도구')}
+            </div>
+            {/* ★사유 보조문을 킷 `note` 로 넘기지 않는다 — 그 자리는 id 를 받지 않는데,
+                비활성 버튼이 `aria-describedby` 로 **이 문장을 가리켜야** 보조기술에 사유가
+                닿는다. 킷과 같은 클래스를 써서 생김새는 그대로 두고 id 만 우리가 단다. */}
+            {autoTrackUnavailableReason && (
+              <p id={autoTrackReasonId} className="klid-tool-panel-note">
+                {autoTrackUnavailableReason}
+              </p>
+            )}
+          </ToolPanel>
+        )}
+
+        <ToolPanel title="보기" note="회전 중에는 그리기 도구가 잠깁니다.">
+          <div className="klid-tool-list">{renderKitGroup(viewItems, '보기 도구')}</div>
+        </ToolPanel>
+
+        {/* 도구를 다 훑고 난 자리에서 단축키로 넘어가는 길(시안). 동작은 관제와 같은 미리 보기 패널. */}
+        <Button
+          size="small"
+          variant="tertiary"
+          className="klid-labeling-help"
+          aria-label="단축키 도움말 미리 보기"
+          aria-expanded={helpAnchor !== null}
+          aria-describedby={helpAnchor !== null ? 'toolbar-shortcut-help' : undefined}
+          data-testid="label-toolbar-shortcut-help"
+          title="단축키 도움말 미리 보기"
+          onMouseEnter={(e: React.MouseEvent<HTMLElement>) => openHelp(e.currentTarget)}
+          onFocus={(e: React.FocusEvent<HTMLElement>) => openHelp(e.currentTarget)}
+          onMouseLeave={(e: React.MouseEvent<HTMLElement>) =>
+            closeHelpUnlessEnteringPanel(e.relatedTarget)
+          }
+          onBlur={closeHelp}
+        >
+          <Keyboard aria-hidden />
+          단축키 안내
+        </Button>
+
+        {helpAnchor !== null && renderHelpPanel()}
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-gray-50"
@@ -553,7 +825,8 @@ export function ToolBar({
         onScroll={() => setTooltip(null)}
       >
         <section className={RAIL_CARD_CLASS}>
-          <h2 className={RAIL_CARD_TITLE_CLASS}>그리기 도구</h2>
+          {/* 내부 채널은 종전 제목 그대로 둔다(관제향 무변경). 포털은 세 묶음의 짧은 제목. */}
+          <h2 className={RAIL_CARD_TITLE_CLASS}>{portalMode ? '그리기' : '그리기 도구'}</h2>
           <div className="flex flex-col gap-1">
             {drawItems.map((item, idx) =>
               item.kind === 'divider' ? (
@@ -564,6 +837,28 @@ export function ToolBar({
             )}
           </div>
         </section>
+
+        {portalMode && aiItems.length > 0 && (
+          <section className={RAIL_CARD_CLASS} data-testid="label-toolbar-ai-group">
+            <h2 className={RAIL_CARD_TITLE_CLASS}>AI 보조</h2>
+            <div className="flex flex-col gap-1">
+              {aiItems.map((item, idx) =>
+                item.kind === 'divider' ? (
+                  <div key={idx} className="my-1 h-px bg-gray-200" />
+                ) : (
+                  renderToolRow(item, idx)
+                ),
+              )}
+            </div>
+            {/* 비활성 사유는 눌러 봐야 알 수 있는 것이 아니라 미리 보여야 한다 — 툴팁만 두면
+                마우스를 올리지 않는 사용자·보조기술 사용자에게 닿지 않는다. */}
+            {onFocusAutoTrack && autoTrackUnavailableReason && (
+              <p id={autoTrackReasonId} className="px-2 pt-1 text-caption text-gray-600">
+                {autoTrackUnavailableReason}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className={RAIL_CARD_CLASS}>
           <h2 className={RAIL_CARD_TITLE_CLASS}>보기</h2>
@@ -602,39 +897,13 @@ export function ToolBar({
           onBlur={closeHelp}
           // 시안 `.shortcut-trigger` — 점선 테두리 + 항목명. 아이콘만 두면 이 자리가 무슨 기능인지
           // 호버해 봐야 알 수 있다(사양은 "맨 아래 고정 위치에 단축키 안내를 둔다").
-          className="flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border border-dashed border-gray-300 bg-white px-2 text-body-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+          className="flex min-h-[40px] w-full items-center gap-2 rounded-md border border-dashed border-gray-300 bg-white px-2 text-body-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
         >
           <Keyboard size={16} aria-hidden="true" className="shrink-0" />
           <span className="truncate">단축키 안내</span>
         </button>
       </div>
-      {helpAnchor !== null &&
-        createPortal(
-          <div
-            id="toolbar-shortcut-help"
-            ref={helpPanelRef}
-            role="tooltip"
-            data-testid="label-toolbar-shortcut-panel"
-            // pl-2 = 버튼과의 시각적 간격(투명 영역). 요소 자체는 버튼에 붙어 있어야
-            // 포인터가 끊김 없이 패널로 넘어와 스크롤할 수 있다.
-            className="fixed z-[60] pl-2"
-            style={{ bottom: helpAnchor.bottom, left: helpAnchor.left }}
-            onMouseLeave={closeHelp}
-          >
-            <div
-              data-testid="label-toolbar-shortcut-panel-box"
-              // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
-              // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
-              className="w-[44rem] max-w-[calc(100vw-5rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
-              // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
-              style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
-            >
-              <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
-              <ShortcutCheatSheetContent portalMode={portalMode} />
-            </div>
-          </div>,
-          document.body,
-        )}
+      {renderHelpPanel()}
 
       {/* Tooltip — 스크롤 상자(overflow) 밖에서 그려야 잘리지 않으므로 body 로 portal 한다.
           위치는 버튼 rect 기준 뷰포트 좌표(position: fixed). */}
@@ -651,7 +920,9 @@ export function ToolBar({
               <span className="ml-2 text-gray-500">{tooltip.shortcut}</span>
             </div>
           </div>,
-          document.body,
+          // 덧띄움은 앵커 «안»에 붙인다 — `document.body` 직하면 포털 채널에서 스타일 격리
+          // 범위 밖으로 떨어진다(근거 전문은 `lib/portalOverlayRoot`). [@design INT-013]
+          getPortalOverlayRoot(),
         )}
     </div>
   );
