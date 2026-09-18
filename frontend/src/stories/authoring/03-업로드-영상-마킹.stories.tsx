@@ -2,16 +2,20 @@ import { useLayoutEffect, type ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
-import { formatMarkTimestamp } from '@/features/portal/uploads/markingPlan';
-import type {
-  MarkItem,
-  PortalMarkingList,
-  PortalMarkingSaveResult,
-  PortalStreamUrl,
-} from '@/features/portal/uploads/markingTypes';
-import type { PortalUploadDetail } from '@/features/portal/uploads/types';
+import {
+  FPS,
+  MANUAL_FRAMES,
+  MANY_INTERVAL,
+  PARTIAL_USED,
+  SAVED_MARKS,
+  markAt,
+  saveResult,
+  마킹응답,
+  type 마킹응답옵션,
+  자산번호,
+} from '@/demo/screens/marking';
 
-import { fail, ok, pending, 화면 } from './storyScreen';
+import { 화면 } from './storyScreen';
 
 /* 저작도구 · 내 업로드에서 들어오는 업로드 영상 마킹.
    상태 이름은 포털 스토리북(6008) 「워크스페이스 / 저작도구 / 내 업로드 · 업로드 영상 마킹」과 같다.
@@ -23,120 +27,10 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-/* ── 견본 값 — 포털 그림 스토리의 목업(KLID_Portal src/mocks/authoring.ts)과 같다 ── */
-
-/** 내 업로드의 그 자산 한 편 — 03:49 · 초당 30 프레임 */
-const 자산번호 = 4;
+/* 견본 값은 시연판과 같이 쓴다(`demo/screens/marking`) — 여기서는 주소와 상태만 정한다 */
 const 주소 = `/portal/uploads/${자산번호}/marking`;
-const 자산주소 = `/portal/uploads/${자산번호}`;
 
-const FPS = 30;
-
-/** 마킹 대기 중인 자산 */
-const DETAIL: PortalUploadDetail = {
-  uldSn: 자산번호,
-  uldTypeCd: 'VIDEO',
-  orgnlFileNm: '실종자추적_v0.7_20260910.mp4',
-  fileSz: 32_925_286, // 31.4 MB
-  mimeTypeNm: 'video/mp4',
-  uldSttsCd: 'UPLOADED',
-  frmeCnt: null,
-  vdoLenSec: 229,
-  fps: FPS,
-  regDt: '2026-09-11T10:49:00',
-  mdfcnDt: null,
-  frames: [],
-  expiresAt: '2026-09-18T10:49:00',
-};
-
-/** 재생 주소 — 스토리북이 내주는 견본 영상(03:49 · 30fps) */
-const STREAM: PortalStreamUrl = {
-  url: '/samples/sample-video.webm',
-  expiresAt: 4102444800,
-  ttlSeconds: 300,
-};
-
-/** 프레임 번호 → 지점 한 건 (표시 시각은 화면과 같은 규칙) */
-const markAt = (frameIndex: number): MarkItem => ({
-  frameIndex,
-  timestamp: formatMarkTimestamp(frameIndex / FPS),
-});
-
-/** 자동 간격 300 프레임으로 뽑은 지점 — 03:49 영상이면 23건 */
-const SAVED_MARKS: MarkItem[] = Array.from({ length: 23 }, (_, i) => markAt(i * 300));
-
-/** 지점이 너무 많은 견본의 간격 — 10 프레임마다면 687건이라 목록 상한(600)을 넘는다 */
-const MANY_INTERVAL = '10';
-
-/** 수동으로 찍은 지점(프레임 번호) — 재생하다 Space 로 찍은 모습. 세 번째 지점을 골라 둔다 */
-const MANUAL_FRAMES = [95, 610, 1488, 2230, 3705, 5120];
-
-/** 저장 직후 일부만 쓰인 견본 — 요청한 23건 가운데 20건 */
-const PARTIAL_USED = 20;
-
-const saveResult = (marks: MarkItem[], requested: number): PortalMarkingSaveResult => ({
-  markingSn: 9,
-  uldSn: 자산번호,
-  mode: 'AUTO',
-  interval: 300,
-  marks,
-  markCount: marks.length,
-  requestedMarkCount: requested,
-  truncated: marks.length < requested,
-  uldSttsCd: 'PROCESSING',
-  regDt: '2026-09-15T10:00:00',
-});
-
-const markingList = (marks: MarkItem[] | null): PortalMarkingList => ({
-  uldSn: 자산번호,
-  markings: marks
-    ? [{ markingSn: 9, mode: 'AUTO', interval: 300, marks, markCount: marks.length, regDt: '2026-09-15T10:00:00' }]
-    : [],
-});
-
-/* ── 가짜 응답 ── */
-
-interface 응답 {
-  /** 자산 상세 — 바꿀 값만 준다. `pending` 이면 오지 않는다 */
-  detail?: Partial<PortalUploadDetail> | 'pending';
-  /** 재생 주소 — 기본은 견본 영상 */
-  stream?: 'ok' | 'pending' | 'fail' | 'not-found';
-  /** 이미 저장된 지점 */
-  saved?: MarkItem[];
-  /** 마킹 저장 — 저장에 성공하면 자산은 추출 중이 되고 저장된 지점이 조회된다 */
-  save?: 'pending' | 'fail' | PortalMarkingSaveResult;
-}
-
-const 마킹화면 = ({ detail = {}, stream = 'ok', saved, save }: 응답 = {}) =>
-  화면(주소, (mock) => {
-    let 저장결과: PortalMarkingSaveResult | null = null;
-
-    if (detail === 'pending') mock.onGet(자산주소).reply(() => pending());
-    else
-      mock.onGet(자산주소).reply(() =>
-        ok({ ...DETAIL, ...detail, ...(저장결과 ? { uldSttsCd: 저장결과.uldSttsCd } : {}) }),
-      );
-
-    const streamPath = `${자산주소}/stream-url`;
-    if (stream === 'pending') mock.onGet(streamPath).reply(() => pending());
-    else if (stream === 'fail') mock.onGet(streamPath).reply(...fail(500));
-    else if (stream === 'not-found') mock.onGet(streamPath).reply(...fail(404, null, 'NOT_FOUND'));
-    else mock.onGet(streamPath).reply(...ok(STREAM));
-
-    mock
-      .onGet(`${자산주소}/markings`)
-      .reply(() => ok(markingList(저장결과 ? 저장결과.marks : (saved ?? null))));
-
-    if (save === 'pending') mock.onPost(`${자산주소}/markings`).reply(() => pending());
-    // 실패 문구는 서버가 준다 — 서버의 내부 오류 응답 그대로(화면의 「마킹을 저장하지 못했습니다」는 서버 문구가 없을 때만 쓰인다)
-    else if (save === 'fail')
-      mock.onPost(`${자산주소}/markings`).reply(...fail(500, '서버 내부 오류가 발생했습니다.', 'INTERNAL_ERROR'));
-    else if (save)
-      mock.onPost(`${자산주소}/markings`).reply(() => {
-        저장결과 = save;
-        return [201, ok(save)[1]];
-      });
-  });
+const 마킹화면 = (옵션: 마킹응답옵션 = {}) => 화면(주소, (mock) => 마킹응답(mock, 옵션));
 
 /**
  * 잠깐 뜨는 알림을 멈춰 세운다 — 원본 알림은 5초 뒤 저절로 닫혀, 포털 카드 안에서 열어 볼 즈음엔 사라진다.

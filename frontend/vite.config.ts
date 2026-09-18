@@ -24,6 +24,11 @@ import {
 //     플러그인이 청크 구성과 런타임을 바꿔 지금 도는 배포본의 형태가 달라진다.
 const IS_PORTAL_BUILD = process.env.VITE_BUILD_CHANNEL === 'portal';
 
+// ★ 서버 없이 띄우는 시연판(넷리파이) — 포털 채널 화면을 «단독 문서»로 굽는다.
+//   Host 가 없으므로 Module Federation 을 걸지 않고 자산 base 도 루트('/')다.
+//   가짜 응답·가짜 로그인은 진입점(main.tsx)이 같은 키를 읽어 세운다(`demo/installDemo`).
+const IS_DEMO_BUILD = process.env.VITE_DEMO_STANDALONE === 'true';
+
 // 컨테이너/네트워크 배포 대응 환경변수 (미설정 시 로컬 개발 기본값 보존)
 //   - BACKEND_ORIGIN  : 프록시 대상 BE 오리진 (컨테이너: http://klid-backend:8080)
 //   - HMR_CLIENT_PORT : HMR 클라이언트가 접속할 외부 매핑 포트 (컨테이너: 13000)
@@ -102,6 +107,7 @@ const SIDE_EFFECT_FREE_MODULES = [
 //       /label-remote/ 아래에 서빙해 둘이 양립하지 않는다(devHostStub 로 Host 없이 띄우는 경로).
 function resolveBasePath(command: 'build' | 'serve'): string {
   const given = process.env.VITE_BASE_PATH;
+  if (IS_DEMO_BUILD) return '/';
   if (!IS_PORTAL_BUILD || command !== 'build') return given ?? '/';
   if (given !== undefined && given !== REMOTE_BUNDLE_BASE_PATH) {
     throw new Error(
@@ -123,7 +129,7 @@ export default defineConfig(({ command }) => ({
     //   «함께» 그 지정자를 이루므로 둘 중 하나만 바뀌어도 Host 가 우리를 못 찾는다.
     //   ⚠ dev 서버에는 걸지 않는다 — 단독 개발(devHostStub)은 Host 없이 뜨는 경로이고,
     //     Remote 배선은 산출물의 성질이라 그때 필요하지 않다.
-    ...(IS_PORTAL_BUILD && command === 'build'
+    ...(IS_PORTAL_BUILD && !IS_DEMO_BUILD && command === 'build'
       ? [
           federation({
             name: REMOTE_NAME,

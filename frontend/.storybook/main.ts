@@ -12,8 +12,8 @@ process.env.VITE_BUILD_CHANNEL = 'portal';
 const config: StorybookConfig = {
   stories: ['../src/stories/**/*.stories.@(ts|tsx)'],
   framework: { name: '@storybook/react-vite', options: {} },
-  // 견본 그림 · 영상 — 스토리의 가짜 응답이 `/samples/...` 로 가리킨다
-  staticDirs: ['./public'],
+  // 견본 그림 · 영상 — 앱 공개 폴더(public/samples)의 것을 그대로 쓴다. 스토리의 가짜 응답과 시연판이 같은 `/samples/...` 를 가리킨다
+  staticDirs: ['../public'],
   core: { disableTelemetry: true },
   viteFinal: async (viteConfig) => ({
     ...viteConfig,

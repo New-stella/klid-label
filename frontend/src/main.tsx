@@ -75,7 +75,18 @@ function mount(): void {
 //
 // 대역이 토큰을 본체에 건넨 **뒤에** 렌더한다 — 먼저 렌더하면 첫 요청이 토큰 없이 나가고
 // 화면도 인증 안내를 한 번 깜빡인다.
-if (import.meta.env.DEV) {
+// 서버 없이 띄우는 시연판 — 가짜 응답과 가짜 로그인을 세운 «뒤에» 렌더한다(먼저 렌더하면 첫 요청이 서버로 나간다).
+// ★ 산출 시점에 굳는 값이라 시연판이 아닌 빌드에서는 이 분기가 통째로 지워진다(아래 개발 대역과 같은 관례).
+if (import.meta.env.VITE_DEMO_STANDALONE === 'true') {
+  void import('./demo/installDemo')
+    .then((demo) => {
+      demo.installDemo();
+      mount();
+    })
+    .catch(() => {
+      mount();
+    });
+} else if (import.meta.env.DEV) {
   void import('./features/auth/devHostStub')
     .then(async (devHost) => {
       // 이동이 시작됐으면 문서가 곧 교체된다 — 렌더하지 않는다.

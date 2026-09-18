@@ -1,0 +1,23 @@
+# 넷리파이 — 저작도구 포털판을 서버 없이 띄우는 시연판
+# 화면은 frontend 폴더에서 빌드하고(가짜 응답·가짜 로그인 포함), 그 결과(dist)를 그대로 내보낸다.
+
+[build]
+  base = "frontend"
+  command = "npm run build:demo"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# 사이트 맨 앞은 내 작업 화면으로
+[[redirects]]
+  from = "/"
+  to = "/workspace/authoring/portal"
+  status = 302
+  force = true
+
+# 화면 주소는 전부 앱이 받는다 — 새로고침하거나 주소를 바로 열어도 404 가 나지 않게
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

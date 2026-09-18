@@ -21,6 +21,8 @@ interface ImportMetaEnv {
   // `lib/buildChannel`의 `BuildChannel`이며 여기서는 참조만 한다(사본을 두면 두 번째 진실원이 된다).
   // 미설정 시 `DEFAULT_BUILD_CHANNEL`('control')로 해석된다 — 지금 동작(자체 셸 포함 독립 앱) 유지.
   readonly VITE_BUILD_CHANNEL?: import('./lib/buildChannel').BuildChannel;
+  /** 'true' 면 서버 없이 띄우는 시연판 — 가짜 응답·가짜 로그인을 세운다(`demo/installDemo`) */
+  readonly VITE_DEMO_STANDALONE?: string;
 }
 
 interface ImportMeta {

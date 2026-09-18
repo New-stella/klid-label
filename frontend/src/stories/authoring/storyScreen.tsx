@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MockAdapter from 'axios-mock-adapter';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
+import { type ApiMocks, fail } from '@/demo/mockReply';
 import { ToastProvider } from '@/components/common/ToastProvider';
 import { apiClient } from '@/lib/api/client';
 import { PORTAL_MOUNT_BASENAME } from '@/lib/remoteMount';
@@ -19,35 +20,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * 포털 스토리북(6008)이 이 스토리를 포털 카드 안 iframe 으로 불러온다.
  */
 
-/** 가짜 응답 설정 — 화면이 부르는 주소마다 응답을 건다(주소는 `/api/v1` 뒤 경로). */
-export type ApiMocks = (mock: MockAdapter) => void;
-
-/** 서버 봉투 그대로 — 요청 도구가 `data` 만 꺼내 화면에 준다 */
-export const ok = (data: unknown): [number, unknown] => [
-  200,
-  { success: true, data, message: null, errorCode: null },
-];
-
-/** 실패 응답 — 화면은 서버가 준 문구를 안내에 쓰기도 한다 */
-export const fail = (
-  status = 500,
-  message: string | null = null,
-  errorCode = 'INTERNAL_ERROR',
-): [number, unknown] => [status, { success: false, data: null, message, errorCode }];
-
-/** 끝나지 않는 응답 — 불러오는 중 · 보내는 중 · 받는 중 상태를 멈춰 세운다 */
-export const pending = (): Promise<never> => new Promise<never>(() => undefined);
-
-/** 쪽 응답 */
-export function pageOf<T>(content: T[], total = content.length, size = 20) {
-  return {
-    content,
-    totalElements: total,
-    totalPages: Math.max(1, Math.ceil(total / size)),
-    number: 0,
-    size,
-  };
-}
+/** 가짜 응답 도우미는 시연판과 같이 쓴다 — 응답 모양의 정본은 `demo/mockReply` */
+export { type ApiMocks, fail, ok, pageOf, pending } from '@/demo/mockReply';
 
 /** 스토리의 로그인 — 포털 사용자 홍길동 (개발용 로그인 화면의 기본값과 같다) */
 const STORY_CLAIMS: TokenClaims = {

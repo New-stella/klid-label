@@ -3,9 +3,20 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type MockAdapter from 'axios-mock-adapter';
 import { userEvent, waitFor, within } from 'storybook/test';
 
-import { PortalUploadStatus, PortalUploadType, type PortalUpload } from '@/features/portal/uploads/types';
+import type { PortalUpload } from '@/features/portal/uploads/types';
+import {
+  FAILED,
+  PICKED_NAME,
+  PICKED_SIZE,
+  PROCESSING,
+  READY,
+  UPLOADED,
+  UPLOADS,
+  목록응답,
+  올리기,
+} from '@/demo/screens/uploads';
 
-import { fail, ok, pageOf, pending, 화면 } from './storyScreen';
+import { fail, ok, pending, 화면 } from './storyScreen';
 
 /* 저작도구 · 내 업로드. 상태 이름은 포털 스토리북(6008) 「워크스페이스 / 저작도구 / 내 업로드」와 같다 */
 const meta: Meta = {
@@ -17,83 +28,9 @@ type Story = StoryObj;
 
 const 주소 = '/portal/uploads';
 
-const KB = 1024;
-const MB = KB * 1024;
-const GB = MB * 1024;
-
-/** 준비 완료 — 마킹을 마쳐 프레임 23장을 뽑은 영상 */
-const READY: PortalUpload = {
-  uldSn: 4,
-  uldTypeCd: PortalUploadType.VIDEO,
-  orgnlFileNm: '실종자추적_v0.7_20260910.mp4',
-  fileSz: Math.round(31.4 * MB),
-  mimeTypeNm: 'video/mp4',
-  uldSttsCd: PortalUploadStatus.READY,
-  frmeCnt: 23,
-  frmeSn: 41,
-  failRsnCn: null,
-  regDt: '2026-09-11T10:49:00',
-  expiresAt: '2026-09-18T10:49:00',
-};
-
-/** 고른 영상 — 아직 올리기 전 */
-const PICKED_NAME = 'M-02_v0.8_20260910.mp4';
-const PICKED_SIZE = 224 * KB;
-
-/** 골라 둔 그 영상을 다 올린 뒤의 한 건 — 마킹 전이라 뽑힌 프레임이 없다 */
-const UPLOADED: PortalUpload = {
-  uldSn: 5,
-  uldTypeCd: PortalUploadType.VIDEO,
-  orgnlFileNm: PICKED_NAME,
-  fileSz: PICKED_SIZE,
-  mimeTypeNm: 'video/mp4',
-  uldSttsCd: PortalUploadStatus.UPLOADED,
-  frmeCnt: null,
-  frmeSn: null,
-  failRsnCn: null,
-  regDt: '2026-09-11T11:17:00',
-  expiresAt: '2026-09-18T11:17:00',
-};
-
-/** 마킹을 마쳐 프레임을 뽑는 중 — 이때만 만료일이 없다 */
-const PROCESSING: PortalUpload = {
-  uldSn: 3,
-  uldTypeCd: PortalUploadType.VIDEO,
-  orgnlFileNm: '침수도로_야간_v0.3_20260908.mp4',
-  fileSz: Math.round(48.2 * MB),
-  mimeTypeNm: 'video/mp4',
-  uldSttsCd: PortalUploadStatus.PROCESSING,
-  frmeCnt: null,
-  frmeSn: null,
-  failRsnCn: null,
-  regDt: '2026-09-10T16:20:00',
-  expiresAt: null,
-};
-
-/** 뽑다가 실패 — 서버가 사유를 주지 않아 화면의 기본 문구가 선다 */
-const FAILED: PortalUpload = {
-  uldSn: 2,
-  uldTypeCd: PortalUploadType.VIDEO,
-  orgnlFileNm: '산불연기_v0.1_20260905.mp4',
-  fileSz: Math.round(1.24 * GB),
-  mimeTypeNm: 'video/mp4',
-  uldSttsCd: PortalUploadStatus.FAILED,
-  frmeCnt: null,
-  frmeSn: null,
-  failRsnCn: null,
-  regDt: '2026-09-09T09:41:00',
-  expiresAt: '2026-09-16T09:41:00',
-};
-
-/** 기본 목록 — 다 올린 영상이 맨 위 「마킹 대기」 */
-const UPLOADS = [UPLOADED, READY];
 
 /** 화면 조각을 처음 불러오는 데 1초를 넘기기도 한다 — 누르기 전에 넉넉히 기다린다 */
 const 화면_기다림 = 10_000;
-
-/** 목록 응답 — 줄이 없는 쪽만 다른 응답을 건다 */
-const 목록응답 = (mock: MockAdapter, uploads: PortalUpload[], total = uploads.length) =>
-  mock.onGet('/portal/uploads').reply(200, ok(pageOf(uploads, total))[1]);
 
 const 목록 = (uploads: PortalUpload[], more?: (mock: MockAdapter) => void, total?: number) =>
   화면(주소, (mock) => {
@@ -103,22 +40,6 @@ const 목록 = (uploads: PortalUpload[], more?: (mock: MockAdapter) => void, tot
 
 /* ── 올리기 ──────────────────────────────────────────────────────────────── */
 
-const TUS = '/portal/uploads/tus';
-const TUS_SESSION = /\/portal\/uploads\/tus\/.+/;
-/** 끊기거나 멈춘 자리 — 224 KB 가운데 62% */
-const SENT = Math.round(PICKED_SIZE * 0.62);
-
-/** 세션을 만들고, 첫 조각은 62% 까지 받았다고 답한다. 그다음 조각의 결말만 스토리가 정한다 */
-function 올리기(mock: MockAdapter, 다음조각: '멈춤' | '끊김' | '끝') {
-  mock.onPost(TUS).reply(201, '', { location: `/api/v1${TUS}/story-upload` });
-  if (다음조각 === '끝') {
-    mock.onPatch(TUS_SESSION).reply(204, '', { 'upload-offset': String(PICKED_SIZE) });
-    return;
-  }
-  mock.onPatch(TUS_SESSION).replyOnce(204, '', { 'upload-offset': String(SENT) });
-  if (다음조각 === '멈춤') mock.onPatch(TUS_SESSION).reply(() => pending());
-  else mock.onPatch(TUS_SESSION).networkError();
-}
 
 /** 업로드 칸에 영상을 넣는다 (파일선택 창에서 고른 것과 같다) */
 async function 영상을_고른다(canvasElement: HTMLElement) {
